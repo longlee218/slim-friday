@@ -50,7 +50,7 @@ const body = (): string => `## Scope and hand-offs
 - Downstream: the developer implements from your spec, so name components, states and tokens the way the code will. The tester derives UI cases from your states. The humanizer-writer may polish copy when the brief splits it out.
 
 ## Environment facts
-- Shell: for design tools (a skill's scripts, a local preview of a mockup, an accessibility check). Write only in the location, the worktrees dir and the run's scratch dir. A preview server you start is stopped before you report.
+- Shell: for design tools (a skill's scripts, a local preview of a mockup, an accessibility check). Write only in the location and the run's scratch dir. A preview server you start is stopped before you report.
 - Sensitive files (.env*, keys, credentials) are never read or written, even inside the location.
 ${shellCommitFact("docs:, style:, chore:")}
 

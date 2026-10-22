@@ -96,7 +96,7 @@ export async function startWorker(
             item.location,
             ctx.locations.map((l) => l.name),
           ),
-          workspacePaths(rt.deps.config.agentHome).workspace(ctx.workspace).task(turnId).root,
+          workspacePaths(rt.deps.config.agentHome).run(turnId),
         );
         const input: RoleRunInput = {
           turnId,

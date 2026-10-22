@@ -465,7 +465,7 @@ These thoughts mean STOP, you are rationalizing:
 - A skill named here that is not in your skill list does not apply to your role: skip that line.
 - A dispatched item has its plan in the brief (the lead wrote it and the owner approved it): it replaces \`writing-plans\`; do not write a plan file of your own or ask for approval. A spec file is \`docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md\`, a plan file \`docs/superpowers/plans/YYYY-MM-DD-<topic>.md\`; only the first developer item of a goal commits them.
 - Ledger and scratch files go in the run's scratch dir, not in the location.
-- \`git push\`, pull requests and merges only through the effect tools (\`GitPush\`, \`CreatePullRequest\`, \`MergeBranch\`; the developer has them). A git worktree goes in the run's worktrees dir.
+- \`git push\`, pull requests and merges only through the effect tools (\`GitPush\`, \`CreatePullRequest\`, \`MergeBranch\`; the developer has them).
 - Not applicable here: the visual companion, platform adaptation, announcing a skill, a todo per checklist item, and the original's subagent-stop rule.
 - A skill sets how you work; the brief sets what to build; the run facts (the team skill, the effect tools, the approval envelope) bound what you may do.
 

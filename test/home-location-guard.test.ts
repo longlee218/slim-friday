@@ -78,12 +78,11 @@ for (const role of ["developer", "lead"] as const) {
 
 test("dev: agent home unwritable (the shell is bounded by the sandbox), own dirs granted", () => {
   expect(decide("developer", "Write", { file_path: join(agentHome, "data", "x") })).toBe("deny");
-  // The run's scratch and worktrees dir (under AGENT_HOME) stay writable.
-  expect(decide("developer", "Write", { file_path: join(ws.task("t1").root, "plan.md") })).toBe(
-    "allow",
-  );
+  // The run's scratch dir (under AGENT_HOME) stays writable.
   expect(
-    decide("developer", "Write", { file_path: join(ws.worktrees, "my-computer", "a.ts") }),
+    decide("developer", "Write", {
+      file_path: join(workspacePaths(agentHome).run("t1"), "plan.md"),
+    }),
   ).toBe("allow");
 });
 

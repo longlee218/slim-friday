@@ -59,13 +59,7 @@ test("dev: follow-up, memory contract, shell git and delivery by the agent", () 
   expect(text).toContain("merge, push or PR only after the owner chose it");
   // The shell is not filtered: no prompt claims it is (tool descriptions and the shell rules say so).
   expect(text).not.toMatch(/denied in the shell|blocked in the shell/);
-  expect(text).not.toContain("git worktree add"); // the worktree line appears only when the run names a dir
-  expect(systemPromptText(buildSystemPrompt("", dev, { worktreesDir: "/w/api" }))).toContain(
-    "If you use a git worktree, put it under /w/api/:",
-  );
-  expect(systemPromptText(buildSystemPrompt("", lead, { worktreesDir: "/w/api" }))).not.toContain(
-    "/w/api",
-  );
+  expect(text).not.toContain("git worktree add"); // runs work in the location's checkout: no worktree line
 });
 
 test("context goes after the rules with a blank line; empty context gives rules only", () => {

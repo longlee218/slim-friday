@@ -64,9 +64,8 @@ test("code task (a dispatched worker) runs in default mode, never bypass, in the
   expect(opts.tools).toContain(WRITE_TOOL_NAME);
   expect(opts.allowedTools).toBeUndefined(); // would bypass canUseTool
   expect(opts.cwd).toBe(realpathSync(location));
-  const ws = join(realpathSync(env.home), "workspaces", "main");
-  expect(opts.additionalDirectories[0]).toContain(join(ws, "tasks"));
-  expect(opts.additionalDirectories[1]).toBe(join(ws, "worktrees"));
+  expect(opts.additionalDirectories[0]).toContain(join(realpathSync(env.home), "runs"));
+  expect(opts.additionalDirectories).toHaveLength(1); // only the task scratch dir
   expect(opts.canUseTool).toBeFunction();
   expect(opts.systemPrompt.append).toContain("The brief is the approved plan");
   // The run keeps its session on the task row, never in the thread's session table.

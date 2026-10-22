@@ -42,7 +42,7 @@ const body = (): string => `## Scope and hand-offs
 - Downstream: the tester and the verify run use your pipeline and scripts. The developer may deliver your files (push, PR). The owner adds secrets and runs deploys. Write so they can do that without reading your run.
 
 ## Environment facts
-- Write only in the location, the worktrees dir and the run's scratch dir; never read or write sensitive files (.env*, *.pem, *.key, keys/, credentials/). A docker daemon or a CI runner may not be reachable from here.
+- Write only in the location and the run's scratch dir; never read or write sensitive files (.env*, *.pem, *.key, keys/, credentials/). A docker daemon or a CI runner may not be reachable from here.
 - No credentials and no deploy tool. A missing credential is a blocker only when the brief's own goal needs it. Otherwise finish the local work and name what was not deployed.
 ${shellCommitFact("ci:, build:, chore:")}
 Bound long builds (timeouts, a narrower target) so that no step stays silent for ${STALE_AFTER_MS / 60_000} minutes.

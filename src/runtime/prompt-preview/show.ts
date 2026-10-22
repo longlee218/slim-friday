@@ -1,5 +1,3 @@
-import { join } from "node:path";
-import { workspacePaths } from "../../config/workspace-paths";
 import type { Location } from "../../locations/location-registry";
 import type { RunCtx } from "../../mcp/manifest-types";
 import { getRole } from "../../roles/role-registry";
@@ -50,9 +48,6 @@ function channelLocations(home: string, workspace?: string, channel?: string): L
 /** Markdown of the system prompt layers (and tools, skills) of each role, behind a summary table when several. */
 export function renderPromptShow(o: ShowOptions): string {
   const locations = channelLocations(o.agentHome, o.workspace, o.channel);
-  const worktreesDir = o.workspace
-    ? workspacePaths(o.agentHome).workspace(o.workspace).worktrees
-    : join(o.agentHome, "workspaces", "<workspace>", "worktrees");
   const sections: string[] = [];
   const stats: RoleStats[] = [];
   for (const name of o.roles) {
@@ -64,7 +59,6 @@ export function renderPromptShow(o: ShowOptions): string {
         workspace: o.workspace,
         channel: o.channel,
         locations,
-        worktreesDir,
       }),
       skills: o.skills ? listedSkills(role, o.agentHome, o.workspace) : [],
       tools: toolDefinitions(role, o.ctx),

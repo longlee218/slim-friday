@@ -46,7 +46,7 @@ Discord message
 Worker run (detached; survives the owner message; `Report` action tool)
  ├─ Report progress → heartbeat (percent, note)
  ├─ Report blocker → item held, lead woken now; the owner's reply to its ask_owner resumes it
- └─ Report result → result artifact (workspaces/<ws>/channels/<channel>/artifacts/<title>.md) + thread_events row
+ └─ Report result → result artifact (<location>/docs/friday/ or artifacts/<ws>/<channel>/) + thread_events row
     → announce (2 s quiet window) → lead run reads the events → lead tells the owner
 ```
 - Slash commands (the only command form): `/stop`, `/status`, `/purge`, `/limits [role]`, `/plan [history]` (owner, ephemeral; see [Plan view](#plan-view-plan-revision-line-plan-artifact)), `/find <keywords>`, `/init-workspace <name>`, `/init-channel <space>/<name>`.
@@ -308,7 +308,7 @@ Five layers. Each is a separate check; a call must pass every layer that applies
 
 | # | Layer | Applies to | Code | Decides |
 |---|---|---|---|---|
-| 1 | Deny list | every run | `src/policy/check-tool-call.ts`, `deny-dangerous.ts`, `paths.ts`, `protected-paths.ts`, `worktree-path.ts` | allow / ask / deny for the file tools, EnterWorktree, MCP tools and the shell capability; hard denies are never approvable |
+| 1 | Deny list | every run | `src/policy/check-tool-call.ts`, `deny-dangerous.ts`, `paths.ts`, `protected-paths.ts` | allow / ask / deny for the file tools, EnterWorktree, MCP tools and the shell capability; hard denies are never approvable |
 | 2 | Envelope | worker runs | `src/policy/envelope.ts`, `load-envelope.ts`, `check-envelope.ts`, `classify-tool-call.ts` | risk class, locations, bounds, granted effects; missing or corrupt grant = no grant (fail closed) |
 | 3 | Effect tools | developer R2/R3 work | `src/mcp/effects/`, `src/orchestrator/effects/` | delete, push, PR and merge go only through the tool, which writes one `effect_log` row |
 | 4 | OS sandbox | worker Bash | `src/runtime/worker-sandbox.ts` (SDK `sandbox`) | the shell boundary: writes only inside grants (`denyWrite` on the cwd of a run without a write grant); network open (owner decision; residual: exfiltration of readable data, shell `git push`); AGENT_HOME and credential dirs unreadable; `failIfUnavailable`; `allowUnsandboxedCommands: false`. Live-probed 2026-10-16 (direct SDK calls); the full bot path is not exercised |
@@ -336,7 +336,7 @@ Five layers. Each is a separate check; a call must pass every layer that applies
 ### Deny list (layer 1)
 - Tools: Bash and Monitor for a role without `shell`; unknown MCP tools; write tools of read-only roles.
 - Shell: Bash and Monitor with a command are allowed for a role with `shell`, whatever the line (empty command: denied). A Monitor WebSocket asks.
-- EnterWorktree (`worktree-path.ts`): only an existing worktree under the worktrees dir.
+- EnterWorktree: always denied (runs work in the location's own checkout; no worktrees dir).
 - Writes (`deny-dangerous.ts`): only inside the run's write paths. Reads outside the read paths, secret file names, AGENT_HOME and a Glob/Grep root above AGENT_HOME (`protected-paths.ts`) are denied.
 - Bash never asks. Unknown tools ask. `TaskStop` asks (it cannot tell its own tasks from foreign ones).
 
@@ -363,7 +363,7 @@ Five layers. Each is a separate check; a call must pass every layer that applies
 - No real Claude credential: the run falls back to `default` (fail closed). The SDK reporting another mode than requested makes asks owner asks.
 
 ### Scopes (per run, `src/orchestrator/run/role-scope.ts`)
-- Write-capable (developer): the run's location, all of the space's locations, the worktrees dir and the task scratch dir.
+- Write-capable (developer): the run's location, all of the space's locations and the task scratch dir.
 - Roles with no write capability (scout, lead): read paths only (cwd, locations, attachments); no write path. A scout still produces artifacts: the artifact tool writes them in code (app-owned store), like the lead's memory tool.
 - AGENT_HOME is denied to every run, read and write, even when a location contains it.
 - Checked by Read, Glob, Grep, Edit, Write, NotebookEdit and by path words in Bash. Accepted gaps: `GIT_DIR`, `env -C`, shell variables, scripts, glob symlinks.
@@ -408,14 +408,14 @@ Five layers. Each is a separate check; a call must pass every layer that applies
 | `artifacts` | `artifacts.ts` | one row per artifact: workspace, channel, title, `name`, `kind`, `origin` (`store` file or `repo` reference), path, `version`; goal, task and thread ids are lookup columns only |
 | `artifacts_fts` | `0003_artifacts_fts.sql` | FTS5 index of text artifacts (`md`, `txt`, `csv`; chunks of 2000 chars; accents folded like memory) |
 
-- Artifacts (`src/artifacts/`, `storage/artifact-store.ts`): owned by the workspace channel, not the goal. `writeArtifact` writes `channels/<channel>/artifacts/<title-slug>[-vN].<ext>` (workspace-level `artifacts/` when the run has no channel; no workspace = no write), redacted, atomic (`safe-write.ts`: the dir's real path must be inside AGENT_HOME, so a symlinked parent is refused before any mkdir, and the dir itself may not be a symlink), no size cap. The same name in a channel gives `-v2`; older files stay and `ReadArtifact` reads any version by id, but `ListArtifacts` and `SearchArtifacts` return only the latest version of each name (the result carries `version`). `registerRepoArtifact` references a file of a granted location (never copied): real path inside the location, symlink escape and sensitive files (`isSensitivePath`) refused. `searchArtifacts` is scoped to the run's workspace (and channel). `html` and `diff` are stored, not indexed.
+- Artifacts (`src/artifacts/`, `storage/artifact-store.ts`): owned by the workspace channel, not the goal. `writeArtifact` writes `artifacts/<ws>/<channel>/<title-slug>[-vN].<ext>` under AGENT_HOME (`artifacts/<ws>/` when the run has no channel; files from before 2026-10-23 stay in `workspaces/<ws>/channels/<channel>/artifacts/`, rows keep their paths; no workspace = no write), redacted, atomic (`safe-write.ts`: the dir's real path must be inside its root, so a symlinked parent is refused before any mkdir, and the dir itself may not be a symlink), no size cap. A worker run with a project location (its granted location, else the channel's only location; never a `$HOME` location) writes into `<location>/docs/friday/` instead (2026-10-23, `artifacts/repo-docs.ts`; not committed); the row stays `store` with `location` set, and every read (tool, viewer) checks the file is inside that location's `docs/friday`. The lead and runs with no single location keep the AGENT_HOME store. A task that saved one name several times counts only its newest version (`taskStoreArtifacts`): `forward verbatim` posts it once. The same name in a channel gives `-v2`; older files stay and `ReadArtifact` reads any version by id, but `ListArtifacts` and `SearchArtifacts` return only the latest version of each name (the result carries `version`). `registerRepoArtifact` references a file of a granted location (never copied): real path inside the location, symlink escape and sensitive files (`isSensitivePath`) refused. `searchArtifacts` is scoped to the run's workspace (and channel). `html` and `diff` are stored, not indexed.
 - Viewer (`src/viewer/`, `config/viewer-config.ts`, not verified live): a read-only `Bun.serve` on `127.0.0.1:<VIEWER_PORT>` behind a Cloudflare Tunnel, started with the bot and stopped on shutdown; OFF unless `VIEWER_SECRET` and `VIEWER_BASE_URL` are set. One route, `GET /a/<artifactId>?e=<expiry epoch s>&s=<HMAC-SHA256(secret, id|e)>`: no path in the URL, constant-time compare, expired, forged, unknown, deleted, non-GET and every other path answer the same 404 ("Not found"). Every response: `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex`, nosniff, no framing. `md` renders through `markdown-it` (`src/viewer/markdown-render.ts`; `html: false` escapes all raw HTML, links http(s)/mailto/anchor only, images only inline `data:` raster, others become alt text, GFM tables in a scroll wrapper, task lists as disabled checkboxes, fenced code highlighted server side by `highlight.js` core with a small language set, ASCII heading ids + TOC) in a documentation layout (`page-doc-layout.ts`, `page-doc-styles.ts`: top bar with title and kind, sticky outline sidebar from h1-h3 that becomes a drawer on phones, `#` heading permalinks, reading-width content, light/dark, no external asset). The md page carries ONE static first-party script (`page-doc-script.ts`: drawer toggle, scrollspy, copy buttons, back-to-top; no artifact text in it) allowed by CSP `script-src 'sha256-<hash of the script>'` only, never `unsafe-inline`; the other kinds keep a no-script policy; `html` runs in (the artifact's own doctype stays first, our CSP meta and script go right after it / inside `<html>`/`<head>`; no doctype = we prepend `<!DOCTYPE html>`; so the frame is never in quirks mode: `inject-head.ts`) `<iframe sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox" srcdoc>` (never `allow-same-origin`; one static script (`frame-link-script.ts`) scrolls `#` links in place, because a srcdoc `#x` link would navigate the frame to the unframeable viewer URL, and opens http(s) links in a new tab; the inner CSP `default-src 'none'; style-src/script-src 'unsafe-inline'; img-src data:` has no `connect-src`, so it cannot call out; a srcdoc frame inherits the wrapper's policy, so the wrapper header carries the same plus `frame-src 'self'`); `diff`, `csv`, `txt` are an escaped `<pre>`. A `repo` artifact re-runs the path check on every read (relative, real path inside the location, not AGENT_HOME, not sensitive, a file). `Orchestrate forward verbatim` posts a non-md file (html) under its real file name and adds an "Open" link button (fresh signed link, `lead-io.ts` -> `ReportLink`) when the viewer is on. Revoke: delete the artifact row (404); no command.
 
 - Turn status values are declared in `src/storage/schema/turns.ts`.
 
 ### Logs and files
 - `$AGENT_HOME/logs/app.<date>.<n>.jsonl`: all app events, owner-only, 14 days.
-- `$AGENT_HOME/logs/tasks/<taskId>.jsonl`: SDK messages of one run; deleted at startup after the retention in [limits](limits-and-stop-conditions.md).
+- `$AGENT_HOME/logs/tasks/<taskId>.jsonl`: SDK messages of one run; deleted at start and every 6 h after the retention in [limits](limits-and-stop-conditions.md) (`lifecycle/home-retention-sweeper.ts`).
 - Tool events: `tool.start`, `tool.done`, `tool.denied`. Result text is never logged, only sizes.
 - Message text and file content are never logged. Lead and task events carry ids, role names, reason codes and counts.
 
@@ -457,19 +457,18 @@ $AGENT_HOME/                       real directory outside every location and git
 ├── AGENTS.md IDENTITY.md SOUL.md USER.md MEMORY.md BOOTSTRAP.md
 ├── discord.yaml                   ops channel ids and control channels
 ├── data/agent.db                  SQLite (WAL)
-├── logs/app.*.jsonl, logs/tasks/<taskId>.jsonl
+├── logs/app.*.jsonl (14 d), logs/tasks/<taskId>.jsonl (10 d)
+├── runs/<turnId>/                 per-task scratch (3 d after the last write; home retention sweeper)
+├── artifacts/<ws>/[<ch>/]         store artifacts of runs with no project location (older files stay under channels/<ch>/artifacts/)
 ├── tmp/                           skill plugins, attachment copies, control scratch (swept at startup)
 ├── trash/<goalId>/                DeletePaths trash, 7 days
 ├── backups/persona/               backups of persona files written by WriteSpaceFile (newest 10 per file)
 ├── backups/memory/<ws>/channels/<ch>/   MEMORY.md-<stamp> before each dream write (newest 20), MEMORY.edit.md-<stamp> before each MemoryEdit (newest 20)
-└── workspaces/<ws>/
+└── workspaces/<ws>/               config and memory only
     ├── workspace.yaml             description, channels, locations, projectsDir (workspace and per channel), skills.extra
-    ├── channels/<name>/           MEMORY.md (channel memory); memory/<date>.md (channel journal, 30 d); optional persona overrides; artifacts/<title>[-vN].<ext>
-    ├── artifacts/                 artifacts of runs with no mapped channel
+    ├── channels/<name>/           MEMORY.md (channel memory); memory/<date>.md (channel journal, 30 d); optional persona overrides
     ├── skills/                    owner-curated skills
     ├── cwd/                       neutral cwd of runs without a location
-    ├── tasks/<taskId>/scratch/    per-task scratch
-    ├── worktrees/                 git worktrees a developer run may create
     └── locations/                 legacy dir (no memory in it; the checkout is at the location's `path`)
 ```
 - `GIT_AUTHOR` is accepted and ignored: the agent uses the owner's git config.

@@ -66,17 +66,14 @@ const root = tmpRoot("round3-");
 const loc = join(root, "loc");
 const home = join(root, "home");
 const scratch = join(home, "scratch");
-const wt = join(root, "wt");
-for (const d of [join(loc, GIT), join(loc, "sub", "inner", GIT), join(wt, "feat"), scratch])
+for (const d of [join(loc, GIT), join(loc, "sub", "inner", GIT), scratch])
   mkdirSync(d, { recursive: true });
-writeFileSync(join(wt, "feat", GIT), "gitdir: x"); // the gitfile of a worktree
 const ctx: GuardrailContext = {
   cwd: loc,
   writePaths: [loc, scratch],
   readPaths: [loc, scratch],
   denyPaths: [home],
   allowInside: [scratch],
-  worktreeDirs: [wt],
   shell: true,
   subagents: false,
   envelope: defaultEnvelope("g", ["loc"], scratch),
@@ -88,7 +85,7 @@ test("sandbox: network open (wildcard allowedDomains), writes only in the grants
     allowedDomains: ["*"],
     allowLocalBinding: true,
   });
-  expect(sb.filesystem.allowWrite).toEqual(expect.arrayContaining([loc, scratch, wt]));
+  expect(sb.filesystem.allowWrite).toEqual(expect.arrayContaining([loc, scratch]));
   expect(sb.filesystem.denyWrite).toBeUndefined(); // inside a grant the worker writes everything, `.git` included
   expect(sb.filesystem.denyRead).toEqual(
     expect.arrayContaining([home, join(homedir(), ".ssh"), join(homedir(), ".aws")]),
@@ -96,7 +93,7 @@ test("sandbox: network open (wildcard allowedDomains), writes only in the grants
 });
 
 test("sandbox: a run with no write grant covering its cwd (the scout) gets an explicit denyWrite on the cwd", () => {
-  const sb = workerSandbox({ ...ctx, cwd: loc, writePaths: [], worktreeDirs: [] }) as {
+  const sb = workerSandbox({ ...ctx, cwd: loc, writePaths: [] }) as {
     filesystem: any;
   };
   expect(sb.filesystem.denyWrite).toEqual([realpathSync(loc)]);

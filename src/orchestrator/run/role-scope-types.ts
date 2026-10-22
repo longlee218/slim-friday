@@ -7,7 +7,7 @@ import type { GuardScope } from "../../policy/check-tool-call";
 export interface RoleScope {
   /** Working dir of the run (real path for a writing role). */
   cwd: string;
-  /** Extra dirs the agent may use: the other locations, the thread's attachment copy, scratch and worktrees dirs of a writing role. */
+  /** Extra dirs the agent may use: the other locations, the thread's attachment copy, the scratch dir of a writing role. */
   additionalDirectories: string[];
   /** Locations the run is about: the pinned one, else every location it sees. */
   scope: Location[];
@@ -15,6 +15,4 @@ export interface RoleScope {
   sessionId?: string;
   /** Path rules of the guard. */
   guard: GuardScope;
-  /** Writing role: where the agent may put a git worktree for the location it runs in. */
-  worktreesDir?: string;
 }

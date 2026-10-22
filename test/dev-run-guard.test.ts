@@ -53,17 +53,13 @@ async function runExec() {
   return { env, clone: realpathSync(clone), exec: seen[0] };
 }
 
-test("the dev run works in the location's own checkout: cwd = location path, scratch + worktrees dir readable, no clone made", async () => {
+test("the dev run works in the location's own checkout: cwd = location path, scratch dir readable, no clone made", async () => {
   const { env, clone, exec } = await runExec();
-  const ws = workspacePaths(env.home).workspace("main");
   expect(exec.cwd).toBe(clone);
   const taskId = (
     env.db.query("SELECT id FROM turns WHERE role = 'developer'").get() as { id: string }
   ).id;
-  expect(exec.additionalDirectories).toEqual([
-    realpathSync(ws.task(taskId).root),
-    realpathSync(ws.worktrees),
-  ]);
+  expect(exec.additionalDirectories).toEqual([realpathSync(workspacePaths(env.home).run(taskId))]);
   // No plan file: the location is on the turn row, named by the run's final `location:` line.
   expect(env.db.query("SELECT location FROM turns WHERE role = 'developer'").get()).toEqual({
     location: "real",
@@ -84,19 +80,22 @@ test("dev: only the app's MCP servers; a worker's env keeps no owner secret (the
   expect(exec.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB).toBe("1");
 });
 
-test("dev guard: writes in the location (.github and the git dir too), the worktrees dir, scratch and the SDK plans dir; nothing else", async () => {
+test("dev guard: writes in the location (.github and the git dir too), scratch and the SDK plans dir; nothing else", async () => {
   const { env, clone, exec } = await runExec();
   const ws = workspacePaths(env.home).workspace("main");
   const write = async (file_path: string) =>
     (await exec.canUseTool("Write", { file_path, content: "x" }, {})).behavior;
-  mkdirSync(ws.worktrees, { recursive: true });
+  mkdirSync(join(ws.root, "worktrees"), { recursive: true });
   expect(await write(join(clone, "src", "a.ts"))).toBe("allow");
   expect(await write(join(clone, ".github", "workflows", "ci.yml"))).toBe("allow");
   // The location is trusted: its git dir is writable like the rest of it (hooks, config, info).
   expect(await write(join(clone, ".git", "info", "exclude"))).toBe("allow");
   expect(await write(join(clone, ".git", "hooks", "pre-commit"))).toBe("allow");
-  expect(await write(join(realpathSync(ws.worktrees), "real", "wt", "a.ts"))).toBe("allow");
+  // No worktrees dir: a write under the workspace's old worktrees dir is outside every grant.
+  expect(await write(join(realpathSync(ws.root), "worktrees", "real", "a.ts"))).toBe("deny");
   expect(await write(join(env.home, "outside.txt"))).toBe("deny");
+  // Runs work in the location's checkout: EnterWorktree is denied whatever the path.
+  expect((await exec.canUseTool("EnterWorktree", { path: clone }, {})).behavior).toBe("deny");
   expect(await write("/etc/friday-x")).toBe("deny");
 });
 
@@ -108,11 +107,9 @@ test("dev guard: Bash passes the guard (not parsed); the OS sandbox bounds it", 
   expect(await bash("")).toBe("deny"); // an empty command is never a call
 });
 
-test("dev prompt: the one worktree line names <workspace worktrees dir>/<location>/", async () => {
-  const { env, exec } = await runExec();
-  const ws = workspacePaths(env.home).workspace("main");
-  const line = `If you use a git worktree, put it under ${join(realpathSync(ws.worktrees), "real")}/:`;
-  expect(exec.systemPrompt.append).toContain(line);
+test("dev prompt: no worktree line; delivery waits for the owner's choice", async () => {
+  const { exec } = await runExec();
+  expect(exec.systemPrompt.append).not.toContain("git worktree");
   expect(exec.systemPrompt.append).toContain("merge, push or PR only after the owner chose it");
 });
 

@@ -1,9 +1,6 @@
-import type { PromptCtx, RoleDefinition } from "../roles/role-types";
+import type { RoleDefinition } from "../roles/role-types";
 import { preloadedSkillsText } from "./skills-plugin/preload-skills";
 import { requiredSkillsText } from "./skills-plugin/required-skills";
-
-/** Options of the prompt builder (the run-time facts a role words its prompt with). */
-export type PromptOpts = PromptCtx;
 
 /**
  * Safety rules of every mode, stated once. Who the agent is and how it speaks live in the persona
@@ -22,12 +19,8 @@ export type SystemPrompt = string | { type: "preset"; preset: "claude_code"; app
  * only its billing header and one identity line; tools and the environment block stay), a `claude_code` role appends it
  * to the preset. The host (platform, shell, OS) comes from the SDK's own environment block, so no host line is added.
  */
-export function buildSystemPrompt(
-  context: string,
-  role: RoleDefinition,
-  opts: PromptOpts = {},
-): SystemPrompt {
-  const base = [...role.promptSections(opts), COMMON].filter(Boolean).join("\n");
+export function buildSystemPrompt(context: string, role: RoleDefinition): SystemPrompt {
+  const base = [...role.promptSections(), COMMON].filter(Boolean).join("\n");
   const skills = [preloadedSkillsText(role.preloadSkills), requiredSkillsText(role.requiredSkills)]
     .filter(Boolean)
     .join("\n\n");

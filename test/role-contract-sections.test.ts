@@ -15,9 +15,8 @@ const TEAM_SKILL_TEXT = readFileSync(
   "utf8",
 );
 
-/** The joined contract of a role as a run sends it (with a worktrees dir, so the developer's longest form is measured). */
-const contract = (name: string): string =>
-  ROLES[name]?.promptSections({ worktreesDir: "/w/worktrees" }).join("\n") ?? "";
+/** The joined contract of a role as a run sends it. */
+const contract = (name: string): string => ROLES[name]?.promptSections().join("\n") ?? "";
 
 /** Task workers: the developer, the roster, the scout and the researcher. */
 const TASK_WORKERS = [

@@ -14,12 +14,6 @@ export type Capability =
   | "feedback" // SendFeedback: sends a report to Anthropic, always owner-approved
   | "ask"; // AskUserQuestion: answered by the owner through Discord buttons
 
-/** Run-time facts a role needs to word its prompt. */
-export interface PromptCtx {
-  /** Where the agent puts a git worktree it creates (`<workspace worktrees dir>/<location>`); omitted = no line. */
-  worktreesDir?: string;
-}
-
 /**
  * Skills of a role: bare names of installed skills (`.agents/skills/<name>`, pinned by the skills lock); exactly those
  * load (a name not installed is skipped). `[]` = none of them (the workspace's curated skills still load). Widening or
@@ -108,5 +102,5 @@ export interface RoleDefinition {
    */
   binaries?: string[];
   /** Prompt sections between the run contract start and the COMMON safety rules. */
-  promptSections: (ctx: PromptCtx) => string[];
+  promptSections: () => string[];
 }

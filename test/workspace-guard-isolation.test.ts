@@ -16,12 +16,12 @@ import { resultMsg, TEST_CHANNEL, twoWorkspaces } from "./helpers";
 import { devLeadQuery, workersDone } from "./lead-harness";
 
 /** Isolation cases: a w1 run (real guard, fake query) must be denied every reach into w2 or the home data. */
-test("w1 run cannot reach w2 clone, w2 worktree, git path, symlink escape or agent.db", async () => {
+test("w1 run cannot reach w2 clone, w2 scratch, git path, symlink escape or agent.db", async () => {
   const { env, a, b } = twoWorkspaces();
   writeFileSync(join(b, "secret.txt"), "W2_SECRET");
   writeFileSync(join(a, "own.txt"), "mine");
   symlinkSync(join(b, "secret.txt"), join(a, "link.txt")); // symlink inside w1's location into w2
-  const w2wt = join(workspacePaths(env.home).workspace("w2").worktrees, "api", "t1");
+  const w2wt = workspacePaths(env.home).run("t1");
   mkdirSync(w2wt, { recursive: true });
   type Can = (t: string, i: Record<string, unknown>, o: unknown) => Promise<{ behavior: string }>;
   let can: Can | undefined;
@@ -47,8 +47,8 @@ test("w1 run cannot reach w2 clone, w2 worktree, git path, symlink escape or age
   });
   await workersDone(env.db);
   const qa = can!;
-  // Exec-stage guard of a w1 task: it may write only its own worktree.
-  const w1wt = join(workspacePaths(env.home).workspace("w1").worktrees, "api", "t0");
+  // Exec-stage guard of a w1 task: it may write only its own scratch dir.
+  const w1wt = workspacePaths(env.home).run("t0");
   mkdirSync(w1wt, { recursive: true });
   const exec = buildToolPermissions({
     turnId: "t",
@@ -63,7 +63,7 @@ test("w1 run cannot reach w2 clone, w2 worktree, git path, symlink escape or age
     ["Read via symlink", () => qa(READ_TOOL_NAME, { file_path: join(a, "link.txt") }, {})],
     ["Read agent.db", () => qa(READ_TOOL_NAME, { file_path: db }, {})],
     [
-      "Write w2 worktree",
+      "Write w2 scratch",
       () => exec(WRITE_TOOL_NAME, { file_path: join(w2wt, "f.txt"), content: "x" }, {}),
     ],
   ];

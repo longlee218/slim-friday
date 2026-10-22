@@ -3,7 +3,7 @@ import { METHOD_SKILL } from "../src/roles/builtin/specialist-contract";
 import { ROLES } from "../src/roles/role-registry";
 
 /** The sections of a role's contract as a run sends them. */
-const contract = (name: string) => ROLES[name]?.promptSections({} as never).join("\n") ?? "";
+const contract = (name: string) => ROLES[name]?.promptSections().join("\n") ?? "";
 
 /** The part of the Method line every worker contract shares; no skill name in it. */
 const METHOD = "- Method: the skills listed for this run are how you work. Before you ";

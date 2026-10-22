@@ -24,7 +24,7 @@ test("paths derive from AGENT_HOME and task id", () => {
   expect(p.workspaces).toBe("/h/workspaces");
 });
 
-test("workspace layout: workspaces/<ws>/{workspace.yaml,channels/<name>/MEMORY.md,cwd,tasks}", () => {
+test("workspace layout: workspaces/<ws>/{workspace.yaml,channels/<name>/MEMORY.md,cwd}; runs/<id>, artifacts/<ws>/<ch>", () => {
   const ws = workspacePaths("/h").workspace("shop");
   expect(ws.root).toBe("/h/workspaces/shop");
   expect(ws.config).toBe("/h/workspaces/shop/workspace.yaml");
@@ -32,11 +32,11 @@ test("workspace layout: workspaces/<ws>/{workspace.yaml,channels/<name>/MEMORY.m
   expect(ws).not.toHaveProperty("memory");
   expect(ws.channel("ops").memory).toBe("/h/workspaces/shop/channels/ops/MEMORY.md");
   expect(ws.cwd).toBe("/h/workspaces/shop/cwd");
-  expect(ws.tasks).toBe("/h/workspaces/shop/tasks");
-  expect(ws.task("T1")).toEqual({
-    root: "/h/workspaces/shop/tasks/T1",
-    scratch: "/h/workspaces/shop/tasks/T1/scratch",
-  });
+  expect(ws).not.toHaveProperty("tasks");
+  // Run data and store artifacts live outside the workspace dir (config and memory only).
+  expect(workspacePaths("/h").run("T1")).toBe("/h/runs/T1");
+  expect(ws.artifacts).toBe("/h/artifacts/shop");
+  expect(ws.channel("ops").artifacts).toBe("/h/artifacts/shop/ops");
   expect(ws.locations).toBe("/h/workspaces/shop/locations");
   expect(ws).not.toHaveProperty("location");
 });

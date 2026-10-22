@@ -17,10 +17,9 @@ const root = tmpRoot("round4-");
 const loc = join(root, "loc");
 const home = join(root, "home");
 const scratch = join(home, "scratch");
-const wt = join(root, "wt");
 const out = join(root, "outside");
 const skill = join(root, "skill");
-for (const d of [join(loc, GIT), join(loc, "src"), home, scratch, wt, out, skill])
+for (const d of [join(loc, GIT), join(loc, "src"), home, scratch, out, skill])
   mkdirSync(d, { recursive: true });
 writeFileSync(join(out, "secret.txt"), "s");
 writeFileSync(join(loc, "a.txt"), "x");
@@ -37,7 +36,6 @@ const mk = (classes: string[] = ["R0", "R1"], extra: Partial<GuardrailContext> =
     denyPaths: [home],
     allowInside: [scratch, skill],
     skillDirs: [skill],
-    worktreeDirs: [wt],
     shell: true,
     subagents: false,
     envelope: { ...defaultEnvelope("g", ["loc"], scratch), classes },

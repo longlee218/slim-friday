@@ -45,3 +45,9 @@ export const ZOMBIE_CLAIM_NOTICE_MS = 30 * 60_000;
 
 /** Finished history older than this (days) is deleted from the db: ended runs, delivered events, effect log, closed goals. */
 export const DB_RETENTION_DAYS = 10;
+
+/** App log files (`logs/app.<day>.<n>.jsonl`) older than this (days, by last write) are deleted; an empty rolled file goes after one day. */
+export const APP_LOG_RETENTION_DAYS = 14;
+
+/** A task's run dir (`runs/<turnId>/`, its scratch) with no write for this long (days) is deleted; per-task logs follow `DB_RETENTION_DAYS`. */
+export const RUN_DIR_RETENTION_DAYS = 3;

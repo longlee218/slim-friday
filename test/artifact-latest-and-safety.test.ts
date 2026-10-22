@@ -74,6 +74,21 @@ test("list and search show only the latest version of a name; ReadArtifact still
   expect(old.text).toContain("old text");
 });
 
+test("a task that saved the same name twice lists only the newest version (verbatim forward posts it once)", () => {
+  const env = makeEnv();
+  const taskId = "task-1";
+  // v1 is the larger file: without the version filter it would be the primary and post first.
+  writeArtifact(env.db, env.home, { ...base, taskId, title: "Import guide", body: "a long draft" });
+  const v2 = writeArtifact(env.db, env.home, {
+    ...base,
+    taskId,
+    title: "Import guide",
+    body: "final",
+  });
+  const other = writeArtifact(env.db, env.home, { ...base, taskId, title: "Sample", body: "s" });
+  expect(taskStoreArtifacts(env.db, taskId).map((a) => a.id)).toEqual([v2.id, other.id]);
+});
+
 test("a run that saved no file writes no artifact: its report is text on the task row; a later saved file is the primary", () => {
   const env = makeEnv();
   const { db, home } = env;
@@ -108,14 +123,13 @@ test("a run that saved no file writes no artifact: its report is text on the tas
   expect(db.query("SELECT COUNT(*) AS n FROM artifacts").get()).toEqual({ n: 1 });
 });
 
-test("a symlinked parent dir (channels, the workspace dir) that leads outside AGENT_HOME is refused", () => {
+test("a symlinked parent dir (artifacts/<ws>, artifacts) that leads outside AGENT_HOME is refused", () => {
   const env = makeEnv();
   const outside = outsideDir();
   const ws = workspacePaths(env.home).workspace("main");
-  // `channels` -> outside the home (the final artifacts dir does not exist yet, so only the parent is a symlink).
-  rmSync(join(env.home, "workspaces", "main", "channels"), { recursive: true, force: true });
-  mkdirSync(join(env.home, "workspaces", "main"), { recursive: true });
-  symlinkSync(outside, join(env.home, "workspaces", "main", "channels"));
+  // `artifacts/main` -> outside the home (the final channel dir does not exist yet, so only the parent is a symlink).
+  mkdirSync(join(env.home, "artifacts"), { recursive: true });
+  symlinkSync(outside, join(env.home, "artifacts", "main"));
   expect(() => writeArtifact(env.db, env.home, { ...base, title: "T", body: "b" })).toThrow(
     /outside AGENT_HOME/,
   );
@@ -124,9 +138,7 @@ test("a symlinked parent dir (channels, the workspace dir) that leads outside AG
 
   const env2 = makeEnv();
   const out2 = outsideDir();
-  rmSync(join(env2.home, "workspaces", "main"), { recursive: true, force: true });
-  mkdirSync(join(env2.home, "workspaces"), { recursive: true });
-  symlinkSync(out2, join(env2.home, "workspaces", "main"));
+  symlinkSync(out2, join(env2.home, "artifacts"));
   expect(() => writeArtifact(env2.db, env2.home, { ...base, title: "T", body: "b" })).toThrow(
     /outside AGENT_HOME/,
   );

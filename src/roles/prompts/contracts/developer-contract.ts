@@ -99,17 +99,11 @@ export const COMMIT_RULES = `## Commits
 /** Facts of the developer's environment, from its role data. */
 export interface DeveloperEnvFacts {
   subagentsParallel: number;
-  /** The workspace worktrees dir, when the run has one. */
-  worktreesDir?: string;
 }
 
-/** The checked effect tools, worktrees and subagents. */
+/** The checked effect tools and subagents. */
 export const developerEnvironment = (f: DeveloperEnvFacts): string => `## Environment facts
-- Delete, push, merge and PR go through their tools (${DELETE_PATHS_TOOL}, ${GIT_PUSH_TOOL}, ${MERGE_BRANCH_TOOL}, ${CREATE_PULL_REQUEST_TOOL}), each only for the goal's grants. The app does not filter them in the shell; the tools are the checked path.${
-  f.worktreesDir
-    ? `\n- If you use a git worktree, put it under ${f.worktreesDir}/: \`git worktree add ${f.worktreesDir}/<name> <existing-branch>\` (or -b <new> ${f.worktreesDir}/<name> <base>); \`git worktree list\` lists them.`
-    : ""
-}
+- Delete, push, merge and PR go through their tools (${DELETE_PATHS_TOOL}, ${GIT_PUSH_TOOL}, ${MERGE_BRANCH_TOOL}, ${CREATE_PULL_REQUEST_TOOL}), each only for the goal's grants. The app does not filter them in the shell; the tools are the checked path.
 - Subagents: up to ${f.subagentsParallel} in parallel (${AGENT_TOOL_NAME}) for independent read, write or shell work. A subagent has files, shell and skills only: it cannot ask, report or deliver; you do that, and you check its work before claiming it.
 The owner can steer a running developer: a new message reaches the run while it works.`;
 

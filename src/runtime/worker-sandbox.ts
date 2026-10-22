@@ -42,7 +42,7 @@ export function carve(root: string, blocked: string[], depth = 0): string[] {
 
 /**
  * The sandbox settings of a run: only a run WITH an envelope (a worker) gets one.
- * - Writes: only the run's write dirs, worktrees and goal dir, and everything inside them.
+ * - Writes: only the run's write dirs and goal dir, and everything inside them.
  * - Reads: DENY BY DEFAULT for the owner's home (and `/Users`); the run's granted dirs, the toolchain dirs and git's global config
  *   are allowed back (an allow rule beats a deny rule, so a granted home is listed child by child around the agent home). A
  *   credential dir is denied only when no granted dir covers it: the location wins.
@@ -52,9 +52,7 @@ export function carve(root: string, blocked: string[], depth = 0): string[] {
 export function workerSandbox(guard: GuardrailContext | undefined): Options["sandbox"] | undefined {
   const env = guard?.envelope;
   if (!guard || !env) return undefined;
-  const allowWrite = [
-    ...new Set([...(guard.writePaths ?? []), ...(guard.worktreeDirs ?? []), env.goalDir]),
-  ];
+  const allowWrite = [...new Set([...(guard.writePaths ?? []), env.goalDir])];
   const home = realOrSame(homedir());
   const homes = [...new Set([homedir(), home])];
   const grants = [...allowWrite, ...(guard.readPaths ?? []), ...(guard.cwd ? [guard.cwd] : [])].map(
@@ -83,7 +81,7 @@ export function workerSandbox(guard: GuardrailContext | undefined): Options["san
   // `sensitive` also goes to denyWrite: the cwd is always writable for the SDK, so the carve of allowWrite alone would not cover it.
   const denyCwd = cwd && !writeGrants.some((w) => isInside(w, cwd)) ? [cwd] : [];
   // A write grant that contains the agent home (a `$HOME` location) must not reach it: deny it entry by entry, around the run's
-  // own write dirs that sit inside it (scratch, worktrees, goal dir).
+  // own write dirs that sit inside it (scratch, goal dir).
   const denyAgentHome = agentHome
     .filter((a) => writeGrants.some((w) => isInside(w, a)))
     .flatMap((a) =>

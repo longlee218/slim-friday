@@ -1,5 +1,4 @@
 import { existsSync, mkdirSync, realpathSync } from "node:fs";
-import { join } from "node:path";
 import type { AgentConfig } from "../../config/agent-config";
 import { workspacePaths } from "../../config/workspace-paths";
 import { isInside, realOrSame } from "../../policy/paths";
@@ -21,14 +20,9 @@ function grantedUnderHome(
   // Only this run's locations inside `<home>/projects` (never the whole dir: a run must not read other projects).
   const root = realOrSame(projects);
   const ownProjects = runLocations.map(realOrSame).filter((p) => p !== root && isInside(root, p));
-  return [
-    dirs.cwd,
-    dirs.worktrees,
-    dirs.locations,
-    attached,
-    ...(scratch ? [scratch] : []),
-    ...ownProjects,
-  ].map(realOrSame);
+  return [dirs.cwd, dirs.locations, attached, ...(scratch ? [scratch] : []), ...ownProjects].map(
+    realOrSame,
+  );
 }
 
 /**
@@ -37,7 +31,7 @@ function grantedUnderHome(
  * location, else the sole location, else the first registry location (the rest are `additionalDirectories`); a non-worker role keeps the thread's stored cwd when it
  * is still valid, else the pinned location, the sole location, or the neutral workspace dir over several locations. Claude sessions
  * are keyed by cwd, so a session is resumed only when its cwd is the run's.
- * A role with the `write` capability may write in every location of the workspace, the worktrees dir, the task scratch
+ * A role with the `write` capability may write in every location of the workspace, the task scratch
  * dir and the SDK plans dir; any other role may read only the registered locations (+ the workspace dirs).
  * Throws when a dir of a writing role is gone (the caller turns it into a failed result).
  */
@@ -100,32 +94,19 @@ export function roleScope(config: AgentConfig, i: RoleRunInput, role: RoleDefini
       },
     };
   }
-  const scratch = dirs.task(i.turnId).root;
+  const scratch = workspacePaths(config.agentHome).run(i.turnId);
   mkdirSync(scratch, { recursive: true, mode: 0o700 });
-  mkdirSync(dirs.worktrees, { recursive: true, mode: 0o700 });
-  const real = {
-    cwd: realpathSync(cwd),
-    scratch: realpathSync(scratch),
-    worktrees: realpathSync(dirs.worktrees),
-  };
-  const locationName = locations.find((r) => realOrSame(r.path) === real.cwd)?.name;
+  const real = { cwd: realpathSync(cwd), scratch: realpathSync(scratch) };
   return {
     cwd: real.cwd,
-    additionalDirectories: [...others, real.scratch, real.worktrees],
+    additionalDirectories: [...others, real.scratch],
     scope,
     sessionId,
-    worktreesDir: locationName ? join(real.worktrees, locationName) : undefined,
     guard: {
       cwd: real.cwd,
       writePaths: [
-        ...new Set([
-          real.cwd,
-          ...locations.map((r) => realOrSame(r.path)),
-          real.worktrees,
-          real.scratch,
-        ]),
+        ...new Set([real.cwd, ...locations.map((r) => realOrSame(r.path)), real.scratch]),
       ],
-      worktreeDirs: [real.worktrees],
       denyPaths: [realOrSame(config.agentHome)],
       allowInside: grantedUnderHome(
         dirs,

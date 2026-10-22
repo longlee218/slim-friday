@@ -109,8 +109,8 @@ export const DEVELOPER_ROLE: RoleDefinition = {
   model: SONNET_MODEL,
   budgetUsd: BUDGET_USD,
   // Prompt order: role, Mission, Method; the shared worker block; scope to collaboration; asking; standards; commits;
-  // environment (with the worktree line when the run has a worktrees dir); stop rules.
-  promptSections: (ctx) => [
+  // environment; stop rules.
+  promptSections: () => [
     [
       DEVELOPER,
       workerTeamFacts(developerOwnerContact(MAX_ASK)),
@@ -118,10 +118,7 @@ export const DEVELOPER_ROLE: RoleDefinition = {
       askRules(MAX_ASK),
       CODE_STANDARDS,
       COMMIT_RULES,
-      developerEnvironment({
-        subagentsParallel: SUBAGENTS.parallel,
-        worktreesDir: ctx.worktreesDir,
-      }),
+      developerEnvironment({ subagentsParallel: SUBAGENTS.parallel }),
       DEVELOPER_STOP_RULES,
     ].join("\n\n"),
   ],

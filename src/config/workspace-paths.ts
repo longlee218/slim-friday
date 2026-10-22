@@ -31,11 +31,14 @@ export function workspacePaths(agentHome: string) {
       join(agentHome, "backups", "memory", ws, "channels", channel),
     /** Default home of NEW projects made from chat (no path, no `projectsDir`): `<home>/projects/<slug>`. Only a project inside it is exempt from the AGENT_HOME deny (never the dir itself). */
     projects: join(agentHome, "projects"),
-    /** Workspaces: each holds channels (`workspaces/<ws>/channels/<name>/`) and the locations named in its yaml. */
+    /** Run data of one task (`runs/<turnId>/`): the scratch dir the run may write to; swept `RUN_DIR_RETENTION_DAYS` after its last write. */
+    run: (turnId: string) => join(agentHome, "runs", turnId),
+    /** Root of the per-task run dirs (swept by the home retention sweeper). */
+    runs: join(agentHome, "runs"),
+    /** Workspaces: CONFIG and MEMORY only; each holds channels (`workspaces/<ws>/channels/<name>/`) and the locations named in its yaml. */
     workspaces: join(agentHome, "workspaces"),
     workspace: (name: string) => {
       const root = join(agentHome, "workspaces", name);
-      const tasks = join(root, "tasks");
       const locations = join(root, "locations");
       return {
         root,
@@ -48,24 +51,16 @@ export function workspacePaths(agentHome: string) {
         /** Owner-curated skills (`skills/<name>/SKILL.md`): the only skills any run of this workspace gets. */
         skills: join(root, "skills"),
         /** Artifacts of a run with no mapped channel (the channel level is `channel(name).artifacts`). */
-        artifacts: join(root, "artifacts"),
+        artifacts: join(agentHome, "artifacts", name),
         /** Working dir of runs that are not bound to one location. */
         cwd: join(root, "cwd"),
-        tasks,
-        /** Where worktrees may be created: the guard only lets `git worktree add` / EnterWorktree name a path inside it. */
-        worktrees: join(root, "worktrees"),
-        /** One task's dir: a scratch dir the run may write to. */
-        task: (id: string) => {
-          const troot = join(tasks, id);
-          return { root: troot, scratch: join(troot, "scratch") };
-        },
         /** Legacy `locations/` dir: holds no memory any more, still created and granted to runs as before. */
         locations,
         /** Channels dir: `channels/<name>/` holds the channel's own memory and optional persona files. */
         channels: join(root, "channels"),
         /** Per-channel dir `channels/<name>/` (name = `CHANNEL_NAME`, the yaml key; never the Discord channel name). */
-        channel: (name: string) => {
-          const croot = join(root, "channels", name);
+        channel: (channelName: string) => {
+          const croot = join(root, "channels", channelName);
           return {
             root: croot,
             /** Channel memory: the one agent memory (lead writes, lead and workers read). */
@@ -75,8 +70,8 @@ export function workspacePaths(agentHome: string) {
             identity: join(croot, "IDENTITY.md"),
             soul: join(croot, "SOUL.md"),
             user: join(croot, "USER.md"),
-            /** Titled documents of the channel (`<llm-title>[-vN].<ext>`), owner-only (0700 dir, 0600 files). */
-            artifacts: join(croot, "artifacts"),
+            /** Titled documents of the channel (`<llm-title>[-vN].<ext>`), owner-only (0700 dir, 0600 files): `artifacts/<ws>/<channel>/` (older files stay in `channels/<channel>/artifacts/`, rows keep their paths). */
+            artifacts: join(agentHome, "artifacts", name, channelName),
             /** Journal dir: one `YYYY-MM-DD.md` day file per day (flush and run notes of this channel; never injected). */
             journalDir: join(croot, "memory"),
             journal: (date: string) => join(croot, "memory", `${date}.md`),

@@ -149,14 +149,10 @@ test("guardFor: one builder per role, auto-allowed tools from the catalog", () =
   expect(qa.allowTools).toEqual([...autoAllowedTools(qaRole), ...mcpToolNamesOfRole(qaRole)]);
   expect(qa.writePaths).toBeUndefined(); // a read-only role writes nothing
   const exec = guardFor(dev, {
-    writePaths: ["/location", "/ws/worktrees"],
+    writePaths: ["/location", "/ws/scratch"],
     readPaths: ["/location"],
-    worktreeDirs: ["/ws/worktrees"],
   });
-  expect(exec).toMatchObject({
-    writePaths: ["/location", "/ws/worktrees"],
-    worktreeDirs: ["/ws/worktrees"],
-  });
+  expect(exec).toMatchObject({ writePaths: ["/location", "/ws/scratch"] });
   // dev lists its MCP tools in its data (Report result, effects, memory): allowed next to the auto tools
   expect(exec.allowTools).toEqual([...autoAllowedTools(dev), ...mcpToolNamesOfRole(dev)]);
 });
@@ -196,7 +192,7 @@ test("secret-file deny rules are part of disallowedTools", () => {
 });
 
 test("every declared SDK tool name belongs to exactly one capability (a new constant cannot be forgotten)", () => {
-  // Names that are not capability tools: EnterWorktree (never offered; the guard only checks it), Monitor (no role
+  // Names that are not capability tools: EnterWorktree (never offered; the guard denies it), Monitor (no role
   // gets it: its processes were not probed inside the OS sandbox; the guard asks for it) and SandboxNetworkAccess (a
   // permission request of the sandbox, not a tool).
   const aliases = new Set<string>([

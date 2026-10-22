@@ -53,9 +53,7 @@ test("the lead's system prompt length equals what a run assembles", () => {
     s: { scope: [] } as unknown as RoleScope,
     role,
   });
-  const runtime = systemPromptText(
-    buildSystemPrompt(blocks.filter(Boolean).join("\n\n"), role, { worktreesDir: undefined }),
-  );
+  const runtime = systemPromptText(buildSystemPrompt(blocks.filter(Boolean).join("\n\n"), role));
   const md = show(["lead"]);
   expect(md).toContain(`| system prompt (layers + separators) | ${runtime.length} |`);
   expect(md).toContain(runtime.slice(0, 80));

@@ -327,6 +327,7 @@ Informational.
 | Episodes (`thread_summaries`) | `EPISODE_TTL_DAYS` = 90 days since the last update; pruned at start and every `PRUNE_INTERVAL_MS` | `memory/memory-prune.ts` |
 | Memory audit (`memory_audit`: one row per `MemorySave` / `MemoryEdit`, hash only) | forever (owner: no limit, no prune) | `storage/memory-audit-store.ts` |
 | Finished db history: ended turns with their runs, tool calls and approvals (a turn of a still-open item is kept); delivered `thread_events`; `effect_log`; closed goals with no open item, with their items, plans and item questions | `DB_RETENTION_DAYS` = 10 days <!-- limit:DB_RETENTION_DAYS=10 -->; swept at start and every 6 h | `config/resilience-caps.ts`, `storage/db-retention-store.ts`, `lifecycle/db-retention-sweeper.ts` |
+| AGENT_HOME files (2026-10-23): per-task logs `logs/tasks/*.jsonl`; app logs `logs/app.*.jsonl`; run dirs `runs/<turnId>/` (and the old `workspaces/<ws>/tasks/<id>/`) | task logs: `DB_RETENTION_DAYS` = 10 days by last write; app logs: `APP_LOG_RETENTION_DAYS` = 14 days <!-- limit:APP_LOG_RETENTION_DAYS=14 -->, an empty rolled file after 1 day; run dirs: `RUN_DIR_RETENTION_DAYS` = 3 days <!-- limit:RUN_DIR_RETENTION_DAYS=3 --> since the last write in the dir; empty `worktrees/` dirs and the planner-era `goals/` are removed; swept at start and every 6 h | `config/resilience-caps.ts`, `lifecycle/home-retention-sweeper.ts` |
 | Other database rows (threads, sessions, artifacts) | forever | see Not now |
 
 ## Not Now

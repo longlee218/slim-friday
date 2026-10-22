@@ -34,7 +34,6 @@ const ctx: GuardrailContext = {
   writePaths: [loc, scratch],
   denyPaths: [home],
   allowInside: [scratch],
-  worktreeDirs: [],
   shell: true,
   subagents: false,
   envelope: defaultEnvelope("g", ["loc"], scratch),

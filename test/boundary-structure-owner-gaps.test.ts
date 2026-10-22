@@ -56,7 +56,7 @@ test("table rows: the lead has the control tools; there is no planner role", () 
 });
 
 test("contract text: the lead writes the plan; a PLAN goal's items change only through create_plan / revise_plan", async () => {
-  const lead = (await LEAD_ROLE.promptSections?.({} as never))?.join("\n") ?? "";
+  const lead = (await LEAD_ROLE.promptSections?.())?.join("\n") ?? "";
   expect(lead).toContain(
     "PLAN goals: you write the plan (create_plan, revise_plan); add or update on its items is refused",
   );

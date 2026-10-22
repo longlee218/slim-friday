@@ -66,7 +66,7 @@ test("no channel: workspace-level artifacts dir; no title: the fallback name", (
     body: "x",
     fallbackName: "result-main",
   });
-  expect(path).toBe(join(home, "workspaces", "main", "artifacts", "result-main.txt"));
+  expect(path).toBe(join(home, "artifacts", "main", "result-main.txt"));
 });
 
 test("a symlinked artifacts dir is refused; a planted symlink at the target is replaced", () => {

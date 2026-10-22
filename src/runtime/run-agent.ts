@@ -49,8 +49,6 @@ export interface RunAgentInput {
   role: RoleDefinition;
   /** Permission layer of the run (gateway, ask limit). Omitted = a run without a gateway (ask = deny). */
   code?: Omit<ToolPermissionInput, "turnId" | "guard">;
-  /** Where the agent may put a git worktree (`<workspace worktrees dir>/<location>`). */
-  worktreesDir?: string;
   /** Workspace whose curated skills dir the run may use, via an app-owned plugin copy. */
   skillsWorkspace?: string;
   /** Context of the memory tools and `Orchestrate set_title`; omitted = no memory tools. */

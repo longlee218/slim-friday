@@ -30,7 +30,6 @@ import { autoAllowedTools, subagentToolsFor, toolsFor } from "../tools/tool-cata
 import { checkFileRead, checkFileWrite } from "./deny-dangerous";
 import type { DispatchEnvelope } from "./envelope";
 import { envelopeGate } from "./envelope-guard";
-import { checkWorktreePath } from "./worktree-path";
 
 /** Outcome of a guardrail check. `deny` is never approvable; `ask` needs the owner. */
 export type Decision = {
@@ -46,17 +45,15 @@ export type LoggedDecision = { decision: Decision["decision"] | "auto" | "bypass
 
 /** Per-task settings for guardrail checks. */
 export interface GuardrailContext {
-  /** Real path of the run's working dir: a relative EnterWorktree / search path resolves against it. */
+  /** Real path of the run's working dir: a relative search path resolves against it. */
   cwd?: string;
-  /** Real dirs where writes are allowed (the workspace's locations, worktrees dir, scratch, plans dir). */
+  /** Real dirs where writes are allowed (the workspace's locations, scratch, plans dir). */
   writePaths?: string[];
   /** Real dirs Read/Glob/Grep may touch (scratch, plans dir, registered locations). Omitted = no limit. */
   readPaths?: string[];
-  /** Real dirs where EnterWorktree may put a worktree (`workspace(ws).worktrees`). Omitted = none allowed. */
-  worktreeDirs?: string[];
   /** Real dirs no tool may touch, read or write (AGENT_HOME), even inside a registered location. Omitted = none. */
   denyPaths?: string[];
-  /** Real dirs under `denyPaths` that stay usable: the run's own scratch, worktrees, `cwd/`, attachments, skill dirs. */
+  /** Real dirs under `denyPaths` that stay usable: the run's own scratch, `cwd/`, attachments, skill dirs. */
   allowInside?: string[];
   /** Real dirs of the run's skill plugins (read-only, under the agent home): the sandbox lets a shell read them. Omitted = none. */
   skillDirs?: string[];
@@ -133,9 +130,9 @@ function checkBase(
     return { decision: "deny", reason: "no subagents in this role" };
   if (WRITE_TOOLS.has(toolName)) return checkFileWrite(toolName, input, ctx.writePaths ?? [], ctx);
   if (READ_TOOLS.has(toolName)) return checkFileRead(toolName, input, ctx.readPaths, ctx);
-  // EnterWorktree: only an existing worktree under the worktrees dir (`name` would create one in the location's .claude dir).
+  // EnterWorktree: Friday runs work in the location's own checkout, never in a worktree.
   if (toolName === ENTER_WORKTREE_TOOL_NAME)
-    return checkWorktreePath(typeof input.path === "string" ? input.path : undefined, ctx.cwd, ctx);
+    return { decision: "deny", reason: "worktrees are not used: work in the location's checkout" };
   // A role without the shell capability never runs a shell, whatever the SDK offers (second lock behind `tools`).
   if (toolName === BASH_TOOL_NAME && ctx.shell === false)
     return { decision: "deny", reason: "no shell in this role" };

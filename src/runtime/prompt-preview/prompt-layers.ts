@@ -25,8 +25,6 @@ export interface PreviewInput {
   channel?: string;
   /** Locations of the channel (TEAM.md for the lead, registry for a worker). */
   locations?: Location[];
-  /** Worktrees dir a writing role is told about; omitted = no line. */
-  worktreesDir?: string;
 }
 
 /** The assembled prompt of a role: the SDK value, its text and the labeled layers. */
@@ -65,8 +63,7 @@ export function buildPromptPreview(role: RoleDefinition, i: PreviewInput): Promp
     s: { scope: locations } as RoleScope,
     role,
   });
-  const opts = { worktreesDir: i.worktreesDir };
-  const systemPrompt = buildSystemPrompt(blocks.filter(Boolean).join("\n\n"), role, opts);
+  const systemPrompt = buildSystemPrompt(blocks.filter(Boolean).join("\n\n"), role);
   const text = systemPromptText(systemPrompt);
 
   // The pieces the context blocks are made of, rebuilt with the same arguments, to name each block.
@@ -79,8 +76,8 @@ export function buildPromptPreview(role: RoleDefinition, i: PreviewInput): Promp
     ],
     ["memory", workspace && buildMemoryContext(i.agentHome, workspace, i.channel)],
   ];
-  const contract = role.promptSections(opts).join("\n");
-  const rules = systemPromptText(buildSystemPrompt("", role, opts));
+  const contract = role.promptSections().join("\n");
+  const rules = systemPromptText(buildSystemPrompt("", role));
   // The preloaded skill text and the required-skills line are the tail of the rules (after COMMON), so it is cut off to label each layer on its own.
   const skills = preloadedSkillsText(role.preloadSkills);
   const required = requiredSkillsText(role.requiredSkills);

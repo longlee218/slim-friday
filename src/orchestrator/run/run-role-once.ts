@@ -52,7 +52,6 @@ export function agentRunOnce(p: OnceParts) {
       turnId: i.turnId,
       cwd: s.cwd,
       additionalDirectories: s.additionalDirectories,
-      worktreesDir: s.worktreesDir,
       // In-process memory tools (MemorySave, MemorySearch...), scoped to the run's workspace and channel.
       memory:
         i.workspace === undefined
@@ -80,7 +79,7 @@ export function agentRunOnce(p: OnceParts) {
         ...s.guard,
         ...(i.envelope && {
           envelope: i.envelope,
-          // A worker reads only what it was granted (locations, goal dir, worktrees, attachments, skill dirs): never ~/.ssh, ~/.aws ...
+          // A worker reads only what it was granted (locations, goal dir, attachments, skill dirs): never ~/.ssh, ~/.aws ...
           readPaths: s.guard.readPaths ?? [
             ...new Set([...(s.guard.writePaths ?? []), ...(s.guard.allowInside ?? [])]),
           ],

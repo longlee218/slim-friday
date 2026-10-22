@@ -571,7 +571,7 @@ locations:
 
 ### Known limits
 - Two developer tasks in one location share one working tree.
-- Clone directories under `locations/<name>/worktrees/` are never removed by the app. Delete them by hand when sure.
+- Friday has no worktrees dir: a developer works in the location's own checkout (EnterWorktree is denied). An old `workspaces/<ws>/worktrees/` dir is no longer used; delete it by hand when sure.
 
 ## Troubleshooting
 
@@ -603,7 +603,7 @@ locations:
 
 ## Logs
 - App log: `$AGENT_HOME/logs/app.<date>.<n>.jsonl` (daily, 14 days; lines carry `workspace`)
-- Per run: `$AGENT_HOME/logs/tasks/<taskId>.jsonl` (retention not verified)
+- Per run: `$AGENT_HOME/logs/tasks/<taskId>.jsonl` (deleted 10 days after the last write; see [limits](limits-and-stop-conditions.md))
 - Example: `tail -f "$AGENT_HOME"/logs/app.$(date +%F).*.jsonl | jq 'select(.workspace=="<ws>")'`
 
 ## Session persistence

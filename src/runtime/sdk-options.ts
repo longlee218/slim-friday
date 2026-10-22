@@ -161,9 +161,7 @@ export function buildSdkOptions(
     },
     // A dispatched worker's shell runs in an OS sandbox (writes only in its dirs, network open); see worker-sandbox.ts.
     ...(sandbox && { sandbox }),
-    systemPrompt: buildSystemPrompt((input.extraContext ?? []).filter(Boolean).join("\n\n"), role, {
-      worktreesDir: input.worktreesDir,
-    }),
+    systemPrompt: buildSystemPrompt((input.extraContext ?? []).filter(Boolean).join("\n\n"), role),
     hooks: {
       ...mergeHooks(
         buildToolHooks(deps.recorder, hookOptions(perms, config, input, deps.skillsCalled)),

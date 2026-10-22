@@ -30,7 +30,7 @@ export const AGENT_TOOL_NAME = "Agent";
 export const SEND_MESSAGE_TOOL_NAME = "SendMessage";
 /** Lists the agents SendMessage can reach (SDK alias: the old name was `ListPeers`). */
 export const LIST_AGENTS_TOOL_NAME = "ListAgents";
-/** Creates or enters a git worktree; the guard only lets it enter one under the workspace's worktrees dir. */
+/** Creates or enters a git worktree; never offered, the guard denies it (runs work in the location's checkout). */
 export const ENTER_WORKTREE_TOOL_NAME = "EnterWorktree";
 
 /* Progress tracking and tool discovery. */

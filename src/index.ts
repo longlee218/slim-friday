@@ -6,6 +6,7 @@ import { threadLanguage } from "./ingress/thread-language";
 import { createThreadsPort } from "./ingress/threads-port";
 import { type BootState, loadBootState } from "./lifecycle/boot-checks";
 import { startDbRetention } from "./lifecycle/db-retention-sweeper";
+import { startHomeRetention } from "./lifecycle/home-retention-sweeper";
 import { createShutdown } from "./lifecycle/shutdown";
 import { runStartupHygiene } from "./lifecycle/startup";
 import { startTrashSweeper } from "./lifecycle/trash-sweeper";
@@ -79,6 +80,7 @@ async function main(): Promise<void> {
   }
   startTrashSweeper(config.agentHome); // boot sweep + every 6h: trash entries past 7 days go
   startDbRetention(db); // boot sweep + every 6h: finished history past DB_RETENTION_DAYS goes
+  startHomeRetention(config.agentHome); // boot sweep + every 6h: old task logs, app logs and run dirs go
   // Client is created after the handler, so the gateway looks it up lazily.
   let botClient: Client | undefined;
   const approvals = createDiscordApprovalGateway({
