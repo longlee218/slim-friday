@@ -15,11 +15,14 @@ import {
   type AttachmentFacts,
   attachmentBlock,
 } from "../src/ingress/attachment-text";
-import { createMessageHandler, type InboundMessage } from "../src/ingress/discord-message-handler";
-import { routeMessage } from "../src/ingress/discord-message-rules";
 import { stripMarkers } from "../src/ingress/strip-markers";
 import { sdkCompactLlm } from "../src/memory/memory-compaction-llm";
 import { captureLogs } from "../src/observability/logger";
+import {
+  createMessageHandler,
+  type InboundMessage,
+} from "../src/providers/discord/ingress/discord-message-handler";
+import { routeMessage } from "../src/providers/discord/ingress/discord-message-rules";
 import { makeEnv, resultMsg } from "./helpers";
 
 /** Fake fetch: url -> body (or an error / status). */

@@ -2,7 +2,7 @@ import type { Database } from "bun:sqlite";
 import type { AgentConfig } from "../../config/agent-config";
 import type { Route } from "../../config/model-routing";
 import type { RecentMessage } from "../../ingress/intent-types";
-import type { ThreadTitlePort } from "../../ingress/thread-rename";
+import type { ThreadTitlePort } from "../../ingress/thread-title";
 import type { OwnerLanguage } from "../../ingress/user-copy";
 import type { Location } from "../../locations/location-registry";
 import type { AppCtxFactory } from "../../mcp/manifest-types";

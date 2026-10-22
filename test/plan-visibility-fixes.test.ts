@@ -3,7 +3,6 @@ import { afterEach, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { writeArtifact } from "../src/artifacts/artifact-writer";
 import { renderPlanFacts } from "../src/ingress/plan-copy";
-import { createSlashHandler } from "../src/ingress/slash-interaction";
 import { pinThreadLanguage } from "../src/ingress/user-copy";
 import { createPlanPort } from "../src/orchestrator/goal/effect-port-plan";
 import { syncPlanArtifacts } from "../src/orchestrator/plan/plan-artifact";
@@ -11,6 +10,7 @@ import { approveVersion, createPlan, rejectVersion } from "../src/orchestrator/p
 import { diffVersions, isNoop, type RevisionDiff } from "../src/orchestrator/plan/plan-revised";
 import { createPlanLookup } from "../src/orchestrator/turns/plan-live";
 import { digestFacts } from "../src/orchestrator/worker/digest-facts";
+import { createSlashHandler } from "../src/providers/discord/ingress/slash-interaction";
 import { listByGoal } from "../src/storage/artifact-store";
 import { recordBotThread } from "../src/storage/thread-store";
 import { makeEnv, TEST_CHANNEL } from "./helpers";

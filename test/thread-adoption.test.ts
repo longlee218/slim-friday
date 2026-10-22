@@ -1,8 +1,11 @@
 import { expect, test } from "bun:test";
-import { createMessageHandler, type InboundMessage } from "../src/ingress/discord-message-handler";
-import type { ThreadsPort } from "../src/ingress/thread-placement";
-import { placeholderName } from "../src/ingress/thread-placement";
+import type { ThreadsPort } from "../src/ingress/threads-port";
 import { createThreadsPort } from "../src/ingress/threads-port";
+import {
+  createMessageHandler,
+  type InboundMessage,
+} from "../src/providers/discord/ingress/discord-message-handler";
+import { placeholderName } from "../src/providers/discord/ingress/thread-placement";
 import { openDb } from "../src/storage/db";
 import { getThread } from "../src/storage/thread-store";
 

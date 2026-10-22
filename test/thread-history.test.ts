@@ -1,11 +1,11 @@
 import { expect, test } from "bun:test";
+import { cleanRecent } from "../src/ingress/recent-messages";
+import { fetchRecent, type HistoryMessage, toRecent } from "../src/ingress/thread-history";
 import {
   createMessageHandler,
   FETCH_RECENT_TIMEOUT_MS,
   type InboundMessage,
-} from "../src/ingress/discord-message-handler";
-import { cleanRecent } from "../src/ingress/recent-messages";
-import { fetchRecent, type HistoryMessage, toRecent } from "../src/ingress/thread-history";
+} from "../src/providers/discord/ingress/discord-message-handler";
 
 const P = { currentId: "cur", ownerId: "o", botId: "b" };
 const m = (id: string, author: string, content: string, ts: number, files = 0): HistoryMessage => ({
@@ -157,4 +157,21 @@ test("a hanging history fetch times out (empty recent) and a failing one is igno
   expect(hang.ms).toBeLessThan(FETCH_RECENT_TIMEOUT_MS + 1500);
   const bad = await threadRun("do that", () => Promise.reject(new Error("403")));
   expect(bad.messages[0]?.recent).toBeUndefined();
+});
+
+test("toRecent: a components-v2 message (question, approval, report) has no content; its container text displays are the text", () => {
+  const v2: HistoryMessage = {
+    ...m("2", "b", "", 2),
+    components: [
+      {
+        type: 17,
+        components: [
+          { type: 10, content: "Approve the plan?" },
+          { type: 1, components: [{ type: 2, label: "Approve" }] },
+          { type: 9, components: [{ type: 10, content: "details" }] },
+        ],
+      },
+    ],
+  };
+  expect(toRecent([v2], P)).toEqual([{ from: "bot", text: "Approve the plan? details" }]);
 });

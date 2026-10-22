@@ -3,13 +3,13 @@ import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } fro
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
-import { createWorkspaceDir } from "../src/discord-setup/workspace-template";
 import { type LeadPlace, leadCall } from "../src/orchestrator/lead/lead-call";
 import {
   confirmText,
   handleRegisterLocation,
 } from "../src/orchestrator/lead/lead-location-handler";
 import { pathInText } from "../src/orchestrator/lead/owner-path-match";
+import { createWorkspaceDir } from "../src/providers/discord/setup/workspace-template";
 import { inspectLocation } from "../src/workspaces/location-candidate";
 import { assertTempHome } from "./helpers";
 import { FakePort, leadCtx } from "./lead-fake-port";

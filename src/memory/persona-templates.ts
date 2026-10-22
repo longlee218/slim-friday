@@ -2,7 +2,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 /** Dir of the space-kind templates: one folder per kind (`personal`, `company`, `study`...), one file per persona file. */
-const SPACE_KINDS_DIR = join(import.meta.dir, "../discord-setup/templates/space-kinds");
+const SPACE_KINDS_DIR = join(import.meta.dir, "templates/space-kinds");
 
 /** The persona files a space kind ships (a kind has no MEMORY.md: memory is written by the owner and the agent). */
 export const SPACE_KIND_FILES = ["USER.md", "IDENTITY.md", "AGENTS.md", "SOUL.md"] as const;

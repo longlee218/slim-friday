@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createWorkspaceDir } from "../src/discord-setup/workspace-template";
+import { createWorkspaceDir } from "../src/providers/discord/setup/workspace-template";
 import { findSensitiveScan } from "../src/runtime/sensitive-files";
 import { inspectLocation } from "../src/workspaces/location-candidate";
 import { describeDir } from "../src/workspaces/location-description";

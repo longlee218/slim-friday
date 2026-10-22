@@ -37,7 +37,7 @@ bun run bootstrap:discord   # create the ops channels
    - `orchestrator/thread/` never imports `runtime/`.
    - `roles/` never imports `orchestrator/`.
    - Files outside `src/mcp/` import it only through constants, tool names and manifest types (`test/mcp-layering.test.ts`).
-   - `src/orchestrator` has no runtime import cycle and never imports `discord-setup/` (`test/no-import-cycles-orchestrator.test.ts`).
+   - `src/orchestrator` has no runtime import cycle and never imports `providers/discord/setup/` (`test/no-import-cycles-orchestrator.test.ts`).
 9. **Lead policy is code constants and typed actions.** Caps live in `src/config/lead-caps.ts`; dispatch shape rules in `src/orchestrator/strategy/dispatch-policy.ts`. Lead tools are typed actions; their handlers check state, caps and compare-and-set. The lead starts only roles with `dispatchable: true`. Only a `kind: "worker"` role owns tasks.
 10. **Effects go through the effect port.** Each state change of a lead or effect tool is one atomic write (`src/orchestrator/goal/effect-port*.ts`, `effect_log` row). Handlers never write the database directly; tests use the fake port.
 11. **The planner never dispatches.** The `planner` writes a plan, code validates it (`src/orchestrator/plan/validate-plan.ts`), and the owner approves it once through `Orchestrate approve_plan`. The planner is not `dispatchable`.
@@ -93,7 +93,7 @@ Folders under `src/orchestrator/`:
 
 ## File Organization
 - **Naming:** kebab-case `.ts` files. The name states the purpose (`discord-message-handler.ts`, not `message.ts`). Exception: tool folders are PascalCase (see above).
-- **Organize by domain** (`src/<domain>/...`), not by technical layer: `orchestrator/`, `runtime/`, `roles/`, `storage/`, `memory/`, `workspaces/`, `locations/`, `lifecycle/`, `discord-setup/`, `ingress/`, `policy/`, `owner-approval/`, `session/`, `config/`, `tools/`, `tasks/`, `mcp/`, `commands/`, `observability/`.
+- **Organize by domain** (`src/<domain>/...`), not by technical layer: `orchestrator/`, `runtime/`, `roles/`, `storage/`, `memory/`, `workspaces/`, `locations/`, `lifecycle/`, `providers/discord/setup/`, `ingress/`, `policy/`, `owner-approval/`, `session/`, `config/`, `tools/`, `tasks/`, `mcp/`, `commands/`, `observability/`.
 - **Size:** keep files under about 200 lines and split by domain. This is a review rule, not a test. No file in `src/` is longer than 200 lines today (after commit `500325a`).
 
 ## Storage

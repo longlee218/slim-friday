@@ -1,6 +1,6 @@
 import type { OwnerLanguage } from "../i18n/languages";
 import { t } from "../i18n/translate";
-import { CHUNK_MAX } from "./discord-message-rules";
+import { CHUNK_MAX } from "./message-limits";
 
 /* Owner text of `/plan` and `/plan history` (every language of the list), worded by app code from facts the orchestrator collected (no
    model). The facts are already redacted and clipped. */

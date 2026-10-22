@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite";
-import type { ThreadTitlePort } from "../ingress/thread-rename";
+import type { ThreadTitlePort } from "../ingress/thread-title";
 import type { TrustedToolIssueCode } from "../runtime/trusted-tool-issue";
 import type { FlushRequest } from "./compaction-flush";
 /**

@@ -1,16 +1,26 @@
 import { expect, test } from "bun:test";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { CHAT_TOPIC, syncChannelTopics, TASK_TOPIC } from "../src/discord-setup/channel-topic";
-import { createMessageHandler, type InboundMessage } from "../src/ingress/discord-message-handler";
-import { type MessageFacts, routeMessage } from "../src/ingress/discord-message-rules";
-import type { ThreadsPort } from "../src/ingress/thread-placement";
-import { threadFacts } from "../src/ingress/thread-placement";
+import type { ThreadsPort } from "../src/ingress/threads-port";
 import { MEMORY_MCP_SERVER } from "../src/mcp/mcp-tool-names";
 import { DIGEST_HEADING } from "../src/memory/channel-digest";
 import { journalFile } from "../src/memory/daily-journal";
 import { localDay } from "../src/memory/memory-clock";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
+import {
+  createMessageHandler,
+  type InboundMessage,
+} from "../src/providers/discord/ingress/discord-message-handler";
+import {
+  type MessageFacts,
+  routeMessage,
+} from "../src/providers/discord/ingress/discord-message-rules";
+import { threadFacts } from "../src/providers/discord/ingress/thread-placement";
+import {
+  CHAT_TOPIC,
+  syncChannelTopics,
+  TASK_TOPIC,
+} from "../src/providers/discord/setup/channel-topic";
 import { FLUSH_SYSTEM } from "../src/roles/prompts/memory-prompts";
 import { titlePortFor } from "../src/roles/prompts/thread-title-note";
 import { getSession } from "../src/storage/session-store";

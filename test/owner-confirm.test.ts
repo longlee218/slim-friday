@@ -1,13 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import type { Client, Interaction } from "discord.js";
 import { renderUserNotice } from "../src/ingress/user-copy";
-import { createDiscordApprovalGateway } from "../src/owner-approval/discord-approval";
 import {
   OWNER_CONFIRM_APPROVAL,
   ownerConfirm,
   ownerConfirmLabels,
 } from "../src/owner-approval/owner-confirm";
+import { createDiscordApprovalGateway } from "../src/providers/discord/approval/discord-approval";
 import { openDb } from "../src/storage/db";
+import { rowsOf } from "./discord-payload";
 
 const OWNER = "owner1";
 const tick = () => new Promise((r) => setTimeout(r, 5));
@@ -28,7 +29,7 @@ function setup(timeoutMs = 5000) {
     createDiscordApprovalGateway({ getClient: () => client, ownerId: OWNER, db, timeoutMs });
   const gw = make();
   const ids = () =>
-    sent.at(-1).components.flatMap((r: any) => r.toJSON().components.map((c: any) => c.custom_id));
+    rowsOf(sent.at(-1)).flatMap((r: any) => r.components.map((c: any) => c.custom_id));
   const click = (g: typeof gw, customId: string) => {
     const out: any = {};
     const i = {
@@ -68,7 +69,7 @@ describe("owner-confirm gate", () => {
     const s = setup();
     const p = ownerConfirm(s.gw, req());
     await tick();
-    expect(s.sent[0].components[0].toJSON().components.map((c: any) => c.label)).toEqual([
+    expect(rowsOf(s.sent[0])[0].components.map((c: any) => c.label)).toEqual([
       "Yes, go ahead",
       "No",
     ]);

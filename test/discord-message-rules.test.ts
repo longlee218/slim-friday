@@ -12,7 +12,7 @@ import {
   safeLinks,
   splitChunks,
   stripMention,
-} from "../src/ingress/discord-message-rules";
+} from "../src/providers/discord/ingress/discord-message-rules";
 
 const OWNER = "111";
 const BOT = "999";

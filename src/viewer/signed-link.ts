@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { ViewerConfig } from "../config/viewer-config";
-import type { ReportLink } from "../ingress/discord-message-rules";
+import type { ReportLink } from "../ingress/report-links";
 
 /** HMAC-SHA256 (hex) over `<id>|<expiry>`: the signature of one link. */
 function mac(secret: string, id: string, exp: number): string {

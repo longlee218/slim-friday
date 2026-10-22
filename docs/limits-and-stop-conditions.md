@@ -177,7 +177,7 @@ Subagents enabled per role (1 = on, 0 = off; drift-checked, guards "developer an
 | Item age | item | 8 h, see [Workers](#workers) | `config/resilience-caps.ts` | held for the lead | code |
 | `RELAY_WAIT_MS` | item | 2 h <!-- limit:RELAY_WAIT_MS=7200000 --> | `config/run-caps.ts` | a worker's question to the lead or owner times out like an owner timeout; also bounded by item age | code |
 | `ASK_OWNER_TIMEOUT_MS` | run | 10 min <!-- limit:ASK_OWNER_TIMEOUT_MS=600000 --> | `orchestrator/lead/lead-limits.ts` | `Orchestrate ask_owner` returns a timeout | code |
-| Approval click | run | 600 s | `owner-approval/discord-approval.ts` | the tool call is denied (below the 15 min stale threshold, so it is not marked) | code |
+| Approval click | run | 600 s | `providers/discord/approval/discord-approval.ts` | the tool call is denied (below the 15 min stale threshold, so it is not marked) | code |
 | Pending plan | goal | 24 h, see [Plans](#plans) | `config/lead-caps.ts` | plan stops holding the goal | code |
 | Run timeout | run | none | - | `/stop` only | - |
 | `TIMEOUT_MS` | one-shot | env, default 300000 ms | `config/agent-config.ts` | only the deadline of the memory compaction one-shot (`memory-compaction-llm.ts`, min with its own 60 s) | env |
@@ -294,7 +294,7 @@ Files: `config/viewer-config.ts`, `viewer/`. The viewer is OFF unless `VIEWER_SE
 
 ## Discord Output
 
-Informational (files `ingress/discord-message-rules.ts`, `ingress/reply-bubbles.ts`, `ingress/inline-report.ts`, `ingress/attachment-name.ts`). Not scanned by the drift test (no marker).
+Informational (files `providers/discord/ingress/discord-message-rules.ts`, `providers/discord/ingress/reply-bubbles.ts`, `providers/discord/ingress/inline-report.ts`, `ingress/attachment-name.ts`). Not scanned by the drift test (no marker).
 
 | Name | Value | At the limit |
 |---|---|---|
@@ -305,10 +305,10 @@ Informational (files `ingress/discord-message-rules.ts`, `ingress/reply-bubbles.
 | `INLINE_MAX` | 3900 chars | longer reply, code over 10 lines, or text after `---` becomes a file named from its `# <title>` |
 | `TABLE_WRAP_WIDTH` | 80 chars | a table up to this wide is wrapped in a code block; a wider one is left as is |
 | File name | 255 bytes (OS) | title slug refused, name falls back to `reply.<ext>` (never cut) |
-| `REPLY_CAP` | 6000 chars | reply cut with `[output truncated]` (`ingress/discord-message-rules.ts`) |
+| `REPLY_CAP` | 6000 chars | reply cut with `[output truncated]` (`providers/discord/ingress/discord-message-rules.ts`) |
 | Attachments | 2 files, 64 KB per message (`ATTACHMENT_MAX_FILES`, `ATTACHMENT_MAX_BYTES`, `ingress/attachment-text.ts`) | extra files and bytes are skipped with a notice |
 | Typing pause | 0.8-2 s per bubble, 6 s in total | - |
-| Rename timeout | 5 s (`ingress/thread-rename.ts`) | - |
+| Rename timeout | 5 s (`providers/discord/ingress/thread-rename.ts`) | - |
 
 ## Retention
 
@@ -323,7 +323,7 @@ Informational.
 | Attachment copies | 7 days | `ingress/attachment-summary.ts` |
 | Trash (deleted paths) | 7 days; sweep every 6 h | `policy/risk-types.ts`, `lifecycle/trash-sweeper.ts` |
 | Persona backups | newest 10 per file | `WriteSpaceFileTool/constants.ts` |
-| Control session | fresh after 24 h idle | `discord-setup/control-role-run.ts` |
+| Control session | fresh after 24 h idle | `providers/discord/setup/control-role-run.ts` |
 | Memory backups | dream: newest `DREAM_BACKUP_KEEP` = 20 per channel (`MEMORY.md-<stamp>`); `MemoryEdit`: newest `EDIT_BACKUP_KEEP` = 20 (`MEMORY.edit.md-<stamp>`); both in `<AGENT_HOME>/backups/memory/<ws>/channels/<ch>/`, 0600 in a 0700 dir | `memory/stamped-backup.ts`, `memory/memory-edit-writer.ts` |
 | Promotion ledger (`memory_promotions`) | `JOURNAL_RETENTION_DAYS` + 1 = 31 days since the bullet was consumed; pruned with the episodes | `memory/memory-prune.ts` |
 | Episodes (`thread_summaries`) | `EPISODE_TTL_DAYS` = 90 days since the last update; pruned at start and every `PRUNE_INTERVAL_MS` | `memory/memory-prune.ts` |

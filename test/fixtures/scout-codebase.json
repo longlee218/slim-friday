@@ -19,7 +19,7 @@
     {
       "id": "code-04-bubbles",
       "text": "in the friday code, where is a lead reply split into several Discord messages, and what is the max number of messages?",
-      "expect": ["src/ingress/reply-bubbles.ts"]
+      "expect": ["src/providers/discord/ingress/reply-bubbles.ts"]
     },
     {
       "id": "code-05-redact",

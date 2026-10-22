@@ -1,5 +1,5 @@
 import type { Route } from "../../config/model-routing";
-import type { ThreadTitlePort } from "../../ingress/thread-rename";
+import type { ThreadTitlePort } from "../../ingress/thread-title";
 import { buildMemoryToolContext } from "../../memory/memory-context";
 import { guardFor } from "../../policy/check-tool-call";
 import { withPrefix } from "../../roles/prompts/first-prompt-prefix";

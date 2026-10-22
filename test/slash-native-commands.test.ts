@@ -1,8 +1,14 @@
 import { expect, test } from "bun:test";
 import { parseSlash, SLASH_NAMES } from "../src/commands/slash-commands";
 import { SLASH_DEFINITIONS, slashPayload, slashText } from "../src/commands/slash-definitions";
-import { createMessageHandler, type InboundMessage } from "../src/ingress/discord-message-handler";
-import { createSlashHandler, registerSlashCommands } from "../src/ingress/slash-interaction";
+import {
+  createMessageHandler,
+  type InboundMessage,
+} from "../src/providers/discord/ingress/discord-message-handler";
+import {
+  createSlashHandler,
+  registerSlashCommands,
+} from "../src/providers/discord/ingress/slash-interaction";
 
 const OWNER = "111";
 const BOT = "999";

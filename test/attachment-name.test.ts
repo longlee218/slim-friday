@@ -1,6 +1,10 @@
 import { expect, test } from "bun:test";
 import { attachmentName, headingTitle } from "../src/ingress/attachment-name";
-import { INLINE_MAX, TABLE_WRAP_WIDTH, wrapTables } from "../src/ingress/inline-report";
+import {
+  INLINE_MAX,
+  TABLE_WRAP_WIDTH,
+  wrapTables,
+} from "../src/providers/discord/ingress/inline-report";
 
 test("headingTitle: first `# ` line only, else undefined", () => {
   expect(headingTitle("intro\n# Kế hoạch  \n## Sub\n# Second")).toBe("Kế hoạch");

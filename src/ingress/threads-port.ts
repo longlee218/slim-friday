@@ -1,7 +1,18 @@
 import type { Database } from "bun:sqlite";
 import { adoptThread, isAdopted, recordBotThread } from "../storage/thread-store";
 import { loadWorkspaces } from "../workspaces/workspace-registry";
-import type { ThreadsPort } from "./thread-placement";
+
+/** Where the handler persists threads and learns which channels are mapped to a space (built in index.ts). */
+export interface ThreadsPort {
+  /** True when the thread was adopted (owner-made, answered without a mention). */
+  isAdopted(threadId: string): boolean;
+  /** Persist an adoption (row `origin='adopted'`). */
+  adopt(threadId: string, channelId: string): void;
+  /** Persist a thread the bot opened, with its placeholder name. */
+  recordBotThread(threadId: string, channelId: string, placeholder: string): void;
+  /** Workspace and mode of a parent channel mapped to a space; undefined when unmapped. Used for adoption. */
+  channelInfo(channelId: string): { workspace: string; mode: "task" | "chat" } | undefined;
+}
 
 /**
  * The handler's thread port over the db and the workspaces on disk. Workspaces are re-read per call (like

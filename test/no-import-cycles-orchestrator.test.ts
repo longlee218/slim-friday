@@ -58,10 +58,10 @@ test("src/orchestrator has no runtime import cycle (type-only imports ignored)",
   expect(cycles).toEqual([]);
 });
 
-test("src/orchestrator never imports src/discord-setup (index.ts injects it)", () => {
+test("src/orchestrator never imports the discord provider setup (index.ts injects it)", () => {
   const bad = tsFiles("src/orchestrator").filter((f) =>
     [...readFileSync(f, "utf8").matchAll(STATEMENT)].some((m) =>
-      /(^|\/)discord-setup(\/|$)/.test(m[2] ?? m[3] ?? ""),
+      /(^|\/)providers(\/|$)/.test(m[2] ?? m[3] ?? ""),
     ),
   );
   expect(bad).toEqual([]);

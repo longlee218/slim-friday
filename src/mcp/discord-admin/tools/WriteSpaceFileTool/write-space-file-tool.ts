@@ -1,9 +1,9 @@
 import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
-import type { DiscordAdminContext } from "../../../../discord-setup/discord-admin-context";
-import { writeSpaceFile } from "../../../../discord-setup/write-space-file";
 import { logger } from "../../../../observability/logger";
 import { errText } from "../../../../observability/redact";
+import type { DiscordAdminContext } from "../../../../providers/discord/setup/discord-admin-context";
+import { writeSpaceFile } from "../../../../providers/discord/setup/write-space-file";
 import { textResult } from "../../../tool-result";
 import { WRITE_SPACE_FILE_TOOL } from "./constants";
 import { WRITE_SPACE_FILE_DESCRIPTION } from "./prompt";

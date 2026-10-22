@@ -1,4 +1,4 @@
-import { threadLanguage } from "../../ingress/discord-components";
+import { threadLanguage } from "../../ingress/thread-language";
 import { renderUserNotice } from "../../ingress/user-copy";
 import { setLogContext } from "../../observability/logger";
 import { firstPromptPrefix } from "../../roles/prompts/first-prompt-prefix";

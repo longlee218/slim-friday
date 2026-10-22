@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { ThreadTitlePort } from "../src/ingress/thread-rename";
+import type { ThreadTitlePort } from "../src/ingress/thread-title";
 import { buildServers } from "../src/mcp/mcp-servers";
 import { ORCHESTRATION_MCP_SERVER } from "../src/mcp/mcp-tool-names";
 import {

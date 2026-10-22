@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite";
 import type { Logger } from "pino";
-import type { InboundMessage } from "../../ingress/discord-message-handler";
+import type { InboundMessage } from "../../ingress/inbound-message";
 import { messageLanguage, type OwnerLanguage, renderUserNotice } from "../../ingress/user-copy";
 import { logEvent } from "../../observability/logger";
 import { errText } from "../../observability/redact";

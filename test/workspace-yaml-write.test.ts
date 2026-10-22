@@ -10,8 +10,8 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
-import { createWorkspaceDir } from "../src/discord-setup/workspace-template";
 import { withMemoryLock } from "../src/memory/memory-file-lock";
+import { createWorkspaceDir } from "../src/providers/discord/setup/workspace-template";
 import { inspectLocation } from "../src/workspaces/location-candidate";
 import { registerLocation } from "../src/workspaces/register-location";
 import { loadWorkspaces } from "../src/workspaces/workspace-registry";
@@ -109,7 +109,7 @@ test("registerLocation refuses an unknown channel and restores the file when the
 test("writers are serialised by the lock: parallel processes lose no update", async () => {
   const s = setup();
   const code = (i: number) =>
-    `import { addWorkspaceChannel } from "${join(import.meta.dir, "../src/discord-setup/workspace-template")}";` +
+    `import { addWorkspaceChannel } from "${join(import.meta.dir, "../src/providers/discord/setup/workspace-template")}";` +
     `addWorkspaceChannel(${JSON.stringify(s.home)}, "w", { id: "10000000000000010${i}", name: "c${i}", mode: "task" });`;
   const procs = [1, 2, 3, 4].map((i) =>
     Bun.spawn(["bun", "-e", code(i)], { stdout: "ignore", stderr: "pipe" }),

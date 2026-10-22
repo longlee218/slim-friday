@@ -1,5 +1,5 @@
 import { LEAD_POOL_MAX, LEAD_WAITING_MAX } from "../../config/run-caps";
-import type { InboundMessage } from "../../ingress/discord-message-handler";
+import type { InboundMessage } from "../../ingress/inbound-message";
 import { messageLanguage, renderUserNotice } from "../../ingress/user-copy";
 import { logEvent, logger } from "../../observability/logger";
 import { getThread } from "../../storage/thread-store";

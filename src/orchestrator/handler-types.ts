@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite";
 import type { AgentConfig } from "../config/agent-config";
-import type { ThreadTitlePort } from "../ingress/thread-rename";
+import type { ThreadTitlePort } from "../ingress/thread-title";
 import type { ApprovalGateway } from "../owner-approval/approval-types";
 import type { QueryFn } from "../runtime/run-agent";
 import type { RunLimiter } from "./turns/run-limiter";

@@ -18,14 +18,14 @@ import {
   type GateFacts,
   isAdminText,
   parseAdminCommand,
-} from "../src/discord-setup/admin-command";
-import { TASK_TOPIC } from "../src/discord-setup/channel-topic";
-import { initWorkspace } from "../src/discord-setup/init-workspace";
+} from "../src/providers/discord/setup/admin-command";
+import { TASK_TOPIC } from "../src/providers/discord/setup/channel-topic";
+import { initWorkspace } from "../src/providers/discord/setup/init-workspace";
 import {
   addWorkspaceChannel,
   createWorkspaceDir,
   workspaceState,
-} from "../src/discord-setup/workspace-template";
+} from "../src/providers/discord/setup/workspace-template";
 import { loadWorkspaces } from "../src/workspaces/workspace-registry";
 import { fakeGuild } from "./fake-guild";
 import { assertTempHome } from "./helpers";

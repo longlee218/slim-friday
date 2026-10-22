@@ -1,10 +1,10 @@
 import { expect, test } from "bun:test";
-import { CLIENT_OPTIONS } from "../src/ingress/discord-bot";
-import type { InboundMessage } from "../src/ingress/discord-message-handler";
-import { createMessageHandler } from "../src/ingress/discord-message-handler";
-import { BUSY_ACK_EMOJI, sendReport } from "../src/ingress/discord-send";
 import { createMessageReceipt } from "../src/ingress/message-receipt";
 import { captureLogs } from "../src/observability/logger";
+import { CLIENT_OPTIONS } from "../src/providers/discord/ingress/discord-bot";
+import type { InboundMessage } from "../src/providers/discord/ingress/discord-message-handler";
+import { createMessageHandler } from "../src/providers/discord/ingress/discord-message-handler";
+import { BUSY_ACK_EMOJI, sendReport } from "../src/providers/discord/ui/send/send-port";
 import { TEST_CHANNEL } from "./helpers";
 import { leadHarness, until } from "./lead-harness";
 

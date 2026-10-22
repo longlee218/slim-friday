@@ -1,9 +1,12 @@
 import { existsSync, rmSync } from "node:fs";
 import { CHANNEL_NAME, workspacePaths } from "../config/workspace-paths";
-import { OPS_CATEGORY_NAME, OPS_CHANNEL_NAMES } from "../discord-setup/discord-setup-config";
 import { ensureChannelDir } from "../memory/persona";
 import { logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
+import {
+  OPS_CATEGORY_NAME,
+  OPS_CHANNEL_NAMES,
+} from "../providers/discord/setup/discord-setup-config";
 import { loadWorkspaces } from "./workspace-registry";
 import { channelEntries, updateWorkspaceYaml } from "./workspace-yaml-write";
 

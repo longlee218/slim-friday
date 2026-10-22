@@ -12,15 +12,18 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
-import type {
-  ConfirmQuestion,
-  DiscordAdminContext,
-} from "../src/discord-setup/discord-admin-context";
-import { addWorkspaceChannel, createWorkspaceDir } from "../src/discord-setup/workspace-template";
-import { writeSpaceFile } from "../src/discord-setup/write-space-file";
 import { createWriteSpaceFileTool } from "../src/mcp/discord-admin/tools/WriteSpaceFileTool/write-space-file-tool";
 import { searchIndex } from "../src/memory/index/memory-search";
 import { ensureChannelDir } from "../src/memory/persona";
+import type {
+  ConfirmQuestion,
+  DiscordAdminContext,
+} from "../src/providers/discord/setup/discord-admin-context";
+import {
+  addWorkspaceChannel,
+  createWorkspaceDir,
+} from "../src/providers/discord/setup/workspace-template";
+import { writeSpaceFile } from "../src/providers/discord/setup/write-space-file";
 import { openDb } from "../src/storage/db";
 import { assertTempHome, outsideDir } from "./helpers";
 

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { createThreadTitlePort } from "../src/ingress/thread-rename";
+import { createThreadTitlePort } from "../src/providers/discord/ingress/thread-rename";
 
 /** Fake client whose thread `setName` is the given function. */
 function client(setName: (n: string) => Promise<unknown>, name = "⏳ x") {

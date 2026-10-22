@@ -1,4 +1,4 @@
-import type { InboundMessage } from "../ingress/discord-message-handler";
+import type { InboundMessage } from "../ingress/inbound-message";
 import { renderStatus } from "../ingress/status-copy";
 import { localizeUserCopy, messageLanguage, renderUserNotice } from "../ingress/user-copy";
 import { DRAIN_REPLY, isDraining } from "../lifecycle/drain";

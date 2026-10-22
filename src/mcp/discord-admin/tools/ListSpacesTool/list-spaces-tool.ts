@@ -1,8 +1,8 @@
 import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
-import type { DiscordAdminContext } from "../../../../discord-setup/discord-admin-context";
 import { logEvent, logger } from "../../../../observability/logger";
 import { errText } from "../../../../observability/redact";
+import type { DiscordAdminContext } from "../../../../providers/discord/setup/discord-admin-context";
 import { listSpaces } from "../../../../workspaces/list-spaces";
 import { textResult } from "../../../tool-result";
 import { LIST_SPACES_TOOL } from "./constants";

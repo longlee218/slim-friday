@@ -1,13 +1,13 @@
 import { expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { createAdminHandler } from "../src/discord-setup/admin-handler";
+import { DISCORD_ADMIN_MCP_SERVER } from "../src/mcp/mcp-tool-names";
+import { createAdminHandler } from "../src/providers/discord/setup/admin-handler";
 import {
   CONTROL_SESSION_MAX_AGE_MS,
   createControlRoleRun,
-} from "../src/discord-setup/control-role-run";
-import { privateOverwrites } from "../src/discord-setup/private-channels";
-import { DISCORD_ADMIN_MCP_SERVER } from "../src/mcp/mcp-tool-names";
+} from "../src/providers/discord/setup/control-role-run";
+import { privateOverwrites } from "../src/providers/discord/setup/private-channels";
 import { getSession } from "../src/storage/session-store";
 import {
   ASK_USER_QUESTION_TOOL_NAME,

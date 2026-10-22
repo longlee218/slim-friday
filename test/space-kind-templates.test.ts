@@ -3,8 +3,8 @@ import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
-import { createWorkspaceDir } from "../src/discord-setup/workspace-template";
 import { SPACE_KIND_FILES, spaceKindFile, spaceKinds } from "../src/memory/persona-templates";
+import { createWorkspaceDir } from "../src/providers/discord/setup/workspace-template";
 import { listSpaces } from "../src/workspaces/list-spaces";
 import { assertTempHome } from "./helpers";
 

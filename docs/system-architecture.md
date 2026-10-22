@@ -27,11 +27,11 @@ Last updated: 2026-10-20 (lead team hardening phase 7: diagrams in [lead-team-fl
 ## Message Flow
 ```
 Discord message
- ├─ ingress (src/ingress/discord-message-rules.ts, routeMessage)
+ ├─ ingress (src/providers/discord/ingress/discord-message-rules.ts, routeMessage)
  │    ignored: bot, non-owner, DM, other guild, empty, ops channel (not control), no mention outside a bot/adopted/chat thread
-│    owner @mention in an unmapped text channel under a space category → channel auto-adopt (src/ingress/channel-adoption.ts):
+│    owner @mention in an unmapped text channel under a space category → channel auto-adopt (src/providers/discord/ingress/channel-adoption.ts):
 │         private → mapped (`{id, name, mode: task}`) + one notice; not private / ambiguous → one refusal; then routing continues
- │    control channel or admin text → admin handler (src/discord-setup/admin-handler.ts)
+ │    control channel or admin text → admin handler (src/providers/discord/setup/admin-handler.ts)
  │         /init-workspace, /init-channel; other text → discord-manager run
  │    thread, chat channel or mention → handle-message (src/orchestrator/handle-message.ts)
  ├─ commands, no model: /stop, /status, /purge; /find <keywords> (inline); /limits (private reply, answered in the slash handler before the message path)
@@ -69,7 +69,7 @@ Worker run (detached; survives the owner message; `Report` action tool)
 | Storage | `src/storage/` | Drizzle schema (`schema/`), migrations, stores (`*-store.ts`) |
 | Memory | `src/memory/` | persona and memory files, memory writers, index (FTS), channel digest, `/find` |
 | Spaces | `src/workspaces/`, `src/locations/` | space and location registries (fail closed), git CLI (argv only) |
-| Discord setup | `src/discord-setup/` | `discord.yaml`, `/init-workspace`, `/init-channel`, control role run, space templates, persona backups |
+| Discord setup | `src/providers/discord/setup/` | `discord.yaml`, `/init-workspace`, `/init-channel`, control role run, space templates, persona backups |
 | Tasks | `src/tasks/` | owned-task state machine, contracts, resolver |
 | Config | `src/config/` | zod env schema, `readProcessEnv`, model ids, model routing, lead caps, `data/*.yaml` |
 | Lifecycle | `src/lifecycle/` | startup hygiene, drain, shutdown, trash sweeper, home placement and registry checks |
@@ -222,7 +222,7 @@ Owner-facing view of a PLAN goal's versions (phase 5, uncommitted, not verified 
 | Store | `plan/plan-artifact.ts` `syncPlanArtifacts` | each version → markdown artifact of the thread's channel, title `Plan <goal8> v<N>` (`origin` store, no producer); created once, rewritten in place when the rendered text changed (`plan-render.ts` with status, reason and, for an approved version, live item status); no channel = no artifact, no link |
 | Sync | `planner-handlers.ts` (`onVersion`), `worker-app-ctx.ts`, `turns/plan-live.ts`, `worker/check-in.ts` | every stored version, every applied revision and every reader (`/plan`, digest, revision line) syncs first |
 | Revision line | `planner-handlers.ts` `notifyDiff` → `worker-app-ctx.ts` → `ingress/notice-text-plan.ts` | one owner line `Plan vN → vN+1: +a, −b, ~c` (cancelled keys named, changed criteria flagged) with "Open plan" (`planLinks`) when the viewer is on; skipped when the diff is a no-op; rolling waves included; code verify / fix / wave items post nothing. The lead still gets `plan_revised` |
-| `/plan` | `commands/slash-definitions.ts`, `ingress/slash-interaction.ts` → `turns/plan-live.ts` (`createPlanLookup`) → `ingress/plan-copy.ts` | owner only, ephemeral reply; the open goal's plan, else the newest plan of the thread (`storage/work-plan-store.ts` `planGoalOfThread`); version in force, goal, status per item, signed link first; `history` lists versions with status, date, reason; capped at one chunk |
+| `/plan` | `commands/slash-definitions.ts`, `providers/discord/ingress/slash-interaction.ts` → `turns/plan-live.ts` (`createPlanLookup`) → `ingress/plan-copy.ts` | owner only, ephemeral reply; the open goal's plan, else the newest plan of the thread (`storage/work-plan-store.ts` `planGoalOfThread`); version in force, goal, status per item, signed link first; `history` lists versions with status, date, reason; capped at one chunk |
 | Digest | `worker/digest-facts.ts` (`planVersion`), `ingress/digest-copy.ts`, `worker/check-in.ts` | the in-force version line and the "Open plan" button; a version change is a digest change |
 
 - Signed links never enter a lead tool result: `Orchestrate` tells the owner to use `/plan`.
@@ -389,7 +389,7 @@ Five layers. Each is a separate check; a call must pass every layer that applies
 
 ## Owner Approvals
 - **Plan:** `Orchestrate approve_plan` asks once for the whole plan (Discord buttons). No plan mode and no plan file.
-- **Worker questions:** `AskUserQuestion` (developer only, cap 6 per run) → `canUseTool` → buttons (`src/owner-approval/discord-approval.ts`). A long question goes out as `<tool>-detail.txt`. No answer in 10 minutes: the run stops and the owner is told.
+- **Worker questions:** `AskUserQuestion` (developer only, cap 6 per run) → `canUseTool` → buttons (`src/providers/discord/approval/discord-approval.ts`). A long question goes out as `<tool>-detail.txt`. No answer in 10 minutes: the run stops and the owner is told.
 - **Lead questions:** `Orchestrate ask_owner` (typed: yes/no, select, text; the control comes from `choiceLayout`). A worker question goes in `Report result` `requests`, never in the summary; the lead asks it as its own question. A worker waits a bounded time (see [limits](limits-and-stop-conditions.md)) for its answer to come back through the lead (`question-relay.ts`).
 - **Owner-confirm buttons** (`src/owner-approval/owner-confirm.ts`): `effect` (a worker's R4 or over-bound act), `purge_trash` (`/purge`), `write_space_file`, `create_space_or_channel` (control). No answer or a timeout means "do not run".
 - Text the owner types while a question is open is a note only after the owner chooses an option.
@@ -505,7 +505,7 @@ $AGENT_HOME/                       real directory outside every location and git
 - Live check pending: that the bot may rename its own thread without Manage Threads.
 
 ### Adoption
-An owner-made thread under a mapped channel is adopted on the owner's first real `@mention` there (a literal `<@bot>`; slash commands never adopt). Adopted rows have `origin = 'adopted'` and no placeholder. Routing rules: `threadFacts()` and `adoptRoute()` in `src/ingress/thread-placement.ts`, `routeMessage()` in `discord-message-rules.ts`.
+An owner-made thread under a mapped channel is adopted on the owner's first real `@mention` there (a literal `<@bot>`; slash commands never adopt). Adopted rows have `origin = 'adopted'` and no placeholder. Routing rules: `threadFacts()` and `adoptRoute()` in `src/providers/discord/ingress/thread-placement.ts`, `routeMessage()` in `discord-message-rules.ts`.
 - Known gap: if the adoption insert fails, a later `Orchestrate set_title` creates an `origin = 'bot'` row and the thread is never adopted. Not fixed.
 
 ### Compaction and memory flush (`src/runtime/compact-hooks.ts`, `src/memory/compaction-flush.ts`, `memory-jobs.ts`)
@@ -539,14 +539,14 @@ Non-command owner text in `#ops-control` runs the `discord-manager` role (`src/r
 
 | Part | Where | Behavior |
 |---|---|---|
-| Entry | `src/discord-setup/admin-handler.ts` → `control-role-run.ts` | after the admin gate; one session per control channel, fresh after 24 h idle; `stop` aborts; a message while a run is active gets a "still running, send /stop" reply |
+| Entry | `src/providers/discord/setup/admin-handler.ts` → `control-role-run.ts` | after the admin gate; one session per control channel, fresh after 24 h idle; `stop` aborts; a message while a run is active gets a "still running, send /stop" reply |
 | Scope | `src/orchestrator/run/control-scope.ts` | cwd `<AGENT_HOME>/tmp/control`; no write path; per space reads `workspace.yaml`, the five persona and memory files, and `channels/` only; no memory tools |
 | Tools | in-process server `discord-admin` (`src/mcp/discord-admin/`) | `ListSpaces`, `CreateSpaceOrChannel` (create only), `WriteSpaceFile`. No delete or rename tool |
 | Skill | `.agents/skills/discord-server-manager/` | publisher skill, data only |
 
 - `WriteSpaceFile` writes only `USER.md`, `IDENTITY.md`, `AGENTS.md`, `SOUL.md` of a space or one channel, and `MEMORY.md` of a channel (a space-level `MEMORY.md` is refused: "MEMORY.md belongs to a channel"). The path is fixed, never built from model text. Realpath must stay inside the space; symlinks are refused. Content ≤ 6000 chars (not for `MEMORY.md`, no size cap); secret-like text is refused.
 - The owner sees a redacted line diff (≤ 16000 chars, attached as `.txt` when long) and confirms. No answer, timeout or error means nothing is written. The file is re-read after the confirm and refused if it changed. The old file is backed up to `<AGENT_HOME>/backups/persona/`; the newest 10 per file are kept.
-- Space kinds are folders: `src/discord-setup/templates/space-kinds/{personal,company,study}/`. Applying a kind is one `WriteSpaceFile` per file.
+- Space kinds are folders: `src/memory/templates/space-kinds/{personal,company,study}/`. Applying a kind is one `WriteSpaceFile` per file.
 - Known limits: a space created during a run is readable from the next run. A written `MEMORY.md` is re-indexed at once.
 
 ## Budgets
@@ -557,8 +557,8 @@ Non-command owner text in `#ops-control` runs the `discord-manager` role (`src/r
 - Not verified live: whether the SDK `total_cost_usd` accumulates across a resumed session.
 
 ## Output
-- A reply is sent like a chat: one Discord message per paragraph (at most 4, `MAX_BUBBLES`), with a typing pause of 0.8-2 s between them (6 s in total, `src/ingress/reply-bubbles.ts`). Each message is still split at 1900 chars (`CHUNK_MAX`).
-- A reply over 800 chars (`ATTACH_MIN`) or with a table, up to 3900 chars (`INLINE_MAX`), is shown inline as ONE components-v2 report message, no file; a table up to 80 chars wide is wrapped in a code block (`src/ingress/inline-report.ts`).
+- A reply is sent like a chat: one Discord message per paragraph (at most 4, `MAX_BUBBLES`), with a typing pause of 0.8-2 s between them (6 s in total, `src/providers/discord/ingress/reply-bubbles.ts`). Each message is still split at 1900 chars (`CHUNK_MAX`).
+- A reply over 800 chars (`ATTACH_MIN`) or with a table, up to 3900 chars (`INLINE_MAX`), is shown inline as ONE components-v2 report message, no file; a table up to 80 chars wide is wrapped in a code block (`src/providers/discord/ingress/inline-report.ts`).
 - Text after a line `---` (outside a code fence), a reply over 3900 chars, or a code block over 10 lines goes out as a file in a report message: the chat part (or the first paragraph, cut at 1500 chars) stays as messages, the full text is the file. A diff goes as a head + `<date>-<title>.diff`.
 - File names come from the model's title, never from code: a worker's `Report result` `title` (the result file heading `# <title>`) and the `# <title>` heading that opens the lead's detail part. Code only makes it filesystem-safe (`src/ingress/attachment-name.ts`: accents folded, unsafe chars to `-`, no length cap; over 255 bytes or no title falls back to `reply.<ext>` / `changes.diff`).
 - `Orchestrate forward verbatim` always posts the result file, named after its title, with a short label (`notify(text, { asFile, fileName })`); the lead then writes its own 1-3 line summary. A task that saved several files gets one message per file (primary first, each with its own Open button).
@@ -628,3 +628,11 @@ Source of truth: [lead orchestration plan](../plans/261015-1538-lead-supervisor-
 
 - Done but not verified live: lead queue and announce, planner and plan approval, approval envelope and effect tools, OS sandbox, restart with undelivered events, `Report result` without a call, the action tools (phase 4: `Orchestrate`, `Plan`, `Report`), item priority and the duplicate check, `register_location create`, plan view (phase 5), role skills (phase 6a).
 - Known gaps: two developer tasks in one location share one working tree; the thread does not pin the last task's location.
+
+## Chat providers (2026-10-22)
+
+- All Discord code lives in `src/providers/discord/` (`ingress/`, `ui/`, `approval/`, `setup/`). Nothing else imports `discord.js` except `src/index.ts` (the composition root that wires the provider in); `test/provider-boundary.test.ts` scans for it.
+- The core never imports a provider. Provider-neutral contracts stay outside: `ingress/inbound-message.ts` (`InboundMessage`, `notify`), `ingress/report-links.ts`, `ingress/threads-port.ts` (`ThreadsPort`), `ingress/thread-title.ts` (`ThreadTitlePort`, `applyThreadTitle`), `owner-approval/approval-types.ts` (`ApprovalGateway`), `ingress/message-limits.ts`. A new provider (Telegram, Slack) implements these and lives in `src/providers/<name>/`.
+- Known debt (listed in `provider-boundary.test.ts`, can only shrink): the Discord admin MCP server (`src/mcp/discord-admin/`), `lifecycle/boot-checks.ts` and `workspaces/adopt-channel.ts` still import `providers/discord/setup` modules.
+- Every send goes through `providers/discord/ui/send/` (`send-port.ts`, `reply-port.ts`); `test/provider-send-scan.test.ts` rejects a raw `.send(` / `.reply(` / `.editReply(` elsewhere.
+- Questions and approvals are one components-v2 Container with an accent color by tone (blurple ask, green chosen or approved, red denied, yellow timed out, grey cancelled). Approve and yes are green buttons, reject and no red, options blurple, the typing button grey (`ui/components/{tone,container,buttons}.ts`).

@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { parseSlash } from "../src/commands/slash-commands";
-import { isAdminText, parseAdminCommand } from "../src/discord-setup/admin-command";
 import { parseMessageCommand } from "../src/orchestrator/message-commands";
+import { isAdminText, parseAdminCommand } from "../src/providers/discord/setup/admin-command";
 
 // Slash commands are the only commands: a plain text such as "stop" is an ordinary message.
 

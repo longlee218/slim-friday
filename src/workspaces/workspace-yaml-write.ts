@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { workspacePaths } from "../config/workspace-paths";
-import { backupPersonaFile } from "../discord-setup/persona-backup";
 import { withMemoryLock } from "../memory/memory-file-lock";
+import { backupPersonaFile } from "./persona-backup";
 
 /** A `channels:` entry as written in workspace.yaml: an object with `id`. */
 export type ChannelEntry = { id: string } & Record<string, unknown>;

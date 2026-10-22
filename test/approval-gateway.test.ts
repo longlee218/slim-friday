@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import type { Client, Interaction } from "discord.js";
-import { createDiscordApprovalGateway } from "../src/owner-approval/discord-approval";
+import { ButtonStyle, type Client, type Interaction } from "discord.js";
+import { createDiscordApprovalGateway } from "../src/providers/discord/approval/discord-approval";
+import { TONE_COLOR } from "../src/providers/discord/ui/components/tone";
 import { openDb } from "../src/storage/db";
 import { insertTurn } from "../src/storage/run-store";
 import { BASH_TOOL_NAME } from "../src/tools/sdk-tool-names";
+import { accentOf, rowsOf, textOf } from "./discord-payload";
 
 const OWNER = "owner1";
 const FAKE_TOKEN = "sk-ant-abcdefghijklmnop1234";
@@ -39,7 +41,7 @@ function setup(timeoutMs = 5000, sendable = true, brief = EN_BRIEF) {
     timeoutMs,
   });
   const ids = () =>
-    sent.at(-1).components.flatMap((r: any) => r.toJSON().components.map((c: any) => c.custom_id));
+    rowsOf(sent.at(-1)).flatMap((r: any) => r.components.map((c: any) => c.custom_id));
   /** Fake interaction of any kind; records replies/updates/modals and the order of ACK calls. */
   const interact = (
     kind: "button" | "select" | "modal",
@@ -91,11 +93,18 @@ describe("discord approval gateway", () => {
     await s.tick();
     expect(s.row("SELECT status FROM turns").status).toBe("waiting_approval");
     expect(s.row("SELECT decision FROM approvals").decision).toBe("pending");
+    // Approve is a green button, deny a red one; the question is a blurple container.
+    expect(rowsOf(s.sent[0])[0].components.map((b: any) => b.style)).toEqual([
+      ButtonStyle.Success,
+      ButtonStyle.Danger,
+    ]);
+    expect(accentOf(s.sent[0])).toBe(TONE_COLOR.ask);
     const c = s.click(s.ids()[0]);
     await c.run();
     expect(await p).toEqual({ approved: true });
-    expect(c.out.update.components).toEqual([]);
-    expect(c.out.update.content).toContain("You chose: Approve");
+    expect(accentOf(c.out.update)).toBe(TONE_COLOR.ok);
+    expect(rowsOf(c.out.update)).toEqual([]);
+    expect(textOf(c.out.update)).toContain("You chose: Approve");
     expect(s.row("SELECT status FROM turns").status).toBe("running");
     const a = s.row("SELECT * FROM approvals");
     expect(a.decision).toBe("approved");
@@ -107,7 +116,9 @@ describe("discord approval gateway", () => {
     const s = setup();
     const p = s.gw.request(req);
     await s.tick();
-    await s.click(s.ids()[1]).run();
+    const d = s.click(s.ids()[1]);
+    await d.run();
+    expect(accentOf(d.out.update)).toBe(TONE_COLOR.error);
     expect(await p).toEqual({ approved: false, reason: "owner denied" });
     expect(s.row("SELECT decision FROM approvals").decision).toBe("denied");
   });
@@ -131,8 +142,9 @@ describe("discord approval gateway", () => {
     expect(r).toEqual({ approved: false, reason: "timeout" });
     expect(s.row("SELECT decision FROM approvals").decision).toBe("timeout");
     expect(s.row("SELECT status FROM turns").status).toBe("running");
-    expect(s.edits[0].components).toEqual([]);
-    expect(s.edits[0].content).toContain("Timed out");
+    expect(rowsOf(s.edits[0])).toEqual([]);
+    expect(accentOf(s.edits[0])).toBe(TONE_COLOR.warn);
+    expect(textOf(s.edits[0])).toContain("Timed out");
   });
 
   test("askChoice returns chosen label; timeout undefined", async () => {
@@ -166,8 +178,12 @@ describe("discord approval gateway", () => {
         yesno: true,
       });
       await s.tick();
-      const row = s.sent[0].components[0].toJSON();
+      const row = rowsOf(s.sent[0])[0];
       expect(row.components.map((c: any) => c.label)).toEqual(labels);
+      expect(row.components.map((c: any) => c.style)).toEqual([
+        ButtonStyle.Success,
+        ButtonStyle.Danger,
+      ]);
       await s.click(s.ids()[1]).run();
       expect(await p).toBe("No");
     }
@@ -178,7 +194,7 @@ describe("discord approval gateway", () => {
     const p = s.gw.askChoice({ turnId: "t1", threadId: "th", question: "name?", options: [] });
     await s.tick();
     expect(s.ids()).toHaveLength(1); // only the "Enter answer" button
-    expect(s.sent[0].components).toHaveLength(1);
+    expect(rowsOf(s.sent[0])).toHaveLength(1);
     s.gw.cancelTurn("t1");
     expect(await p).toBeUndefined();
   });
@@ -194,22 +210,22 @@ describe("discord approval gateway", () => {
     });
     await s.tick();
     const msg = s.sent[0];
-    expect(msg.content.length).toBeLessThan(500); // the stem, not the plan
-    expect(msg.content).toContain("Plan: step.");
-    expect(msg.content).toContain("full text in the attached file");
+    expect(textOf(msg).length).toBeLessThan(500); // the stem, not the plan
+    expect(textOf(msg)).toContain("Plan: step.");
+    expect(textOf(msg)).toContain("full text in the attached file");
     expect(msg.files).toHaveLength(1);
     expect(msg.files[0].name).toBe("AskUserQuestion-detail.txt");
     const text = msg.files[0].attachment.toString();
     expect(text.length).toBeGreaterThan(3000); // the whole plan
     expect(text).not.toContain(FAKE_TOKEN); // redacted like every attachment
-    expect(msg.components).toHaveLength(1); // the buttons are on the stem message
+    expect(rowsOf(msg)).toHaveLength(1); // the buttons are on the stem message
     await s.click(s.ids()[0]).run();
     expect(await p).toBe("Approve");
     // a short question: inline, no attachment
     const t = setup();
     const q = t.gw.askChoice({ turnId: "t1", threadId: "th", question: "which?", options: ["a"] });
     await t.tick();
-    expect(t.sent[0].content).toBe("which?");
+    expect(textOf(t.sent[0])).toBe("which?");
     expect(t.sent[0].files).toEqual([]);
     await t.click(t.ids()[0]).run();
     await q;
@@ -218,7 +234,7 @@ describe("discord approval gateway", () => {
   test("redacts summary (message + db) and detail attachment", async () => {
     const s = setup(20);
     await s.gw.request({ ...req, summary: `use ${FAKE_TOKEN}`, detail: `full ${FAKE_TOKEN}` });
-    expect(s.sent[0].content).not.toContain(FAKE_TOKEN);
+    expect(textOf(s.sent[0])).not.toContain(FAKE_TOKEN);
     expect(s.row("SELECT summary FROM approvals").summary).not.toContain(FAKE_TOKEN);
     const file = s.sent[0].files[0];
     expect(file.attachment.toString()).not.toContain(FAKE_TOKEN);
@@ -246,7 +262,7 @@ describe("discord approval gateway", () => {
 describe("confirm (custom labels)", () => {
   const labels: [string, string] = ["Create PR", "Skip"];
   const buttonLabels = (s: ReturnType<typeof setup>) =>
-    s.sent.at(-1).components.flatMap((r: any) => r.toJSON().components.map((c: any) => c.label));
+    rowsOf(s.sent.at(-1)).flatMap((r: any) => r.components.map((c: any) => c.label));
 
   test("approve shows custom labels and resolves approved", async () => {
     const s = setup();
@@ -284,7 +300,7 @@ describe("cancelTurn (run aborted while waiting)", () => {
     expect(await p).toEqual({ approved: false, reason: "cancelled" });
     expect(s.row("SELECT decision FROM approvals").decision).toBe("cancelled");
     expect(s.row("SELECT status FROM turns").status).toBe("cancelled");
-    expect(s.edits.at(-1).content).toContain("Cancelled");
+    expect(textOf(s.edits.at(-1))).toContain("Cancelled");
     // A late click on the dead request is "expired", not approved.
     const c = s.click(s.ids()[0]);
     await c.run();
@@ -297,11 +313,9 @@ describe("natural choices", () => {
   const ask = (s: ReturnType<typeof setup>, options: string[], question = "which?") =>
     s.gw.askChoice({ turnId: "t1", threadId: "th", question, options });
   const kinds = (s: ReturnType<typeof setup>) =>
-    s.sent.at(-1).components.flatMap((r: any) => r.toJSON().components.map((c: any) => c.type));
+    rowsOf(s.sent.at(-1)).flatMap((r: any) => r.components.map((c: any) => c.type));
   const ids = (s: ReturnType<typeof setup>) =>
-    s.sent
-      .at(-1)
-      .components.flatMap((r: any) => r.toJSON().components.map((c: any) => c.custom_id));
+    rowsOf(s.sent.at(-1)).flatMap((r: any) => r.components.map((c: any) => c.custom_id));
   const SELECT = 3;
   const BUTTON = 2;
   const many = Array.from({ length: 8 }, (_, n) => `option ${n}`);
@@ -313,10 +327,10 @@ describe("natural choices", () => {
     const c = s.click(s.ids()[0]);
     await c.run();
     expect(await p).toBe("Ship it");
-    expect(c.out.update.content).toContain("You chose: Ship it");
-    expect(c.out.update.content).not.toContain("#");
-    expect(c.out.update.content).not.toContain("Owner chose");
-    expect(c.out.update.components).toEqual([]);
+    expect(textOf(c.out.update)).toContain("You chose: Ship it");
+    expect(textOf(c.out.update)).not.toContain("#");
+    expect(textOf(c.out.update)).not.toContain("Owner chose");
+    expect(rowsOf(c.out.update)).toEqual([]);
   });
 
   test("selected state is in Vietnamese when the thread speaks Vietnamese", async () => {
@@ -326,7 +340,7 @@ describe("natural choices", () => {
     const c = s.click(s.ids()[1]);
     await c.run();
     expect(await p).toBe("Không");
-    expect(c.out.update.content).toContain("Bạn đã chọn: Không");
+    expect(textOf(c.out.update)).toContain("Bạn đã chọn: Không");
   });
 
   test("6 to 25 options use a select menu plus the Enter answer button; component ids hold only ids", async () => {
@@ -338,8 +352,8 @@ describe("natural choices", () => {
     const c = s.interact("select", ids(s)[0], { values: ["4"] });
     await c.run();
     expect(await p).toBe("option 4");
-    expect(c.out.update.content).toContain("You chose: option 4");
-    expect(c.out.update.components).toEqual([]);
+    expect(textOf(c.out.update)).toContain("You chose: option 4");
+    expect(rowsOf(c.out.update)).toEqual([]);
   });
 
   test("Enter answer opens a modal; the submitted text is the answer", async () => {
@@ -354,8 +368,8 @@ describe("natural choices", () => {
     const sub = s.interact("modal", modalId, { typed: "  something else  " });
     await sub.run();
     expect(await p).toBe("something else");
-    expect(sub.out.update.content).toContain("You answered: something else");
-    expect(sub.out.update.components).toEqual([]);
+    expect(textOf(sub.out.update)).toContain("You answered: something else");
+    expect(rowsOf(sub.out.update)).toEqual([]);
   });
 
   test("a free-form question (no options) has only the Enter answer button", async () => {
@@ -393,7 +407,7 @@ describe("natural choices", () => {
     });
     await sub.run();
     expect(await p).toBe(`key ${FAKE_TOKEN}`);
-    expect(sub.out.update.content).not.toContain(FAKE_TOKEN);
+    expect(textOf(sub.out.update)).not.toContain(FAKE_TOKEN);
   });
 
   test("a blank modal answer keeps the question open", async () => {
@@ -479,14 +493,52 @@ describe("natural choices", () => {
   test("timeout and cancellation drop the controls with a natural line", async () => {
     const s = setup(20, true, VI_BRIEF);
     expect(await ask(s, many)).toBeUndefined();
-    expect(s.edits[0].components).toEqual([]);
-    expect(s.edits[0].content).toContain("Đã hết thời gian chờ");
+    expect(rowsOf(s.edits[0])).toEqual([]);
+    expect(textOf(s.edits[0])).toContain("Đã hết thời gian chờ");
     const t = setup();
     const p = ask(t, ["a", "b"]);
     await t.tick();
     t.gw.cancelTurn("t1");
     expect(await p).toBeUndefined();
-    expect(t.edits.at(-1).components).toEqual([]);
-    expect(t.edits.at(-1).content).toContain("Cancelled");
+    expect(rowsOf(t.edits.at(-1))).toEqual([]);
+    expect(textOf(t.edits.at(-1))).toContain("Cancelled");
+  });
+});
+
+describe("settled color follows the clicked button", () => {
+  test("yes/no question: No settles red, Yes green", async () => {
+    for (const [pick, tone] of [
+      [1, TONE_COLOR.error],
+      [0, TONE_COLOR.ok],
+    ] as const) {
+      const s = setup();
+      const p = s.gw.askChoice({
+        turnId: "t1",
+        threadId: "th",
+        question: "ok?",
+        options: ["Yes", "No"],
+        yesno: true,
+      });
+      await s.tick();
+      const c = s.click(s.ids()[pick]);
+      await c.run();
+      await p;
+      expect(accentOf(c.out.update)).toBe(tone);
+    }
+  });
+
+  test("a plain multi-choice answer settles green", async () => {
+    const s = setup();
+    const p = s.gw.askChoice({
+      turnId: "t1",
+      threadId: "th",
+      question: "which?",
+      options: ["A", "B"],
+    });
+    await s.tick();
+    const c = s.click(s.ids()[1]);
+    await c.run();
+    await p;
+    expect(accentOf(c.out.update)).toBe(TONE_COLOR.ok);
   });
 });

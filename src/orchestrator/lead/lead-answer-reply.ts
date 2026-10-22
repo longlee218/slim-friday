@@ -1,4 +1,4 @@
-import type { InboundMessage } from "../../ingress/discord-message-handler";
+import type { InboundMessage } from "../../ingress/inbound-message";
 import { logEvent, logger } from "../../observability/logger";
 import { itemOfQuestionMessage } from "../../storage/item-question-store";
 import { dispatchReady } from "../worker/dispatch-ready";

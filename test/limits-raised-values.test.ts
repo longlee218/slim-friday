@@ -11,7 +11,7 @@ import { CREATE_PLAN_SHAPE, PROPOSE_REVISION_SHAPE } from "../src/orchestrator/p
 import type { PlanDoc } from "../src/orchestrator/plan/plan-types";
 import { validatePlan } from "../src/orchestrator/plan/validate-plan";
 import { answerOutput } from "../src/orchestrator/run/answer-output";
-import { buildChoicePrompt, SUMMARY_MAX } from "../src/owner-approval/approval-text";
+import { buildChoicePrompt, SUMMARY_MAX } from "../src/providers/discord/approval/approval-text";
 import { ROLES } from "../src/roles/role-registry";
 import type { RunAgentResult } from "../src/runtime/run-agent";
 import { insertOwnedTask, linkTurn } from "../src/storage/owned-task-store";

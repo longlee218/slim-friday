@@ -10,16 +10,19 @@ import {
   ADMIN_ONLY_CONTROL,
   isAdminText,
   parseAdminCommand,
-} from "../src/discord-setup/admin-command";
-import { createAdminHandler } from "../src/discord-setup/admin-handler";
-import { CHAT_TOPIC, channelTopic, TASK_TOPIC } from "../src/discord-setup/channel-topic";
-import { initChannel } from "../src/discord-setup/init-channel";
+} from "../src/providers/discord/setup/admin-command";
+import { createAdminHandler } from "../src/providers/discord/setup/admin-handler";
+import { CHAT_TOPIC, channelTopic, TASK_TOPIC } from "../src/providers/discord/setup/channel-topic";
+import { initChannel } from "../src/providers/discord/setup/init-channel";
 import {
   createPrivate,
   findExisting,
   privateOverwrites,
-} from "../src/discord-setup/private-channels";
-import { addWorkspaceChannel, createWorkspaceDir } from "../src/discord-setup/workspace-template";
+} from "../src/providers/discord/setup/private-channels";
+import {
+  addWorkspaceChannel,
+  createWorkspaceDir,
+} from "../src/providers/discord/setup/workspace-template";
 import { type FakeChannel, fakeGuild } from "./fake-guild";
 import { assertTempHome } from "./helpers";
 

@@ -3,9 +3,15 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
-import { addWorkspaceChannel, createWorkspaceDir } from "../src/discord-setup/workspace-template";
-import { type AdoptFacts, channelAdoptDecision } from "../src/ingress/channel-adoption";
 import { renderUserNotice } from "../src/ingress/user-copy";
+import {
+  type AdoptFacts,
+  channelAdoptDecision,
+} from "../src/providers/discord/ingress/channel-adoption";
+import {
+  addWorkspaceChannel,
+  createWorkspaceDir,
+} from "../src/providers/discord/setup/workspace-template";
 import { adoptChannel, slugChannelName, uniqueChannelName } from "../src/workspaces/adopt-channel";
 import { assertTempHome } from "./helpers";
 

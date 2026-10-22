@@ -15,10 +15,11 @@ import {
 } from "../src/observability/logger";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { createRunLimiter } from "../src/orchestrator/turns/run-limiter";
-import { createDiscordApprovalGateway } from "../src/owner-approval/discord-approval";
+import { createDiscordApprovalGateway } from "../src/providers/discord/approval/discord-approval";
 import { openDb } from "../src/storage/db";
 import { insertTurn } from "../src/storage/run-store";
 import { BASH_TOOL_NAME, GLOB_TOOL_NAME, READ_TOOL_NAME } from "../src/tools/sdk-tool-names";
+import { rowsOf } from "./discord-payload";
 import {
   addLocation,
   initMsg,
@@ -192,7 +193,7 @@ test("approval decided by a click outside the task context still logs the task's
   );
   await tick();
   // ... clicked from the top level (discord.js event context: no store).
-  const id = sent[0].components[0].toJSON().components[0].custom_id;
+  const id = rowsOf(sent[0])[0].components[0].custom_id;
   const click = {
     isButton: () => true,
     customId: id,

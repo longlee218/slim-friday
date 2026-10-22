@@ -14,6 +14,25 @@ export interface HistoryMessage {
   content: string;
   createdTimestamp: number;
   attachments?: { size: number };
+  /** Components-v2 layout (a question, approval or report has no `content`): its text displays are the message text. */
+  components?: readonly unknown[];
+}
+
+/** Type id of a text display component (Discord `ComponentType.TextDisplay`). */
+const TEXT_DISPLAY = 10;
+
+/** The text of every text display in a components-v2 tree (containers and sections nest), in order, joined by a space. */
+export function componentsText(nodes: readonly unknown[] | undefined): string {
+  const out: string[] = [];
+  const walk = (list: readonly unknown[] | undefined) => {
+    for (const n of list ?? []) {
+      const c = n as { type?: number; content?: string; components?: readonly unknown[] };
+      if (c.type === TEXT_DISPLAY && c.content) out.push(c.content);
+      walk(c.components);
+    }
+  };
+  walk(nodes);
+  return out.join(" ");
 }
 
 /** The part of a thread channel the history needs. */
@@ -41,7 +60,7 @@ export function toRecent(
     const from = m.author.id === p.botId ? "bot" : m.author.id === p.ownerId ? "owner" : undefined;
     if (!from) continue;
     const file = (m.attachments?.size ?? 0) > 0 ? FILE_MARKER : "";
-    rows.push({ from, text: `${m.content} ${file}`.trim() });
+    rows.push({ from, text: `${m.content || componentsText(m.components)} ${file}`.trim() });
   }
   return cleanRecent(rows);
 }

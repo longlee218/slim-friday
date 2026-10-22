@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import type { SendableChannels } from "discord.js";
-import { sendReply, sendResultFile } from "../src/ingress/discord-send";
+import { sendReply, sendResultFile } from "../src/providers/discord/ui/send/send-port";
 
 /** Fake channel: records every send and typing call in order. */
 function fakeChannel() {

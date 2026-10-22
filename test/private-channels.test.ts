@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { ChannelType, OverwriteType, PermissionFlagsBits as P } from "discord.js";
-import { liveIsPrivate } from "../src/discord-setup/admin-handler";
+import { liveIsPrivate } from "../src/providers/discord/setup/admin-handler";
 import {
   BOT_ALLOW,
   botPermissionReport,
@@ -10,7 +10,7 @@ import {
   type Overwrite,
   OWNER_ALLOW,
   privateOverwrites,
-} from "../src/discord-setup/private-channels";
+} from "../src/providers/discord/setup/private-channels";
 
 const ids = {
   guildId: "100000000000000001",

@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
 import { ChannelType, PermissionFlagsBits as P } from "discord.js";
-import { formatChannelList, scrub } from "../src/discord-setup/bootstrap-discord-cli";
-import { createOpsLog, opsLogLine } from "../src/discord-setup/ops-log";
-import { warnIfBotAdministrator } from "../src/discord-setup/ready-checks";
 import { captureLogs } from "../src/observability/logger";
+import { formatChannelList, scrub } from "../src/providers/discord/setup/bootstrap-discord-cli";
+import { createOpsLog, opsLogLine } from "../src/providers/discord/setup/ops-log";
+import { warnIfBotAdministrator } from "../src/providers/discord/setup/ready-checks";
 
 const TOKEN = `${"M".padEnd(24, "a")}.${"b".repeat(6)}.${"c".repeat(27)}`;
 

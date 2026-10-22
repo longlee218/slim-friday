@@ -11,9 +11,9 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
-import { createWorkspaceDir } from "../src/discord-setup/workspace-template";
 import type { LeadPlace } from "../src/orchestrator/lead/lead-call";
 import { handleRegisterLocation } from "../src/orchestrator/lead/lead-location-handler";
+import { createWorkspaceDir } from "../src/providers/discord/setup/workspace-template";
 import { createProject } from "../src/workspaces/create-project";
 import { inspectLocation } from "../src/workspaces/location-candidate";
 import { registerLocation } from "../src/workspaces/register-location";

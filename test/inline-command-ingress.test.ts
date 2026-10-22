@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
 import { OverwriteType } from "discord.js";
-import { createAdminHandler } from "../src/discord-setup/admin-handler";
-import { privateOverwrites } from "../src/discord-setup/private-channels";
-import { createMessageHandler } from "../src/ingress/discord-message-handler";
 import type { InlineRequest } from "../src/memory/find-command-handler";
+import { createMessageHandler } from "../src/providers/discord/ingress/discord-message-handler";
+import { createAdminHandler } from "../src/providers/discord/setup/admin-handler";
+import { privateOverwrites } from "../src/providers/discord/setup/private-channels";
 
 const OWNER = "111";
 const BOT = "999";

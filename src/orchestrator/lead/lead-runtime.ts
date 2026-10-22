@@ -1,6 +1,5 @@
-import type { InboundMessage } from "../../ingress/discord-message-handler";
-import type { ReportLink } from "../../ingress/discord-message-rules";
-import type { ImageAttachment } from "../../ingress/inbound-message";
+import type { ImageAttachment, InboundMessage } from "../../ingress/inbound-message";
+import type { ReportLink } from "../../ingress/report-links";
 import type { Location } from "../../locations/location-registry";
 import type { DispatchDeps } from "../run/role-run-types";
 import type { QuestionRelay } from "../worker/question-relay";

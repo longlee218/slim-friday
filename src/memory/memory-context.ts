@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite";
-import type { ThreadTitlePort } from "../ingress/thread-rename";
+import type { ThreadTitlePort } from "../ingress/thread-title";
 import type { MemoryToolContext } from "./memory-tool-context";
 
 /**

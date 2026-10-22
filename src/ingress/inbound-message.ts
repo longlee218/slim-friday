@@ -1,4 +1,4 @@
-import type { ReportLink } from "./discord-message-rules";
+import type { ReportLink } from "../ingress/report-links";
 import type { RecentMessage } from "./intent-types";
 import type { OwnerLanguage } from "./user-copy";
 

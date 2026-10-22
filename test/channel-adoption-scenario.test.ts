@@ -4,11 +4,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ChannelType } from "discord.js";
 import { workspacePaths } from "../src/config/workspace-paths";
-import { privateOverwrites } from "../src/discord-setup/private-channels";
-import { addWorkspaceChannel, createWorkspaceDir } from "../src/discord-setup/workspace-template";
-import { createChannelAdopter } from "../src/ingress/channel-adoption";
-import { createMessageHandler, type InboundMessage } from "../src/ingress/discord-message-handler";
-import { BUSY_ACK_EMOJI } from "../src/ingress/discord-send";
+import { createChannelAdopter } from "../src/providers/discord/ingress/channel-adoption";
+import {
+  createMessageHandler,
+  type InboundMessage,
+} from "../src/providers/discord/ingress/discord-message-handler";
+import { privateOverwrites } from "../src/providers/discord/setup/private-channels";
+import {
+  addWorkspaceChannel,
+  createWorkspaceDir,
+} from "../src/providers/discord/setup/workspace-template";
+import { BUSY_ACK_EMOJI } from "../src/providers/discord/ui/send/send-port";
 import { assertTempHome } from "./helpers";
 
 const OWNER = "111";

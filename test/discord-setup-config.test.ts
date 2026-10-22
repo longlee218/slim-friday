@@ -8,7 +8,7 @@ import {
   opsIds,
   readDiscordSetup,
   writeDiscordSetup,
-} from "../src/discord-setup/discord-setup-config";
+} from "../src/providers/discord/setup/discord-setup-config";
 import { assertTempHome } from "./helpers";
 
 const tmpHome = () => {

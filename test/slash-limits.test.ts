@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { parseSlash } from "../src/commands/slash-commands";
 import { SLASH_DEFINITIONS, slashPayload, slashText } from "../src/commands/slash-definitions";
-import { createSlashHandler } from "../src/ingress/slash-interaction";
+import { createSlashHandler } from "../src/providers/discord/ingress/slash-interaction";
 import { ROLES } from "../src/roles/role-registry";
 
 const OWNER = "111";
