@@ -10,20 +10,37 @@ import { ORCHESTRATE_TOOL } from "../../mcp/orchestration/tools/OrchestrateTool/
 import { excerpt } from "../../observability/logger";
 import { LEAD_ROLE } from "../../roles/builtin/lead-role";
 import { appendEffect, planAskSince } from "../../storage/effect-log-store";
-import { insertOwnedTask, setStructureOwner, threadOfTask } from "../../storage/owned-task-store";
+import {
+  insertOwnedTask,
+  setStructureOwner,
+  taskScope,
+  threadOfTask,
+} from "../../storage/owned-task-store";
 import { lastOwnerMessageAt } from "../../storage/thread-event-store";
 import { getPlan, latestPlan, planIdOfGoal } from "../../storage/work-plan-store";
 import { SCOPE_CHARS } from "../../tasks/task-resolver";
 import { docOfRow } from "../plan/plan-doc";
-import { approvalBlocker, approveVersion, rejectVersion } from "../plan/plan-lifecycle";
+import { approvalBlocker, approveVersion, createPlan, rejectVersion } from "../plan/plan-lifecycle";
+import type { PlanEnv } from "../plan/plan-refusal";
+import { diffVersions } from "../plan/plan-revised";
+import { revisePlan } from "../plan/plan-revision";
 import { closeIdleGoals, deferredLines, waveHeldGoalOf } from "../plan/plan-waves";
 import { insertPlannerItem, plannerCount } from "../plan/planner-item";
-import type { EffectPort } from "./effect-port";
+import type { EffectPort, PlanWriteResult } from "./effect-port";
 import { openGoalIdOf } from "./effect-port-queries";
+import { duplicateRefusal, similarOpenWork } from "./task-reads";
 
 /* The plan methods of the db-backed EffectPort: start a planner, read a plan for the owner, record the owner's decision. */
 
-type PlanMethods = Pick<EffectPort, "requestPlan" | "plan" | "pendingPlan" | "decidePlan">;
+type PlanMethods = Pick<
+  EffectPort,
+  "requestPlan" | "createPlan" | "revisePlan" | "plan" | "pendingPlan" | "decidePlan"
+>;
+
+/** Thrown inside the create transaction to undo it with the refusal; never leaves this module. */
+class Refusal {
+  constructor(readonly fail: { code: string; message: string }) {}
+}
 
 /** What the planner is told about its place in the goal: the last automatic wave, or an owner-approved re-plan past the cap. */
 const capLines = (n: number): string[] =>
@@ -40,9 +57,102 @@ export function createPlanPort(
   db: Database,
   threadId: string,
   correlationId?: string,
+  /** Validator facts (roles a plan may use, the thread's locations), read at call time. */
+  planEnv: () => PlanEnv = () => ({ workerRoles: [], locations: [] }),
 ): PlanMethods {
   const mine = (id: string): boolean => threadOfTask(db, id) === threadId;
   return {
+    // One transaction: the goal (new, or the open one), the validated plan version and the audit row.
+    createPlan: (i) => {
+      if (i.goalId && (!mine(i.goalId) || i.goalId !== openGoalIdOf(db, threadId)))
+        return {
+          ok: false,
+          code: "BAD_TASK",
+          message: `Goal ${i.goalId} is not this thread's open goal: list and use the open goal's id.`,
+        };
+      // Search before create: the plan's items against the thread's open or recent work of OTHER goals; `confirmNew` repeats the call.
+      if (!i.confirmNew) {
+        const dup = duplicateRefusal(
+          similarOpenWork(db, threadId, i.items, i.goalId ? [i.goalId] : []),
+        );
+        if (dup && !dup.ok) return { ok: false, code: dup.code, message: dup.message };
+      }
+      try {
+        return db.transaction((): PlanWriteResult => {
+          const goalId = i.goalId ?? crypto.randomUUID();
+          const corr = correlationId ?? goalId;
+          if (!i.goalId) {
+            closeIdleGoals(db, threadId); // a new goal supersedes an old idle wave goal of the thread
+            insertOwnedTask(db, {
+              id: goalId,
+              threadId,
+              ownerRole: LEAD_ROLE.name,
+              status: "open",
+              scope: excerpt(i.objective, SCOPE_CHARS),
+              correlationId: corr,
+              structureOwner: "planner",
+            });
+          } else setStructureOwner(db, goalId, "planner"); // re-plan: the structure moves lead -> plan
+          const prior = latestPlan(db, planIdOfGoal(db, goalId) ?? "");
+          const r = createPlan(db, {
+            goalId,
+            objective: taskScope(db, goalId) ?? i.objective,
+            items: i.items,
+            acceptanceCriteria: i.acceptanceCriteria,
+            envelope: i.envelope,
+            effects: i.effects,
+            env: planEnv(),
+          });
+          if (!r.ok) throw new Refusal(r);
+          const reply = {
+            ok: true as const,
+            goalId,
+            planId: r.plan.id,
+            version: r.plan.version,
+            status: r.plan.status,
+          };
+          // A re-plan after a reject or an expiry: the owner sees the same version line as for a revision.
+          return {
+            ...reply,
+            ...(prior && {
+              diff: diffVersions(docOfRow(prior), docOfRow(r.plan), {
+                from: prior.version,
+                version: r.plan.version,
+                reason: "re-plan",
+              }),
+            }),
+          };
+        })();
+      } catch (err) {
+        if (err instanceof Refusal) return { ok: false, ...err.fail };
+        throw err;
+      }
+    },
+    revisePlan: (w) => {
+      const row = latestPlan(db, w.planId);
+      if (!row || !mine(row.goalId))
+        return {
+          ok: false,
+          code: "NO_PLAN",
+          message: `Plan ${w.planId} is not a plan of this thread.`,
+        };
+      const r = revisePlan(db, {
+        planId: w.planId,
+        baseVersion: w.baseVersion,
+        reason: w.reason,
+        edit: w.edit,
+        env: planEnv(),
+      });
+      if (!r.ok) return { ok: false, code: r.code, message: r.message };
+      return {
+        ok: true,
+        goalId: row.goalId,
+        planId: r.planId,
+        version: r.version,
+        status: r.status,
+        ...(r.revised && { diff: r.revised }),
+      };
+    },
     // One transaction: the goal (new, or the open one), the planner item, its `start` event and the audit row.
     requestPlan: (w) => {
       if (

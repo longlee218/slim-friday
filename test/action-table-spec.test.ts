@@ -8,7 +8,7 @@ import { PLAN_ACTIONS } from "../src/mcp/plan/tools/PlanTool/plan-actions";
 
 const names = (table: { name: string }[]) => table.map((a) => a.name).sort();
 
-test("Orchestrate (lead) holds the 15 spec actions, set_title included", () => {
+test("Orchestrate (lead) holds the 17 spec actions, set_title included", () => {
   expect(names(ORCHESTRATE_ACTIONS)).toEqual(
     [
       "dispatch",
@@ -23,6 +23,8 @@ test("Orchestrate (lead) holds the 15 spec actions, set_title included", () => {
       "forward",
       "ask_owner",
       "request_plan",
+      "create_plan",
+      "revise_plan",
       "approve_plan",
       "set_title",
       "register_location",

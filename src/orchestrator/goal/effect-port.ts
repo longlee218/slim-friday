@@ -1,6 +1,9 @@
 import type { EffectGrant } from "../../policy/envelope";
 import type { ItemRow, ResultKind } from "../../storage/owned-item-store";
 import type { EventKind } from "../events/event-types";
+import type { RevisionDiff } from "../plan/plan-revised";
+import type { Edit } from "../plan/plan-revision";
+import type { CreateLeadPlanInput } from "../plan/plan-schemas";
 import type { PlanDoc, PlanStatusView } from "../plan/plan-types";
 import type { Caps, GoalState, PolicyEnv } from "../strategy/caps";
 import type { ItemDraft } from "../strategy/dispatch-policy";
@@ -104,6 +107,26 @@ export interface PlanRequestWrite {
   goalId?: string | undefined;
 }
 
+/** What `Orchestrate revise_plan` writes: a new version of a plan of this thread. */
+export interface PlanReviseWrite {
+  planId: string;
+  baseVersion: number;
+  reason: string;
+  edit: Edit;
+}
+
+/** Result of `create_plan` / `revise_plan`: the stored version, or a coded refusal. `diff` = what an applied re-plan or revision changed (the owner is told in one line). */
+export type PlanWriteResult =
+  | {
+      ok: true;
+      goalId: string;
+      planId: string;
+      version: number;
+      status: string;
+      diff?: RevisionDiff;
+    }
+  | { ok: false; code: string; message: string };
+
 /** One plan version as the owner's approval reads it. */
 export interface PlanView extends PlanStatusView {
   goalId: string;
@@ -162,6 +185,13 @@ export interface EffectPort extends TaskPort {
    * event and the audit row. A `goalId` that is not the thread's open goal is a coded BAD_TASK refusal.
    */
   requestPlan(w: PlanRequestWrite): DispatchResult;
+  /**
+   * Store a plan the lead wrote, in ONE transaction: the goal (new, or the thread's open goal) and the validated version;
+   * a refusal (validator, duplicate, wrong goal) leaves nothing behind. The lead call records the audit row and event.
+   */
+  createPlan(input: CreateLeadPlanInput): PlanWriteResult;
+  /** A new version of a plan of this thread from add / cancel / modify edits (compare-and-set on the base version). */
+  revisePlan(w: PlanReviseWrite): PlanWriteResult;
   /** One plan version of this thread's goals, or undefined. */
   plan(planId: string, version: number): PlanView | undefined;
   /** The open goal's newest plan version when it is `valid` and not asked yet (it waits for `approve_plan`), or undefined. */

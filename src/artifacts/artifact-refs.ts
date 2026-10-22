@@ -6,10 +6,10 @@ import { registerRepoArtifact } from "./artifact-repo-ref";
 /** One artifact a worker names in its report: an id of `SaveArtifact`, or a doc it wrote in its granted location. */
 export type ArtifactRef = { id: string } | { title: string; path: string };
 
-/** Kind of a repo doc from its extension (md, html, diff, csv; anything else is plain text). */
-function kindOfPath(path: string): ArtifactKind {
+/** Kind of a repo doc from its extension (md, html, diff, csv, txt); undefined for anything else (code is not a document). */
+function kindOfPath(path: string): ArtifactKind | undefined {
   const ext = path.slice(path.lastIndexOf(".") + 1).toLowerCase();
-  return (ARTIFACT_KINDS as readonly string[]).includes(ext) ? (ext as ArtifactKind) : "txt";
+  return (ARTIFACT_KINDS as readonly string[]).includes(ext) ? (ext as ArtifactKind) : undefined;
 }
 
 /**
@@ -51,6 +51,13 @@ function check(c: ArtifactToolCtx, refs: ArtifactRef[], ids: string[], errors: s
       errors.push(`artifacts[${i}]: this run has no granted location for a repo doc`);
       return;
     }
+    const kind = kindOfPath(r.path);
+    if (!kind) {
+      errors.push(
+        `artifacts[${i}] ${r.path}: a repo artifact is a document (${ARTIFACT_KINDS.join(", ")}); code files are not artifacts: describe them in the summary`,
+      );
+      return;
+    }
     try {
       const reg = registerRepoArtifact(c.db, {
         workspace: c.workspace,
@@ -60,7 +67,7 @@ function check(c: ArtifactToolCtx, refs: ArtifactRef[], ids: string[], errors: s
         ...(c.threadId && { threadId: c.threadId }),
         ...(c.role && { producerRole: c.role }),
         title: r.title,
-        kind: kindOfPath(r.path),
+        kind,
         location: c.granted,
         relPath: r.path,
         home: c.home,

@@ -6,6 +6,7 @@ import { titlePortFor } from "../../roles/prompts/thread-title-note";
 import { dispatchableWorkers, getRole } from "../../roles/role-registry";
 import { getSession } from "../../storage/session-store";
 import { createDbEffectPort } from "../goal/effect-port-db";
+import { planSideEffects } from "../plan/plan-side-effects";
 import { registerRun } from "../run/live-runs";
 import { type LeadTurnResult, runTurn } from "../run/run-turn";
 import { dispatchReady } from "../worker/dispatch-ready";
@@ -74,6 +75,7 @@ function leadOnce(
         leadTurnId: turnId,
         inputId: o.inputId,
         run: { dispatched: 0 },
+        plan: planSideEffects(rt, ctx, threadId),
         place: {
           home: deps.config.agentHome,
           workspace: ctx.workspace,

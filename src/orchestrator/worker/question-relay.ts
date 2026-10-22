@@ -9,8 +9,8 @@ import { setWaiting } from "./run-activity";
    event (the lead reads it in an announce run) and the worker waits until the lead answers it (Orchestrate steer) or relays
    it to the owner (Orchestrate ask_owner). The wait is bounded; nobody answering ends the run's ask like an owner timeout. */
 
-/** Chars of a question kept in the event. */
-const QUESTION_CHARS = 600;
+/** Chars of a question kept in the event (the lead reads it whole in the announce block: `QUESTION_LINE_CHARS`). */
+const QUESTION_CHARS = 2000;
 
 /** One worker waiting for an answer. */
 interface Waiting {

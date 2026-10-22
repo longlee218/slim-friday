@@ -113,3 +113,14 @@ test("settleGoal: all completed -> completed; a failed item -> failed; unfinishe
   settleGoal(db, "g2");
   expect(status("g2")).toBe("failed");
 });
+
+test("a long worker question reaches the lead whole; other events keep the short line", () => {
+  const { db } = makeEnv();
+  const long = `Plan: ${"x".repeat(1500)} END-OF-QUESTION`;
+  ev(db, "q1", "question", { question: long });
+  ev(db, "r1", "result", { excerpt: "y".repeat(1500) });
+  const [q, r] = pendingNews(db, "t");
+  const block = announceBlock([q!, r!]);
+  expect(block).toContain("END-OF-QUESTION");
+  expect(block).not.toContain("y".repeat(1000));
+});

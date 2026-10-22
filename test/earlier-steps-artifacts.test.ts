@@ -52,3 +52,13 @@ test("ids per step are capped; no artifacts = no hint", () => {
   const none = setup(0);
   expect(earlierSteps(none.db, none.next)).not.toContain("ReadArtifact");
 });
+
+test("a step that saved no file hands its whole report (up to 4000 chars) to the next step, not the 600-char excerpt", () => {
+  const { db, next } = setup(0);
+  const report = `${"a".repeat(1500)} TAIL-OF-REPORT`;
+  db.run("UPDATE owned_tasks SET result_excerpt = ?, result_text = ? WHERE parent_id = 'g1'", [
+    report.slice(0, 600),
+    report,
+  ]);
+  expect(earlierSteps(db, next)).toContain("TAIL-OF-REPORT");
+});

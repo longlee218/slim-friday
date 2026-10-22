@@ -113,7 +113,10 @@ export function createDbEffectPort(d: PortDeps): EffectPort {
       abortRuns(w.abort); // after the commit: a rolled-back dispatch aborts nothing
       return { ok: true, goalId: w.goalId, itemIds: w.itemIds };
     },
-    ...createPlanPort(db, threadId, d.correlationId),
+    ...createPlanPort(db, threadId, d.correlationId, () => ({
+      workerRoles: d.env.workerRoles,
+      locations: d.env.locations,
+    })),
     ...createRetryPort(db, threadId),
     ...createTaskPort(db, threadId, d.correlationId),
     appendEvent: (e) => appendEvent(db, { ...e, threadId }),

@@ -35,6 +35,8 @@ const EVENTS_TAG = "events";
 
 /** Chars of one payload shown to the lead (the full result stays in its file). */
 const PAYLOAD_CHARS = 400;
+/** A worker question is the lead's to answer or relay: its line keeps the question whole (question cap 2000 + the JSON frame). */
+const QUESTION_LINE_CHARS = 2400;
 
 /** True when the lead itself wrote the event (a record of its own tool call, not news). */
 const byLead = (e: ThreadEvent): boolean => (e.payload as { by?: unknown } | null)?.by === "lead";
@@ -51,7 +53,7 @@ const wakesLead = (db: Database, threadId: string): boolean =>
 const lineOf = (e: ThreadEvent): string => {
   const body = clip(
     neutralizePromptTags(redactText(JSON.stringify(e.payload ?? null))),
-    PAYLOAD_CHARS,
+    e.kind === "question" ? QUESTION_LINE_CHARS : PAYLOAD_CHARS,
   );
   return `- ${e.kind} task=${e.itemId ?? e.taskId ?? "-"} ${body}`;
 };

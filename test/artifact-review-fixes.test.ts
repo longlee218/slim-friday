@@ -114,3 +114,12 @@ test("the file name slug comes from the redacted title", () => {
   });
   expect(w.path).not.toContain("sk-ant");
 });
+
+test("a code file is not a repo artifact: refused with the document rule, no row", () => {
+  const env = makeEnv();
+  const root = outsideDir();
+  writeFileSync(join(root, "sign_test.go"), "package x");
+  const r = resolveRefs(ctxOf(env, root), [{ title: "tests", path: "sign_test.go" }]);
+  expect("errors" in r && r.errors[0]).toMatch(/code files are not artifacts/);
+  expect(count(env.db)).toBe(0);
+});

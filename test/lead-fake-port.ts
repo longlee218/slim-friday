@@ -7,7 +7,9 @@ import type {
   OwnerQuestion,
   PlanDecision,
   PlanRequestWrite,
+  PlanReviseWrite,
   PlanView,
+  PlanWriteResult,
   Post,
   SteerReply,
   TaskSnapshot,
@@ -15,6 +17,7 @@ import type {
 import type { AddItemWrite, GoalFacts } from "../src/orchestrator/goal/effect-port-item-types";
 import type { TaskMatch } from "../src/orchestrator/goal/task-reads";
 import type { LeadToolContext } from "../src/orchestrator/lead/lead-call";
+import type { CreateLeadPlanInput } from "../src/orchestrator/plan/plan-schemas";
 import type { Reply } from "../src/orchestrator/reply";
 import type { GoalState, PolicyEnv } from "../src/orchestrator/strategy/caps";
 import type { ItemEdit } from "../src/storage/item-edit-store";
@@ -88,6 +91,34 @@ export class FakePort implements EffectPort {
       return { ok: false, code: "BAD_TASK", message: "not this thread's goal" };
     this.planRequests.push(w);
     return { ok: true, goalId: w.goalId ?? "goal-p", itemIds: ["planner-item"] };
+  };
+  planCreates: CreateLeadPlanInput[] = [];
+  planRevisions: PlanReviseWrite[] = [];
+  /** Test-set reply of the next `createPlan` / `revisePlan` (default: stored as version 1 of a goal). */
+  planWrite: PlanWriteResult | undefined;
+  createPlan = (input: CreateLeadPlanInput): PlanWriteResult => {
+    this.planCreates.push(input);
+    return (
+      this.planWrite ?? {
+        ok: true,
+        goalId: input.goalId ?? "goal-p",
+        planId: "plan-p",
+        version: 1,
+        status: "valid",
+      }
+    );
+  };
+  revisePlan = (w: PlanReviseWrite): PlanWriteResult => {
+    this.planRevisions.push(w);
+    return (
+      this.planWrite ?? {
+        ok: true,
+        goalId: this.goalState.openGoalId ?? "goal-p",
+        planId: w.planId,
+        version: w.baseVersion + 1,
+        status: "valid",
+      }
+    );
   };
   plan = (planId: string, version: number) => this.plans.get(`${planId}:${version}`);
   /** Test-set plan version waiting for `approve_plan`. */

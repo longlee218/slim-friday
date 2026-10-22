@@ -11,7 +11,9 @@ import {
 import { handleRegisterLocation } from "../../../../orchestrator/lead/lead-location-handler";
 import {
   handleApprovePlan,
+  handleCreatePlan,
   handleRequestPlan,
+  handleRevisePlan,
 } from "../../../../orchestrator/lead/lead-plan-handlers";
 import { handleRetry } from "../../../../orchestrator/lead/lead-retry-handler";
 import {
@@ -36,13 +38,19 @@ import {
   SEARCH_TASKS_SHAPE,
   UPDATE_ITEM_SHAPE,
 } from "../../../../orchestrator/lead/task-schemas";
-import { APPROVE_PLAN_SHAPE, REQUEST_PLAN_SHAPE } from "../../../../orchestrator/plan/plan-schemas";
+import {
+  APPROVE_PLAN_SHAPE,
+  CREATE_LEAD_PLAN_SHAPE,
+  PROPOSE_REVISION_SHAPE,
+  REQUEST_PLAN_SHAPE,
+} from "../../../../orchestrator/plan/plan-schemas";
 import { defineAction } from "../../../action-tool/action-types";
 import {
   ORCHESTRATE_ACTION_ADD,
   ORCHESTRATE_ACTION_APPROVE_PLAN,
   ORCHESTRATE_ACTION_ASK_OWNER,
   ORCHESTRATE_ACTION_CANCEL,
+  ORCHESTRATE_ACTION_CREATE_PLAN,
   ORCHESTRATE_ACTION_DISPATCH,
   ORCHESTRATE_ACTION_FORWARD,
   ORCHESTRATE_ACTION_GET,
@@ -50,6 +58,7 @@ import {
   ORCHESTRATE_ACTION_REGISTER_LOCATION,
   ORCHESTRATE_ACTION_REQUEST_PLAN,
   ORCHESTRATE_ACTION_RETRY,
+  ORCHESTRATE_ACTION_REVISE_PLAN,
   ORCHESTRATE_ACTION_SEARCH,
   ORCHESTRATE_ACTION_SET_TITLE,
   ORCHESTRATE_ACTION_STEER,
@@ -163,6 +172,43 @@ export const ORCHESTRATE_ACTIONS = [
     schema: z.object(REQUEST_PLAN_SHAPE),
     example: { objective: "Add OAuth login to the app" },
     run: onLead(handleRequestPlan),
+  }),
+  defineAction<OrchestrateCtx, typeof CREATE_LEAD_PLAN_SHAPE>({
+    name: ORCHESTRATE_ACTION_CREATE_PLAN,
+    schema: z.object(CREATE_LEAD_PLAN_SHAPE),
+    example: {
+      objective: "Add OAuth login to the app",
+      items: [
+        {
+          key: "build-login",
+          subject: "Build OAuth login",
+          role: "developer",
+          brief: "goal: ...\ninputs: ...\ndeliver: ...\ndone when: ...",
+          location: "app",
+          dependsOn: [],
+          risk: "R1",
+        },
+      ],
+      acceptanceCriteria: ["go test ./... passes", "login redirects to /home"],
+      envelope: {
+        locations: ["app"],
+        riskClasses: ["R0", "R1"],
+        bounds: { maxItems: 3, maxGb: 1 },
+      },
+      effects: [],
+    },
+    run: onLead(handleCreatePlan),
+  }),
+  defineAction<OrchestrateCtx, typeof PROPOSE_REVISION_SHAPE>({
+    name: ORCHESTRATE_ACTION_REVISE_PLAN,
+    schema: z.object(PROPOSE_REVISION_SHAPE),
+    example: {
+      planId: "plan-1",
+      baseVersion: 1,
+      cancel: ["old-step"],
+      reason: "the owner dropped it",
+    },
+    run: onLead(handleRevisePlan),
   }),
   defineAction<OrchestrateCtx, typeof APPROVE_PLAN_SHAPE>({
     name: ORCHESTRATE_ACTION_APPROVE_PLAN,

@@ -2,13 +2,20 @@ import { DEFAULT_LANGUAGE } from "../../i18n/languages";
 import { renderUserNotice } from "../../ingress/user-copy";
 import {
   ORCHESTRATE_ACTION_APPROVE_PLAN,
+  ORCHESTRATE_ACTION_CREATE_PLAN,
   ORCHESTRATE_ACTION_REQUEST_PLAN,
+  ORCHESTRATE_ACTION_REVISE_PLAN,
   orchestrateRef,
 } from "../../mcp/orchestration/tools/OrchestrateTool/action-names";
 import { clip, redactText } from "../../observability/redact";
 import { PLAN_ASK_TOOL } from "../../storage/effect-log-store";
 import { APPROVE_LABEL, REJECT_LABEL, renderPlan, renderPlanStem } from "../plan/plan-render";
-import type { ApprovePlanInput, RequestPlanInput } from "../plan/plan-schemas";
+import type {
+  ApprovePlanInput,
+  CreateLeadPlanInput,
+  ProposeRevisionInput,
+  RequestPlanInput,
+} from "../plan/plan-schemas";
 import { type Reply, refuse } from "../reply";
 import { checkPlanRequest } from "../strategy/plan-policy";
 import { type LeadToolContext, leadCall } from "./lead-call";
@@ -47,6 +54,69 @@ export const handleRequestPlan = (ctx: LeadToolContext, input: RequestPlanInput)
     if (!w.ok) return { reply: refuse(w.code, w.message) };
     ctx.run.dispatched += 1;
     return { reply: { ok: true, goalId: w.goalId, itemIds: w.itemIds }, recorded: true };
+  });
+
+/** What the lead does next with a stored version: nothing to ask until it calls approve_plan. */
+const APPROVE_NEXT = `The owner must approve this version: call ${orchestrateRef(ORCHESTRATE_ACTION_APPROVE_PLAN)} with the planId and version.`;
+
+/**
+ * Orchestrate create_plan: the lead stores the plan it wrote (a new goal, or a re-plan inside the open goal). The port
+ * validates and writes goal + version in one transaction; the plan artifact and the owner line follow. The owner is asked
+ * by approve_plan.
+ */
+export const handleCreatePlan = (
+  ctx: LeadToolContext,
+  input: CreateLeadPlanInput,
+): Promise<Reply> =>
+  leadCall(ctx, ORCHESTRATE_ACTION_CREATE_PLAN, input, () => {
+    const { port } = ctx;
+    const check = checkPlanRequest(port.state(), input, {
+      ...port.caps(),
+      dispatchedThisRun: ctx.run.dispatched,
+    });
+    if (!check.ok) return { reply: refuse(check.code, check.message) };
+    const w = port.createPlan(input);
+    if (!w.ok) return { reply: refuse(w.code, w.message) };
+    ctx.run.dispatched += 1;
+    ctx.plan?.onVersion(w.goalId);
+    if (w.diff) ctx.plan?.notify(w.goalId, w.diff, ctx.language);
+    return {
+      reply: {
+        ok: true,
+        goalId: w.goalId,
+        planId: w.planId,
+        version: w.version,
+        status: w.status,
+        note: APPROVE_NEXT,
+      },
+      goalId: w.goalId,
+    };
+  });
+
+/**
+ * Orchestrate revise_plan: a new version of a plan from add / cancel / modify edits. A version that waits for the owner
+ * is asked by approve_plan; one that applied at once (the envelope did not grow) is told to the owner in one line.
+ */
+export const handleRevisePlan = (
+  ctx: LeadToolContext,
+  input: ProposeRevisionInput,
+): Promise<Reply> =>
+  leadCall(ctx, ORCHESTRATE_ACTION_REVISE_PLAN, input, () => {
+    const { planId, baseVersion, reason, ...edit } = input;
+    const w = ctx.port.revisePlan({ planId, baseVersion, reason, edit });
+    if (!w.ok) return { reply: refuse(w.code, w.message) };
+    ctx.plan?.onVersion(w.goalId);
+    if (w.diff) ctx.plan?.notify(w.goalId, w.diff, ctx.language);
+    return {
+      reply: {
+        ok: true,
+        planId: w.planId,
+        version: w.version,
+        status: w.status,
+        note: w.status === "valid" ? APPROVE_NEXT : "Applied.",
+      },
+      goalId: w.goalId,
+    };
   });
 
 /**

@@ -6,6 +6,7 @@ import { refusalLevel } from "../../observability/failure-level";
 import { logEvent, logger } from "../../observability/logger";
 import type { EventKind } from "../events/event-types";
 import type { EffectPort } from "../goal/effect-port";
+import type { PlanSideEffects } from "../plan/plan-side-effects";
 import type { Reply } from "../reply";
 
 /* Wrapper of every lead tool call: idempotency, the `lead.decision` log line and the thread event. The handlers
@@ -28,6 +29,8 @@ export interface LeadToolContext {
   run: { dispatched: number; ownerAnswers?: string[] };
   /** Where the run lives, for `Orchestrate register_location` (absent in tests that never call it). */
   place?: LeadPlace;
+  /** Plan artifacts and the owner line of `create_plan` / `revise_plan` (absent in tests that do not check them). */
+  plan?: PlanSideEffects;
 }
 
 /** Facts `Orchestrate register_location` needs about the run: its thread's space and channel (from code, never the model) and its trigger. */

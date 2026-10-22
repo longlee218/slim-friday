@@ -74,6 +74,18 @@ export const CREATE_PLAN_SHAPE = {
   effects: EFFECTS,
   confirmNew: CONFIRM_NEW,
 };
+/** The lead's `create_plan`: the planner's shape plus the objective; no `goalId` opens a new goal, `goalId` plans inside the open one. */
+export const CREATE_LEAD_PLAN_SHAPE = {
+  objective: z.string().min(1).max(2000).describe("What the owner wants, in the owner's terms"),
+  goalId: TASK_ID.optional().describe(
+    "Plan inside this open goal (re-plan after a reject or an expiry)",
+  ),
+  items: CREATE_PLAN_SHAPE.items,
+  acceptanceCriteria: CREATE_PLAN_SHAPE.acceptanceCriteria,
+  envelope: CREATE_PLAN_SHAPE.envelope,
+  effects: CREATE_PLAN_SHAPE.effects,
+  confirmNew: CREATE_PLAN_SHAPE.confirmNew,
+};
 export const VALIDATE_PLAN_SHAPE = { planId: PLAN_ID, version: VERSION };
 export const PROPOSE_REVISION_SHAPE = {
   planId: PLAN_ID,
@@ -126,6 +138,7 @@ export const APPROVE_PLAN_SHAPE = { planId: PLAN_ID, version: VERSION };
 type Input<S extends z.ZodRawShape> = z.infer<z.ZodObject<S>>;
 export type GoalInput = Input<typeof GOAL_SHAPE>;
 export type CreatePlanInput = Input<typeof CREATE_PLAN_SHAPE>;
+export type CreateLeadPlanInput = Input<typeof CREATE_LEAD_PLAN_SHAPE>;
 export type ValidatePlanInput = Input<typeof VALIDATE_PLAN_SHAPE>;
 export type ProposeRevisionInput = Input<typeof PROPOSE_REVISION_SHAPE>;
 export type RequestPlanInput = Input<typeof REQUEST_PLAN_SHAPE>;

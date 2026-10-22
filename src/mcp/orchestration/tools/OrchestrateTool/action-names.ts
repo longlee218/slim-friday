@@ -26,6 +26,10 @@ export const ORCHESTRATE_ACTION_FORWARD = "forward";
 export const ORCHESTRATE_ACTION_ASK_OWNER = "ask_owner";
 /** Open (or reuse) a goal and start the planner on it; the lead never plans itself. */
 export const ORCHESTRATE_ACTION_REQUEST_PLAN = "request_plan";
+/** Store a plan the lead wrote (a new goal, or a re-plan inside the open one); the owner approves it with approve_plan. */
+export const ORCHESTRATE_ACTION_CREATE_PLAN = "create_plan";
+/** A new version of a plan from add / cancel / modify edits. */
+export const ORCHESTRATE_ACTION_REVISE_PLAN = "revise_plan";
 /** Ask the owner to approve a valid plan once; yes starts its items. */
 export const ORCHESTRATE_ACTION_APPROVE_PLAN = "approve_plan";
 /** Name a thread and store its digest (a run with a rename port). */

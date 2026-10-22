@@ -16,8 +16,26 @@ export interface RunRecord {
   compactions: number;
 }
 
-/** Insert a run row. */
+/**
+ * USD of this run alone. The SDK reports `total_cost_usd` of the whole resumed session (it climbs 0.08, 0.12, 0.15 ...
+ * over a lead's runs), so the run's own cost is the total minus what the earlier runs of the same session recorded.
+ * A total below that sum (a new session under the same id) is the run's own cost.
+ */
+export function ownCostOfRun(db: Database, turnId: string, totalUsd: number): number {
+  const prior =
+    db
+      .query<{ usd: number }, [string, string]>(
+        `SELECT COALESCE(SUM(r.cost_usd), 0) AS usd FROM runs r JOIN turns t ON t.id = r.turn_id
+         WHERE t.id <> ? AND t.session_id IS NOT NULL
+           AND t.session_id = (SELECT session_id FROM turns WHERE id = ?)`,
+      )
+      .get(turnId, turnId)?.usd ?? 0;
+  return totalUsd >= prior ? totalUsd - prior : totalUsd;
+}
+
+/** Insert a run row; `costUsd` is the SDK's session total, stored as the run's own cost. */
 export function insertRun(db: Database, r: RunRecord): void {
+  const costUsd = ownCostOfRun(db, r.turnId, r.costUsd);
   db.query(
     `INSERT INTO runs (id, turn_id, model, input_tokens, output_tokens, cache_read_tokens,
        cache_creation_tokens, cost_usd, turns, duration_ms, outcome, compactions)
@@ -30,7 +48,7 @@ export function insertRun(db: Database, r: RunRecord): void {
     r.outputTokens,
     r.cacheReadTokens,
     r.cacheCreationTokens,
-    r.costUsd,
+    costUsd,
     r.turns,
     r.durationMs,
     r.outcome,
