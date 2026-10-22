@@ -28,6 +28,7 @@ test("dev lists every skill of each publisher pack it uses (so worktree and fini
     "diagnosing-superpowers",
     "security-and-hardening",
     "wcag-audit-patterns",
+    "writing-plans", // the lead writes the plan; a developer item has it in the brief
     "using-superpowers", // replaced by the app-owned, preloaded using-skills
     "brainstorming", // the lead alone talks to the human
   ]);

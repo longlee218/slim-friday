@@ -16,7 +16,6 @@ test("requiredSkills is a subset of skills for every role", () => {
 test("required sets per role", () => {
   const set = (r: string) => ROLES[r]?.requiredSkills ?? [];
   expect(set("developer")).toEqual([
-    "writing-plans",
     "executing-plans",
     "test-driven-development",
     "verification-before-completion",

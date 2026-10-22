@@ -39,7 +39,7 @@ test("dev: one contract, approval before changes by ask, a design request may en
   expect(text).not.toContain("invoke the listed skill"); // the SDK matches skills by description: no routing line
   expect(text).toContain("the deliverable may be a design or plan with no code change");
   expect(text).toContain("the location's own checkout");
-  expect(text).toContain("Change no code before the approval");
+  expect(text).toContain("The brief is the approved plan");
   expect(text).not.toContain('"location: <name>"'); // no location marker line any more
   expect(text).not.toContain("OS sandbox"); // the sandbox is off by config: no prompt line states it
   expect(text).toContain("merge, push or PR only after the owner chose it");

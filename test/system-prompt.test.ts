@@ -35,7 +35,7 @@ test("no identity or tone words in any mode", () => {
 
 test("dev: one run contract: approval before changes by ask, no plan mode", () => {
   const text = rules(dev);
-  expect(text).toContain("Change no code before the approval");
+  expect(text).toContain("The brief is the approved plan");
   expect(text).toContain(`Ask with ${ASK_USER_QUESTION_TOOL_NAME}`);
   expect(text).not.toContain('"location: <name>"'); // no location marker line any more
   expect(text).not.toMatch(/plan mode|ExitPlanMode|execute stage|plan stage|Need:/);

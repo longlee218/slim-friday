@@ -113,8 +113,8 @@ test("owner decisions: no-shell writers complete without committing; shell roste
       "Push, merge, PR and deleting existing files are the developer's",
     );
   }
-  // Per-item plan approval stays, inside an approved plan and for fix-N.
-  expect(contract("developer")).toContain("for a fix-N item too");
+  // The brief carries the approved plan: no per-item plan approval.
+  expect(contract("developer")).toContain("Write no plan file of your own");
   // Method-skill documents: writing roles file them in docs/, others return them.
   expect(TEAM_SKILL_TEXT).toContain("a role that cannot write returns it as an artifact");
 });

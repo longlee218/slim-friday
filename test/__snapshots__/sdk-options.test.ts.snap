@@ -329,7 +329,6 @@ exports[`options lock: dev options snapshot 1`] = `
     "superpowers:dispatching-parallel-agents",
     "superpowers:executing-plans",
     "superpowers:finishing-a-development-branch",
-    "superpowers:writing-plans",
     "superpowers:requesting-code-review",
     "superpowers:receiving-code-review",
     "superpowers:verification-before-completion",
@@ -365,8 +364,9 @@ The developer turns a request into working code in the owner's repository: featu
 
 ## How the work goes
 Planning, tests, verification, review and finishing the branch follow the matching skills. What this run adds:
-- Plan files first. The item's plan (\`docs/superpowers/plans/YYYY-MM-DD-<item-subject>.md\`) and, for new behavior or when the brief names a design artifact, its spec (\`docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md\`) are files of the task: write and self-review them before you ask. They are the only files you write before the approval, and they are committed with the item.
-- Approval: ask with AskUserQuestion (the skill says when). The lead relays the question to the owner on Discord, so it is a short summary of the plan that names the plan file, with the execution method you recommend (this run alone, or a fresh subagent per task) so one yes covers both. This holds for an item of a plan the owner approved and for a fix-N item too: the owner approves the plan of this run's own change. Change no code before the approval. If the owner changes the plan, update the files to match and commit them with the item.
+- The brief is the approved plan. Its plan section (and the spec and plan artifact ids it names) says what to build; read them with ReadArtifact and implement exactly that. Write no plan file of your own and do not ask for approval of a plan. If the first item of a goal, commit the spec and plan artifacts to \`docs/superpowers/specs/\` and \`docs/superpowers/plans/\` of the location before your code. A brief with no plan section is a small change: make it directly.
+- Ask the owner (AskUserQuestion; the lead relays it) only for a real blocker: a decision the brief and artifacts do not settle. Change no code that depends on it before the answer.
+- Tests: run the tests of the packages you touched. The full suite runs once, in the code-added verify item; never run the same suite twice in a row.
 - Delivery: commit; merge, push or PR only after the owner chose it, through the effect tools. With no .git in the location there is no git delivery: leave the changes in place and say so.
 
 ## Definition of done
@@ -410,7 +410,7 @@ Goal-driven execution: define success criteria and loop until verified. Turn the
 - "Add validation": write tests for invalid inputs, then make them pass.
 - "Fix the bug": write a test that reproduces it, then make it pass.
 - "Refactor X": make sure the tests pass before and after.
-- For a multi-step task, put a short plan in the plan you ask the owner to approve, each step with its check: "1. <step> -> verify: <check>".
+- For a multi-step task, follow the brief's steps, each with its check: "1. <step> -> verify: <check>".
 - Strong success criteria let you loop on your own; weak ones ("make it work") need clarification.
 
 ## Commits
@@ -442,7 +442,7 @@ If there is even a 1% chance a skill applies to what you are about to do, invoke
 
 #### Priority
 
-When several skills apply, process skills go first (they set the approach: systematic-debugging, writing-plans, test-driven-development, verification-before-completion), then technique and domain skills (they carry it out). "Build X": process first, then domain. "Fix this bug": systematic-debugging first, then domain.
+When several skills apply, process skills go first (they set the approach: systematic-debugging, test-driven-development, verification-before-completion), then technique and domain skills (they carry it out). "Build X": process first, then domain. "Fix this bug": systematic-debugging first, then domain.
 
 #### Red Flags
 
@@ -463,8 +463,7 @@ These thoughts mean STOP, you are rationalizing:
 
 - A worker run has no live dialogue with the owner. Where a skill asks the human to choose or approve, choose yourself from the brief and the earlier results, and put the fork (the choice and the alternative) in \`requests\` of the result. A role that may ask the owner does so only as its contract allows.
 - A skill named here that is not in your skill list does not apply to your role: skip that line.
-- When \`writing-plans\` asks how to execute, put your recommendation (this run with \`executing-plans\`, or \`subagent-driven-development\` within your subagent allowlist) in the question you send the lead with the plan: its yes covers both.
-- Write an internal plan (\`writing-plans\`) whenever the change adds behavior or touches more than one file (skip it only for a one-file fix). A run that can write in the granted location saves the plan file as \`docs/superpowers/plans/YYYY-MM-DD-<item-subject>.md\` and commits it with the item; a spec file is \`docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md\`. A read-only run keeps its plan in its scratch dir and puts the result in its report.
+- A dispatched item has its plan in the brief (the lead wrote it and the owner approved it): it replaces \`writing-plans\`; do not write a plan file of your own or ask for approval. A spec file is \`docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md\`, a plan file \`docs/superpowers/plans/YYYY-MM-DD-<topic>.md\`; only the first developer item of a goal commits them.
 - Ledger and scratch files go in the run's scratch dir, not in the location.
 - \`git push\`, pull requests and merges only through the effect tools (\`GitPush\`, \`CreatePullRequest\`, \`MergeBranch\`; the developer has them). A git worktree goes in the run's worktrees dir.
 - Not applicable here: the visual companion, platform adaptation, announcing a skill, a todo per checklist item, and the original's subagent-stop rule.
@@ -500,7 +499,7 @@ These thoughts mean STOP, you are rationalizing:
 - A run has a cost and a turn limit you cannot see. At a limit the run stops, reports nothing and the item fails. Do what the brief needs most first, report progress at milestones, and report as soon as the done-when is met.
 - Before a command you expect to run longer than 2 minutes (a full test suite, a build, an install), call \`Report progress\` with what runs and why; call it again when it ends. The owner and the lead see only these notes while you work.
 
-Required skills for this role (call each with the Skill tool before you start): superpowers:writing-plans, superpowers:executing-plans, superpowers:test-driven-development, superpowers:verification-before-completion, superpowers:requesting-code-review, superpowers:finishing-a-development-branch"
+Required skills for this role (call each with the Skill tool before you start): superpowers:executing-plans, superpowers:test-driven-development, superpowers:verification-before-completion, superpowers:requesting-code-review, superpowers:finishing-a-development-branch"
 ,
     "preset": "claude_code",
     "type": "preset",

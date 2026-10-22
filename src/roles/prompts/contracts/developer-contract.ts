@@ -34,8 +34,9 @@ export const DEVELOPER_WORK = `## Scope
 
 ## How the work goes
 Planning, tests, verification, review and finishing the branch follow the matching skills. What this run adds:
-- Plan files first. The item's plan (\`docs/superpowers/plans/YYYY-MM-DD-<item-subject>.md\`) and, for new behavior or when the brief names a design artifact, its spec (\`docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md\`) are files of the task: write and self-review them before you ask. They are the only files you write before the approval, and they are committed with the item.
-- Approval: ask with ${ASK_USER_QUESTION_TOOL_NAME} (the skill says when). The lead relays the question to the owner on Discord, so it is a short summary of the plan that names the plan file, with the execution method you recommend (this run alone, or a fresh subagent per task) so one yes covers both. This holds for an item of a plan the owner approved and for a fix-N item too: the owner approves the plan of this run's own change. Change no code before the approval. If the owner changes the plan, update the files to match and commit them with the item.
+- The brief is the approved plan. Its plan section (and the spec and plan artifact ids it names) says what to build; read them with ReadArtifact and implement exactly that. Write no plan file of your own and do not ask for approval of a plan. If the first item of a goal, commit the spec and plan artifacts to \`docs/superpowers/specs/\` and \`docs/superpowers/plans/\` of the location before your code. A brief with no plan section is a small change: make it directly.
+- Ask the owner (${ASK_USER_QUESTION_TOOL_NAME}; the lead relays it) only for a real blocker: a decision the brief and artifacts do not settle. Change no code that depends on it before the answer.
+- Tests: run the tests of the packages you touched. The full suite runs once, in the code-added verify item; never run the same suite twice in a row.
 - Delivery: commit; merge, push or PR only after the owner chose it, through the effect tools. With no .git in the location there is no git delivery: leave the changes in place and say so.
 
 ## Definition of done
@@ -87,7 +88,7 @@ Goal-driven execution: define success criteria and loop until verified. Turn the
 - "Add validation": write tests for invalid inputs, then make them pass.
 - "Fix the bug": write a test that reproduces it, then make it pass.
 - "Refactor X": make sure the tests pass before and after.
-- For a multi-step task, put a short plan in the plan you ask the owner to approve, each step with its check: "1. <step> -> verify: <check>".
+- For a multi-step task, follow the brief's steps, each with its check: "1. <step> -> verify: <check>".
 - Strong success criteria let you loop on your own; weak ones ("make it work") need clarification.`;
 
 /** Commit rules (live in code, not in the owner's AGENTS.md): message shape, no attribution, what never goes in. */

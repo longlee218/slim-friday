@@ -83,7 +83,6 @@ export const DEVELOPER_ROLE: RoleDefinition = {
     "test-driven-development",
     "using-git-worktrees",
     "verification-before-completion",
-    "writing-plans",
     "frontend-ui-engineering",
     "frontend-design",
     "vercel-react-best-practices",
@@ -94,7 +93,6 @@ export const DEVELOPER_ROLE: RoleDefinition = {
   ], // explicit list: a new skill is added here (data)
   preloadSkills: [METHOD_SKILL, TEAM_SKILL], // the rule to check skills first is in the system prompt
   requiredSkills: [
-    "writing-plans",
     "executing-plans",
     "test-driven-development",
     "verification-before-completion",

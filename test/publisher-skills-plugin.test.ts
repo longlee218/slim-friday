@@ -44,6 +44,7 @@ const DEV_DROPPED = new Set([
   "security-and-hardening",
   "wcag-audit-patterns",
   "brainstorming", // the lead alone talks to the human
+  "writing-plans", // the lead writes the plan; a developer item has it in the brief
 ]);
 const DEV_INSTALLED = PUBLISHER.filter(
   ([n, e]) => devSources.has(e.source) && !DEV_DROPPED.has(n),
