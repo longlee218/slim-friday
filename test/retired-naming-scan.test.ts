@@ -327,7 +327,7 @@ function markdown(dir: string): string[] {
 test("app-owned skills (`.agents/skills/**/*.md`, local lock entries) name no retired tool", () => {
   const local = Object.entries(readSkillsLock().skills).filter(([, e]) => e.sourceType === "local");
   const mds = local.flatMap(([n]) => markdown(join(".agents", "skills", n)));
-  expect(mds.length).toBeGreaterThan(5); // the glob really reaches the hidden dir
+  expect(mds.length).toBeGreaterThan(2); // the glob really reaches the hidden dir
   const hits: string[] = [];
   for (const f of mds) {
     const text = readFileSync(f, "utf8");

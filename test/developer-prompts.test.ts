@@ -45,14 +45,14 @@ test("dev: one contract, approval before changes by ask, a design request may en
   expect(text).not.toMatch(/subagent-run-facts|implementer|task-reviewer|brainstorming/);
   expect(text).not.toContain("git MCP");
   expect(text).not.toContain("plan.md"); // no plan file, no handoff
-  // Section order: Mission and Method first, the shared worker block, then scope ... environment, stop rules last.
+  // Section order: Mission and Method first, then scope ... environment, stop rules last.
   const at = (h: string) => text.indexOf(h);
   const order = [
     "## Mission",
     "## Method",
     "## Scope",
     "## How the work goes",
-    "## Asking the teammate",
+    "## Questions",
     "## Commits",
     "## Environment facts",
     "## Stop, ask or fail",

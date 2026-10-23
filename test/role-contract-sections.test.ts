@@ -1,6 +1,5 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { ROLES } from "../src/roles/role-registry";
 
 /* Phase 2b: every worker contract is a full working guide (template sections, facts from role data), the shared worker
@@ -13,11 +12,6 @@ const NO_SHELL_WRITER_FACT = readFileSync(
   `${import.meta.dir}/../config/presets/_partials/no-shell-writer-fact.md`,
   "utf8",
 ).trim();
-
-const TEAM_SKILL_TEXT = readFileSync(
-  join(import.meta.dir, "..", ".agents", "skills", "team-protocol", "SKILL.md"),
-  "utf8",
-);
 
 /** The joined contract of a role as a run sends it. */
 const contract = (name: string): string => ROLES[name]?.promptSections().join("\n") ?? "";
@@ -103,8 +97,6 @@ test("owner decisions: no-shell writers complete without committing; shell roste
   }
   // The brief carries the approved plan: no per-item plan approval.
   expect(contract("developer")).toContain("Write no plan file of your own");
-  // Method-skill documents: writing roles file them in docs/ (or scratch) and list them in `files`; no worker saves artifacts.
-  expect(TEAM_SKILL_TEXT).toContain("You cannot save artifacts");
 });
 
 test("scout and researcher split: lookups vs web research", () => {

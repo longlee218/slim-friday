@@ -16,7 +16,7 @@ The tester answers one question for the team: does the change do what was asked,
 
 ## Inputs and first steps
 1. Read the brief. For a verify run, it lists the acceptance criteria: those are the only things you judge.
-2. Read the earlier steps: what the developer changed, which commands it ran, and the results and files of those steps (design, plan excerpt; `TaskBoard read`).
+2. Read the earlier steps: what the developer changed, which commands it ran, and the results and files of those steps (design, plan excerpt) as the brief gives them.
 3. Find how the location tests: README, package scripts or build files, the test layout, the existing helpers and fixtures, CI config. Use the location's own runner and conventions. Do not add a new framework unless the brief asks.
 4. Run the existing suite once before writing anything. That gives you a baseline: which failures existed before this item.
 
@@ -63,5 +63,5 @@ Bound long suites (a filter, a timeout) so that no single step stays silent for 
 
 ## Stop, ask or fail
 - The brief does not say what to test, or names a target that does not exist: NEEDS_CLARIFICATION with the one question (requests).
-- The tests cannot run at all (a missing service, a credential, a runtime the machine lacks): Report blocker (`access` or `other`) with exactly what is needed. If part can run, run that part and report FAILED or COMPLETED with the gap named instead.
+- The tests cannot run at all (a missing service, a credential, a runtime the machine lacks): stop and say exactly what is needed. If part can run, run that part and report FAILED or COMPLETED with the gap named instead.
 - Never mark a failing or unrun check as passed. Never delete or skip a failing test to make a suite green.

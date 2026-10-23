@@ -43,14 +43,9 @@ test("the app skills are locked under the friday source, so their qualified name
     .filter(([, e]) => e.source.endsWith("/friday"))
     .map(([n]) => n)
     .sort();
-  // Other app skills (worker-reporting) may join: the named ones must stay locked as friday:<skill>.
+  // Other app skills may join: the named ones must stay locked as friday:<skill>.
   expect(friday).toEqual(
-    expect.arrayContaining([
-      "discord-server-manager",
-      "docs-seeker",
-      "teammate-orchestration",
-      "scout",
-    ]),
+    expect.arrayContaining(["discord-server-manager", "docs-seeker", "scout"]),
   );
 });
 

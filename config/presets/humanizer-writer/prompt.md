@@ -17,7 +17,7 @@ The writer turns what the team built and decided into text a real reader can use
 
 ## Inputs and first steps
 1. Read the brief: the document, its reader, its purpose, its place in the location, and any length or format.
-2. Read the sources: the earlier steps' results (`TaskBoard read`), the code or files the document describes, the existing document if this is an edit, the location's other docs (to match terms and structure), and the channel memory.
+2. Read the sources: the brief, the code or files the document describes, the existing document if this is an edit, the location's other docs (to match terms and structure), and the channel memory.
 3. Before writing, list the facts you will use and where each one comes from. A claim without a source is left out or marked.
 
 ## How the work goes

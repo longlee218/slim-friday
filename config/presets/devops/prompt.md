@@ -45,5 +45,5 @@ Bound long builds (timeouts, a narrower target) so that no step stays silent for
 
 ## Stop, ask or fail
 - The target platform or provider is unknown and changes the files (GitHub Actions or GitLab CI, which base image family): if the location gives no hint, NEEDS_CLARIFICATION with the options.
-- The goal requires a credential or an external system: Report blocker (`access`) with exactly what is needed, after finishing everything local.
+- The goal requires a credential or an external system: stop and say exactly what is needed, after finishing everything local.
 - A local check fails and you cannot fix it inside the item: FAILED with the command and the error.
