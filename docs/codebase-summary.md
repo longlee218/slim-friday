@@ -1,11 +1,12 @@
 # Codebase Summary
 
-Last updated: 2026-10-24 (after plan 1). Design: [2026-10-23-friday-team-engine-design.md](superpowers/specs/2026-10-23-friday-team-engine-design.md).
+Last updated: 2026-10-24 (after plan 2). Design: [2026-10-23-friday-team-engine-design.md](superpowers/specs/2026-10-23-friday-team-engine-design.md).
 
 Friday is a self-hosted personal agent on the Claude Agent SDK (Bun + TypeScript + SQLite/Drizzle). The engine is being rebuilt; this is what is in `src/` now.
 
 | Folder | Holds |
 |---|---|
+| `packages/core/` | domain types, ports, routing, permission decision, bot hub (no dependencies; tests with fakes in `packages/core/test/`) |
 | `src/index.ts`, `src/lifecycle/` | boot, startup hygiene, trash and home-retention sweepers |
 | `src/config/` | env and file config, limits (the only place that reads env) |
 | `src/runtime/` | run agent, SDK options, OS sandbox, run protection, supervisor, compaction hooks |
