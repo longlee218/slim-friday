@@ -48,7 +48,6 @@ Single source of every limit and stop condition of the app. Other docs link here
 | `CHAT_ROLLOVER_COMPACTIONS` | teammate | 3 <!-- limit:CHAT_ROLLOVER_COMPACTIONS=3 --> | `config/teammate-caps.ts` | a chat-mode session that saw this many compactions is replaced by a fresh one | code |
 | `CHAT_ROLLOVER_SEED_MESSAGES` | teammate | 20 <!-- limit:CHAT_ROLLOVER_SEED_MESSAGES=20 --> | `config/teammate-caps.ts` | visible channel messages in a rolled-over session's first user turn | code |
 | `DISPATCHES_PER_RUN` | run | 1 <!-- limit:DISPATCHES_PER_RUN=1 --> | `config/teammate-caps.ts` | second `Orchestrate dispatch` of a teammate run refused | code |
-| `MAX_ASSIGNMENTS` | run | 20 <!-- limit:MAX_ASSIGNMENTS=20 --> | `orchestrator/teammate/teammate-limits.ts` | schema rejects; more than the policy allows so the policy can answer NEEDS_PLAN | code |
 | `ANNOUNCE_MAX_EVENTS` | t | 20 events <!-- limit:ANNOUNCE_MAX_EVENTS=20 --> | `config/teammate-caps.ts` | the rest stays undelivered; the block says how many more and a new announce is armed after the run; one `budget_hit` per goal per batch | code |
 | `ANNOUNCE_MAX_CHARS` | t | 6000 chars <!-- limit:ANNOUNCE_MAX_CHARS=6000 --> | `config/teammate-caps.ts` | same as the event cap (an event past the chars waits for the next announce) | code |
 | Announce batch | t | 2 s window, 2 attempts | `teammate/teammate-events.ts`, `teammate/teammate-run.ts` | informational | code |
@@ -147,9 +146,6 @@ Subagents enabled per role (1 = on, 0 = off; drift-checked, guards "developer an
 | `PLAN_MAX_CRITERIA` | goal | 5 <!-- limit:PLAN_MAX_CRITERIA=5 --> | `config/teammate-caps.ts` | schema refuses a plan or revision with more acceptance criteria (they feed the verify run) | code |
 | `PLAN_MAX_REVISIONS` | goal | 5 <!-- limit:PLAN_MAX_REVISIONS=5 --> | `config/teammate-caps.ts` | no further revision after version 1 | code |
 | `PENDING_PLAN_MAX_AGE_MS` | goal | 24 h <!-- limit:PENDING_PLAN_MAX_AGE_MS=86400000 --> | `config/teammate-caps.ts` | a `valid` plan no longer holds its goal open; the sweeper then rejects it (`timeout` event, code `PLAN_EXPIRED`) once `ASK_OWNER_TIMEOUT_MS` more passed (an owner question asked just before the limit can still be answered), and the goal settles (or closes when it never had a plan). Drafts are never kept, so only `valid` versions expire | code |
-| `BRIEF_MAX_CHARS` | item | 4000 chars <!-- limit:BRIEF_MAX_CHARS=4000 --> | `orchestrator/teammate/teammate-limits.ts` | schema rejects | code |
-| `PLAN_DOC_MAX_CHARS` | `spec` and `plan` text of `create_plan` / `revise_plan` (each) | 60000 chars <!-- limit:PLAN_DOC_MAX_CHARS=60000 --> | `orchestrator/teammate/teammate-limits.ts` | schema rejects | code |
-| `PLAN_SECTION_MAX_CHARS` | item `section` (a heading of the plan text) | 200 chars <!-- limit:PLAN_SECTION_MAX_CHARS=200 --> | `orchestrator/teammate/teammate-limits.ts` | schema rejects | code |
 | `SUBJECT_MAX_CHARS` | item | 80 chars <!-- limit:SUBJECT_MAX_CHARS=80 --> | `config/teammate-caps.ts` | schema rejects (`subject` is required on every new item: dispatch assignment, `add`, plan item; `brief` stays the description) | code |
 
 - No plan body byte cap: the body is bounded by items x brief. Long approval text goes to the owner as an attachment.
@@ -164,7 +160,6 @@ Subagents enabled per role (1 = on, 0 = off; drift-checked, guards "developer an
 | Goal-left cap | item run | what the goal has left of the ceiling (`route.capUsd`) | `orchestrator/budget/task-budget.ts` | an item run never exceeds the goal's rest; never raised by an extra budget | code |
 | `MAX_BUDGET_USD` | run | optional global cap | env, `config/agent-config.ts` | applied as a minimum on every run | env |
 | One-shot budgets | one-shot | memory flush `FLUSH_BUDGET_USD`, see [Memory](#memory) | `config/memory-caps.ts` | see Memory | code |
-| `GOAL_BUDGET_USD` | goal | $15 <!-- limit:GOAL_BUDGET_USD=15 --> (alias of `TASK_BUDGET_USD`) | `orchestrator/budget/task-budget.ts` | budget of a goal with no approved plan (DELEGATE): the dispatch of a ready item is refused when it is used | code |
 | `PLAN_GOAL_BUDGET_MAX_USD` | goal | $35 <!-- limit:PLAN_GOAL_BUDGET_MAX_USD=35 --> | `config/model-routing.ts` | ceiling of a PLAN goal's budget: the approved plan's code-computed `budgetUsd` is the goal budget, never above this; a computed sum above it is capped, not refused (owner 2026-10-17). `goalBudgetOf(db, goalId)` is the one figure behind the dispatch refusal, the goal-left run cap, the verify loop and the digest | code |
 | `PLAN_BUDGET_RESERVE_FACTOR` | goal | 1.25 <!-- limit:PLAN_BUDGET_RESERVE_FACTOR=1.25 --> | `config/model-routing.ts` | the plan budget is computed by code, never by the planner (`orchestrator/budget/plan-budget.ts`): the role `budgetUsd` of every item in the version (deferred ones included) plus one `tester` verify run per location with a writer item (when the plan has criteria), times this factor, rounded up to a whole dollar, capped at `PLAN_GOAL_BUDGET_MAX_USD`. Not above the goal's spend: the spend is added on top. Recomputed on every revision; an approved budget is never lowered, and a raise waits for the owner (owner 2026-10-20) | code |
 | `MIN_RECOVERY_BUDGET_USD` | run | $0.1 <!-- limit:MIN_RECOVERY_BUDGET_USD=0.1 --> | `runtime/run-supervisor.ts` | below this much budget left, no recovery run starts | code |
@@ -180,7 +175,6 @@ Subagents enabled per role (1 = on, 0 = off; drift-checked, guards "developer an
 |---|---|---|---|---|---|
 | Item age | item | 8 h, see [Workers](#workers) | `config/resilience-caps.ts` | held for the chief-of-staff | code |
 | `RELAY_WAIT_MS` | item | 2 h <!-- limit:RELAY_WAIT_MS=7200000 --> | `config/run-caps.ts` | a worker's question to the chief-of-staff or owner times out like an owner timeout; also bounded by item age | code |
-| `ASK_OWNER_TIMEOUT_MS` | run | 10 min <!-- limit:ASK_OWNER_TIMEOUT_MS=600000 --> | `orchestrator/teammate/teammate-limits.ts` | `Orchestrate ask_owner` returns a timeout | code |
 | Approval click | run | 600 s | `providers/discord/approval/discord-approval.ts` | the tool call is denied (below the 15 min stale threshold, so it is not marked) | code |
 | Pending plan | goal | 24 h, see [Plans](#plans) | `config/teammate-caps.ts` | plan stops holding the goal | code |
 | Run timeout | run | none | - | `/stop` only | - |
@@ -239,22 +233,6 @@ All in `src/orchestrator/teammate/teammate-limits.ts` (zod shapes and the relay 
 
 | Name | Scope | Value | At the limit |
 |---|---|---|---|
-| `OPTIONS_MIN` / `OPTIONS_MAX` | `Orchestrate ask_owner` `select` | <!-- limit:OPTIONS_MIN=2 -->2 / <!-- limit:OPTIONS_MAX=25 -->25 options (buttons up to 5, select menu above; `yesno` and `text` take none) | schema / handler `BAD_OPTIONS` |
-| `QUESTION_MAX_CHARS` | `Orchestrate ask_owner` | <!-- limit:QUESTION_MAX_CHARS=600 -->600 chars | schema rejects |
-| `OPTION_MAX_CHARS` | `Orchestrate ask_owner` | <!-- limit:OPTION_MAX_CHARS=80 -->80 chars | schema rejects |
-| `PATH_MAX_CHARS` | `Orchestrate register_location` | <!-- limit:PATH_MAX_CHARS=1024 -->1024 chars | schema rejects |
-| `PROJECT_NAME_MAX_CHARS` | `Orchestrate register_location` create without path | <!-- limit:PROJECT_NAME_MAX_CHARS=40 -->40 chars | schema rejects |
-| `STEER_TEXT_MAX_CHARS` | `Orchestrate steer` | <!-- limit:STEER_TEXT_MAX_CHARS=4000 -->4000 chars | schema rejects |
-| `REASON_MAX_CHARS` | `Orchestrate dispatch` | <!-- limit:REASON_MAX_CHARS=400 -->400 chars | schema rejects |
-| `REPORT_SUMMARY_MAX_CHARS` | `Report result` | <!-- limit:REPORT_SUMMARY_MAX_CHARS=4000 -->4000 chars | schema rejects |
-| `MAX_REQUESTS` | `Report result` | <!-- limit:MAX_REQUESTS=5 -->5 follow-ups | schema rejects |
-| `REQUEST_MAX_CHARS` | `Report result` | <!-- limit:REQUEST_MAX_CHARS=500 -->500 chars | schema rejects |
-| `PROGRESS_NOTE_MAX_CHARS` | `Report progress` | <!-- limit:PROGRESS_NOTE_MAX_CHARS=200 -->200 chars | schema rejects |
-| `BLOCKER_REASON_MAX_CHARS` | `Report blocker` | <!-- limit:BLOCKER_REASON_MAX_CHARS=1000 -->1000 chars | schema rejects |
-| `SEARCH_QUERY_MAX_CHARS` | `TaskBoard search` | <!-- limit:SEARCH_QUERY_MAX_CHARS=200 -->200 chars | schema rejects |
-| `SEARCH_MAX_RESULTS` | `TaskBoard search` (task matches) | <!-- limit:SEARCH_MAX_RESULTS=10 -->10 matches (best first) | the rest is not returned |
-| `GET_RESULT_MAX_CHARS` | `TaskBoard get` | <!-- limit:GET_RESULT_MAX_CHARS=8000 -->8000 chars of the item's newest `result` message (redacted; `resultClipped: true` when cut; the whole text is `TaskBoard read`) | cut |
-| `GET_EVENTS_MAX` | `TaskBoard get` | <!-- limit:GET_EVENTS_MAX=5 -->5 newest events of the item | older ones not listed |
 
 | `MEMORY_READ_MAX_CALLS_PER_RUN` | memory read tools | 100 per run (`mcp/memory/memory-read-shared.ts`, not drift-checked) | read refused |
 | `MAX_PATHS` | `DeletePaths` | 500 paths (`DeletePathsTool/constants.ts`, not drift-checked) | schema rejects |
@@ -290,15 +268,6 @@ Files: `artifacts/artifact-limits.ts`. An artifact body has no size cap (the own
 
 | Name | Value | At the limit |
 |---|---|---|
-| `ARTIFACT_CHUNK_CHARS` | <!-- limit:ARTIFACT_CHUNK_CHARS=2000 -->2000 chars per FTS row | the body is split at paragraph borders, a longer paragraph in fixed windows; one hit per artifact |
-| `ARTIFACT_READ_PAGE_CHARS` | <!-- limit:ARTIFACT_READ_PAGE_CHARS=8000 -->8000 chars per `ReadArtifact` page | bounds one tool result, not the artifact: the result names the next `offset` until the end |
-| `ARTIFACT_SEARCH_DEFAULT_LIMIT` | <!-- limit:ARTIFACT_SEARCH_DEFAULT_LIMIT=8 -->8 hits | `SearchArtifacts` without a `limit` |
-| `ARTIFACT_SEARCH_MAX_LIMIT` | <!-- limit:ARTIFACT_SEARCH_MAX_LIMIT=20 -->20 hits | a larger `limit` is cut |
-| `ARTIFACT_LIST_MAX` | <!-- limit:ARTIFACT_LIST_MAX=50 -->50 rows | `ListArtifacts` returns the newest 50; narrow with `goalId`, `threadId` |
-| `REPORT_FILES_MAX` | <!-- limit:REPORT_FILES_MAX=10 -->10 files | the `Report result` `files` list is refused (schema) |
-| `REPORT_IMAGES_MAX` | <!-- limit:REPORT_IMAGES_MAX=4 -->4 screenshots | the `Report result` `images` list is refused (schema) |
-| `REPORT_IMAGE_MAX_BYTES` | <!-- limit:REPORT_IMAGE_MAX_BYTES=8000000 -->8000000 bytes | one screenshot over it is refused (`INVALID_IMAGES`, the report is not stored); Discord's own limit is about 10 MB |
-| `REPORT_REPO_DOC_MAX_BYTES` | <!-- limit:REPORT_REPO_DOC_MAX_BYTES=2000000 -->2000000 bytes | a file of the granted location over it is refused when reported or forwarded, and read as metadata only (`SaveArtifact` stays uncapped) |
 | `REPORT_FILE_MAX_BYTES` | <!-- limit:REPORT_FILE_MAX_BYTES=5000000 -->5000000 bytes (`src/config/message-caps.ts`) | a scratch file over it is refused when reported (`INVALID_FILES`, the report is not stored); an accepted one is copied to `<AGENT_HOME>/task-files/<goalId>/<taskId>/` and removed with the goal's messages by the db retention sweep |
 | Search query / terms | 200 chars / 12 terms (shared with memory search, `memory/index/memory-search.ts`, not drift-checked) | query clipped, extra terms dropped |
 
@@ -308,8 +277,6 @@ Files: `config/viewer-config.ts`, `viewer/`. The viewer is OFF unless `VIEWER_SE
 
 | Name | Value | At the limit |
 |---|---|---|
-| `VIEWER_SECRET_MIN_BYTES` | <!-- limit:VIEWER_SECRET_MIN_BYTES=32 -->32 bytes | a shorter `VIEWER_SECRET` refuses the start (`Invalid environment variables: VIEWER_SECRET`) |
-| `VIEWER_LINK_TTL_DEFAULT_MS` | <!-- limit:VIEWER_LINK_TTL_DEFAULT_MS=604800000 -->604800000 ms (7 days) | a signed link older than its `VIEWER_LINK_TTL_MS` answers 404; the "Open" button of a newer post is a fresh link |
 | Default port | 8787 (`VIEWER_PORT`, not drift-checked) | 127.0.0.1 only; a taken port refuses the start |
 
 ## Discord Output

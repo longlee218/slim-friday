@@ -37,9 +37,9 @@ test("dev lists every skill of each publisher pack it uses (so worktree and fini
     .map(([n]) => n);
   // plus the app-owned skills every worker lists (process rule and reporting)
   expect([...(ROLES.developer?.skills ?? [])].sort()).toEqual(
-    [...publisher, "worker-reporting", "using-skills", "team-protocol"].sort(),
+    [...publisher, "using-skills"].sort(),
   );
-  expect(ROLES["chief-of-staff"]?.skills).toEqual(["teammate-orchestration", "brainstorming"]);
+  expect(ROLES["chief-of-staff"]?.skills).toEqual([]);
 });
 
 test("limits live in the role: dev has the ask capability; the teammate has none", () => {

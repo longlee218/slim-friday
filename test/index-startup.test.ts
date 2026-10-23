@@ -1,5 +1,5 @@
 import { expect, setDefaultTimeout, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
@@ -57,31 +57,6 @@ test("exits 1 before Discord login when there is no credential", async () => {
   expect(r.log).not.toContain("discord login failed");
 });
 
-test("exits 1 when a workspace lists channels but DISCORD_GUILD_ID is not set", async () => {
-  const home = mkdtempSync(join(tmpdir(), "friday-idx-"));
-  const ws = workspacePaths(home).workspace("w");
-  mkdirSync(ws.root, { recursive: true });
-  writeFileSync(ws.config, 'channels:\n  - {id: "100000000000000001", name: w-agent}\n');
-  const r = await runIndex(
-    { DISCORD_TOKEN: "fake.discord.token", OWNER_DISCORD_ID: "1", CLAUDE_CODE_OAUTH_TOKEN: "tok" },
-    home,
-  );
-  expect(r.code).toBe(1);
-  expect(r.log).toContain("DISCORD_GUILD_ID required");
-});
-
-test("exits 1 when discord.yaml is unparsable (fail closed)", async () => {
-  const home = mkdtempSync(join(tmpdir(), "friday-idx-"));
-  writeFileSync(join(home, "discord.yaml"), "ops: [unclosed");
-  const r = await runIndex(
-    { DISCORD_TOKEN: "fake.discord.token", OWNER_DISCORD_ID: "1", CLAUDE_CODE_OAUTH_TOKEN: "tok" },
-    home,
-  );
-  expect(r.code).toBe(1);
-  expect(r.log).toContain("discord.yaml");
-  expect(r.log).not.toContain("discord login failed");
-});
-
 test("exits 1 when AGENT_HOME sits inside a git working tree", async () => {
   const tree = mkdtempSync(join(tmpdir(), "friday-idx-"));
   mkdirSync(join(tree, ".git"));
@@ -95,15 +70,27 @@ test("exits 1 when AGENT_HOME sits inside a git working tree", async () => {
   expect(r.log).toContain("AGENT_HOME is inside a git working tree");
 });
 
-test("startup creates the root persona files in an empty home (no workspaces), before any Discord login", async () => {
+test("boots with only a credential: creates the persona files, logs engine.absent, exits 0 on SIGTERM", async () => {
   const home = mkdtempSync(join(tmpdir(), "friday-idx-"));
-  // Stops later at the discord.yaml check, after ensureHome has run.
-  writeFileSync(join(home, "discord.yaml"), "ops: [unclosed");
-  const r = await runIndex(
-    { DISCORD_TOKEN: "fake.discord.token", OWNER_DISCORD_ID: "1", CLAUDE_CODE_OAUTH_TOKEN: "tok" },
-    home,
-  );
-  expect(r.code).toBe(1);
+  const proc = Bun.spawn(["bun", "run", join(import.meta.dir, "..", "src", "index.ts")], {
+    cwd: home,
+    env: {
+      PATH: process.env.PATH!,
+      HOME: process.env.HOME!,
+      AGENT_HOME: home,
+      CLAUDE_CODE_OAUTH_TOKEN: "tok",
+    },
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  const logFile = workspacePaths(home).appLog();
+  // Wait (bounded) for the boot line, then ask the process to stop.
+  for (let i = 0; i < 100; i++) {
+    if (readLogLines(logFile).some((l) => l.msg === "engine.absent")) break;
+    await Bun.sleep(100);
+  }
+  proc.kill("SIGTERM");
+  expect(await proc.exited).toBe(0);
   const p = workspacePaths(home);
   for (const f of [p.identity, p.soul, p.user, p.memory, p.agents, p.bootstrap])
     expect(existsSync(f)).toBe(true);

@@ -1,25 +1,15 @@
 name: chief-of-staff
 basePrompt: custom
-whenToUse: "Routes the owner's messages to specialist workers and reports their results."
+whenToUse: "The default member: talks to the owner, keeps memory, reads files."
 kind: teammate
-skills:
-  - teammate-orchestration
-  - brainstorming
-preloadSkills:
-  - teammate-orchestration
+skills: []
+preloadSkills: []
 mcpTools:
   - MemorySave
   - MemoryEdit
   - MemorySearch
   - MemoryGet
   - MemoryExpand
-  - SaveArtifact
-  - ReadArtifact
-  - ListArtifacts
-  - SearchArtifacts
-  - Orchestrate
-  - TaskBoard
-  - MessageTeammate
 limits:
   maxTurns: 30
 subagents:
@@ -35,5 +25,3 @@ thinking:
   type: adaptive
 budgetUsd: 1.5
 model: sonnet
-vars:
-  skillRef: friday:teammate-orchestration

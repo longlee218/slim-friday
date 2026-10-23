@@ -2,7 +2,6 @@ import { afterEach, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { HAIKU_MODEL } from "../src/config/model-ids";
 import type { FlushRequest } from "../src/memory/compaction-flush";
 import { appendJournalBlock, journalFile, pruneJournals } from "../src/memory/daily-journal";
 import {
@@ -15,15 +14,10 @@ import { syncIndex } from "../src/memory/index/memory-sync";
 import { buildPromptContext } from "../src/memory/prompt-context";
 import { RELATED_HEADING } from "../src/memory/related-heading";
 import { mergeSummary } from "../src/memory/summary-merge";
-import { runRole } from "../src/orchestrator/run/run-role";
 import { COMPACT_INSTRUCTIONS } from "../src/roles/prompts/memory-prompts";
-import { ROLES } from "../src/roles/role-registry";
-import type { RoleDefinition } from "../src/roles/role-types";
 import { buildCompactHooks } from "../src/runtime/compact-hooks";
 import { openDb } from "../src/storage/db";
-import { insertTurn } from "../src/storage/run-store";
 import { getThreadSummary, saveSummary } from "../src/storage/thread-summary-store";
-import { makeEnv, resultMsg, stubGateway } from "./helpers";
 
 const NOW = new Date(2026, 9, 13, 14, 32);
 const dirs: string[] = [];
@@ -337,60 +331,6 @@ test("journal: hook text is never injected into a prompt; the line limit stops a
   expect(existsSync(join(dir, "2026-08-01.md"))).toBe(false);
   expect(existsSync(join(dir, "2026-10-01.md"))).toBe(true);
   expect(existsSync(join(dir, "notes.md"))).toBe(true);
-});
-
-test("every role run registers the PreCompact and PostCompact hooks", async () => {
-  const env = makeEnv();
-  const probe: RoleDefinition = {
-    name: "probe-hooks",
-    whenToUse: "test only",
-    kind: "teammate",
-    limits: { maxTurns: 20 },
-    subagents: { parallel: 3, depth: 1 },
-    sideEffects: "none",
-    capabilities: ["read"],
-    model: HAIKU_MODEL,
-    budgetUsd: 0.4,
-    promptSections: () => ["probe"],
-  };
-  const roles = ROLES as Record<string, RoleDefinition>;
-  roles[probe.name] = probe;
-  const seen: any[] = [];
-  try {
-    insertTurn(env.db, {
-      id: "t1",
-      threadId: "th",
-      source: "test",
-      location: "location",
-      role: "chief-of-staff",
-    });
-    await runRole(
-      {
-        db: env.db,
-        config: env.config,
-        approvals: stubGateway(),
-        queryFn: ((a: { options: unknown }) => {
-          seen.push(a.options);
-          return (async function* () {
-            yield resultMsg({ result: "ok" });
-          })();
-        }) as never,
-      },
-      {
-        turnId: "t1",
-        threadId: "th",
-        text: "hi",
-        role: probe,
-        workspace: "main",
-        locations: [{ name: "location", path: env.location } as never],
-        ac: new AbortController(),
-      },
-    );
-  } finally {
-    delete roles[probe.name];
-  }
-  expect(seen[0].hooks.PreCompact).toHaveLength(1);
-  expect(seen[0].hooks.PostCompact).toHaveLength(1);
 });
 
 test("pruneJournals clears old day files of every channel and of the retired per-space dir; recent files stay", () => {

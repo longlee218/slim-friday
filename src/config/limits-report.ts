@@ -10,12 +10,8 @@ const LIMIT_MODULES = [
   "./resilience-caps",
   "./memory-caps",
   "./message-caps",
-  "./viewer-config",
   "./model-routing",
-  "../orchestrator/teammate/teammate-limits",
-  "../orchestrator/budget/task-budget",
   "../runtime/run-supervisor",
-  "../artifacts/artifact-limits",
 ];
 
 /**

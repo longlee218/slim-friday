@@ -1,5 +1,4 @@
 import type { Database } from "bun:sqlite";
-import type { ThreadTitlePort } from "../ingress/thread-title";
 import type { MemoryToolContext } from "./memory-tool-context";
 
 /**
@@ -18,8 +17,6 @@ export function buildMemoryToolContext(p: {
   channel?: string;
   /** Discord channel id of the run (the thread's parent); stamped on a thread row created by `Orchestrate set_title`. */
   channelId?: string;
-  /** Rename port (every role with a port): registers `Orchestrate set_title`. */
-  threadTitle?: ThreadTitlePort;
   /** A Friday-owned tool reported a known outcome (the run supervisor counts these). */
   onIssue?: MemoryToolContext["onIssue"];
   /** The async memory flush after a compaction (foreground runs). */
@@ -34,7 +31,6 @@ export function buildMemoryToolContext(p: {
     threadId: p.threadId,
     ...(p.role && { role: p.role }),
     trackSummary: p.trackSummary,
-    threadTitle: p.threadTitle,
     threadLabel: `thread ${p.threadId.slice(-6)}`,
     ...(p.onIssue && { onIssue: p.onIssue }),
     ...(p.onCompacted && { onCompacted: p.onCompacted }),

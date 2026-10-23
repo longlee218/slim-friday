@@ -151,23 +151,16 @@ test("a run logs run.started and run.finished with the task's correlation fields
   );
   stop();
   const events = lines.map((l) => l.event);
-  expect(events).toEqual([
-    "skills.plugin_built", // the teammate loads its method skill and brainstorming (two plugins)
-    "skills.plugin_built",
-    "run.started",
-    "permission.mode",
-    "run.finished",
-    "skills.used", // the teammate logs its skill use too
-  ]);
-  expect(lines[2]).toMatchObject({
+  expect(events).toEqual(["run.started", "permission.mode", "run.finished"]);
+  expect(lines[0]).toMatchObject({
     taskId: "T1",
     threadId: "th1",
     location: "location",
     mode: "assistant",
     resume: false,
   });
-  expect(lines[3]).toMatchObject({ event: "permission.mode" });
-  expect(lines[4]).toMatchObject({
+  expect(lines[1]).toMatchObject({ event: "permission.mode" });
+  expect(lines[2]).toMatchObject({
     outcome: "success",
     turns: 2,
     inputTokens: 10,

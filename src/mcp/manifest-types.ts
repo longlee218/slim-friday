@@ -3,53 +3,21 @@ import type {
   McpStdioServerConfig,
   SdkMcpToolDefinition,
 } from "@anthropic-ai/claude-agent-sdk";
-import type { ArtifactToolCtx } from "../artifacts/artifact-access";
 import type { MemoryToolContext } from "../memory/memory-tool-context";
-import type { TeammateToolContext } from "../orchestrator/teammate/teammate-call";
-import type { ReportFilesCtx } from "../orchestrator/worker/report-files";
-import type { ReportSink } from "../orchestrator/worker/report-sink";
 import type { EffectsCtx } from "../policy/effect-context";
-import type { PeerIntent, PeerResult } from "../teammates/peer/send-peer-message";
 import type { ReadBudget } from "./memory/memory-read-shared";
-import type { TaskBoardCtx } from "./orchestration/tools/TaskBoardTool/task-board-ctx";
-
-/** What `MessageTeammate` needs of its run: one send (the sender, hop and turn are bound by the run). */
-export interface PeerCtx {
-  deliver(m: {
-    to: string;
-    text: string;
-    intent: PeerIntent;
-    replyTo?: number;
-  }): Promise<PeerResult>;
-}
 
 /**
  * Everything a run can bring to its MCP tools, as optional parts. A tool reads the part it needs; a run without that
- * part simply does not get the tool (so a worker run, which has no `teammate` part, can never hold a teammate tool).
+ * part simply does not get the tool (so a run without that part can never hold the tool).
  */
 export interface RunCtx {
-  /** Memory tools; also `Orchestrate set_title` (needs `memory.threadTitle`). Absent = no memory (a control-channel run). */
+  /** Memory tools. Absent = no memory. */
   memory?: MemoryToolContext;
-  /** Teammate tools: the teammate run's port and counters. */
-  teammate?: TeammateToolContext;
-  /** The run's own scratch dir (a dispatched worker): where its screenshots are checked from. */
+  /** The run's own scratch dir: where its screenshots are checked from. */
   scratchDir?: string;
-  /** Where a worker's `Report result` `files` are checked and scratch ones copied. */
-  reportFiles?: Omit<ReportFilesCtx, "scratchDir">;
-  /** Where a worker's `Report` result lands. */
-  reportSink?: ReportSink;
-  /** A worker's `Report` progress port, bound to its task (percent + note in, redacted and recorded by the callee). */
-  progress?: (p: { percent: number; note: string }) => void;
-  /** A worker's `Report` message port, bound to its task: stores a message of the task's thread, returns its ref (`M42`). */
-  message?: (kind: "blocker", text: string) => string;
-  /** `TaskBoard` (teammate and workers): the app db and the run's thread. Absent = no task board. */
-  taskBoard?: TaskBoardCtx;
-  /** Effect tools: the worker run's envelope, locations and owner gate. */
+  /** Effect tools: the run's envelope, locations and owner gate. */
   effects?: EffectsCtx;
-  /** `MessageTeammate`: send to another teammate (the app applies the rules and delivers). Absent = no peer tool. */
-  peer?: PeerCtx;
-  /** Artifact tools: the run's channel scope. Absent = no artifact tools. */
-  artifacts?: ArtifactToolCtx;
   /** Per-server-instance read cap shared by the memory read tools (set by the memory manifest's `prepare`). */
   readBudget?: ReadBudget;
 }

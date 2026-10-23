@@ -4,7 +4,6 @@ import { DELETE_PATHS_TOOL } from "../src/mcp/effects/tools/DeletePathsTool/cons
 import { GIT_PUSH_TOOL } from "../src/mcp/effects/tools/GitPushTool/constants";
 import { MERGE_BRANCH_TOOL } from "../src/mcp/effects/tools/MergeBranchTool/constants";
 import { EFFECTS_MCP_SERVER, mcpToolName } from "../src/mcp/mcp-tool-names";
-import type { DeliveryEffect } from "../src/orchestrator/plan/plan-types";
 import { checkEnvelope } from "../src/policy/check-envelope";
 import { checkToolCall, type GuardrailContext } from "../src/policy/check-tool-call";
 import { classifyToolCall } from "../src/policy/classify-tool-call";
@@ -12,7 +11,6 @@ import {
   ANY,
   type DispatchEnvelope,
   defaultEnvelope,
-  envelopeFromPlan,
   envelopeWithGrants,
 } from "../src/policy/envelope";
 import { DEFAULT_BOUNDS } from "../src/policy/risk-types";
@@ -79,33 +77,6 @@ test("push / merge need a grant on the location and the branch; a default branch
   expect(checkEnvelope({ tool: GIT_PUSH_TOOL, location: "api" }, granted)).toMatchObject({
     code: "OUT_OF_ENVELOPE",
   });
-});
-
-test("an approved plan becomes an envelope: R3 / pr opens push + PR, merge opens MergeBranch, GB bound applies", () => {
-  const plan = {
-    roles: ["developer"],
-    locations: ["api"],
-    riskClasses: ["R1", "R3"] as ("R1" | "R3")[],
-    bounds: { maxItems: 8, maxGb: 2 },
-    budgetUsd: 3,
-    effects: [MERGE_BRANCH_TOOL] as DeliveryEffect[],
-  };
-  const env = envelopeFromPlan(base, plan, { planId: "p1", version: 2 });
-  expect(env.grantedBy).toBe("plan:p1@v2");
-  expect(env.classes).toEqual(["R0", "R1", "R3"]);
-  expect(env.bounds).toEqual({ maxItems: 200, maxBytes: 2 * 1024 ** 3 }); // plan steps are not deleted paths
-  expect(env.effects.map((g) => g.tool as string).sort()).toEqual(
-    [CREATE_PULL_REQUEST_TOOL, GIT_PUSH_TOOL, MERGE_BRANCH_TOOL].sort(),
-  );
-  expect(checkEnvelope({ tool: MERGE_BRANCH_TOOL, location: "api", into: "any" }, env).allow).toBe(
-    true,
-  );
-  const keep = envelopeFromPlan(
-    base,
-    { ...plan, riskClasses: ["R1"], effects: [] },
-    { planId: "p", version: 1 },
-  );
-  expect(keep.effects).toEqual([]);
 });
 
 test("the guard: effect tools pass only inside the envelope, unknown tools are denied, hard denies stay first", () => {

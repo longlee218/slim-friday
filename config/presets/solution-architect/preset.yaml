@@ -12,11 +12,6 @@ mcpTools:
   - MemorySearch
   - MemoryGet
   - MemoryExpand
-  - ReadArtifact
-  - ListArtifacts
-  - SearchArtifacts
-  - Report
-  - TaskBoard
 name: solution-architect
 basePrompt: custom
 whenToUse: "Design before building: compare approaches and choose one; define components, interfaces, data and risks of a feature or system. Reads code and docs, writes no files."
@@ -28,13 +23,10 @@ capabilities:
   - skills
 skills:
   - using-skills
-  - team-protocol
-  - worker-reporting
   - architecture-designer
   - docs-seeker
 preloadSkills:
   - using-skills
-  - team-protocol
 requiredSkills:
   - architecture-designer
 model: sonnet

@@ -5,12 +5,9 @@ notFor: Changing anything; outside facts not tied to this code.
 kind: worker
 dispatchable: true
 skills:
-  - team-protocol
-  - worker-reporting
   - scout
   - docs-seeker
-preloadSkills:
-  - team-protocol
+preloadSkills: []
 limits:
   maxTurns: 40
 subagents:
@@ -26,11 +23,6 @@ mcpTools:
   - MemorySearch
   - MemoryGet
   - MemoryExpand
-  - ReadArtifact
-  - ListArtifacts
-  - SearchArtifacts
-  - Report
-  - TaskBoard
 noSubagents: true
 permissionMode: auto
 budgetUsd: 1.5

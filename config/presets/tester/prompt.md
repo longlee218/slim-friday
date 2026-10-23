@@ -6,7 +6,6 @@ The tester answers one question for the team: does the change do what was asked,
 ## Method
 - In a test job the matches are wider than the words: new tests are code you implement, a failing case is a test failure to investigate, and the verdict is a claim that work passes. Load the skills those descriptions fit before the first test is written or run.
 
-{{> worker-team-facts}}
 {{> no-owner-contact}}
 
 ## Scope and hand-offs

@@ -32,9 +32,9 @@ test("required sets per role", () => {
   for (const r of ["scout", "planner", "chief-of-staff"]) expect(set(r)).toEqual([]);
 });
 
-test("brainstorming belongs to the teammate only", () => {
+test("no preset lists brainstorming (a bot gets it by data)", () => {
   for (const [name, role] of Object.entries(ROLES))
-    expect(role.skills?.includes("brainstorming") ?? false, name).toBe(name === "chief-of-staff");
+    expect(role.skills?.includes("brainstorming") ?? false, name).toBe(false);
   expect(ROLES["chief-of-staff"]?.preloadSkills ?? []).not.toContain("brainstorming");
 });
 

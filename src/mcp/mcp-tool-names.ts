@@ -16,15 +16,8 @@ export const mcpToolName = (server: string, tool: string): string =>
 
 /** Memory server: save, search, read and expand notes. */
 export const MEMORY_MCP_SERVER = "memory";
-/** Orchestration server: the teammate's typed actions, `Orchestrate set_title` and the worker's `Report` result (isolated per run by `role.mcpTools`). */
-export const ORCHESTRATION_MCP_SERVER = "orchestration";
 /** Effects server: the only way to delete, push, open a PR or merge. */
 export const EFFECTS_MCP_SERVER = "effects";
-/** Artifacts server: save, read, list and search the titled documents of the run's channel. */
-export const ARTIFACTS_MCP_SERVER = "artifacts";
-
-/** Teammates server: talk to the other teammates (`MessageTeammate`). */
-export const TEAMMATES_MCP_SERVER = "teammates";
 
 /** Firecrawl server (external, hosted): its tool names live in `src/mcp/firecrawl/tools/<Name>Tool/constants.ts`. */
 export const FIRECRAWL_MCP_SERVER = "firecrawl";

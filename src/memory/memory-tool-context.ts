@@ -1,5 +1,4 @@
 import type { Database } from "bun:sqlite";
-import type { ThreadTitlePort } from "../ingress/thread-title";
 import type { TrustedToolIssueCode } from "../runtime/trusted-tool-issue";
 import type { FlushRequest } from "./compaction-flush";
 /**
@@ -23,8 +22,6 @@ export interface MemoryToolContext {
   trackSummary?: boolean;
   /** A foreground compaction ended (PostCompact): the app schedules the async memory flush with the new summary and the chat tail. */
   onCompacted?: (event: FlushRequest) => void;
-  /** Rename port of the run's thread: its presence registers `Orchestrate set_title` (every role). Absent = no such tool. */
-  threadTitle?: ThreadTitlePort;
   /** Role of the run (recorded in `memory_audit`; absent = the teammate, the only memory writer). */
   role?: string;
   /** Short label of the thread: the journal block title (`## HH:MM <label>`). */

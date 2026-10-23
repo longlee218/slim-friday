@@ -3,15 +3,11 @@ import type { RunCtx } from "../src/mcp/manifest-types";
 import { ALL_SERVERS } from "../src/mcp/manifests";
 import { buildServers } from "../src/mcp/mcp-servers";
 import { MEMORY_MCP_SERVER } from "../src/mcp/mcp-tool-names";
-import { ORCHESTRATE_TOOL } from "../src/mcp/orchestration/tools/OrchestrateTool/constants";
 import { getRole } from "../src/roles/role-registry";
-
-/** The teammate's action tool: no worker run may ever hold or call one of these. */
-export const TEAMMATE_ONLY_TOOLS = [ORCHESTRATE_TOOL];
 
 /**
  * A run ctx with EVERY part present (fake: the tools are only built, never called). Tests slice it (`{ ...FULL_CTX,
- * teammate: undefined }`) to model a run that lacks a part.
+ * effects: undefined }`) to model a run that lacks a part.
  */
 export const FULL_CTX: RunCtx = {
   memory: {
@@ -20,15 +16,8 @@ export const FULL_CTX: RunCtx = {
     workspace: "w",
     threadLabel: "t",
     threadId: "t1",
-    threadTitle: { rename: async () => "kept" } as never,
   },
-  artifacts: { db: new Database(":memory:"), home: "/nowhere", workspace: "w", locations: [] },
-  teammate: {} as never,
-  taskBoard: { db: new Database(":memory:"), threadId: "t1" },
-  reportSink: {},
-  progress: () => {},
   effects: {} as never,
-  peer: {} as never,
 };
 
 /**

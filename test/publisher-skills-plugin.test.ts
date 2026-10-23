@@ -212,14 +212,9 @@ test("dev loads its publisher pack skills but the two dropped by D8, the teammat
   expect(names(ROLES.developer as RoleDefinition)).toEqual(
     [
       ...DEV_INSTALLED.filter((n) => n !== "superpowers:using-superpowers"),
-      "friday:worker-reporting",
       "friday:using-skills",
-      "friday:team-protocol",
     ].sort(),
   );
-  expect(names(ROLES["chief-of-staff"] as RoleDefinition)).toEqual([
-    "friday:teammate-orchestration",
-    "superpowers:brainstorming",
-  ]);
+  expect(names(ROLES["chief-of-staff"] as RoleDefinition)).toEqual([]);
   expect(names({ ...(ROLES.developer as RoleDefinition), skills: undefined })).toEqual([]);
 });

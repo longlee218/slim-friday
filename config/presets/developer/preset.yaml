@@ -7,19 +7,12 @@ mcpTools:
   - MemorySearch
   - MemoryGet
   - MemoryExpand
-  - ReadArtifact
-  - ListArtifacts
-  - SearchArtifacts
-  - Report
-  - TaskBoard
   - DeletePaths
   - GitPush
   - CreatePullRequest
   - MergeBranch
 skills:
   - using-skills
-  - team-protocol
-  - worker-reporting
   - dispatching-parallel-agents
   - executing-plans
   - finishing-a-development-branch
@@ -39,7 +32,6 @@ skills:
   - nodejs-backend-patterns
 preloadSkills:
   - using-skills
-  - team-protocol
 requiredSkills:
   - executing-plans
   - test-driven-development

@@ -20,10 +20,6 @@ exact:
   - MAX_BUDGET_USD
   - TIMEOUT_MS
   - MAX_CONCURRENT_RUNS
-  - VIEWER_PORT
-  - VIEWER_BASE_URL
-  - VIEWER_SECRET # HMAC key of the viewer links (src/viewer): never in an agent process
-  - VIEWER_LINK_TTL_MS
   # other app secrets
   - GITHUB_PERSONAL_ACCESS_TOKEN
   - FIRECRAWL_API_KEY # sent only by the SDK's own MCP client (config/firecrawl-config.ts)

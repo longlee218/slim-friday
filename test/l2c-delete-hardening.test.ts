@@ -5,7 +5,6 @@ import { deletePaths } from "../src/effects/delete-paths";
 import { moveToTrash } from "../src/effects/trash-store";
 import { type EffectsCtx, safeText } from "../src/policy/effect-context";
 import { defaultEnvelope } from "../src/policy/envelope";
-import { goalLocations } from "../src/policy/load-envelope";
 import { MAX_WALK_MS, treeTotals } from "../src/policy/tree-totals";
 import { openDb } from "../src/storage/db";
 import { effectsOfGoal } from "../src/storage/effect-log-store";
@@ -48,13 +47,6 @@ function setup(answer = true, during?: () => void) {
   };
   return { api, web, home, ctx, asked };
 }
-
-test("goal locations: only the pinned ones; unpinned among several = none; a single channel location = it", () => {
-  const { ctx } = setup();
-  expect(goalLocations(ctx.db, "g", "api", ["api", "web"])).toEqual(["api"]);
-  expect(goalLocations(ctx.db, "g", null, ["api", "web"])).toEqual([]);
-  expect(goalLocations(ctx.db, "g", null, ["api"])).toEqual(["api"]);
-});
 
 test("other location: the owner is asked; yes still obeys the bounds (items): refused, nothing moves", async () => {
   const s = setup(true);

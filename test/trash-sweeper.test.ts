@@ -14,7 +14,7 @@ import { purgeThreadTrash } from "../src/effects/purge-trash";
 import { moveToTrash } from "../src/effects/trash-store";
 import { sweepTrash } from "../src/lifecycle/trash-sweeper";
 import { openDb } from "../src/storage/db";
-import { insertOwnedTask } from "../src/storage/owned-task-store";
+import { appendEffect } from "../src/storage/effect-log-store";
 
 /* The trash: move + manifest, the 7-day sweeper, and /purge scoped to the thread's goals. */
 
@@ -69,14 +69,16 @@ test("the sweeper never follows a link or touches a foreign name", () => {
 test("/purge empties the trash of THIS thread's goals only, after a yes", async () => {
   const home = tmp();
   const db = openDb(join(home, "t.db"));
+  // A thread's goals are the goal keys its effects were logged under.
   const goal = (id: string, threadId: string) =>
-    insertOwnedTask(db, {
-      id,
+    appendEffect(db, {
+      id: `e-${id}`,
       threadId,
-      ownerRole: "chief-of-staff",
-      status: "open",
+      goalId: id,
+      tool: "DeletePaths",
       scope: "s",
-      correlationId: id,
+      grantedBy: "owner",
+      result: "ok",
     });
   goal("goal-a", "t1");
   goal("goal-b", "t2");

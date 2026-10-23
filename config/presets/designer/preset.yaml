@@ -12,11 +12,6 @@ mcpTools:
   - MemorySearch
   - MemoryGet
   - MemoryExpand
-  - ReadArtifact
-  - ListArtifacts
-  - SearchArtifacts
-  - Report
-  - TaskBoard
   - browser_navigate
   - browser_navigate_back
   - browser_tabs
@@ -54,8 +49,6 @@ capabilities:
   - skills
 skills:
   - using-skills
-  - team-protocol
-  - worker-reporting
   - verification-before-completion
   - docs-seeker
   - ui-ux-pro-max
@@ -63,7 +56,6 @@ skills:
   - impeccable
 preloadSkills:
   - using-skills
-  - team-protocol
 requiredSkills:
   - ui-ux-pro-max
   - impeccable

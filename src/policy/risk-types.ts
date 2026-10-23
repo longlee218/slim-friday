@@ -1,7 +1,10 @@
 import type { EFFECT_TOOL_NAMES } from "../effects/effect-tool-names";
-import type { Risk } from "../orchestrator/plan/plan-types";
 
 /* Shared words of the approval policy (R0-R4). Pure types and constants: no db, no fs. */
+
+/** Risk classes that may be planned or granted (R4 is never granted: it needs the owner at the moment of the act). */
+const RISKS = ["R0", "R1", "R2", "R3"] as const;
+export type Risk = (typeof RISKS)[number];
 
 /** Risk class of one action. R4 (forbidden to automate) is never planned or granted: it asks every time. */
 export type RiskClass = Risk | "R4";

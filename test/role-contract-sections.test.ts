@@ -1,7 +1,6 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { STALE_AFTER_MS } from "../src/config/resilience-caps";
 import { ROLES } from "../src/roles/role-registry";
 
 /* Phase 2b: every worker contract is a full working guide (template sections, facts from role data), the shared worker
@@ -62,7 +61,6 @@ test("every role has a ceiling and stays under it", () => {
 test("worker contracts have the template sections in order", () => {
   const heads = [
     "## Mission",
-    "## How the team works",
     "## Scope",
     "## Definition of done",
     "## Deliverable",
@@ -78,18 +76,9 @@ test("worker contracts have the template sections in order", () => {
     const method = text.indexOf("## Method");
     if (method >= 0) {
       expect(method).toBeGreaterThan(text.indexOf("## Mission"));
-      expect(method).toBeLessThan(text.indexOf("## How the team works"));
+      expect(method).toBeLessThan(text.indexOf("## Scope"));
     }
   }
-});
-
-test("the shared worker block is in every task worker once, never in the teammate or planner", () => {
-  for (const name of TASK_WORKERS)
-    expect(contract(name).split("## How the team works")).toHaveLength(2);
-  for (const name of ["chief-of-staff", "planner"])
-    expect(contract(name)).not.toContain("## How the team works");
-  // The run facts (watchdog, limits, failures) live in the preloaded team skill, not in the contracts.
-  expect(TEAM_SKILL_TEXT).toContain(`${STALE_AFTER_MS / 60_000} minutes is aborted as stale`);
 });
 
 test("numbers in the contracts match the role data", () => {

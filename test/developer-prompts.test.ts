@@ -50,7 +50,6 @@ test("dev: one contract, approval before changes by ask, a design request may en
   const order = [
     "## Mission",
     "## Method",
-    "## How the team works",
     "## Scope",
     "## How the work goes",
     "## Asking the teammate",

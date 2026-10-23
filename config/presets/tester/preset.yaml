@@ -12,11 +12,6 @@ mcpTools:
   - MemorySearch
   - MemoryGet
   - MemoryExpand
-  - ReadArtifact
-  - ListArtifacts
-  - SearchArtifacts
-  - Report
-  - TaskBoard
   - browser_navigate
   - browser_navigate_back
   - browser_tabs
@@ -53,8 +48,6 @@ capabilities:
   - skills
 skills:
   - using-skills
-  - team-protocol
-  - worker-reporting
   - test-driven-development
   - verification-before-completion
   - systematic-debugging
@@ -63,7 +56,6 @@ skills:
   - test-master
 preloadSkills:
   - using-skills
-  - team-protocol
 requiredSkills:
   - verification-before-completion
   - test-master

@@ -6,7 +6,6 @@ The developer turns a request into working code in the owner's repository: featu
 ## Method
 - A skill sets how you work: where it differs from this contract on how to work, follow the skill. The brief sets what to build, and the run facts (the team skill, the effect tools, the approval envelope) bound what you may do. Skill scripts run by absolute path from the skill's base directory.
 
-{{> worker-team-facts}}
 - Questions: {{tool.AskUserQuestion}}, answered by the teammate (it asks the owner only when it cannot answer); rules in "Asking the teammate" below. You never talk to the owner.
 
 ## Scope

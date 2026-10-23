@@ -1,11 +1,5 @@
 import { z } from "zod";
 import { HAIKU_MODEL, HAIKU_SUMMARY_MODEL } from "./model-ids";
-import {
-  buildViewerConfig,
-  isHttpUrl,
-  VIEWER_SECRET_MIN_BYTES,
-  type ViewerConfig,
-} from "./viewer-config";
 
 /** Placeholder value used in .env.example; never a real credential. */
 export const PLACEHOLDER = "REPLACE_ME";
@@ -42,13 +36,6 @@ const envSchema = z.object({
   GIT_AUTHOR: z.string().trim().min(1).optional(), // accepted and IGNORED since Rev 15 (the agent uses the owner's git config)
   MAX_BUDGET_USD: z.coerce.number().positive().optional(),
   TIMEOUT_MS: z.coerce.number().int().positive().default(300_000),
-  /** Artifact viewer (src/viewer): ON only with both VIEWER_SECRET and VIEWER_BASE_URL. The secret never reaches an agent process. */
-  VIEWER_PORT: z.coerce.number().int().min(1).max(65535).optional(),
-  VIEWER_BASE_URL: secret.refine((v) => v === undefined || v === PLACEHOLDER || isHttpUrl(v)),
-  VIEWER_SECRET: secret.refine(
-    (v) => v === undefined || v === PLACEHOLDER || Buffer.byteLength(v) >= VIEWER_SECRET_MIN_BYTES,
-  ),
-  VIEWER_LINK_TTL_MS: z.coerce.number().int().positive().optional(),
   /** Debug: `1` or `true` writes every model run's exact SDK input to <AGENT_HOME>/logs/prompts (src/observability/prompt-dump.ts). Off by default. */
   FRIDAY_DUMP_PROMPTS: z
     .string()
@@ -82,8 +69,6 @@ export interface AgentConfig {
   memoryModel: string;
   /** Run limits of every agent run; maxBudgetUsd = optional global cap MAX_BUDGET_USD (min with the role budget). */
   limits: { maxBudgetUsd: number | undefined; timeoutMs: number };
-  /** The artifact viewer settings; undefined = viewer off (no server, no link buttons). */
-  viewer?: ViewerConfig;
   /** FRIDAY_DUMP_PROMPTS is on: each run writes a prompt dump file. Omitted = off. */
   dumpPrompts?: true;
   /** FRIDAY_SANDBOX_OFF is on: dispatched workers run without the OS sandbox. Omitted = sandbox on. */
@@ -113,12 +98,6 @@ export function loadConfig(
   ) {
     throw new Error("Invalid environment variables: DISCORD_TOKEN, OWNER_DISCORD_ID required");
   }
-  const viewer = buildViewerConfig({
-    ...(e.VIEWER_PORT !== undefined && { port: e.VIEWER_PORT }),
-    ...(!isPlaceholder(e.VIEWER_BASE_URL) && { baseUrl: e.VIEWER_BASE_URL }),
-    ...(!isPlaceholder(e.VIEWER_SECRET) && { secret: e.VIEWER_SECRET }),
-    ...(e.VIEWER_LINK_TTL_MS !== undefined && { linkTtlMs: e.VIEWER_LINK_TTL_MS }),
-  });
   return {
     oauthToken: e.CLAUDE_CODE_OAUTH_TOKEN,
     hasRealAuth: !isPlaceholder(e.CLAUDE_CODE_OAUTH_TOKEN),
@@ -133,7 +112,6 @@ export function loadConfig(
       maxBudgetUsd: e.MAX_BUDGET_USD,
       timeoutMs: e.TIMEOUT_MS,
     },
-    ...(viewer && { viewer }),
     ...(e.FRIDAY_DUMP_PROMPTS && { dumpPrompts: true as const }),
     ...(e.FRIDAY_SANDBOX_OFF && { sandboxOff: true as const }),
   };

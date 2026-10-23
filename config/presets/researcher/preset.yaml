@@ -12,11 +12,6 @@ mcpTools:
   - MemorySearch
   - MemoryGet
   - MemoryExpand
-  - ReadArtifact
-  - ListArtifacts
-  - SearchArtifacts
-  - Report
-  - TaskBoard
   - firecrawl_search
   - firecrawl_scrape
   - firecrawl_map
@@ -60,16 +55,13 @@ capabilities:
   - shell
   - skills
 skills:
-  - team-protocol
-  - worker-reporting
   - deep-research
   - research-online
   - firecrawl-deep-research
   - firecrawl-research-papers
   - firecrawl-market-research
   - docs-seeker
-preloadSkills:
-  - team-protocol
+preloadSkills: []
 requiredSkills:
   - deep-research
 model: sonnet

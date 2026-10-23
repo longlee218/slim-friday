@@ -12,11 +12,6 @@ mcpTools:
   - MemorySearch
   - MemoryGet
   - MemoryExpand
-  - ReadArtifact
-  - ListArtifacts
-  - SearchArtifacts
-  - Report
-  - TaskBoard
 name: devops
 whenToUse: "Build and infrastructure files: Dockerfile, CI workflows, scripts, config; checks them locally (build, lint, dry run). Has no credentials or deploy tool."
 notFor: Deploys; anything that needs credentials.
@@ -28,15 +23,12 @@ capabilities:
   - skills
 skills:
   - using-skills
-  - team-protocol
-  - worker-reporting
   - verification-before-completion
   - systematic-debugging
   - devops-engineer
   - kubernetes-specialist
 preloadSkills:
   - using-skills
-  - team-protocol
 requiredSkills:
   - verification-before-completion
   - devops-engineer

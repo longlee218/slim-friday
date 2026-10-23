@@ -11,7 +11,6 @@ import { syncAll } from "../src/memory/index/memory-sync";
 import type { MemoryToolContext } from "../src/memory/memory-tool-context";
 import { buildPersonaContext, ensureHome } from "../src/memory/persona";
 import { openDb } from "../src/storage/db";
-import { channelLocations, channelOf } from "../src/workspaces/task-workspace";
 import { loadWorkspaces } from "../src/workspaces/workspace-registry";
 import { clearWorkspaces, makeEnv, outsideDir } from "./helpers";
 
@@ -66,30 +65,6 @@ test("registry: a duplicate channel name inside a space keeps the first", () => 
 `,
   );
   expect(loadWorkspaces(env.home).workspaces[0]?.channels).toEqual([CH_ID, "55555555555555555"]);
-});
-
-test("registry: locations [] or only unknown names fail closed (no locations); absent = all", () => {
-  const env = makeEnv();
-  clearWorkspaces(env.home);
-  const loc = outsideDir();
-  mkdirSync(join(loc, ".git"), { recursive: true });
-  const root = join(env.home, "workspaces", WS);
-  mkdirSync(root, { recursive: true });
-  writeFileSync(
-    join(root, "workspace.yaml"),
-    `channels:
-  - {id: "${CH_ID}", name: a, locations: []}
-  - {id: "44444444444444444", name: b, locations: [typo]}
-  - {id: "55555555555555555", name: c}
-locations:
-  - {name: api, path: ${loc}}
-`,
-  );
-  const w = loadWorkspaces(env.home).workspaces[0]!;
-  const names = (id: string) => channelLocations(w, channelOf(w, id)!).map((l) => l.name);
-  expect(names(CH_ID)).toEqual([]);
-  expect(names("44444444444444444")).toEqual([]);
-  expect(names("55555555555555555")).toEqual(["api"]);
 });
 
 test("ensureHome creates channel dirs + MEMORY.md for every channel, never overwrites", () => {

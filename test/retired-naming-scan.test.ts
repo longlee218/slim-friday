@@ -351,16 +351,6 @@ const OLD_LEAD = new RegExp(
     `\\b${"le"}ad_`,
   ].join("|"),
 );
-/** Every .ts / .tsx file under `dir` (the dashboard app), with its source. */
-function appFiles(dir: string): { file: string; text: string }[] {
-  return readdirSync(dir, { withFileTypes: true, recursive: true })
-    .filter((e) => e.isFile() && /\.tsx?$/.test(e.name))
-    .map((e) => {
-      const file = join(e.parentPath, e.name);
-      return { file, text: readFileSync(file, "utf8") };
-    });
-}
-
 const OLD_LEAD_EXEMPT = [
   "migration-0007-backfill.test.ts",
   "migration-0011.test.ts",
@@ -375,8 +365,6 @@ test("src, test, living docs and app-owned skills hold no `lead` role or engine 
     ...sources("src"),
     ...sources("test"),
     ...sources("scripts"),
-    ...appFiles("dashboard/src"),
-    ...appFiles("dashboard/server"),
     { file: "package.json", text: readFileSync("package.json", "utf8") },
   ].filter((f) => !OLD_LEAD_EXEMPT.some((e) => f.file.endsWith(e)));
   const docs = [

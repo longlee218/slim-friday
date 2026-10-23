@@ -1,4 +1,4 @@
-import { jaccard } from "../orchestrator/goal/task-match";
+import { jaccard } from "../text/token-match";
 import { bulletTokens, bulletWords, SIMILAR } from "./dream-sections";
 import { chunkMemory } from "./index/memory-chunker";
 import { MEMORY_SECTION_HEADINGS } from "./memory-sections";

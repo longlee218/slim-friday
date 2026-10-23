@@ -8,7 +8,7 @@
  * lines) stays byte for byte; the file's line ending (LF or CRLF) is kept.
  */
 
-import { jaccard, tokensOf } from "../orchestrator/goal/task-match";
+import { jaccard, tokensOf } from "../text/token-match";
 import {
   appendBlock,
   ENDS_H3,

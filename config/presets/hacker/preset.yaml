@@ -12,11 +12,6 @@ mcpTools:
   - MemorySearch
   - MemoryGet
   - MemoryExpand
-  - ReadArtifact
-  - ListArtifacts
-  - SearchArtifacts
-  - Report
-  - TaskBoard
 name: hacker
 basePrompt: custom
 whenToUse: "Defensive security review of code in a location: vulnerabilities, unsafe patterns, secrets in code, risky dependencies; reports findings with severity."
@@ -28,14 +23,11 @@ capabilities:
   - skills
 skills:
   - using-skills
-  - team-protocol
-  - worker-reporting
   - systematic-debugging
   - verification-before-completion
   - security-and-hardening
 preloadSkills:
   - using-skills
-  - team-protocol
 requiredSkills:
   - security-and-hardening
   - verification-before-completion

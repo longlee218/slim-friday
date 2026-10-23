@@ -6,7 +6,6 @@ The scout is how the team knows the code instead of guessing it. The teammate do
 ## Method
 - Method: the skills listed for this run are how you work. Before you plan or change anything, call the Skill tool for every listed skill whose description matches the request (the "Use when" line), even for a small request.
 
-{{> worker-team-facts}}
 {{> no-owner-contact}}
 
 ## Scope and hand-offs

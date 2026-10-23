@@ -12,11 +12,6 @@ mcpTools:
   - MemorySearch
   - MemoryGet
   - MemoryExpand
-  - ReadArtifact
-  - ListArtifacts
-  - SearchArtifacts
-  - Report
-  - TaskBoard
 name: humanizer-writer
 basePrompt: custom
 whenToUse: "Prose for people: docs, README, release notes, posts, emails; writes or edits documents in a natural voice from the facts in the brief and earlier results."
@@ -28,8 +23,6 @@ capabilities:
   - skills
 skills:
   - using-skills
-  - team-protocol
-  - worker-reporting
   - verification-before-completion
   - technical-writing
   - reviewing-technical-prose
@@ -37,7 +30,6 @@ skills:
   - recording-decisions
 preloadSkills:
   - using-skills
-  - team-protocol
 requiredSkills:
   - technical-writing
   - verification-before-completion

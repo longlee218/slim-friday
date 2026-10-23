@@ -35,7 +35,7 @@ test("a new folder is a new role (no code change)", () => {
 
 test("an unknown tool id, a bad alias, an extra key and a name that is not the folder are refused with the file", () => {
   for (const [from, to] of [
-    ["  - Report\n", "  - NoSuchTool\n"],
+    ["  - MemorySearch\n", "  - NoSuchTool\n"],
     ["model: haiku", "model: gpt"],
     ["kind: worker", "kind: worker\nsurprise: 1"],
     ["name: scout", "name: other"],

@@ -26,15 +26,9 @@ test("every role gets exactly its listed skills: option names and plugin folders
   }
 });
 
-test("the teammate holds its method skill and brainstorming, and no worker skill is in its plugins", () => {
+test("the default member holds no skill, and no worker skill is in its plugins", () => {
   const sk = buildRoleSkills(ROLES["chief-of-staff"]!, undefined, home);
-  expect([...sk.skills].sort()).toEqual([
-    "friday:teammate-orchestration",
-    "superpowers:brainstorming",
-  ]);
-  expect(sk.dirs.flatMap((d) => readdirSync(join(d, "skills"))).sort()).toEqual([
-    "brainstorming",
-    "teammate-orchestration",
-  ]);
+  expect([...sk.skills].sort()).toEqual([]);
+  expect(sk.dirs.flatMap((d) => readdirSync(join(d, "skills"))).sort()).toEqual([]);
   sk.cleanup();
 });

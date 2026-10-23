@@ -1,11 +1,10 @@
 import { CREATE_PULL_REQUEST_TOOL } from "../mcp/effects/tools/CreatePullRequestTool/constants";
 import { GIT_PUSH_TOOL } from "../mcp/effects/tools/GitPushTool/constants";
 import { MERGE_BRANCH_TOOL } from "../mcp/effects/tools/MergeBranchTool/constants";
-import type { Envelope as PlanEnvelope, Risk } from "../orchestrator/plan/plan-types";
-import { DEFAULT_BOUNDS, type EffectTool } from "./risk-types";
+import { DEFAULT_BOUNDS, type EffectTool, type Risk } from "./risk-types";
 
-/* The envelope of one goal's worker runs: what the owner allowed, checked on every tool call (fail closed). Built from the
-   dispatch (DIRECT / DELEGATE) or from the approved plan (PLAN). Pure data + builders. */
+/* The envelope of one goal's worker runs: what the owner allowed, checked on every tool call (fail closed). Built from a
+   dispatch or an owner grant. Pure data + builders. */
 
 /** Branch or target that matches any value (a plan grants a tool on the location, not on one branch). */
 export const ANY = "*";
@@ -70,43 +69,6 @@ export const envelopeWithGrants = (
   effects: grants,
   grantedBy: grants.length ? "owner" : base.grantedBy,
 });
-
-/**
- * Envelope of an approved plan: its risk classes, locations and bounds, and the effect tools its risk classes and `effects`
- * list imply (R3 = push + PR; MergeBranch = merge into any branch) on every location of the plan.
- */
-export function envelopeFromPlan(
-  base: DispatchEnvelope,
-  plan: PlanEnvelope,
-  ref: { planId: string; version: number },
-): DispatchEnvelope {
-  // R3 always implies push + PR; the plan's own `effects` list adds what it names.
-  const tools = [
-    ...new Set<EffectTool>([
-      ...(plan.riskClasses.includes("R3")
-        ? ([GIT_PUSH_TOOL, CREATE_PULL_REQUEST_TOOL] as EffectTool[])
-        : []),
-      ...plan.effects,
-    ]),
-  ];
-  return {
-    ...base,
-    locations: plan.locations,
-    classes: [...new Set<Risk>(["R0", "R1", ...plan.riskClasses])],
-    effects: plan.locations.flatMap((location) =>
-      tools.map((tool) => ({
-        tool,
-        scope: { location, ...(tool === MERGE_BRANCH_TOOL ? { into: ANY } : { branch: ANY }) },
-      })),
-    ),
-    // `maxItems` of a plan counts its steps, not deleted paths: the item bound stays the default; a plan's GB limit applies (0 = unset).
-    bounds: {
-      maxItems: DEFAULT_BOUNDS.maxItems,
-      maxBytes: plan.bounds.maxGb > 0 ? plan.bounds.maxGb * 1024 ** 3 : DEFAULT_BOUNDS.maxBytes,
-    },
-    grantedBy: `plan:${ref.planId}@v${ref.version}`,
-  };
-}
 
 /**
  * Envelope of a teammate run (no goal, no owner grant): every effect tool is allowed on every location of the channel, and the

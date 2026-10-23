@@ -7,8 +7,6 @@
     "start": "bun run src/index.ts",
     "bootstrap:discord": "bun run src/providers/discord/setup/bootstrap-discord-cli.ts",
     "db:generate": "drizzle-kit generate",
-    "prompt:show": "bun run scripts/prompt-show.ts",
-    "metrics:teammate": "bun run src/observability/teammate-metrics-cli.ts",
     "metrics:skills": "bun run scripts/metrics-skills.ts",
     "metrics:memory": "bun run scripts/metrics-memory.ts",
     "test": "bun test",

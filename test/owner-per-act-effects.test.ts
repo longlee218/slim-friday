@@ -4,9 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { deletePaths } from "../src/effects/delete-paths";
 import { mergeBranch } from "../src/effects/merge-branch";
+import { ownerPerActCtx } from "../src/effects/owner-per-act-ctx";
 import { createPullRequest } from "../src/effects/pull-request";
 import { purgeThreadTrash } from "../src/effects/purge-trash";
-import { teammateEffectsCtx } from "../src/orchestrator/teammate/teammate-effects-ctx";
 import type { Runner } from "../src/policy/effect-context";
 import { openDb } from "../src/storage/db";
 import { effectsOfGoal } from "../src/storage/effect-log-store";
@@ -33,7 +33,7 @@ function setup(answer = true) {
     return { code: 0, out: "ok" };
   };
   const ctx = {
-    ...teammateEffectsCtx({
+    ...ownerPerActCtx({
       db: openDb(join(home, "t.db")),
       approvals: stubGateway({
         confirm: async (r) => {

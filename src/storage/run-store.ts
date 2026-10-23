@@ -1,7 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { redactText } from "../observability/redact";
 import { countsTowardCap, getRole } from "../roles/role-registry";
-import { reconcileRunningTasks } from "./owned-task-store";
 
 /** Final status of a turn row. */
 export type TurnStatus =
@@ -110,8 +109,6 @@ export function interruptRunningTurns(db: Database): void {
   db.query(
     "UPDATE turns SET status = 'interrupted', ended_at = ? WHERE status IN ('running', 'waiting_approval')",
   ).run(now);
-  // Their owned tasks wait for the owner (a resume or the next message continues them).
-  reconcileRunningTasks(db);
   // Buttons of a dead process can never be answered (a resumed run asks again).
   db.query(
     "UPDATE approvals SET decision = 'cancelled', decided_at = ? WHERE decision = 'pending'",

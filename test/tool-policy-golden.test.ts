@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
 import { mcpToolNamesOfRole } from "../src/mcp/tool-names-of-role";
-import { isWriterRole } from "../src/orchestrator/plan/verify-items";
 import { guardFor } from "../src/policy/check-tool-call";
 import { mayHaveWritten } from "../src/roles/capability-registry";
 import { countsTowardCap, ROLES } from "../src/roles/role-registry";
+import { policyOf } from "../src/tools/role-policy";
 import { subagentToolsFor, toolOptions, toolsFor } from "../src/tools/tool-catalog";
 
 /* Golden of the tool policy of every role: the SDK tool options, the guard's lists and the writer / cap flags. The
@@ -29,7 +29,7 @@ test("tool policy of every role is unchanged", () => {
             },
             mcpToolNames: mcpToolNamesOfRole(r),
             mayHaveWritten: mayHaveWritten(r),
-            isWriterRole: isWriterRole(r),
+            isWriterRole: r.name !== "tester" && r.sideEffects === "location" && policyOf(r).shell,
             countsTowardCap: countsTowardCap(r),
           },
         ];

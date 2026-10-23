@@ -1,4 +1,5 @@
-import { type OwnerLanguage, renderUserNotice } from "../ingress/user-copy";
+import type { OwnerLanguage } from "../i18n/languages";
+import { t } from "../i18n/translate";
 import { logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
 import type { ApprovalGateway } from "./approval-types";
@@ -17,10 +18,7 @@ const log = logger.child({ module: "owner-confirm" });
 
 /** Button labels of the gate in the owner's language: [yes, no]. */
 export function ownerConfirmLabels(language: OwnerLanguage): [string, string] {
-  return [
-    renderUserNotice({ kind: "label", state: "yes-run" }, language),
-    renderUserNotice({ kind: "label", state: "no" }, language),
-  ];
+  return [t(language, "ui.label.yes-run"), t(language, "ui.label.no")];
 }
 
 /** What is asked and where. */
