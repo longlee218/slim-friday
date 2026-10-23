@@ -50,7 +50,7 @@ test("runKinds match what a worker ctx and a teammate ctx build", () => {
   const wrong: string[] = [];
   for (const name of ALL_TOOL_NAMES) {
     const d = TOOL_BY_ID.get(name);
-    if (!d || d.runKinds.includes("control")) continue;
+    if (!d) continue;
     // Built from the memory / artifacts ctx that every run has: the catalog (and the guard) keep them off workers.
     if (!BUILT_FOR_ANY_RUN.includes(name) && w.has(name) !== d.runKinds.includes("worker"))
       wrong.push(`${name}: worker`);

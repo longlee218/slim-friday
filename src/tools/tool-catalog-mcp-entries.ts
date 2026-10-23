@@ -2,9 +2,6 @@ import { LIST_ARTIFACTS_TOOL } from "../mcp/artifacts/tools/ListArtifactsTool/co
 import { READ_ARTIFACT_TOOL } from "../mcp/artifacts/tools/ReadArtifactTool/constants";
 import { SAVE_ARTIFACT_TOOL } from "../mcp/artifacts/tools/SaveArtifactTool/constants";
 import { SEARCH_ARTIFACTS_TOOL } from "../mcp/artifacts/tools/SearchArtifactsTool/constants";
-import { CREATE_SPACE_OR_CHANNEL_TOOL } from "../mcp/discord-admin/tools/CreateSpaceOrChannelTool/constants";
-import { LIST_SPACES_TOOL } from "../mcp/discord-admin/tools/ListSpacesTool/constants";
-import { WRITE_SPACE_FILE_TOOL } from "../mcp/discord-admin/tools/WriteSpaceFileTool/constants";
 import { CREATE_PULL_REQUEST_TOOL } from "../mcp/effects/tools/CreatePullRequestTool/constants";
 import { DELETE_PATHS_TOOL } from "../mcp/effects/tools/DeletePathsTool/constants";
 import { GIT_PUSH_TOOL } from "../mcp/effects/tools/GitPushTool/constants";
@@ -46,7 +43,6 @@ const mcp = (
 const BOTH = ["worker", "teammate"] as const;
 const TEAMMATE = ["teammate"] as const;
 const WORKER = ["worker"] as const;
-const CONTROL = ["control"] as const;
 const EFFECT = { needs: ["effects"] } as const;
 
 /**
@@ -54,7 +50,7 @@ const EFFECT = { needs: ["effects"] } as const;
  * (`src/mcp/manifest-types.ts`): `Orchestrate` and `SaveArtifact`/`MemorySave`/`MemoryEdit` need the teammate run
  * (workers read memory and artifacts only); `Report` the worker's report sink; the effect tools and Playwright the
  * run's effects ctx and scratch dir (a worker: its envelope and goal dir; a teammate: owner-per-act and its run dir, see
- * `teammate-effects-ctx.ts`); the admin tools the control run.
+ * `teammate-effects-ctx.ts`).
  */
 export const MCP_TOOL_ENTRIES: readonly ToolDecl[] = [
   mcp(MEMORY_SAVE_TOOL, false, TEAMMATE),
@@ -73,9 +69,6 @@ export const MCP_TOOL_ENTRIES: readonly ToolDecl[] = [
   mcp(MERGE_BRANCH_TOOL, false, BOTH, { risk: "R2", ...EFFECT }),
   mcp(GIT_PUSH_TOOL, false, BOTH, { risk: "R3", ...EFFECT }),
   mcp(CREATE_PULL_REQUEST_TOOL, false, BOTH, { risk: "R3", ...EFFECT }),
-  mcp(LIST_SPACES_TOOL, true, CONTROL),
-  mcp(CREATE_SPACE_OR_CHANNEL_TOOL, false, CONTROL),
-  mcp(WRITE_SPACE_FILE_TOOL, false, CONTROL),
   // Hosted Firecrawl: reads the web, needs no ctx part.
   ...[
     FIRECRAWL_SEARCH_TOOL,

@@ -23,7 +23,7 @@ test("TEAM.md: authoritative members from the registry, the channel's locations,
   expect(md).not.toContain("You teammate the team"); // persona is IDENTITY.md's
   expect(md).toMatch(/^\| developer \| .* \| location \|/m);
   expect(md).toMatch(/^\| scout \| .* \| none \|/m);
-  expect(md).not.toMatch(/^\| (teammate|discord-manager) \|/m);
+  expect(md).not.toMatch(/^\| (teammate) \|/m);
   expect(md).toContain("- api [git]: backend");
   expect(md).not.toContain("/r/api"); // no path in the reply source
   expect(md).toContain("- DELEGATE: up to"); // the only strategy fact code owns (a cap)

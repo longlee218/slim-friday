@@ -10,7 +10,7 @@ export const enUi = {
   "ui.adoptRefused.name-taken":
     "I didn't link this channel because too many channels already share this name. Rename it and mention me again.",
   "ui.adoptRefused.failed":
-    "I couldn't link this channel (the logs have details). Try again, or use /init-channel.",
+    "I couldn't link this channel (the logs have details). Try again, or use /teammate create.",
   "ui.approval.approve": "Approve",
   "ui.approval.deny": "Deny",
   "ui.approval.owner-only": "Only the owner can approve this.",

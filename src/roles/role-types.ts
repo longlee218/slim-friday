@@ -40,9 +40,9 @@ export interface RoleDefinition {
   /**
    * What the role is. `worker` = a detached task: its run counts toward the concurrent task cap, takes a start notice,
    * is queued behind a busy thread, works in a location, and the owner steers it. `teammate` = the thread's router (a short
-   * foreground answer, reached only through the teammate runner). `control` = the #ops-control role (no workspace).
+   * foreground answer, reached only through the teammate runner).
    */
-  kind: "teammate" | "worker" | "control";
+  kind: "teammate" | "worker";
   /** Skills the role gets (see `RoleSkills`). Omitted = `[]`. */
   skills?: RoleSkills;
   /**

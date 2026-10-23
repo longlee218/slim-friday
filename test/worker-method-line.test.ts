@@ -25,7 +25,7 @@ test("a role without a preloaded skill (not the teammate) has the Method line, o
   }
 });
 
-test("the roles that keep the line are exactly researcher, scout and discord-manager", () => {
+test("the roles that keep the line are exactly researcher and scout", () => {
   const keep = Object.keys(ROLES).filter((n) => n !== "chief-of-staff" && !preloads(n));
-  expect(keep.sort()).toEqual(["discord-manager", "researcher", "scout"]);
+  expect(keep.sort()).toEqual(["researcher", "scout"]);
 });

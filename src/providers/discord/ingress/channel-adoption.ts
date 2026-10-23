@@ -69,7 +69,7 @@ export interface ChannelAdopterDeps {
 
 /**
  * Spaces owning the category `parentId`: the space's first channel sits in it and the category is named like the space
- * (same rule as `/init-channel`, no category id is stored). Reads the guild cache only; a miss means no match (fail closed).
+ * (same rule as `/teammate create`, no category id is stored). Reads the guild cache only; a miss means no match (fail closed).
  */
 function spacesOfCategory(msg: Message, home: string, parentId: string): string[] {
   const cache = msg.guild?.channels.cache;
@@ -82,7 +82,7 @@ function spacesOfCategory(msg: Message, home: string, parentId: string): string[
         w.name !== OPS_CATEGORY_NAME &&
         first?.parentId === parentId &&
         category?.type === ChannelType.GuildCategory &&
-        category.name.toLowerCase() === w.name // space names are lowercase ASCII, exact match like /init-channel
+        category.name.toLowerCase() === w.name // space names are lowercase ASCII, exact match like /teammate create
       );
     })
     .map((w) => w.name);

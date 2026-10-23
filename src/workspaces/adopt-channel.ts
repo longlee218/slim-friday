@@ -42,7 +42,7 @@ export function uniqueChannelName(
 
 /**
  * Map Discord channel `id` into `space` as `{id, name, mode: task}` (no `locations` key = every location of the space)
- * and create its memory dir. ONE locked write of workspace.yaml (the same lock as `/init-channel` and Orchestrate register_location);
+ * and create its memory dir. ONE locked write of workspace.yaml (the same lock as `/teammate create` and Orchestrate register_location);
  * the id and the name are re-checked under the lock, so two adoptions at once never share a name and a repeat of the
  * same id writes nothing. An empty slug (no ASCII letter or digit) uses `channel-<last 4 id digits>`. After the rename the registry is reloaded: the channel must load with that name, else the old
  * bytes are restored. The memory dir is made inside that check (a failure leaves no mapping and no dir). Never throws: a busy lock or a bad yaml is `failed` (logged).

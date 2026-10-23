@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { parseSlash } from "../src/commands/slash-commands";
 import { parseMessageCommand } from "../src/orchestrator/message-commands";
-import { isAdminText, parseAdminCommand } from "../src/providers/discord/setup/admin-command";
+import { isAdminText } from "../src/providers/discord/setup/admin-command";
 
 // Slash commands are the only commands: a plain text such as "stop" is an ordinary message.
 
@@ -9,7 +9,10 @@ test("parseSlash reads each command and leaves everything else alone", () => {
   expect(parseSlash("/stop")).toEqual({ name: "stop", arg: "" });
   expect(parseSlash("  /STATUS ")).toEqual({ name: "status", arg: "" });
   expect(parseSlash("/find invoice csv")).toEqual({ name: "find", arg: "invoice csv" });
-  expect(parseSlash("/init-workspace shop")).toEqual({ name: "init-workspace", arg: "shop" });
+  expect(parseSlash("/teammate create work ops")).toEqual({
+    name: "teammate",
+    arg: "create work ops",
+  });
   // no-argument commands given an argument are not commands
   for (const t of ["/stop now", "/status now", "/purge x"]) expect(parseSlash(t)).toBeNull();
   for (const t of ["stop", "hello /stop", "/unknown x", "/stopper", "see /stop", "http://x/stop"])
@@ -35,15 +38,10 @@ test("task commands: only the slash forms are commands", () => {
   expect(parseMessageCommand("please /stop it")).toEqual({ kind: "message" });
 });
 
-test("admin command: /init-workspace only, in any place", () => {
-  expect(isAdminText("/init-workspace shop")).toBe(true);
-  expect(isAdminText("init:workspace:shop")).toBe(false);
-  expect(isAdminText("/init-workspaces")).toBe(false);
-  expect(parseAdminCommand("/init-workspace shop")).toEqual({
-    kind: "init_workspace",
-    name: "shop",
-  });
-  expect(parseAdminCommand("init:workspace:shop")).toMatchObject({ kind: "help" });
-  expect(parseAdminCommand("/init-workspace Bad Name")).toMatchObject({ kind: "invalid_name" });
-  expect(parseAdminCommand("/init-workspace")).toMatchObject({ kind: "invalid_name" });
+test("admin command: /teammate only, in any place", () => {
+  expect(isAdminText("/teammate list")).toBe(true);
+  expect(isAdminText("teammate list")).toBe(false);
+  expect(isAdminText("/teammates")).toBe(false);
+  // the old init commands are plain text now
+  expect(isAdminText("/init-workspace shop")).toBe(false);
 });

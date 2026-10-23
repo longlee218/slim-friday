@@ -458,66 +458,6 @@ exports[`tool policy of every role is unchanged 1`] = `
       "Skill",
     ],
   },
-  "discord-manager": {
-    "countsTowardCap": false,
-    "guard": {
-      "allowTools": [
-        "Skill",
-        "mcp__discord-admin__ListSpaces",
-        "mcp__discord-admin__CreateSpaceOrChannel",
-        "mcp__discord-admin__WriteSpaceFile",
-      ],
-      "shell": false,
-      "subagentTools": [
-        "Read",
-        "Glob",
-        "Grep",
-        "LSP",
-        "Skill",
-      ],
-      "subagents": false,
-    },
-    "isWriterRole": false,
-    "mayHaveWritten": true,
-    "mcpToolNames": [
-      "mcp__discord-admin__ListSpaces",
-      "mcp__discord-admin__CreateSpaceOrChannel",
-      "mcp__discord-admin__WriteSpaceFile",
-    ],
-    "subagentToolsFor": [
-      "Read",
-      "Glob",
-      "Grep",
-      "LSP",
-      "Skill",
-    ],
-    "toolOptions": {
-      "disallowedTools": [
-        "Read(**/.env*)",
-        "Read(**/*.pem)",
-        "Read(**/*.key)",
-        "Read(**/id_rsa*)",
-        "Read(**/credentials*)",
-      ],
-      "strictMcpConfig": true,
-      "tools": [
-        "Read",
-        "Glob",
-        "Grep",
-        "LSP",
-        "Skill",
-        "AskUserQuestion",
-      ],
-    },
-    "toolsFor": [
-      "Read",
-      "Glob",
-      "Grep",
-      "LSP",
-      "Skill",
-      "AskUserQuestion",
-    ],
-  },
   "hacker": {
     "countsTowardCap": false,
     "guard": {

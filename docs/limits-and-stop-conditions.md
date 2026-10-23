@@ -92,7 +92,6 @@ One row per role. All five fields are role data (constants at the top of each ro
 | `scout` | Haiku | 40 <!-- limit:role.scout.maxTurns=40 --> | $1.5 <!-- limit:role.scout.budgetUsd=1.5 --> | 0 <!-- limit:role.scout.maxAsk=0 --> | off | 3 <!-- limit:role.scout.subagents.parallel=3 --> | 1 <!-- limit:role.scout.subagents.depth=1 --> |
 | `researcher` | Sonnet | 60 <!-- limit:role.researcher.maxTurns=60 --> | $4 <!-- limit:role.researcher.budgetUsd=4 --> | 0 <!-- limit:role.researcher.maxAsk=0 --> | off | 3 <!-- limit:role.researcher.subagents.parallel=3 --> | 1 <!-- limit:role.researcher.subagents.depth=1 --> |
 | `developer` | Sonnet | 150 <!-- limit:role.developer.maxTurns=150 --> | $8 <!-- limit:role.developer.budgetUsd=8 --> | 6 <!-- limit:role.developer.maxAsk=6 --> | on | 3 <!-- limit:role.developer.subagents.parallel=3 --> | 1 <!-- limit:role.developer.subagents.depth=1 --> |
-| `discord-manager` | Haiku | 30 <!-- limit:role.discord-manager.maxTurns=30 --> | $0.5 <!-- limit:role.discord-manager.budgetUsd=0.5 --> | 4 <!-- limit:role.discord-manager.maxAsk=4 --> | off | 3 <!-- limit:role.discord-manager.subagents.parallel=3 --> | 1 <!-- limit:role.discord-manager.subagents.depth=1 --> |
 | `solution-architect` | Sonnet | 60 <!-- limit:role.solution-architect.maxTurns=60 --> | $4 <!-- limit:role.solution-architect.budgetUsd=4 --> | 0 <!-- limit:role.solution-architect.maxAsk=0 --> | off | 3 <!-- limit:role.solution-architect.subagents.parallel=3 --> | 1 <!-- limit:role.solution-architect.subagents.depth=1 --> |
 | `designer` | Opus | 60 <!-- limit:role.designer.maxTurns=60 --> | $4 <!-- limit:role.designer.budgetUsd=4 --> | 0 <!-- limit:role.designer.maxAsk=0 --> | off | 3 <!-- limit:role.designer.subagents.parallel=3 --> | 1 <!-- limit:role.designer.subagents.depth=1 --> |
 | `tester` | Sonnet | 60 <!-- limit:role.tester.maxTurns=60 --> | $4 <!-- limit:role.tester.budgetUsd=4 --> | 0 <!-- limit:role.tester.maxAsk=0 --> | on | 2 <!-- limit:role.tester.subagents.parallel=2 --> | 1 <!-- limit:role.tester.subagents.depth=1 --> |
@@ -108,7 +107,6 @@ Subagents enabled per role (1 = on, 0 = off; drift-checked, guards "developer an
 | `scout` | 0 <!-- limit:role.scout.subagents.enabled=0 --> |
 | `researcher` | 0 <!-- limit:role.researcher.subagents.enabled=0 --> |
 | `developer` | 1 <!-- limit:role.developer.subagents.enabled=1 --> |
-| `discord-manager` | 0 <!-- limit:role.discord-manager.subagents.enabled=0 --> |
 | `solution-architect` | 0 <!-- limit:role.solution-architect.subagents.enabled=0 --> |
 | `designer` | 0 <!-- limit:role.designer.subagents.enabled=0 --> |
 | `tester` | 1 <!-- limit:role.tester.subagents.enabled=1 --> |

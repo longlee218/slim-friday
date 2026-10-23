@@ -21,12 +21,11 @@ describe("fixed role models", () => {
   test("every role names a full model id (no tier alias)", () => {
     for (const r of Object.values(ROLES)) expect(r.model).toMatch(/^claude-[a-z]+-\d/);
   });
-  test("ids per role: designer opus; teammate, developer, other roster specialists and researcher sonnet; scout and discord-manager haiku", () => {
+  test("ids per role: designer opus; teammate, developer, other roster specialists and researcher sonnet; scout haiku", () => {
     expect(Object.fromEntries(Object.values(ROLES).map((r) => [r.name, r.model]))).toEqual({
       designer: OPUS_MODEL,
       developer: SONNET_MODEL,
       devops: SONNET_MODEL,
-      "discord-manager": HAIKU_MODEL,
       hacker: SONNET_MODEL,
       "humanizer-writer": SONNET_MODEL,
       "chief-of-staff": SONNET_MODEL,
@@ -36,9 +35,8 @@ describe("fixed role models", () => {
       tester: SONNET_MODEL,
     });
   });
-  test("thinking is role data: teammate adaptive, discord-manager disabled, the others the SDK default", () => {
+  test("thinking is role data: teammate adaptive, the others the SDK default", () => {
     expect(getRole("chief-of-staff").thinking).toEqual({ type: "adaptive" });
-    expect(getRole("discord-manager").thinking).toEqual({ type: "disabled" });
     expect(dev.thinking).toBeUndefined();
     expect(scout.thinking).toBeUndefined();
   });
@@ -86,7 +84,7 @@ describe("run options", () => {
         seen.push(a.options as Options);
         yield resultMsg();
       })();
-    for (const role of [scout, getRole("discord-manager")])
+    for (const role of [scout, getRole("chief-of-staff")])
       await runAgent({
         prompt: "q",
         turnId: "t",
@@ -100,6 +98,6 @@ describe("run options", () => {
     expect("thinking" in seen[0]!).toBe(false);
     expect(seen[0]!.model).toBe(HAIKU_MODEL);
     expect(seen[0]!.maxTurns).toBe(scout.limits.maxTurns);
-    expect(seen[1]!.thinking).toEqual({ type: "disabled" });
+    expect(seen[1]!.thinking).toEqual({ type: "adaptive" });
   });
 });

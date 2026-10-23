@@ -23,7 +23,6 @@ import { createDiscordBot } from "./providers/discord/ingress/discord-bot";
 import { sendReply } from "./providers/discord/ingress/discord-message-handler";
 import { createThreadTitlePort } from "./providers/discord/ingress/thread-rename";
 import { syncChannelTopics } from "./providers/discord/setup/channel-topic";
-import { createControlRoleRun } from "./providers/discord/setup/control-role-run";
 import { opsIds, readDiscordSetup } from "./providers/discord/setup/discord-setup-config";
 import { createOpsLog } from "./providers/discord/setup/ops-log";
 import { warnIfBotAdministrator } from "./providers/discord/setup/ready-checks";
@@ -96,8 +95,6 @@ async function main(): Promise<void> {
     ownerId: config.ownerDiscordId!,
     db,
   });
-  // Non-command owner text of #ops-control runs the control-channel role (no workspace); built here so orchestrator never imports discord-setup.
-  const control = createControlRoleRun({ db, config, approvals });
   const limiter = createRunLimiter(WORKER_POOL_MAX);
   const teammatePool = createRunLimiter(TEAMMATE_POOL_MAX, TEAMMATE_WAITING_MAX);
   const handleMessage = createTurnHandler({
@@ -106,7 +103,6 @@ async function main(): Promise<void> {
     approvals,
     limiter,
     teammatePool,
-    control, // shutdown hooks of the control runner
     threadTitle: createThreadTitlePort(() => botClient),
     // The teammate's boot wake has no owner message to answer through: post into the thread by id.
     post: async (threadId, text) => {
@@ -117,11 +113,11 @@ async function main(): Promise<void> {
   const threadsPort = createThreadsPort(db, config.agentHome);
   const { client } = createDiscordBot(
     config,
+    db,
     Object.assign(handleMessage, {
-      control,
       limits: createLimitsView(db, limiter, teammatePool),
       plan: createPlanLookup({ db, home: config.agentHome, viewer: config.viewer }),
-    }), // the bot reads `control` (#ops-control text), `limits` (/limits) and `plan` (/plan)
+    }), // the bot reads `limits` (/limits) and `plan` (/plan)
     (i) => approvals.handleInteraction(i),
     setup,
     handleMessage.inline,

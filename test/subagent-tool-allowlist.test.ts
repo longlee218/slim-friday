@@ -38,8 +38,8 @@ const log = { warn() {}, info() {}, error() {}, debug() {} } as unknown as Logge
 
 const DIR = "/work/repo";
 const dev = guardFor(getRole("developer"), { writePaths: [DIR], readPaths: [DIR], cwd: DIR });
-/** Scout has `shell` too; the discord-manager has none (read, skills, ask). */
-const mgr = guardFor(getRole("discord-manager"), {});
+/** The teammate has no shell. */
+const mgr = guardFor(getRole("chief-of-staff"), {});
 const orch = (t: string) => mcpToolName(ORCHESTRATION_MCP_SERVER, t);
 const sub = { subagent: true };
 

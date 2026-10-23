@@ -73,8 +73,7 @@ export async function createTeammate(
   if (teammateByName(d.db, a.name))
     throw new TeammateAdminError(`A teammate called \`${a.name}\` already exists.`);
   const preset = findRole(a.preset ?? CHIEF_OF_STAFF_ROLE.name);
-  if (!preset || preset.kind === "control")
-    throw new TeammateAdminError(`Unknown preset \`${a.preset}\`.`);
+  if (!preset) throw new TeammateAdminError(`Unknown preset \`${a.preset}\`.`);
   const model = a.model ? modelId(a.model) : undefined;
   const { channelId } = await d.createPrivateChannel({ space: a.space, name: a.name });
   const teammate = teammateFromPreset(preset, {

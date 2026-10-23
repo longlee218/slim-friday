@@ -19,7 +19,6 @@ export const PREVIEW_ROLES = [
   "solution-architect",
   "designer",
   "humanizer-writer",
-  "discord-manager",
 ];
 
 /** Options of one `prompt:show` run. */

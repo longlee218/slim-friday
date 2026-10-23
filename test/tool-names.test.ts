@@ -4,7 +4,6 @@ import { join } from "node:path";
 import { buildServers } from "../src/mcp/mcp-servers";
 import {
   ARTIFACTS_MCP_SERVER,
-  DISCORD_ADMIN_MCP_SERVER,
   EFFECTS_MCP_SERVER,
   MEMORY_MCP_SERVER,
   mcpServerPrefix,
@@ -63,16 +62,14 @@ test("MCP server and tool names are the real wire names", () => {
     MEMORY_MCP_SERVER,
     ORCHESTRATION_MCP_SERVER,
     EFFECTS_MCP_SERVER,
-    DISCORD_ADMIN_MCP_SERVER,
     ARTIFACTS_MCP_SERVER,
-  ]).toEqual(["memory", "orchestration", "effects", "discord-admin", "artifacts"]);
+  ]).toEqual(["memory", "orchestration", "effects", "artifacts"]);
   // Every tool the app can build, by server, with all ctx parts present and a role that lists every tool.
   expect(toolsByServer(buildServers(ALL_ROLE, FULL_CTX))).toEqual({
     artifacts: ["ListArtifacts", "ReadArtifact", "SaveArtifact", "SearchArtifacts"],
     memory: ["MemoryEdit", "MemoryExpand", "MemoryGet", "MemorySave", "MemorySearch"],
     orchestration: ["Orchestrate", "Report", "TaskBoard"],
     effects: ["CreatePullRequest", "DeletePaths", "GitPush", "MergeBranch"],
-    "discord-admin": ["CreateSpaceOrChannel", "ListSpaces", "WriteSpaceFile"],
   });
 });
 

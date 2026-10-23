@@ -28,7 +28,6 @@ export const FULL_CTX: RunCtx = {
   reportSink: {},
   progress: () => {},
   effects: {} as never,
-  admin: {} as never,
 };
 
 /**

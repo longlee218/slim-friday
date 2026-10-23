@@ -42,7 +42,6 @@ const CEILING: Record<string, number> = {
   hacker: 6700,
   scout: 6600,
   researcher: 6900,
-  "discord-manager": 4300,
   "chief-of-staff": 3800,
 };
 
@@ -79,10 +78,10 @@ test("worker contracts have the template sections in order", () => {
   }
 });
 
-test("the shared worker block is in every task worker once, never in the teammate, planner or discord-manager", () => {
+test("the shared worker block is in every task worker once, never in the teammate or planner", () => {
   for (const name of TASK_WORKERS)
     expect(contract(name).split("## How the team works")).toHaveLength(2);
-  for (const name of ["chief-of-staff", "planner", "discord-manager"])
+  for (const name of ["chief-of-staff", "planner"])
     expect(contract(name)).not.toContain("## How the team works");
   // The run facts (watchdog, limits, failures) live in the preloaded team skill, not in the contracts.
   expect(TEAM_SKILL_TEXT).toContain(`${STALE_AFTER_MS / 60_000} minutes is aborted as stale`);
@@ -90,16 +89,13 @@ test("the shared worker block is in every task worker once, never in the teammat
 
 test("numbers in the contracts match the role data", () => {
   // Budget and turn numbers stay out of every prompt: code enforces them, a model cannot track them.
-  for (const name of [...TASK_WORKERS, "planner", "discord-manager"])
+  for (const name of [...TASK_WORKERS, "planner"])
     expect(contract(name)).not.toMatch(/\$\d+ budget|\d+ turns/);
   expect(contract("developer")).toContain(`at most ${ROLES.developer!.limits.maxAsk} per run`);
   expect(contract("developer")).toContain(
     `up to ${ROLES.developer!.subagents.parallel} in parallel`,
   );
   expect(contract("tester")).toContain(`Up to ${ROLES.tester!.subagents.parallel} subagents`);
-  expect(contract("discord-manager")).toContain(
-    `at most ${ROLES["discord-manager"]!.limits.maxAsk} per run`,
-  );
 });
 
 test("owner decisions: no-shell writers complete without committing; shell roster roles commit only locally", () => {

@@ -120,8 +120,4 @@ test("whole role prompts: every worker kind carries root + channel blocks, never
   }
   // The teammate: memory is sent in its user turn on change (teammate-memory.ts), never in the system prompt.
   expect(prompt("chief-of-staff")).not.toContain("ROOT_MARK");
-  // Control channel (no workspace): no memory block at all.
-  const control = buildPromptPreview(getRole("discord-manager"), { agentHome: env.home }).text;
-  expect(control).not.toContain("### root");
-  expect(control).not.toContain("ROOT_MARK");
 });

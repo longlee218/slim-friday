@@ -5,7 +5,6 @@ import { logEvent, logger } from "../../observability/logger";
 import { isInside, realOrSame } from "../../policy/paths";
 import type { RoleDefinition } from "../../roles/role-types";
 import { policyOf } from "../../tools/role-policy";
-import { controlScope } from "./control-scope";
 import type { RoleRunInput } from "./role-run-types";
 import type { RoleScope } from "./role-scope-types";
 
@@ -41,7 +40,7 @@ function grantedUnderHome(
  * Throws when a dir of a writing role is gone (the caller turns it into a failed result).
  */
 export function roleScope(config: AgentConfig, i: RoleRunInput, role: RoleDefinition): RoleScope {
-  if (i.workspace === undefined) return controlScope(config, i); // no workspace: the control channel
+  if (i.workspace === undefined) throw new Error("A run needs a workspace");
   const { locations, pinned } = i;
   const dirs = workspacePaths(config.agentHome).workspace(i.workspace);
   const projectsDir = workspacePaths(config.agentHome).projects;

@@ -1,5 +1,4 @@
 import { ARTIFACTS_SERVER } from "./artifacts/server";
-import { DISCORD_ADMIN_SERVER } from "./discord-admin/server";
 import { EFFECTS_SERVER } from "./effects/server";
 import { FIRECRAWL_SERVER } from "./firecrawl/server";
 import type { ExternalMcpServer, McpServerManifest } from "./manifest-types";
@@ -16,7 +15,6 @@ export const ALL_SERVERS: readonly McpServerManifest[] = [
   ARTIFACTS_SERVER,
   ORCHESTRATION_SERVER,
   EFFECTS_SERVER,
-  DISCORD_ADMIN_SERVER,
 ];
 
 /** Every external (hosted or local stdio) MCP server the app may connect a run to. Same rule: a role gets one only through `mcpTools`. */

@@ -7,14 +7,6 @@ import type { RunLimiter } from "./turns/run-limiter";
 
 /* Types shared by handle-message.ts and handler-services.ts (a leaf: neither imports the other for types). */
 
-/** What the handler needs of the control-channel runner (built by index.ts and injected): the shutdown hooks. */
-export interface ControlHandle {
-  /** Shutdown: abort every control run in flight. */
-  abortAll(): void;
-  /** Shutdown: abort, wait for the runs to end (at most `ms`) and return the time left. */
-  drain(ms: number): Promise<number>;
-}
-
 /** Dependencies of the turn handler. */
 export interface TurnHandlerDeps {
   db: Database;
@@ -31,8 +23,6 @@ export interface TurnHandlerDeps {
   threadTitle?: ThreadTitlePort;
   /** Posts into a thread by id: the teammate's boot wake (a restart) has no owner message to answer through. Omitted = that wake is skipped. */
   post?: (threadId: string, text: string) => Promise<void>;
-  /** The control-channel runner (see `ControlHandle`); index.ts also gives the same runner to the Discord bot. Omitted = none. */
-  control?: ControlHandle;
   /** Timing knobs of the teammate queue (tests shorten the owner debounce and the announce batch). */
   teammateTiming?: { debounceMs?: number; announceWindowMs?: number };
 }

@@ -11,7 +11,7 @@ export const viUi: Record<keyof typeof enUi, string> = {
   "ui.adoptRefused.name-taken":
     "Mình chưa liên kết kênh này vì đã có quá nhiều kênh trùng tên. Bạn đổi tên kênh rồi @mention mình lại nhé.",
   "ui.adoptRefused.failed":
-    "Mình chưa liên kết được kênh này (xem log để biết thêm). Bạn thử lại hoặc dùng /init-channel nhé.",
+    "Mình chưa liên kết được kênh này (xem log để biết thêm). Bạn thử lại hoặc dùng /teammate create nhé.",
   "ui.approval.approve": "Duyệt",
   "ui.approval.deny": "Từ chối",
   "ui.approval.owner-only": "Chỉ chủ sở hữu mới duyệt được.",

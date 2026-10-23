@@ -29,7 +29,7 @@ test("slashText builds the typed text per command", () => {
   const v = (m: Record<string, string | boolean>) => (a: string) => m[a] ?? null;
   expect(slashText("stop", v({}))).toBe("/stop");
   expect(slashText("find", v({ keywords: "invoice" }))).toBe("/find invoice");
-  expect(slashText("init-workspace", v({ name: "acme" }))).toBe("/init-workspace acme");
+  expect(slashText("teammate", v({ command: "list" }))).toBe("/teammate list");
   expect(slashText("constructor", v({}))).toBeNull();
 });
 

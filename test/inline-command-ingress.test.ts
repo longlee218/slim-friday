@@ -4,6 +4,7 @@ import type { InlineRequest } from "../src/memory/find-command-handler";
 import { createMessageHandler } from "../src/providers/discord/ingress/discord-message-handler";
 import { createAdminHandler } from "../src/providers/discord/setup/admin-handler";
 import { privateOverwrites } from "../src/providers/discord/setup/private-channels";
+import { openDb } from "../src/storage/db";
 
 const OWNER = "111";
 const BOT = "999";
@@ -108,6 +109,7 @@ test("control channel: the admin handler runs inline commands behind its gate", 
   const asked: InlineRequest[] = [];
   const admin = createAdminHandler({
     home: "/nonexistent",
+    db: openDb(":memory:"),
     guildId: "G1",
     ownerId: OWNER,
     botId: () => BOT,

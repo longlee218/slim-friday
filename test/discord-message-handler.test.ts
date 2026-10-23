@@ -260,19 +260,19 @@ test("messages in ops channels or their threads never reach handleMessage", asyn
 test("control channel text goes to admin handling only, no mention needed, no task", async () => {
   const { onMessage, messages, admin } = setupOps();
   await onMessage(
-    fakeMsg({ channel: fakeChannel(CTRL), mention: false, content: "/init-workspace x" }).msg,
+    fakeMsg({ channel: fakeChannel(CTRL), mention: false, content: "/teammate x" }).msg,
   );
   expect(messages).toEqual([]);
-  expect(admin).toEqual([{ prompt: "/init-workspace x", channelId: CTRL }]);
+  expect(admin).toEqual([{ prompt: "/teammate x", channelId: CTRL }]);
 });
 
 test("admin text in a normal channel or thread is routed to the admin gate, not the agent", async () => {
   const { onMessage, messages, admin } = setupOps();
-  await onMessage(fakeMsg({ content: `<@${BOT}> /init-workspace x` }).msg);
+  await onMessage(fakeMsg({ content: `<@${BOT}> /teammate x` }).msg);
   const th = fakeChannel("thr7", { thread: true, ownerId: BOT, parentId: "parent9" });
-  await onMessage(fakeMsg({ channel: th, mention: false, content: "/init-workspace y" }).msg);
+  await onMessage(fakeMsg({ channel: th, mention: false, content: "/teammate y" }).msg);
   expect(messages).toEqual([]);
-  expect(admin.map((a) => a.prompt)).toEqual(["/init-workspace x", "/init-workspace y"]);
+  expect(admin.map((a) => a.prompt)).toEqual(["/teammate x", "/teammate y"]);
 });
 
 test("an admin hook that throws is contained", async () => {

@@ -22,8 +22,6 @@ export const ORCHESTRATION_MCP_SERVER = "orchestration";
 export const EFFECTS_MCP_SERVER = "effects";
 /** Artifacts server: save, read, list and search the titled documents of the run's channel. */
 export const ARTIFACTS_MCP_SERVER = "artifacts";
-/** Discord admin server: the control-channel role's space tools. */
-export const DISCORD_ADMIN_MCP_SERVER = "discord-admin";
 
 /** Firecrawl server (external, hosted): its tool names live in `src/mcp/firecrawl/tools/<Name>Tool/constants.ts`. */
 export const FIRECRAWL_MCP_SERVER = "firecrawl";

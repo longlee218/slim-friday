@@ -229,7 +229,7 @@ test("ops channels and their threads never reach the agent; control channel and 
     prompt: "help",
   });
   // Admin text in another ops channel / control-channel thread still goes to the gate (reply), not the agent.
-  expect(route({ opsChannel: true, content: "/init-workspace x" }).kind).toBe("control");
+  expect(route({ opsChannel: true, content: "/teammate x" }).kind).toBe("control");
   // The owner check still comes first.
   expect(route({ opsChannel: true, controlChannel: true, authorId: "222" })).toEqual({
     kind: "ignore",
@@ -238,15 +238,15 @@ test("ops channels and their threads never reach the agent; control channel and 
 });
 
 test("admin text outside ops channels is control (gate refuses it), never a thread/channel run", () => {
-  expect(route({ content: `<@${BOT}> /init-workspace x` })).toEqual({
+  expect(route({ content: `<@${BOT}> /teammate x` })).toEqual({
     kind: "control",
-    prompt: "/init-workspace x",
+    prompt: "/teammate x",
   });
-  expect(route({ inBotThread: true, mentionsBot: false, content: "/init-workspace x" }).kind).toBe(
+  expect(route({ inBotThread: true, mentionsBot: false, content: "/teammate x" }).kind).toBe(
     "control",
   );
   // Unmentioned admin text in a normal channel is just ignored.
-  expect(route({ mentionsBot: false, content: "/init-workspace x" })).toEqual({
+  expect(route({ mentionsBot: false, content: "/teammate x" })).toEqual({
     kind: "ignore",
     reason: "not_mentioned",
   });
@@ -290,7 +290,7 @@ test("adoption: non-owner, bot, DM and other guild are still ignored", () => {
 test("adoption: ops parent never adopts (ops check first)", () => {
   expect(route({ adoptableThread: true, opsChannel: true }).kind).toBe("ignore");
   expect(
-    route({ adoptableThread: true, opsChannel: true, content: `<@${BOT}> /init-workspace x` }).kind,
+    route({ adoptableThread: true, opsChannel: true, content: `<@${BOT}> /teammate x` }).kind,
   ).toBe("control");
   expect(route({ adoptedThread: true, opsChannel: true, mentionsBot: false }).kind).toBe("ignore");
 });

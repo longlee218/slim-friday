@@ -1,19 +1,21 @@
+import type { Database } from "bun:sqlite";
 import type { Message } from "discord.js";
+import { parseSlash } from "../../../commands/slash-commands";
 import type { InlineRunner } from "../../../memory/find-command-handler";
 import { logEvent, logger } from "../../../observability/logger";
 import { replyText } from "../ui/send/reply-port";
-import { adminGate, parseAdminCommand } from "./admin-command";
-import type { ControlRun } from "./control-role-run";
+import { ADMIN_HELP, adminGate } from "./admin-command";
 import type { DiscordSetup } from "./discord-setup-config";
-import { initChannel } from "./init-channel";
-import { initWorkspace } from "./init-workspace";
 import { isPrivateChannel, type PrivateIds } from "./private-channels";
+import { runTeammateCommand } from "./teammate-command-run";
 
 const log = logger.child({ module: "admin-handler" });
 
 /** What admin handling needs. */
 export interface AdminDeps {
   home: string;
+  /** Teammate rows (`/teammate`). */
+  db: Database;
   /** DISCORD_GUILD_ID (undefined: admin commands are refused). */
   guildId: string | undefined;
   ownerId: string;
@@ -22,8 +24,6 @@ export interface AdminDeps {
   setup: DiscordSetup;
   /** Inline owner commands (`/find`) typed in #ops-control. */
   inline?: InlineRunner;
-  /** Runs the control-channel role for non-command text; absent = the help text. */
-  controlRun?: ControlRun;
 }
 
 /**
@@ -71,20 +71,14 @@ export function createAdminHandler(deps: AdminDeps) {
     // `/find`: after the same gate as admin commands.
     const found = await deps.inline?.({ channelId: ch.id, text: prompt });
     if (found != null) return void (await reply(found));
-    const cmd = parseAdminCommand(prompt);
     const init = {
       home: deps.home,
       guild: msg.guild,
       ids: { guildId: msg.guild.id, ownerId: deps.ownerId, botId },
     };
-    // Non-command text goes to the control-channel role (when one is registered and wired), else the help text.
-    if (cmd.kind === "help" && (await deps.controlRun?.(msg, prompt, init))) return;
-    if (cmd.kind !== "init_workspace" && cmd.kind !== "init_channel")
-      return void (await reply(cmd.reply));
-    await reply(
-      cmd.kind === "init_channel"
-        ? await initChannel(init, cmd.space, cmd.name)
-        : await initWorkspace(init, cmd.name),
-    );
+    const slash = parseSlash(prompt);
+    if (slash?.name === "teammate")
+      return void (await reply(await runTeammateCommand(deps.db, init, slash.arg)));
+    await reply(ADMIN_HELP);
   };
 }

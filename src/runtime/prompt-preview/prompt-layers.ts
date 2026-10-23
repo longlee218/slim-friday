@@ -53,8 +53,7 @@ function personaLayers(persona: string): PromptLayer[] {
  * labeled by matching each context block with the piece that produced it; an unmatched block is kept as "context".
  */
 export function buildPromptPreview(role: RoleDefinition, i: PreviewInput): PromptPreview {
-  const control = role.kind === "control";
-  const workspace = control ? undefined : (i.workspace ?? PLACEHOLDER_WORKSPACE);
+  const workspace = i.workspace ?? PLACEHOLDER_WORKSPACE;
   const locations = i.locations ?? [];
   const team = role.kind === "teammate" ? buildTeamMd({ locations }) : undefined;
   const blocks = runExtraContext({

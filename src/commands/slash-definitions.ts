@@ -44,13 +44,14 @@ export const SLASH_DEFINITIONS: Record<SlashName, SlashDefinition> = {
     description: "Find threads of this space by keywords",
     arg: { name: "keywords", description: "Words to look for", required: true },
   },
-  "init-workspace": {
-    description: "Create a workspace (ops control channel only)",
-    arg: { name: "name", description: "Workspace name", required: true },
-  },
-  "init-channel": {
-    description: "Add a private channel to a space (ops control channel only)",
-    arg: { name: "path", description: "space/channel", required: true },
+  teammate: {
+    description: "Manage teammates (ops control channel only)",
+    arg: {
+      name: "command",
+      description:
+        "create <space> <name> [model] | list | edit <name> <field> <value> | archive <name>",
+      required: true,
+    },
   },
 };
 

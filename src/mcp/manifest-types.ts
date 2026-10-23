@@ -1,4 +1,3 @@
-import type { Database } from "bun:sqlite";
 import type {
   McpHttpServerConfig,
   McpStdioServerConfig,
@@ -36,8 +35,6 @@ export interface RunCtx {
   taskBoard?: TaskBoardCtx;
   /** Effect tools: the worker run's envelope, locations and owner gate. */
   effects?: EffectsCtx;
-  /** Discord admin tools: the control-channel run. */
-  admin?: AdminContext;
   /** Artifact tools: the run's channel scope. Absent = no artifact tools. */
   artifacts?: ArtifactToolCtx;
   /** Per-server-instance read cap shared by the memory read tools (set by the memory manifest's `prepare`). */
@@ -87,29 +84,4 @@ export interface ExternalMcpServer {
   tools: string[];
   /** SDK connection config, or undefined when the server is not configured for this run (then it is never built). */
   config(run: ExternalRunInfo): McpHttpServerConfig | McpStdioServerConfig | undefined;
-}
-
-/** What the question to the owner (before a write) carries. */
-export interface ConfirmQuestion {
-  /** What is confirmed, for the log. */
-  kind: string;
-  /** One line shown above the buttons. */
-  summary: string;
-  /** Long text (the diff) sent as an attachment. */
-  detail?: string;
-}
-
-/**
- * What the tools of a chat provider's admin MCP server need about the run they belong to, whatever the provider: built
- * per run by the control-channel runner. The provider adds its own parts (guild ids, ...) on top.
- */
-export interface AdminContext {
-  /** AGENT_HOME: where `workspaces/` and `backups/` live. */
-  home: string;
-  /** Ask the owner with buttons (the owner-confirm relay bound to this run). True only on a click on yes; fails closed. */
-  confirm: (q: ConfirmQuestion) => Promise<boolean>;
-  /** App db: a written MEMORY.md is re-indexed for MemorySearch at once (absent in some tests: no re-index). */
-  db?: Database;
-  /** Clock (tests pass a fixed one): names the backup file. */
-  now?: () => Date;
 }

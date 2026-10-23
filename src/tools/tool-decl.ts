@@ -13,10 +13,9 @@ export type ToolNeed =
 
 /**
  * Kinds of run a tool can be BUILT in: the kind must bring the ctx part the tool reads (`src/mcp/manifest-types.ts`).
- * `worker` = a dispatched item, `teammate` = the engine run of a channel, `control` = the #ops-control run (removed
- * with the control role).
+ * `worker` = a dispatched item, `teammate` = the engine run of a channel.
  */
-export type ToolRunKind = "worker" | "teammate" | "control";
+export type ToolRunKind = "worker" | "teammate";
 
 /** One assignable tool: the unit a role or teammate lists, with the facts the engine derives its policy from. */
 export interface ToolDecl {

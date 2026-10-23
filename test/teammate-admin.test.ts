@@ -45,7 +45,6 @@ test("create: bad name, duplicate, unknown preset or model are refused BEFORE th
     { name: "A" },
     { name: "alpha" },
     { name: "beta", preset: "nope" },
-    { name: "beta", preset: "discord-manager" },
     { name: "beta", model: "gpt-9" },
   ])
     await expect(createTeammate(deps, { space: "work", ...bad })).rejects.toBeInstanceOf(
@@ -93,4 +92,17 @@ test("parse: the four verbs, the rest-of-line value, comma lists; anything else 
   });
   for (const bad of ["", "create work", "edit alpha color red", "edit alpha title", "list x"])
     expect(parseTeammateCommand(bad)).toBeUndefined();
+});
+
+/* The Discord glue: reply text for each command, no Discord needed before the channel step. */
+import { runTeammateCommand } from "../src/providers/discord/setup/teammate-command-run";
+
+test("runTeammateCommand: usage for junk, empty list, refusals before any channel is made", async () => {
+  const { db } = setup();
+  const init = { home: "/nonexistent", guild: {} as never, ids: {} as never };
+  expect(await runTeammateCommand(db, init, "nonsense")).toContain("Usage:");
+  expect(await runTeammateCommand(db, init, "list")).toContain("No teammates yet");
+  expect(await runTeammateCommand(db, init, "create work BAD_NAME")).toContain("2-32 characters");
+  expect(await runTeammateCommand(db, init, "archive ghost")).toContain("No active teammate");
+  expect(await runTeammateCommand(db, init, "edit ghost title x")).toContain("No active teammate");
 });

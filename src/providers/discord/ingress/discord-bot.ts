@@ -1,3 +1,4 @@
+import type { Database } from "bun:sqlite";
 import { Client, Events, GatewayIntentBits, type Interaction } from "discord.js";
 import type { AgentConfig } from "../../../config/agent-config";
 import { createAttachmentDeps } from "../../../ingress/attachment-summary";
@@ -8,7 +9,6 @@ import type { InlineRunner } from "../../../memory/find-command-handler";
 import { logger } from "../../../observability/logger";
 import { errText } from "../../../observability/redact";
 import { createAdminHandler } from "../setup/admin-handler";
-import type { ControlRun } from "../setup/control-role-run";
 import { type DiscordSetup, EMPTY_SETUP, opsIds } from "../setup/discord-setup-config";
 import { createChannelAdopter } from "./channel-adoption";
 import { createMessageHandler, type HandleMessage } from "./discord-message-handler";
@@ -28,7 +28,8 @@ export const CLIENT_OPTIONS = {
 /** Build the Discord bot (not connected until `login`). */
 export function createDiscordBot(
   config: AgentConfig,
-  handleMessage: HandleMessage & { control?: ControlRun; limits?: LimitsView; plan?: PlanLookup },
+  db: Database,
+  handleMessage: HandleMessage & { limits?: LimitsView; plan?: PlanLookup },
   handleInteraction?: (i: Interaction) => Promise<void>,
   setup: DiscordSetup = EMPTY_SETUP,
   inline?: InlineRunner,
@@ -56,12 +57,12 @@ export function createDiscordBot(
     // Admin commands (/init-workspace) run outside the turn handler, behind their own gate.
     admin: createAdminHandler({
       home: config.agentHome,
+      db,
       guildId: config.discordGuildId,
       ownerId: config.ownerDiscordId ?? "",
       botId: () => client.user?.id,
       setup,
       inline,
-      controlRun: handleMessage.control, // non-command owner text in #ops-control -> the control-channel role
     }),
   });
 

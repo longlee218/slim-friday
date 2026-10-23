@@ -37,7 +37,7 @@ test("selectWorkspace: mapped channel -> its workspace; unmapped -> exact refusa
   expect(un).toEqual({
     reason: "unmapped_channel",
     reply:
-      "This channel is not linked to a workspace. Add its id `100000000000000077` to `channels:` in workspaces/<ws>/workspace.yaml (or run `/init-workspace <name>` in #ops-control). A private channel under a space category links itself on your first @mention.",
+      "This channel is not linked to a workspace. Add its id `100000000000000077` to `channels:` in workspaces/<ws>/workspace.yaml (or run `/teammate create <space> <name>` in #ops-control). A private channel under a space category links itself on your first @mention.",
   });
 });
 

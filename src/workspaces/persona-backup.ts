@@ -1,7 +1,9 @@
 import { join } from "node:path";
 import { workspacePaths } from "../config/workspace-paths";
-import { BACKUP_KEEP } from "../mcp/discord-admin/tools/WriteSpaceFileTool/constants";
 import { backupFile } from "../memory/stamped-backup";
+
+/** Backups kept per target file (older ones are deleted after each new backup). */
+const BACKUP_KEEP = 10;
 
 /**
  * Folder of one target's backups: `<home>/backups/persona/<space>/` or `.../<space>/channels/<channel>/`. One folder per

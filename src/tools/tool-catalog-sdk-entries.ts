@@ -2,10 +2,10 @@ import { CAPABILITY_TOOLS } from "./capability-tools";
 import { TASK_STOP_TOOL_NAME } from "./sdk-tool-names";
 import type { ToolDecl } from "./tool-decl";
 
-const ALL = ["worker", "teammate", "control"] as const;
+const ALL = ["worker", "teammate"] as const;
 
 /**
- * The SDK built-in tool groups as assignable tool ids (the role `capabilities`). `ask` is worker and control only:
+ * The SDK built-in tool groups as assignable tool ids (the role `capabilities`). `ask` is worker only:
  * a teammate asks the owner through `Orchestrate ask_owner`.
  */
 export const SDK_TOOL_ENTRIES: readonly ToolDecl[] = [
@@ -106,6 +106,6 @@ export const SDK_TOOL_ENTRIES: readonly ToolDecl[] = [
     readOnly: true,
     risk: "R0",
     needs: [],
-    runKinds: ["worker", "control"],
+    runKinds: ["worker"],
   },
 ];

@@ -16,7 +16,7 @@ export interface ThreadsPort {
 
 /**
  * The handler's thread port over the db and the workspaces on disk. Workspaces are re-read per call (like
- * `selectWorkspace`), so a channel added by `/init-channel` works without a restart. An unmapped parent
+ * `selectWorkspace`), so a channel added by `/teammate create` works without a restart. An unmapped parent
  * has no `channelInfo`: adoption is refused and a bot thread is stored with an empty workspace.
  */
 export function createThreadsPort(db: Database, home: string): ThreadsPort {

@@ -1,16 +1,13 @@
 import type { Logger } from "pino";
 import { createFindRunner } from "../memory/find-command-handler";
 import { createMemoryJobs } from "../memory/memory-jobs";
-import type { ControlHandle, TurnHandlerDeps } from "./handler-types";
+import type { TurnHandlerDeps } from "./handler-types";
 import type { DispatchDeps } from "./run/role-run-types";
 import { createTeammateSystem } from "./teammate/teammate-system";
 import { createSteerRegistry } from "./turns/steer-registry";
 import { createRunTracker } from "./turns/turn-tracker";
 
-/** Control handle of a handler built without a control runner (tests, headless). */
-const NO_CONTROL: ControlHandle = { abortAll: () => undefined, drain: async (ms) => ms };
-
-/** The long-lived services of one turn handler, built once: run tracking, memory jobs, teammate system, inline command runner, control-channel runner. */
+/** The long-lived services of one turn handler, built once: run tracking, memory jobs, teammate system, inline command runner. */
 export function createHandlerServices(deps: TurnHandlerDeps, log: Logger) {
   const { db, config } = deps;
   const tracker = createRunTracker(db, log);
@@ -40,17 +37,14 @@ export function createHandlerServices(deps: TurnHandlerDeps, log: Logger) {
   });
   // `/find` is an inline owner command (answered before any thread or task).
   const inline = createFindRunner({ db, agentHome: config.agentHome });
-  // The control-channel runner (non-command text of #ops-control) is built by index.ts and injected; none = nothing to stop.
-  const control: ControlHandle = deps.control ?? NO_CONTROL;
-  // Shutdown: abort everything; drain memory jobs first, then control runs, then the task runs get the time left.
+  // Shutdown: abort everything; drain memory jobs first, then the task runs get the time left.
   const shutdown = {
     abortAll: () => {
       teammate.stopAll();
       tracker.abortAll();
       memoryJobs.abortAll();
-      control.abortAll();
     },
-    drain: async (ms: number) => tracker.drain(await control.drain(await memoryJobs.drain(ms))),
+    drain: async (ms: number) => tracker.drain(await memoryJobs.drain(ms)),
   };
   return { tracker, memoryJobs, dispatchDeps, teammate, inline, shutdown };
 }

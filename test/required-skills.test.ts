@@ -29,8 +29,7 @@ test("required sets per role", () => {
   expect(set("solution-architect")).toEqual(["architecture-designer"]);
   expect(set("humanizer-writer")).toEqual(["technical-writing", "verification-before-completion"]);
   expect(set("researcher")).toEqual(["deep-research"]);
-  for (const r of ["scout", "planner", "chief-of-staff", "discord-manager"])
-    expect(set(r)).toEqual([]);
+  for (const r of ["scout", "planner", "chief-of-staff"]) expect(set(r)).toEqual([]);
 });
 
 test("brainstorming belongs to the teammate only", () => {
