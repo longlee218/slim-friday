@@ -1,5 +1,3 @@
-import { join } from "node:path";
-import { workspacePaths } from "../../src/config/workspace-paths";
 import { getRole } from "../../src/roles/role-registry";
 import { buildPromptPreview } from "../../src/runtime/prompt-preview/prompt-layers";
 import { PREVIEW_ROLES } from "../../src/runtime/prompt-preview/show";
@@ -41,9 +39,6 @@ export function promptOf(roleName: string, workspace?: string, channel?: string)
     workspace: ws?.name,
     channel: ws ? channel : undefined,
     locations,
-    worktreesDir: ws
-      ? workspacePaths(AGENT_HOME).workspace(ws.name).worktrees
-      : join(AGENT_HOME, "workspaces", "<workspace>", "worktrees"),
   });
   const tools = toolDefinitions(role, FULL_CTX);
   return {

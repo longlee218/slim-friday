@@ -1,4 +1,5 @@
 import type { Database } from "bun:sqlite";
+import { lastMessageOf } from "../../src/storage/task-message-store";
 import { TURN_SELECT, type TurnRow } from "./turn-rows";
 
 /** One tool call, in call order (`tool_calls` has no timestamp: rowid is the order, duration the size). */
@@ -23,14 +24,17 @@ export function turnDetail(db: Database, turnId: string) {
     )
     .all(turnId);
   const item = turn.owned_task_id
-    ? db
+    ? (db
         .query(
-          `SELECT id, item_key, parent_id, owner_role, status, subject, brief, result_kind, result_text,
+          `SELECT id, item_key, parent_id, owner_role, status, subject, brief, result_kind,
              result_excerpt, attempt, dispatch_count, location
            FROM owned_tasks WHERE id = ?`,
         )
-        .get(turn.owned_task_id)
+        .get(turn.owned_task_id) as Record<string, unknown> | null)
     : null;
+  // The full result text lives in task_messages now (owned_tasks.result_text was dropped, migration 0019);
+  // the newest `result` message of the item is the same text the worker's final reply once stored there.
+  const resultText = item ? (lastMessageOf(db, item.id as string, "result")?.text ?? null) : null;
   const approvals = db
     .query(
       `SELECT id, tool, summary, decision, requested_at, decided_at FROM approvals
@@ -42,5 +46,10 @@ export function turnDetail(db: Database, turnId: string) {
       "SELECT brief, session_id, kind, parent_turn_id FROM turns WHERE id = ?",
     )
     .get(turnId);
-  return { turn: { ...turn, ...extra }, steps, item, approvals };
+  return {
+    turn: { ...turn, ...extra },
+    steps,
+    item: item ? { ...item, result_text: resultText } : null,
+    approvals,
+  };
 }
