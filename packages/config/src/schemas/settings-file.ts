@@ -1,14 +1,26 @@
 import { CORE_DEFAULTS, type CoreLimits } from "@friday/core";
 import { z } from "zod";
+import { idSchema } from "./ids";
 
 const level = z.enum(["careful", "balanced", "autonomous"]);
 const outcome = z.enum(["allow", "ask", "ask_always", "deny"]);
 
-/** Every limit of `CORE_DEFAULTS` may be overridden by a positive number. */
+/** Longest timer the runtime can arm (a larger value fires at once). */
+const MAX_TIMER_MS = 2_147_483_647;
+
+/** One limit: a positive number; counts are whole numbers, `*Ms` fit a 32-bit timer. */
+function limitSchema(key: string): z.ZodOptional<z.ZodNumber> {
+  const n = z.number().positive();
+  if (key.endsWith("Ms")) return n.max(MAX_TIMER_MS).optional();
+  return (key.endsWith("Usd") ? n : n.int()).optional();
+}
+
+/** Every limit of `CORE_DEFAULTS` may be overridden by a usable number. */
 const limitsSchema = z.strictObject(
-  Object.fromEntries(
-    Object.keys(CORE_DEFAULTS).map((k) => [k, z.number().positive().optional()]),
-  ) as Record<keyof CoreLimits, z.ZodOptional<z.ZodNumber>>,
+  Object.fromEntries(Object.keys(CORE_DEFAULTS).map((k) => [k, limitSchema(k)])) as Record<
+    keyof CoreLimits,
+    z.ZodOptional<z.ZodNumber>
+  >,
 );
 
 /** The content of `settings.yaml`. */
@@ -16,7 +28,7 @@ const settingsSchema = z.strictObject({
   autonomy: z
     .strictObject({
       level: level.optional(),
-      bots: z.record(z.string(), level).optional(),
+      bots: z.record(idSchema, level).optional(),
       tools: z.record(z.string(), outcome).optional(),
     })
     .optional(),

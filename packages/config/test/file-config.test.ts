@@ -101,3 +101,34 @@ test("watch calls onReload once for a burst of writes, then stops", async () => 
   await Bun.sleep(300);
   expect(seen.length).toBe(n);
 });
+
+test("a half-written file on reload keeps the last good bot, group and settings", async () => {
+  const dir = newDir();
+  put(dir, "a", botText("A"));
+  put(dir, "b", botText("B"));
+  mkdirSync(join(dir, "groups"), { recursive: true });
+  writeFileSync(join(dir, "groups", "g.yaml"), "name: G\nmembers: [a, b]\nentryBot: a\n");
+  writeFileSync(join(dir, "settings.yaml"), "autonomy:\n  level: careful\n  tools: {Bash: deny}\n");
+  const { config } = make(dir);
+  put(dir, "b", "---\nname: B\ntit"); // half written
+  writeFileSync(join(dir, "settings.yaml"), "autonomy:\n  lev"); // half written
+  const r = config.reload();
+  expect(r.changedBots).toEqual([]);
+  expect(r.problems).toHaveLength(2);
+  expect((await config.bots.get("b"))?.name).toBe("B");
+  expect(await config.groups.get("g")).toBeDefined();
+  expect(config.settings().level).toBe("careful");
+  expect(config.settings().tools?.Bash).toBe("deny");
+  // the next good write replaces the kept copy
+  put(dir, "b", botText("B", "fixed"));
+  expect(config.reload().changedBots).toEqual(["b"]);
+  expect((await config.bots.get("b"))?.instructions).toBe("fixed");
+});
+
+test("a file that fails on the very first load is just a problem", async () => {
+  const dir = newDir();
+  put(dir, "b", "broken");
+  const { config, problems } = make(dir);
+  expect(problems).toHaveLength(1);
+  expect(await config.bots.get("b")).toBeUndefined();
+});

@@ -35,10 +35,11 @@ export function openEngineDb(file: string): Database {
   if (file !== ":memory:") mkdirSync(dirname(file), { recursive: true });
   const db = new Database(file, { create: true });
   try {
-    db.run("PRAGMA journal_mode = WAL");
-    db.run("PRAGMA busy_timeout = 5000");
+    // Check first: a foreign db must be left byte-for-byte alone (switching it to WAL would change it).
     if (hasUserTables(db) && !hasMigrationsTable(db))
       throw new Error(`database ${file} is not an engine database: move it away and start again`);
+    db.run("PRAGMA journal_mode = WAL");
+    db.run("PRAGMA busy_timeout = 5000");
     migrate(drizzle({ client: db }), { migrationsFolder: MIGRATIONS_FOLDER });
   } catch (err) {
     db.close();

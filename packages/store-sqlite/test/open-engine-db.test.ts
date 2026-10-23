@@ -1,6 +1,6 @@
 import { Database } from "bun:sqlite";
 import { expect, test } from "bun:test";
-import { existsSync, mkdtempSync, statSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openEngineDb } from "../src/open-engine-db";
@@ -42,17 +42,19 @@ test("the db file and its sidecars are owner-only", () => {
     if (existsSync(p)) expect(statSync(p).mode & 0o777).toBe(0o600);
 });
 
-test("a foreign db (tables, no migration log) is refused and left alone", () => {
+test("a foreign db (tables, no migration log) is refused and byte-for-byte untouched", () => {
   const f = tmpFile();
   openEngineDb(f).close(); // creates the parent dir
-  const foreign = join(f, "..", "foreign.db");
+  const dir = join(f, "..");
+  const foreign = join(dir, "foreign.db");
   const d = new Database(foreign, { create: true });
   d.run("CREATE TABLE x (a)");
   d.close();
+  const before = readFileSync(foreign);
+  const filesBefore = readdirSync(dir).sort();
   expect(() => openEngineDb(foreign)).toThrow("foreign.db");
-  const after = new Database(foreign);
-  expect(tables(after)).toEqual(["x"]);
-  after.close();
+  expect(readFileSync(foreign).equals(before)).toBe(true);
+  expect(readdirSync(dir).sort()).toEqual(filesBefore);
 });
 
 test(":memory: opens", () => {

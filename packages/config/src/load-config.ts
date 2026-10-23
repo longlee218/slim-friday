@@ -1,4 +1,3 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type {
   Bot,
@@ -10,20 +9,12 @@ import type {
   ToolSpec,
 } from "@friday/core";
 import { buildSettings } from "./build-settings";
-import { parseBotFile } from "./schemas/bot-file";
-import { parseGroupFile } from "./schemas/group-file";
-import { parseSettingsFile, type SettingsFile } from "./schemas/settings-file";
-import { parseToolsFile } from "./schemas/tools-file";
+import { type ConfigProblem, readLayer } from "./read-layer";
+
+export type { ConfigProblem } from "./read-layer";
 
 /** The defaults shipped with the repo (same layout as a user config dir). */
 export const DEFAULTS_DIR = join(import.meta.dir, "..", "defaults");
-
-/** A file that could not be used, with the reason. */
-export interface ConfigProblem {
-  /** Absolute path of the file. */
-  file: string;
-  message: string;
-}
 
 /** Everything the engine reads from config at one point in time. */
 export interface ConfigSnapshot {
@@ -34,84 +25,21 @@ export interface ConfigSnapshot {
   tools: ToolSpec[];
 }
 
-/** One config dir read on its own: parsed items with the file each came from. */
-interface Layer {
-  bots: Map<BotId, { bot: Bot; file: string }>;
-  groups: Map<GroupId, { group: Group; file: string }>;
-  settings?: SettingsFile;
-  tools: ToolSpec[];
-}
-
-/** Error text for a problem list: the first 300 chars of the message. */
-const reason = (err: unknown): string =>
-  (err instanceof Error ? err.message : String(err)).slice(0, 300);
-
-/** Parse every file of `dir/<sub>` ending in `ext`, id = file stem; a file that throws becomes a problem. */
-function readAll<T>(
-  dir: string,
-  sub: string,
-  ext: string,
-  parse: (id: string, text: string) => T,
-  problems: ConfigProblem[],
-): Map<string, { value: T; file: string }> {
-  const out = new Map<string, { value: T; file: string }>();
-  const folder = join(dir, sub);
-  if (!existsSync(folder)) return out;
-  for (const name of readdirSync(folder).sort()) {
-    if (!name.endsWith(ext)) continue;
-    const file = join(folder, name);
-    try {
-      out.set(name.slice(0, -ext.length), {
-        value: parse(name.slice(0, -ext.length), readFileSync(file, "utf8")),
-        file,
-      });
-    } catch (err) {
-      problems.push({ file, message: reason(err) });
-    }
-  }
-  return out;
-}
-
-/** Parse the single optional file `dir/<name>`. */
-function readOne<T>(
-  dir: string,
-  name: string,
-  parse: (text: string) => T,
-  problems: ConfigProblem[],
-): T | undefined {
-  const file = join(dir, name);
-  if (!existsSync(file)) return undefined;
-  try {
-    return parse(readFileSync(file, "utf8"));
-  } catch (err) {
-    problems.push({ file, message: reason(err) });
-    return undefined;
-  }
-}
-
-/** Read one config dir. Every file is optional. */
-function readLayer(dir: string, problems: ConfigProblem[]): Layer {
-  const bots = readAll(dir, "bots", ".md", parseBotFile, problems);
-  const groups = readAll(dir, "groups", ".yaml", parseGroupFile, problems);
-  return {
-    bots: new Map([...bots].map(([id, r]) => [id, { bot: r.value, file: r.file }])),
-    groups: new Map([...groups].map(([id, r]) => [id, { group: r.value, file: r.file }])),
-    settings: readOne(dir, "settings.yaml", parseSettingsFile, problems),
-    tools: readOne(dir, "tools.yaml", parseToolsFile, problems) ?? [],
-  };
-}
-
 /**
  * Load the config: shipped defaults first, the user dir over them (same id replaces). A file that fails its schema
- * is skipped and listed in `problems`; the rest still loads. After the merge, a bot whose name repeats an earlier
- * bot's (case-insensitive, by id order) and a group naming a bot that did not load are dropped with a problem.
+ * is reported in `problems`; the rest still loads. A file that fails now but parsed before (a half-written save) keeps
+ * its last good parse from `previous`. After the merge, a bot whose name repeats an earlier bot's (case-insensitive,
+ * by id order), a group naming a bot that did not load and an `autonomy.bots` key naming no bot are reported (the
+ * first two are dropped). `parsed` is the `previous` of the next load.
  */
-export function loadConfig(dirs: { defaultsDir: string; userDir: string }): {
-  snapshot: ConfigSnapshot;
-  problems: ConfigProblem[];
-} {
+export function loadConfig(
+  dirs: { defaultsDir: string; userDir: string },
+  previous: Map<string, unknown> = new Map(),
+): { snapshot: ConfigSnapshot; problems: ConfigProblem[]; parsed: Map<string, unknown> } {
   const problems: ConfigProblem[] = [];
-  const layers = [readLayer(dirs.defaultsDir, problems), readLayer(dirs.userDir, problems)];
+  const parsed = new Map<string, unknown>();
+  const ctx = { problems, previous, parsed };
+  const layers = [readLayer(dirs.defaultsDir, ctx), readLayer(dirs.userDir, ctx)];
   const botEntries = new Map(layers.flatMap((l) => [...l.bots]));
   const groupEntries = new Map(layers.flatMap((l) => [...l.groups]));
 
@@ -137,9 +65,19 @@ export function loadConfig(dirs: { defaultsDir: string; userDir: string }): {
 
   const tools = new Map<string, ToolSpec>();
   for (const l of layers) for (const t of l.tools) tools.set(t.name, t);
+  const settingsFiles = layers.flatMap((l) => (l.settings ? [l.settings] : []));
+  // A typo in a bot id must not silently leave that bot at the default level.
+  for (const { value, file } of settingsFiles)
+    for (const id of Object.keys(value.autonomy?.bots ?? {}))
+      if (!bots.has(id))
+        problems.push({ file, message: `autonomy.bots names "${id}", which is not a loaded bot` });
   const { settings, limits } = buildSettings(
-    layers.flatMap((l) => (l.settings ? [l.settings] : [])),
+    settingsFiles.map((f) => f.value),
     bots.values(),
   );
-  return { snapshot: { bots, groups, settings, limits, tools: [...tools.values()] }, problems };
+  return {
+    snapshot: { bots, groups, settings, limits, tools: [...tools.values()] },
+    problems,
+    parsed,
+  };
 }

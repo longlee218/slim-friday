@@ -100,3 +100,50 @@ test("a broken settings.yaml gives the defaults and one problem", () => {
   expect(snapshot.limits).toEqual(CORE_DEFAULTS);
   expect(snapshot.settings.level).toBe("balanced");
 });
+
+test("files with the wrong extension are reported, dotfiles are not", () => {
+  const user = userDir({
+    "bots/x.yaml": bot("X"),
+    "bots/.hidden.md": "junk",
+    "groups/team.yml": "name: T\nmembers: [x]\nentryBot: x\n",
+    "settings.yml": "autonomy:\n  level: careful\n",
+    "tools.yml": "tools: []\n",
+  });
+  const { problems } = load(user);
+  expect(problems.map((p) => p.file).sort()).toEqual(
+    ["bots/x.yaml", "groups/team.yml", "settings.yml", "tools.yml"]
+      .map((f) => join(user, f))
+      .sort(),
+  );
+});
+
+test("a bots dir that is a file is a problem, not a crash", () => {
+  const user = userDir({ bots: "not a dir" });
+  expect(load(user).problems).toHaveLength(1);
+});
+
+test("autonomy.bots naming a bot that does not exist is reported", () => {
+  const user = userDir({
+    "bots/ann.md": bot("Ann"),
+    "settings.yaml": "autonomy:\n  bots: {reviewr: careful, ann: careful}\n",
+  });
+  const { problems } = load(user);
+  expect(problems).toHaveLength(1);
+  expect(problems[0]?.file).toBe(join(user, "settings.yaml"));
+  expect(problems[0]?.message).toContain("reviewr");
+});
+
+test("limits must be usable: counts are integers, timers fit a 32-bit timer", () => {
+  for (const bad of [
+    "groupContextMessages: 2.5",
+    "maxHops: 1.5",
+    "approvalTimeoutMs: 3000000000",
+    "idleCloseMs: 3000000000",
+  ]) {
+    const { snapshot, problems } = load(userDir({ "settings.yaml": `limits:\n  ${bad}\n` }));
+    expect(problems).toHaveLength(1);
+    expect(snapshot.limits).toEqual(CORE_DEFAULTS);
+  }
+  const ok = load(userDir({ "settings.yaml": "limits:\n  maxSpendPerBotPerDayUsd: 2.5\n" }));
+  expect(ok.problems).toEqual([]);
+});

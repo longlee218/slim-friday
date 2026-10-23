@@ -7,12 +7,15 @@ import { type ConfigProblem, type ConfigSnapshot, loadConfig } from "./load-conf
 export interface ReloadResult {
   /** Bots that were removed or edited: give them a fresh session on their next message. */
   changedBots: string[];
+  /** Files that could not be used (a kept last-good copy still serves a half-written bot, group or settings file). */
   problems: ConfigProblem[];
 }
 
 /** Where the config comes from. */
 export interface ConfigDirs {
+  /** Defaults shipped with the repo. */
   defaultsDir: string;
+  /** The user's config dir; its files win. */
   userDir: string;
 }
 
@@ -26,14 +29,16 @@ export class FileConfig {
   private constructor(
     private readonly dirs: ConfigDirs,
     snapshot: ConfigSnapshot,
+    /** Last good parse of each file (a half-written file keeps it). */
+    private parsed: Map<string, unknown>,
   ) {
     this.snapshot = snapshot;
   }
 
   /** Read the config once; `problems` lists the files that were skipped. */
   static load(dirs: ConfigDirs): { config: FileConfig; problems: ConfigProblem[] } {
-    const { snapshot, problems } = loadConfig(dirs);
-    return { config: new FileConfig(dirs, snapshot), problems };
+    const { snapshot, problems, parsed } = loadConfig(dirs);
+    return { config: new FileConfig(dirs, snapshot, parsed), problems };
   }
 
   /** Bots of the current snapshot. */
@@ -59,9 +64,10 @@ export class FileConfig {
   /** Read the config again. A failure of the whole load keeps the last good snapshot and is reported as a problem. */
   reload(): ReloadResult {
     try {
-      const { snapshot, problems } = loadConfig(this.dirs);
+      const { snapshot, problems, parsed } = loadConfig(this.dirs, this.parsed);
       const changedBots = diffBots(this.snapshot.bots, snapshot.bots);
       this.snapshot = snapshot;
+      this.parsed = parsed;
       return { changedBots, problems };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
