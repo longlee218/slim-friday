@@ -10,7 +10,7 @@ const MAX_ENTRIES = 100_000;
 const MAX_DEPTH = 12;
 
 /** Folded name of a git dir. */
-const GIT = String.fromCharCode(46) + "git";
+const GIT = `${String.fromCharCode(46)}git`;
 
 /**
  * True when a dir under `real` (not `real` itself) is, or may be, a git dir: one is found, the tree is too big or too deep to

@@ -117,6 +117,7 @@ export function interruptRunningTurns(db: Database): void {
 
 /** Number of cap-counted tasks currently running or waiting for approval (concurrency cap). */
 export function countActiveCappedTasks(db: Database): number {
+  // biome-ignore lint/style/noNonNullAssertion: COUNT always returns a row
   return db
     .query<{ n: number }, []>(
       "SELECT COUNT(*) AS n FROM turns WHERE counts_toward_cap = 1 AND status IN ('running', 'waiting_approval')",

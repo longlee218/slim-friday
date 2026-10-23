@@ -130,7 +130,7 @@ export function splitChunks(text: string, max = CHUNK_MAX): string[] {
 /** Outbound guardrail: redact secrets again, cap length with a notice, split for Discord. */
 export function prepareReply(text: string): string[] {
   let safe = redactText(text);
-  if (safe.length > REPLY_CAP) safe = safe.slice(0, REPLY_CAP) + "\n\n[output truncated]";
+  if (safe.length > REPLY_CAP) safe = `${safe.slice(0, REPLY_CAP)}\n\n[output truncated]`;
   // Discord rejects empty messages: drop blank chunks.
   const chunks = splitChunks(safe).filter((c) => c.trim() !== "");
   return chunks.length ? chunks : ["(no answer)"];

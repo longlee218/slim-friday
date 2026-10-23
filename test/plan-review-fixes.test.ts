@@ -143,7 +143,7 @@ test("M1: Orchestrate cancel of the goal closes its pending plan", () => {
 });
 
 test("M1: an approved plan whose revision is pending ends `superseded`, not `rejected`, on /stop", () => {
-  const { goalId, plan } = setup();
+  const { plan } = setup();
   approveVersion(db, plan.id, 1);
   const grown = { ...ENVELOPE, bounds: { maxItems: 8, maxGb: 5 } };
   revisePlan(db, {

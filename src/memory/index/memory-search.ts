@@ -101,9 +101,18 @@ export function searchIndex(
     );
     params.push(`channel/${a.channel}`, `journal/${a.channel}/%`, a.channel);
   } else where.push("source NOT IN ('channel', 'journal', 'summary')");
-  if (a.scope) where.push("source = ?"), params.push(a.scope);
-  if (a.kind) where.push("kind = ?"), params.push(a.kind);
-  if (a.since) where.push("date >= ?"), params.push(a.since);
+  if (a.scope) {
+    where.push("source = ?");
+    params.push(a.scope);
+  }
+  if (a.kind) {
+    where.push("kind = ?");
+    params.push(a.kind);
+  }
+  if (a.since) {
+    where.push("date >= ?");
+    params.push(a.since);
+  }
   params.push(a.limit);
   const rows = db
     .query<

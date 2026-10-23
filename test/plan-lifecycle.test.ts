@@ -236,7 +236,7 @@ test("NEEDS_PLANNING items are released (cancelled) by the first approval; finis
   const w = openPlanGoal(db, "th1", "big");
   // An earlier worker item of the goal: one completed, one blocked asking for a plan.
   const { insertOwnedTask } = require("../src/storage/owned-task-store");
-  for (const [key, st] of [
+  for (const [key, _st] of [
     ["done1", "completed"],
     ["stuck", "blocked"],
   ] as const)

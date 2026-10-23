@@ -5,11 +5,11 @@ import { MASK, redactDeep, redactText, safePreview, truncate } from "../src/obse
 const cases: [string, string][] = [
   ["anthropic", "sk-ant-" + "api03-abcdefghijklmnopqrstuv"],
   ["oauth", "sk-ant-" + "oat01-ABCDEFGH12345678_-xyz"],
-  ["github pat", "ghp_" + "a".repeat(36)],
-  ["github fine", "github_pat_" + "A1b2C3d4E5".repeat(4)],
+  ["github pat", `ghp_${"a".repeat(36)}`],
+  ["github fine", `github_pat_${"A1b2C3d4E5".repeat(4)}`],
   ["slack", "xoxb-" + "1234567890-abcdefghij"],
   ["aws", "AKIA" + "ABCDEFGHIJKLMNOP"],
-  ["discord", "MTA" + "x".repeat(21) + "." + "abcdef" + "." + "y".repeat(30)],
+  ["discord", `MTA${"x".repeat(21)}.abcdef.${"y".repeat(30)}`],
 ];
 
 describe("redactText", () => {
@@ -25,7 +25,7 @@ describe("redactText", () => {
   });
   test("masks env-style KEY=value but keeps the name", () => {
     const out = redactText("DB_PASSWORD=hunter2hunter2\nAPI_KEY: 'zzz999'");
-    expect(out).toContain("DB_PASSWORD=" + MASK);
+    expect(out).toContain(`DB_PASSWORD=${MASK}`);
     expect(out).not.toContain("hunter2");
     expect(out).not.toContain("zzz999");
   });

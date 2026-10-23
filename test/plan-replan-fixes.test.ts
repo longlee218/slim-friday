@@ -268,7 +268,7 @@ test("B6 wiring: the dispatch pass cancels a pending item whose dependency ended
 });
 
 test("pendingPlan: the open goal's valid plan until it is asked; approve_plan sends a short stem and a plan file name", async () => {
-  const { goalId, plan } = validPlan();
+  const { plan } = validPlan();
   const real = createPlanPort(db, TH);
   expect(real.pendingPlan()).toEqual({ planId: plan.id, version: 1 });
   const port = new FakePort();

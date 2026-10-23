@@ -19,7 +19,7 @@ import { type Call, teammateHarness, until } from "./teammate-harness";
 /* register_location create:true without a path: the new project goes under the channel's (else the workspace's) default projectsDir. */
 
 const SAVED = { ...process.env };
-const GIT_DIR = String.fromCharCode(46) + "git";
+const GIT_DIR = `${String.fromCharCode(46)}git`;
 let base: string;
 beforeEach(() => {
   base = realpathSync(mkdtempSync(join(tmpdir(), "friday-cpd-")));

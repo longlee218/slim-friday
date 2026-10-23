@@ -124,6 +124,7 @@ export function buildToolPermissions(p: ToolPermissionInput): {
       if (tool === ASK_USER_QUESTION_TOOL_NAME && !p.gateway) {
         return { behavior: "deny", message: "Not available in this mode." };
       }
+      // biome-ignore lint/style/noNonNullAssertion: a run that can ask has a gateway
       const gateway = p.gateway!;
       if (tool === ASK_USER_QUESTION_TOOL_NAME) {
         // At most the role's `limits.maxAsk` calls per run, enforced here (not only in the prompt): later ones never reach the owner.

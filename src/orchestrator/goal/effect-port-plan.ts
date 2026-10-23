@@ -169,7 +169,7 @@ export function createPlanPort(
       const goalId = openGoalIdOf(db, threadId);
       const planId = goalId && planIdOfGoal(db, goalId);
       const row = planId ? latestPlan(db, planId) : undefined;
-      if (!row || row.status !== "valid") return undefined;
+      if (row?.status !== "valid") return undefined;
       // Asked already without a decision (timeout, typed answer, budget): the teammate may talk to the owner freely again.
       if (planAskSince(db, row.id, row.version, lastOwnerMessageAt(db, threadId))) return undefined;
       return { planId: row.id, version: row.version };

@@ -123,9 +123,18 @@ export class FakePort implements EffectPort {
     this.decisions.push({ planId, version, approve });
     return { ok: true, created: approve ? ["a", "b"] : [] };
   };
-  appendEvent = (e: NewEvent) => (this.events.push(e), true);
-  steer = (taskId: string, text: string) => (this.steered.push({ taskId, text }), this.steerReply);
-  cancel = (taskId: string) => (this.cancelled.push(taskId), [taskId]);
+  appendEvent = (e: NewEvent) => {
+    this.events.push(e);
+    return true;
+  };
+  steer = (taskId: string, text: string) => {
+    this.steered.push({ taskId, text });
+    return this.steerReply;
+  };
+  cancel = (taskId: string) => {
+    this.cancelled.push(taskId);
+    return [taskId];
+  };
   retried: { taskId: string; note: string }[] = [];
   retry = (taskId: string, note: string) => {
     this.retried.push({ taskId, note });
@@ -147,7 +156,10 @@ export class FakePort implements EffectPort {
     return true;
   };
   similar = () => this.matches;
-  askOwner = async (q: OwnerQuestion) => (this.asked.push(q), this.answer);
+  askOwner = async (q: OwnerQuestion) => {
+    this.asked.push(q);
+    return this.answer;
+  };
   post = async (p: Post) => void this.posts.push(p);
 }
 

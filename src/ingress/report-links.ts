@@ -42,6 +42,7 @@ export function safeLinks(links: ReportLink[]): ReportLink[] {
 export function markdownLinks(markdown: string): ReportLink[] {
   const found = [...markdown.matchAll(/(!?)\[([^\]\n]+)\]\((\S+?)\)/g)]
     .filter((m) => !m[1]) // `![alt](url)` is an image, not a link
+    // biome-ignore lint/style/noNonNullAssertion: groups 2 and 3 always match
     .map((m) => ({ label: m[2]!, url: m[3]! }));
   return safeLinks(found);
 }

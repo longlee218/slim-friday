@@ -55,7 +55,6 @@ function repoDoc(c: ArtifactToolCtx): string {
 }
 
 /** Call a tool handler and parse its JSON reply. */
-// biome-ignore lint/suspicious/noExplicitAny: handler input differs per tool
 async function call(t: { handler: (a: any, e: unknown) => Promise<any> }, args: object) {
   const r = await t.handler(args, {});
   return { isError: !!r.isError, ...JSON.parse(r.content[0].text) } as Record<string, any>;

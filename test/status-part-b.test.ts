@@ -174,7 +174,12 @@ function receiptEnv() {
   });
   const reg = createSteerRegistry(env.db);
   const refs: { ref?: string; text: string }[] = [];
-  const sink: SteerSink = { push: (text, ref) => (refs.push({ ref, text }), "queued") };
+  const sink: SteerSink = {
+    push: (text, ref) => {
+      refs.push({ ref, text });
+      return "queued";
+    },
+  };
   const hook = reg.hook("th");
   liveWorker("t1");
   hook.register(sink, { runId: "r1", turnId: "t1" });

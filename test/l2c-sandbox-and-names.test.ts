@@ -20,7 +20,7 @@ afterAll(cleanupTmp);
 /* L2c: the worker's OS sandbox (options passed to a fake query), protected names (nested git dirs, case, unicode, agent home),
    (the shell is not parsed: the sandbox bounds it). */
 
-const GIT = String.fromCharCode(46) + "git"; // the git dir name
+const GIT = `${String.fromCharCode(46)}git`; // the git dir name
 const root = tmpRoot("l2c-names-");
 const loc = join(root, "loc");
 const home = join(root, "home");

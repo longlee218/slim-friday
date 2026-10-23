@@ -15,6 +15,7 @@ const MIGRATIONS_TABLE = "__drizzle_migrations";
 /** True when the db already holds user tables (not sqlite internals). */
 function hasUserTables(db: Database): boolean {
   return (
+    // biome-ignore lint/style/noNonNullAssertion: COUNT always returns a row
     db
       .query<{ n: number }, []>(
         "SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",

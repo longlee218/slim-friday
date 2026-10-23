@@ -13,7 +13,7 @@ function tsFiles(dir: string): string[] {
   });
 }
 
-const SEND_DIR = join("src", "providers", "discord", "ui", "send") + "/";
+const SEND_DIR = `${join("src", "providers", "discord", "ui", "send")}/`;
 const RAW_SEND = /\.(?:send|reply|editReply|followUp|deferReply|deleteReply)\s*\(/;
 /** Inside the provider, editing or updating a message is also a send (`createHash().update(` elsewhere is not one). */
 const RAW_EDIT = /\b(?:msg|message|interaction|cmd|i)\.(?:edit|update)\s*\(/;

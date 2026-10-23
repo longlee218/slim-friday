@@ -95,7 +95,7 @@ test("chunking: one huge line is hard-split without loss", () => {
 
 test("chunking: code fence closed and reopened across chunks", () => {
   const code = Array.from({ length: 150 }, (_, i) => `const v${i} = ${i};`).join("\n");
-  const chunks = splitChunks("intro\n```ts\n" + code + "\n```\noutro");
+  const chunks = splitChunks(`intro\n\`\`\`ts\n${code}\n\`\`\`\noutro`);
   expect(chunks.length).toBeGreaterThan(1);
   for (const c of chunks) {
     expect(c.length).toBeLessThanOrEqual(CHUNK_MAX + 10);
@@ -104,7 +104,7 @@ test("chunking: code fence closed and reopened across chunks", () => {
 });
 
 test("prepareReply redacts a fake key and truncates very long output", () => {
-  const key = "ghp_" + "a".repeat(36);
+  const key = `ghp_${"a".repeat(36)}`;
   const out = prepareReply(`token is ${key}`).join("\n");
   expect(out).not.toContain(key);
   const long = prepareReply("z\n".repeat(REPLY_CAP));
@@ -113,7 +113,7 @@ test("prepareReply redacts a fake key and truncates very long output", () => {
 });
 
 test("role mention stripping (role mentions filtered just like user mentions)", () => {
-  expect(stripMention(`<@&${BOT}> hello`, BOT)).toBe("<@&" + BOT + "> hello"); // Role mentions look different, bot id in user position doesn't match
+  expect(stripMention(`<@&${BOT}> hello`, BOT)).toBe(`<@&${BOT}> hello`); // Role mentions look different, bot id in user position doesn't match
   expect(stripMention(`hello <@${BOT}> world`, BOT)).toBe("hello  world");
   expect(stripMention(`<@${BOT}>`, BOT)).toBe("");
 });

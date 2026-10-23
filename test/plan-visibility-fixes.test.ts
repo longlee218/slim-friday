@@ -42,7 +42,7 @@ function world(o: { key?: string; objective?: string; approve?: boolean } = {}) 
   return { env, ...w, deps: { db, home: env.home, viewer: VIEWER } };
 }
 
-function goal(key: string, objective: string, approve = false) {
+function goal(_key: string, objective: string, approve = false) {
   const w = openPlanGoal(db, TH, objective);
   if (!w.ok) throw new Error("no goal");
   const r = createPlan(db, {

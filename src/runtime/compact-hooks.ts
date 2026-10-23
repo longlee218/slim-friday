@@ -95,6 +95,7 @@ function makeHandlers(ctx: CompactHookCtx) {
 /** Hook callback for one event: subagent compactions are ignored; a throw is logged (class + clipped message), never propagated; compaction always continues (the run's output, if any, is returned). */
 function guarded<T extends PreCompactHookInput | PostCompactHookInput>(
   event: T["hook_event_name"],
+  // biome-ignore lint/suspicious/noConfusingVoidType: matches the SDK hook callbacks, which return void
   run: (i: T) => HookJSONOutput | void,
 ): HookCallback {
   return async (i) => {

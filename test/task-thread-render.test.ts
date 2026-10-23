@@ -87,7 +87,7 @@ test("budget: newest first, older dropped with one pointer line; long message cu
   expect(text).not.toContain("OLDEST");
   expect(text).toMatch(/\d+ earlier messages not shown: TaskBoard messages/);
   expect(text).toContain(`[cut: TaskBoard read ${messageRef(big)}]`);
-  expect(text).not.toContain(messageRef(old) + " ");
+  expect(text).not.toContain(`${messageRef(old)} `);
   expect(text).toContain("the whole brief");
 });
 

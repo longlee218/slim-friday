@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { summaryHitId } from "../../storage/thread-summary-store";
 import { MEMORY_SECTION_HEADINGS, normalizeBullet } from "../memory-sections";
 
 /**
@@ -38,10 +37,6 @@ export const hash6 = (text: string): string =>
 /** `prefix` is `root`, `channel/<name>` or `journal/<channel>/<date>`. */
 export const makeId = (prefix: string, token: string, n: number, hash: string): string =>
   `${prefix}#${token}:${n}~${hash}`;
-
-{
-  summaryHitId;
-}
 
 export type ParsedId =
   | {

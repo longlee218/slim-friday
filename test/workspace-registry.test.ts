@@ -12,7 +12,7 @@ const CH2 = "22222222222222222";
 interface Case {
   name: string;
   /** Returns the fake $HOME to scan with (default: the real one). */
-  setup: (env: ReturnType<typeof makeEnv>) => string | undefined | void;
+  setup: (env: ReturnType<typeof makeEnv>) => string | undefined;
   /** Loaded workspaces as `ws:location,location|ws2`. */
   loaded: string[];
   /** Channels per workspace after the scan. */

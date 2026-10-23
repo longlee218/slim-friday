@@ -23,8 +23,8 @@ const SDKS = ["discord.js"];
 const files = [...tsFiles("src"), ...tsFiles("scripts")];
 /** Provider code: src/providers/<name>/ and the provider-named admin MCP server (src/mcp/discord-admin/). */
 const inProvider = (f: string) =>
-  f.startsWith(join("src", "providers") + "/") ||
-  f.startsWith(join("src", "mcp", "discord-admin") + "/");
+  f.startsWith(`${join("src", "providers")}/`) ||
+  f.startsWith(`${join("src", "mcp", "discord-admin")}/`);
 
 test("a chat SDK is imported only inside src/providers (and src/index.ts, the composition root)", () => {
   const bad = files

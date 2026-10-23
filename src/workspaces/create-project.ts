@@ -58,7 +58,7 @@ function finalGuard(final: string): CreateProjectResult | undefined {
 }
 
 /** Names this call writes into a dir it did not make: removed again on a rollback (the dir itself stays). */
-const WRITTEN = ["README.md", String.fromCharCode(46) + "git"];
+const WRITTEN = ["README.md", `${String.fromCharCode(46)}git`];
 
 /**
  * Undo `createProject`: remove the dir when this call made it, else only the files this call wrote, so an owner's

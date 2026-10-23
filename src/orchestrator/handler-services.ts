@@ -21,6 +21,7 @@ export function createHandlerServices(deps: TurnHandlerDeps, log: Logger) {
   const dispatchDeps: DispatchDeps = {
     db,
     config,
+    // biome-ignore lint/style/noNonNullAssertion: the caller always passes approvals
     approvals: deps.approvals!,
     queryFn: deps.queryFn,
     stopping: tracker.isStopping,

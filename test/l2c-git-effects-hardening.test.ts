@@ -146,7 +146,10 @@ test("merge: INTO a default branch asks the owner at every call, grant `into: *`
     expect(s.asked).toHaveLength(1);
     expect(s.calls.some((c) => c.startsWith("git merge --no-edit"))).toBe(false);
     // A yes goes on to the merge (the fake one conflicts), and asks again on the next call (never remembered).
-    s.ctx.confirm = async (q) => (s.asked.push(q), true);
+    s.ctx.confirm = async (q) => {
+      s.asked.push(q);
+      return true;
+    };
     expect(await mergeBranch(s.ctx, { ...mergeInput, into })).toMatchObject({
       code: "MERGE_FAILED",
     });

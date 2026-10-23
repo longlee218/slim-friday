@@ -17,6 +17,7 @@ export function wrapTables(text: string): string {
   const out: string[] = [];
   let inFence = false;
   for (let i = 0; i < lines.length; i++) {
+    // biome-ignore lint/style/noNonNullAssertion: index is in range
     const line = lines[i]!;
     if (line.trimStart().startsWith("```")) inFence = !inFence;
     if (inFence || !isRow(line) || !isSeparator(lines[i + 1] ?? "")) {
@@ -24,6 +25,7 @@ export function wrapTables(text: string): string {
       continue;
     }
     let end = i + 2; // first line after the table
+    // biome-ignore lint/style/noNonNullAssertion: index is in range
     while (end < lines.length && isRow(lines[end]!)) end++;
     const table = lines.slice(i, end);
     const small = Math.max(...table.map((l) => l.trimEnd().length)) <= TABLE_WRAP_WIDTH;

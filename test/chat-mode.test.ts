@@ -354,7 +354,10 @@ test("syncChannelTopics: owner-custom topic kept, empty set, other-mode bot topi
 test("threadFacts: a DM never looks the channel up for the chat check", () => {
   let lookups = 0;
   const threads = {
-    channelInfo: () => (lookups++, { workspace: "w", mode: "chat" as const }),
+    channelInfo: () => {
+      lookups++;
+      return { workspace: "w", mode: "chat" as const };
+    },
   } as any;
   const ch = { id: "dm1", isThread: () => false };
   const msg = { author: { id: OWNER }, content: "hi" };

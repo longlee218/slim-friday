@@ -75,7 +75,10 @@ test("auto mode: canUseTool (classifier undecided) still asks the owner via the 
     guard: guardFor(getRole("chief-of-staff"), { readPaths: ["/ws/location"] }),
     autoMode: { active: true },
     gateway: {
-      request: async (r: { tool: string }) => (asked.push(r.tool), { approved: true }),
+      request: async (r: { tool: string }) => {
+        asked.push(r.tool);
+        return { approved: true };
+      },
       cancelTurn: () => {},
     } as never,
   });

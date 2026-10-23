@@ -55,9 +55,10 @@ test("fetchRecent never throws: a failing or missing fetch is no history", async
   expect(await fetchRecent({} as never, P)).toEqual([]);
   const ok = {
     messages: {
-      fetch: async (o: { limit: number }) => (
-        expect(o.limit).toBe(6), new Map([["1", m("1", "o", "hey", 1)]])
-      ),
+      fetch: async (o: { limit: number }) => {
+        expect(o.limit).toBe(6);
+        return new Map([["1", m("1", "o", "hey", 1)]]);
+      },
     },
   };
   expect(await fetchRecent(ok, P)).toEqual([{ from: "owner", text: "hey" }]);
@@ -125,7 +126,12 @@ async function threadRun(content: string, fetch: () => Promise<unknown>) {
     isSendable: () => true,
     send: async () => {},
     sendTyping: async () => {},
-    messages: { fetch: () => (fetched++, fetch()) },
+    messages: {
+      fetch: () => {
+        fetched++;
+        return fetch();
+      },
+    },
   };
   const t0 = Date.now();
   await onMessage({

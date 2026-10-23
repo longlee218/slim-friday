@@ -37,6 +37,7 @@ export function createDiscordBot(
   const log = logger.child({ module: "discord-bot" });
   const client = new Client(CLIENT_OPTIONS);
   const onMessage = createMessageHandler({
+    // biome-ignore lint/style/noNonNullAssertion: checked at startup
     ownerId: config.ownerDiscordId!,
     botId: () => client.user?.id,
     guildId: config.discordGuildId,
@@ -71,6 +72,7 @@ export function createDiscordBot(
   if (handleInteraction) client.on(Events.InteractionCreate, (i) => void handleInteraction(i));
   // Native slash commands: same owner/guild/channel rules as a message (they run through `onMessage`).
   const onSlash = createSlashHandler({
+    // biome-ignore lint/style/noNonNullAssertion: checked at startup
     ownerId: config.ownerDiscordId!,
     onMessage,
     limits: handleMessage.limits,

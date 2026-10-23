@@ -21,7 +21,7 @@ const role = (name: string, over: Partial<RoleDefinition> = {}): RoleDefinition 
 });
 
 const write: Capability[] = ["read", "write"];
-const SIX = [
+const _SIX = [
   ROLES.developer as RoleDefinition,
   role("r1", { capabilities: write, sideEffects: "location" }),
   role("r2", { capabilities: write }),

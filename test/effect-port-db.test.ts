@@ -271,7 +271,10 @@ test("a re-run of the same teammate input (a retry) does not post or ask twice; 
   let asks = 0;
   const { port, ctx } = setup({
     post: async (p) => void posts.push(p),
-    askOwner: async () => (asks++, { answer: "y", timedOut: false }),
+    askOwner: async () => {
+      asks++;
+      return { answer: "y", timedOut: false };
+    },
   });
   const run1 = ctx("in1");
   await handleDispatch(

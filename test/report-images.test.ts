@@ -44,7 +44,7 @@ test("an https URL is accepted as a link (no scratch dir needed); http, other sc
   ]);
   for (const bad of [
     "http://example.com/a.png",
-    "https://example.com/" + "a".repeat(2000),
+    `https://example.com/${"a".repeat(2000)}`,
     "file:///etc/hosts",
   ])
     expect({ bad, refused: "errors" in checkReportImages([bad], undefined) }).toEqual({

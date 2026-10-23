@@ -185,7 +185,10 @@ test("approval decided by a click outside the task context still logs the task's
   const sent: any[] = [];
   const channel = {
     isSendable: () => true,
-    send: async (p: any) => (sent.push(p), { edit: async () => undefined }),
+    send: async (p: any) => {
+      sent.push(p);
+      return { edit: async () => undefined };
+    },
   };
   const gw = createDiscordApprovalGateway({
     getClient: () => ({ channels: { fetch: async () => channel } }) as never,

@@ -93,7 +93,10 @@ test("long file: SUMMARY in the block (not the whole text) + path of the saved f
   const out = await attachmentBlock([att("report.txt", long.length)], "k", {
     fetchFn: fakeFetch({ "report.txt": long }),
     summarize: async () => "SHORT SUMMARY",
-    save: (k, n, t) => (saved.push(`${k}|${n}|${t.length}`), "/x/full.txt"),
+    save: (k, n, t) => {
+      saved.push(`${k}|${n}|${t.length}`);
+      return "/x/full.txt";
+    },
   });
   expect(out).toContain(`summary of its ${long.length} chars`);
   expect(out).toContain("SHORT SUMMARY");
@@ -202,7 +205,10 @@ test("handler: the agent text gets the DATA block; the thread keeps the placehol
   const onMessage = createMessageHandler({
     ownerId: "1",
     botId: () => "9",
-    handleMessage: async (message) => (messages.push(message), "ok"),
+    handleMessage: async (message) => {
+      messages.push(message);
+      return "ok";
+    },
     attachments: { fetchFn: fakeFetch({ "message.txt": "the report" }) },
   });
   await onMessage({
@@ -214,7 +220,10 @@ test("handler: the agent text gets the DATA block; the thread keeps the placehol
     inGuild: () => true,
     mentions: { has: () => true },
     attachments: new Map([["a", att("message.txt")]]),
-    startThread: async (o: any) => (names.push(o.name), thread),
+    startThread: async (o: any) => {
+      names.push(o.name);
+      return thread;
+    },
   } as never);
   expect(names).toHaveLength(1);
   expect(names[0]).toMatch(/^⏳ \d\d-\d\d \d\d:\d\d$/);
@@ -240,7 +249,10 @@ test("startup cleanup deletes saved copies older than ATTACHMENT_KEEP_DAYS, keep
 
 test("download: https + Discord CDN only, no redirect; oversized stream aborted; timeout", async () => {
   const calls: any[] = [];
-  const ok = async (url: string, init?: any) => (calls.push([url, init]), new Response("hi"));
+  const ok = async (url: string, init?: any) => {
+    calls.push([url, init]);
+    return new Response("hi");
+  };
   const run = (a: AttachmentFacts, d: object) => attachmentBlock([a], "k", { fetchFn: ok, ...d });
   const bad = (url: string) => run({ ...att("a.txt"), url }, {});
   expect(await bad("https://evil.example/a.txt")).toContain("download failed");
@@ -283,8 +295,9 @@ test("marker stripping is stable: '<<<FI<<<FILELE' cannot rebuild a marker (summ
     "a b FIL>>>E>>>",
   );
   const seen: string[] = [];
-  await createSummarizer(async (_s, p) => (seen.push(p), { text: "x", usage: {} }))(
-    "<<<FI<<<FILELE body",
-  );
+  await createSummarizer(async (_s, p) => {
+    seen.push(p);
+    return { text: "x", usage: {} };
+  })("<<<FI<<<FILELE body");
   expect(seen[0]?.match(/<<<FILE/g)).toHaveLength(1); // only our own opening marker
 });

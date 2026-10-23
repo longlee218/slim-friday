@@ -9,7 +9,7 @@ export const foldName = (s: string): string =>
   s.normalize("NFC").replace(INVISIBLE, "").toLowerCase();
 
 /** Folded name of a git dir. */
-const GIT_DIR = String.fromCharCode(46) + "git";
+const GIT_DIR = `${String.fromCharCode(46)}git`;
 
 /** True when any component of `p` is a git dir (`.git`, any case, any depth: nested repos and submodules included). */
 export const hasGitComponent = (p: string): boolean =>

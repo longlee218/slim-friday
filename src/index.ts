@@ -85,6 +85,7 @@ async function main(): Promise<void> {
   let botClient: Client | undefined;
   const approvals = createDiscordApprovalGateway({
     getClient: () => botClient,
+    // biome-ignore lint/style/noNonNullAssertion: checked at startup
     ownerId: config.ownerDiscordId!,
     db,
   });
@@ -168,6 +169,7 @@ async function main(): Promise<void> {
     await client.login(config.discordToken);
   } catch (err) {
     log.error(
+      // biome-ignore lint/style/noNonNullAssertion: login only runs with a token
       { err: errText(err).replaceAll(config.discordToken!, "[REDACTED]") },
       "discord login failed",
     );

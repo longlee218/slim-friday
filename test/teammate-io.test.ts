@@ -23,7 +23,12 @@ function setup(over: Parameters<typeof stubGateway>[0] = {}, viewer?: ViewerConf
   } as unknown as TeammateThreadCtx;
   const rt = {
     deps: { approvals: stubGateway(over), db: env.db, config: { viewer } },
-    relay: { answer: (id: string, t: string) => (answered.push([id, t]), true) },
+    relay: {
+      answer: (id: string, t: string) => {
+        answered.push([id, t]);
+        return true;
+      },
+    },
   } as unknown as TeammateRuntime;
   return { env, posts, answered, ctx, rt };
 }

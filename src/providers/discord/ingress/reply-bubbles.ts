@@ -75,8 +75,10 @@ const CODE_BLOCK = /```[^\n]*\n([\s\S]*?)(?:```|$)/g;
 /** True when the reply is too long for one inline message (over INLINE_MAX) or has a long code block: it needs a file. */
 export function needsFile(text: string): boolean {
   if (text.length > INLINE_MAX) return true;
-  for (const m of text.matchAll(CODE_BLOCK))
+  for (const m of text.matchAll(CODE_BLOCK)) {
+    // biome-ignore lint/style/noNonNullAssertion: group 1 always matches
     if (m[1]!.trimEnd().split("\n").length > CODE_LINES_MAX) return true;
+  }
   return false;
 }
 
