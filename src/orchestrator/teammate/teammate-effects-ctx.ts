@@ -42,15 +42,16 @@ export function teammateEffectsCtx(s: TeammateEffectsScope): EffectsCtx {
     ownerPerAct: true,
     locations: s.locations,
     agentHome: s.agentHome,
-    confirm: (summary) =>
-      ownerConfirm(s.approvals, {
+    // A yes that arrives after `/stop` does not run the act.
+    confirm: async (summary) =>
+      (await ownerConfirm(s.approvals, {
         kind: "effect",
         turnId: s.turnId,
         threadId: s.threadId,
         summary,
         language: s.language,
         signal: s.signal,
-      }),
+      })) && !s.signal?.aborted,
     run: spawnRunner,
   };
 }

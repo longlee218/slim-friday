@@ -62,7 +62,7 @@ export async function gitPush(
     const yes = await ctx.confirm(
       isDefault
         ? `Push to the default branch ${safeText(branch)} of ${safeText(location)}?`
-        : `Push ${safeText(branch)} of ${safeText(location)} to ${safeText(remote)}?`,
+        : `Push ${safeText(branch)} of ${safeText(location)} to ${safeText(remote)} (${safeText(pin.target)})?`,
     );
     if (!yes)
       return refused(

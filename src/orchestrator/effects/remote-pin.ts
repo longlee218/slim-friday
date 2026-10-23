@@ -12,8 +12,15 @@ const pinId = (ctx: EffectsCtx, location: string, remote: string): string =>
 /** Only https, ssh and scp-like (`git@host:path`) remotes: `ext::` runs a command, `file:` and paths reach the local disk. */
 const NETWORK_URL = /^(https:\/\/|ssh:\/\/|[\w.-]+@[\w.-]+:)/i;
 
+/** The push URL without credentials (`user:token@` is dropped), for an owner question: what the push really goes to. */
+export function remoteTarget(url: string): string {
+  return url.replace(/^([a-z][a-z0-9+.-]*:\/\/)[^/@]*@/i, "$1");
+}
+
 /** What `checkRemote` found: ok, or the refusal code + message. */
-export type RemoteCheck = { ok: true } | { ok: false; code: string; message: string };
+export type RemoteCheck =
+  | { ok: true; target: string }
+  | { ok: false; code: string; message: string };
 
 /**
  * Read the push URL of `remote` (`git remote get-url --push`) and judge it: a plain network URL (else BAD_REMOTE), and the
@@ -54,5 +61,5 @@ export async function checkRemote(
       grantedBy: ctx.envelope.grantedBy,
       result: "pinned",
     });
-  return { ok: true };
+  return { ok: true, target: remoteTarget(url) };
 }

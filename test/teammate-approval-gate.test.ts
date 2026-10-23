@@ -34,7 +34,8 @@ function fakeGit(): { run: Runner; seen: string[] } {
     const line = cmd.join(" ");
     seen.push(line);
     if (line === "git remote") return { code: 0, out: "origin\n" };
-    if (line.startsWith("git remote get-url")) return { code: 0, out: "https://example.com/r.git" };
+    if (line.startsWith("git remote get-url"))
+      return { code: 0, out: "https://user:tok@example.com/r.git" };
     if (line.startsWith("git rev-parse")) return { code: 0, out: "abc" };
     if (line.startsWith("git ls-remote")) return { code: 0, out: "ref: refs/heads/main\tHEAD" };
     return { code: 0, out: "" };
@@ -115,6 +116,9 @@ for (const mode of MODES) {
       reply = JSON.parse((await push(o)).content[0].text);
     });
     expect(asked).toHaveLength(1);
+    // The question names where the push really goes, without the URL's credentials.
+    expect(asked[0]).toContain("https://example.com/r.git");
+    expect(asked[0]).not.toContain("tok");
     expect(reply.ok).toBe(true);
     expect(git.seen.some((c) => c.startsWith("git push"))).toBe(true);
   });
