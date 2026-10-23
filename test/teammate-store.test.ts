@@ -64,6 +64,24 @@ test("config mark: order-insensitive, changes with model or tools", () => {
   expect(configMark({ ...t, tools: [...t.tools, "Extra"] })).not.toBe(configMark(t));
 });
 
+test("an archived teammate frees its name and channel; two active rows may not share them", () => {
+  const db = openDb(":memory:");
+  const a = mk("alpha", "c1");
+  insertTeammate(db, a);
+  expect(() => insertTeammate(db, mk("alpha", "c9"))).toThrow();
+  expect(() => insertTeammate(db, mk("other", "c1"))).toThrow();
+  archiveTeammate(db, a.id);
+  insertTeammate(db, mk("alpha", "c1"));
+  expect(teammateByChannel(db, "c1")?.id).not.toBe(a.id);
+});
+
+test("orphan check never archives when no channel is known (workspaces failed to load)", () => {
+  const db = openDb(":memory:");
+  insertTeammate(db, mk("alpha", "c1"));
+  expect(archiveOrphanTeammates(db, [])).toEqual([]);
+  expect(listActiveTeammates(db)).toHaveLength(1);
+});
+
 test("orphan check archives rows whose channel is in no workspace.yaml", () => {
   const db = openDb(":memory:");
   insertTeammate(db, mk("alpha", "c1"));

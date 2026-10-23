@@ -276,7 +276,7 @@ test("reopening a file db is a no-op and a foreign db is refused", () => {
     a.close();
     const b = openDb(file);
     expect(b.query("SELECT thread_id FROM threads").all()).toHaveLength(1);
-    expect(b.query("SELECT COUNT(*) AS n FROM __drizzle_migrations").get()).toEqual({ n: 23 });
+    expect(b.query("SELECT COUNT(*) AS n FROM __drizzle_migrations").get()).toEqual({ n: 24 });
     b.close();
 
     const foreign = join(dir, "foreign.db");

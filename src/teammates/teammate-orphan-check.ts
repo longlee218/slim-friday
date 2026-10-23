@@ -7,6 +7,8 @@ import { archiveTeammate, listActiveTeammates } from "../storage/teammate-store"
  */
 export function archiveOrphanTeammates(db: Database, knownChannelIds: Iterable<string>): string[] {
   const known = new Set(knownChannelIds);
+  // No channel at all = the workspaces did not load (or none is set up): never archive on that.
+  if (!known.size) return [];
   return listActiveTeammates(db)
     .filter((t) => !known.has(t.channelId) && archiveTeammate(db, t.id))
     .map((t) => t.name);

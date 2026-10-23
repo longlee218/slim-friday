@@ -65,3 +65,20 @@ export function costPerDay(db: Database, chiefOfStaffRole: string, sinceMs: numb
     )
     .all(chiefOfStaffRole, sinceMs);
 }
+
+/** Spend of one teammate (`name` null = turns of channels without a row, the default teammate). */
+export interface TeammateCost {
+  name: string | null;
+  totalUsd: number;
+}
+
+/** Cost per teammate since `sinceMs`, highest first; turns with no `teammate_id` group under null. */
+export function costPerTeammate(db: Database, sinceMs: number): TeammateCost[] {
+  return db
+    .query<TeammateCost, [number]>(
+      `SELECT tm.name AS name, ROUND(SUM(r.cost_usd), 4) AS totalUsd
+       FROM runs r JOIN turns t ON t.id = r.turn_id LEFT JOIN teammates tm ON tm.id = t.teammate_id
+       WHERE t.started_at >= ? GROUP BY tm.name ORDER BY totalUsd DESC`,
+    )
+    .all(sinceMs);
+}

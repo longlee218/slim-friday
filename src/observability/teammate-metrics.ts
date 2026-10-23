@@ -2,8 +2,10 @@ import type { Database } from "bun:sqlite";
 import { CHIEF_OF_STAFF_ROLE } from "../roles/builtin/chief-of-staff-role";
 import {
   costPerDay,
+  costPerTeammate,
   type DayCost,
   envelopeBlocks,
+  type TeammateCost,
   type ToolCount,
   teammateDecisions,
   teammateRefusals,
@@ -25,6 +27,7 @@ export interface TeammateMetrics {
   refusals: ToolCount[];
   envelopeBlocks: ToolCount[];
   costPerDay: DayCost[];
+  costPerTeammate: TeammateCost[];
 }
 
 /** All metrics of the last `days` days. */
@@ -36,6 +39,7 @@ export function teammateMetrics(db: Database, days: number, now = Date.now()): T
     refusals: teammateRefusals(db, sinceMs),
     envelopeBlocks: envelopeBlocks(db, sinceMs),
     costPerDay: costPerDay(db, CHIEF_OF_STAFF_ROLE.name, sinceMs),
+    costPerTeammate: costPerTeammate(db, sinceMs),
   };
 }
 
@@ -57,6 +61,10 @@ export function formatTeammateMetrics(m: TeammateMetrics, days: number): string 
     "Cost per day (USD, total / teammate)",
     ...(m.costPerDay.length
       ? m.costPerDay.map((d) => `  ${d.day}  ${d.totalUsd} / ${d.teammateUsd}`)
+      : ["  (none)"]),
+    "Cost per teammate (USD; default = channels without a teammate row)",
+    ...(m.costPerTeammate.length
+      ? m.costPerTeammate.map((c) => `  ${c.name ?? "default"}  ${c.totalUsd}`)
       : ["  (none)"]),
     "Not recorded (omitted): plain-text answers, read-only tool calls.",
   ].join("\n");

@@ -102,6 +102,16 @@ test("cost per day: window respected, teammate share split from the total", () =
   expect(teammateMetrics(db, 60).costPerDay).toHaveLength(2);
 });
 
+test("cost per teammate: a row's runs group under its name, the rest under default", () => {
+  seed();
+  const m = teammateMetrics(db, 60);
+  expect(m.costPerTeammate.every((c) => c.name === null)).toBe(true);
+  expect(m.costPerTeammate.reduce((a, c) => a + c.totalUsd, 0)).toBeCloseTo(
+    m.costPerDay.reduce((a, d) => a + d.totalUsd, 0),
+    4,
+  );
+});
+
 test("empty db prints (none) sections and the omitted note", () => {
   db = openDb(":memory:");
   const text = formatTeammateMetrics(teammateMetrics(db, 7), 7);

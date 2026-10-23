@@ -234,8 +234,10 @@ export async function runTeammate(rt: TeammateRuntime, input: TeammateInput): Pr
         { threadId, teammate: resolved.teammate.name, reason: resolved.reason },
         "warn",
       );
-      await post(`Teammate ${resolved.teammate.name} cannot run: ${resolved.reason}.`);
-      consumed = true;
+      if (input.kind === "owner") {
+        await post(`Teammate ${resolved.teammate.name} cannot run: ${resolved.reason}.`);
+        consumed = true;
+      } else stopped = true; // worker news stays pending for the fixed row: no notice, no re-arm
       return;
     }
     const inputId = crypto.randomUUID();
