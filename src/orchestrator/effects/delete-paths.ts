@@ -2,7 +2,13 @@ import { DELETE_PATHS_TOOL } from "../../mcp/effects/tools/DeletePathsTool/const
 import { clip } from "../../observability/redact";
 import { goalUsage, measurePaths } from "../../policy/bounds-usage";
 import { checkEnvelope } from "../../policy/check-envelope";
-import { type EffectsCtx, recordEffect, refuseLogged, safeText } from "../../policy/effect-context";
+import {
+  askOwnerPerAct,
+  type EffectsCtx,
+  recordEffect,
+  refuseLogged,
+  safeText,
+} from "../../policy/effect-context";
 import { type Reply, refuse } from "../reply";
 import { classifyPath, type PathKind, stillSame } from "./delete-paths-classify";
 import { containsNestedGit } from "./nested-git";
@@ -92,6 +98,14 @@ export async function deletePaths(
       );
     ownerAsked = true;
   }
+  const denied = await askOwnerPerAct(ctx, {
+    tool: DELETE_PATHS_TOOL,
+    scope,
+    asked: ownerAsked,
+    summary: `Delete ${reals.length} path(s) (kept 7 days in the trash)?\n${shown}\nReason: ${why}`,
+  });
+  if (denied) return denied;
+  ownerAsked ||= !!ctx.ownerPerAct;
   const now = (ctx.now ?? Date.now)();
   // Re-check each target (same kind, path, device, inode) right before it moves: an owner's wait is a window to swap a link in.
   const byReal = new Map(found.map((k, i) => [k.real, { p: paths[i], k }]));

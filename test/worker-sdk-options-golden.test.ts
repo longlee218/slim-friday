@@ -2,7 +2,6 @@ import { expect, test } from "bun:test";
 import { mkdirSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
-import { workspacePaths } from "../src/config/workspace-paths";
 import { guardFor } from "../src/policy/check-tool-call";
 import { defaultEnvelope } from "../src/policy/envelope";
 import { getRole } from "../src/roles/role-registry";

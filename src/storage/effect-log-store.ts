@@ -55,6 +55,16 @@ export function effectsOfGoal(db: Database, goalId: string): EffectRow[] {
     .all(goalId);
 }
 
+/** Distinct goal keys the thread's effects were logged under (a teammate run logs under `run-<turnId>`, which names its trash). */
+export function effectGoalIdsOfThread(db: Database, threadId: string): string[] {
+  return db
+    .query<{ goal_id: string }, [string]>(
+      "SELECT DISTINCT goal_id FROM effect_log WHERE thread_id = ? AND goal_id IS NOT NULL",
+    )
+    .all(threadId)
+    .map((r) => r.goal_id);
+}
+
 /** Stored result of an effect key, or undefined when the effect never ran. */
 export function effectResult(db: Database, key: string): string | undefined {
   return db

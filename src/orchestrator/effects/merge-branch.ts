@@ -47,9 +47,12 @@ export async function mergeBranch(
       ? originHead.out.trim() === `origin/${into}`
       : !grantNamesBranch(ctx.envelope, MERGE_BRANCH_TOOL, location, into)
     : true;
-  if (isDefault) {
+  // A default branch asks at every act; a teammate run (owner-per-act) asks for every merge.
+  if (isDefault || ctx.ownerPerAct) {
     const yes = await ctx.confirm(
-      `Merge ${safeText(from)} into the default branch ${safeText(into)} of ${safeText(location)}?`,
+      isDefault
+        ? `Merge ${safeText(from)} into the default branch ${safeText(into)} of ${safeText(location)}?`
+        : `Merge ${safeText(from)} into ${safeText(into)} of ${safeText(location)}?`,
     );
     if (!yes)
       return refuseLogged(
@@ -77,7 +80,7 @@ export async function mergeBranch(
     scope,
     result: JSON.stringify({ code: 0 }),
     undo: `git reset --hard ${before}`,
-    owner: isDefault,
+    owner: isDefault || ctx.ownerPerAct,
   });
   return { ok: true, merged: from, into };
 }

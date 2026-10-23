@@ -206,7 +206,6 @@ A \`requests\` entry on a completed result is not a block: no call, no question 
 
 exports[`options lock: dev options snapshot 1`] = `
 {
-  "allowDangerouslySkipPermissions": true,
   "canUseTool": "[fn]",
   "cwd": "<home>",
   "disallowedTools": [
@@ -279,7 +278,7 @@ exports[`options lock: dev options snapshot 1`] = `
   "maxTurns": 150,
   "mcpServers": {},
   "model": "claude-sonnet-5-5",
-  "permissionMode": "bypassPermissions",
+  "permissionMode": "default",
   "plugins": [
     {
       "path": "/private<home>/tmp/plugin-<id>",

@@ -2,18 +2,23 @@ import {
   TEAMMATE_OWNER_RUN_BUDGET_USD,
   TEAMMATE_OWNER_RUN_MAX_TURNS,
 } from "../../config/teammate-caps";
+import { workspacePaths } from "../../config/workspace-paths";
 import { messageLanguage } from "../../ingress/user-copy";
+import type { AppCtx } from "../../mcp/manifest-types";
 import { logEvent, logger } from "../../observability/logger";
 import { errText } from "../../observability/redact";
+import { realOrSame } from "../../policy/paths";
 import { buildTeamMd } from "../../roles/prompts/team-md";
 import { titlePortFor } from "../../roles/prompts/thread-title-note";
 import { dispatchableWorkers, getRole } from "../../roles/role-registry";
 import { getSession } from "../../storage/session-store";
+import { policyOf } from "../../tools/role-policy";
 import { createDbEffectPort } from "../goal/effect-port-db";
 import { planSideEffects } from "../plan/plan-side-effects";
 import { registerRun } from "../run/live-runs";
 import { runTurn, type TeammateTurnResult } from "../run/run-turn";
 import { dispatchReady } from "../worker/dispatch-ready";
+import { teammateEffectsCtx } from "./teammate-effects-ctx";
 import { announceBlock, capNews, pendingNews, settleTeammateEvents } from "./teammate-events";
 import { failed, forgetBatch, rearm } from "./teammate-failure";
 import { createTeammateIo } from "./teammate-io";
@@ -22,7 +27,7 @@ import { ownerEventIds } from "./teammate-owner-events";
 import type { TeammateInput } from "./teammate-queue";
 import { postTo, type TeammateRuntime, type TeammateThreadCtx } from "./teammate-runtime";
 import { buildTeammateUserTurn, ownerMessageBlock } from "./teammate-user-turn";
-import { artifactCtx } from "./thread-tool-ctx";
+import { artifactCtx, locationRefs } from "./thread-tool-ctx";
 
 /** Logger of this module. */
 const log = logger.child({ module: "teammate-run" });
@@ -91,7 +96,9 @@ function teammateOnce(
           refresh: () => rt.refresh(threadId),
         },
       };
-      const model = getRole("chief-of-staff").model;
+      const role = getRole("chief-of-staff");
+      const policy = policyOf(role);
+      const model = role.model;
       const stored = getSession(db, threadId);
       const existing = stored?.kind === "teammate" ? stored : null;
       const turn = buildTeammateUserTurn(db, {
@@ -116,7 +123,9 @@ function teammateOnce(
           channel: ctx.channel,
           channelMode: ctx.channelMode,
           channelId: ctx.channelId,
-          locations: [], // neutral cwd: the teammate routes, it reads no location
+          // Neutral cwd unless the role works in the channel's locations (write or shell). Read tools alone keep the
+          // neutral dir: the default teammate routes and reads locations through a scout.
+          locations: policy.write || policy.shell ? ctx.locations : [],
           // An owner message may start a plan (spec, plan, create_plan, approve_plan): more room than an announce run.
           ...(o.trigger === "owner" && {
             limitsOverride: {
@@ -128,11 +137,30 @@ function teammateOnce(
           language,
           existing,
           team: buildTeamMd({ locations: ctx.locations }),
-          appCtx: () => ({
-            teammate: toolCtx,
-            taskBoard: { db, threadId },
-            artifacts: artifactCtx(rt, ctx, threadId, "chief-of-staff"), // the teammate reads and saves in its own channel
-          }),
+          appCtx: (): AppCtx => {
+            // The run's own dir (made by `roleScope` before the servers are built): effect deletes and browser output live there.
+            const scratchDir = realOrSame(workspacePaths(deps.config.agentHome).run(turnId));
+            return {
+              teammate: toolCtx,
+              taskBoard: { db, threadId },
+              artifacts: artifactCtx(rt, ctx, threadId, "chief-of-staff"), // the teammate reads and saves in its own channel
+              ...(policy.scratch && { scratchDir }),
+              // Effect tools ask the owner at every act (`ownerPerAct`): no goal envelope backs a teammate run.
+              ...(policy.effects && {
+                effects: teammateEffectsCtx({
+                  db,
+                  approvals: deps.approvals,
+                  agentHome: deps.config.agentHome,
+                  threadId,
+                  turnId,
+                  language,
+                  scratchDir,
+                  locations: locationRefs(ctx),
+                  signal: ac.signal,
+                }),
+              }),
+            };
+          },
         },
         close: (res, t0) => ({
           res: { ...res, sessionKind: "teammate", model: res.model ?? model },

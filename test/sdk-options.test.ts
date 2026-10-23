@@ -115,9 +115,9 @@ test("options lock: tools, mcp servers, permission mode per role", async () => {
   // run in the shell); no GitHub server anywhere.
   expect(teammate.o.mcpServers).toEqual({});
   expect(dev.o.mcpServers).toEqual({});
-  // dev: bypass from the first token; the teammate: auto mode (classifier).
-  expect(dev.o.permissionMode).toBe("bypassPermissions");
-  expect(dev.o.allowDangerouslySkipPermissions).toBe(true);
+  // dev (a shell): never auto-approved, whatever the role asks (`RunProtection.permissionDefault`); the teammate: auto mode (classifier).
+  expect(dev.o.permissionMode).toBe("default");
+  expect(dev.o.allowDangerouslySkipPermissions).toBeUndefined();
   expect(teammate.o.permissionMode).toBe("auto");
   expect(teammate.o.allowDangerouslySkipPermissions).toBeUndefined();
   // Never any filesystem settings; strict MCP config.

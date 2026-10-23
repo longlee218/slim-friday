@@ -53,7 +53,8 @@ const EFFECT = { needs: ["effects"] } as const;
  * Every in-process and external MCP tool. `runKinds` follows the ctx part each tool reads
  * (`src/mcp/manifest-types.ts`): `Orchestrate` and `SaveArtifact`/`MemorySave`/`MemoryEdit` need the teammate run
  * (workers read memory and artifacts only); `Report` the worker's report sink; the effect tools and Playwright the
- * worker's envelope and scratch dir (a teammate gets them in the protection phase); the admin tools the control run.
+ * run's effects ctx and scratch dir (a worker: its envelope and goal dir; a teammate: owner-per-act and its run dir, see
+ * `teammate-effects-ctx.ts`); the admin tools the control run.
  */
 export const MCP_TOOL_ENTRIES: readonly ToolDecl[] = [
   mcp(MEMORY_SAVE_TOOL, false, TEAMMATE),
@@ -68,10 +69,10 @@ export const MCP_TOOL_ENTRIES: readonly ToolDecl[] = [
   mcp(ORCHESTRATE_TOOL, false, TEAMMATE),
   mcp(TASK_BOARD_TOOL, true, BOTH),
   mcp(REPORT_TOOL, false, WORKER),
-  mcp(DELETE_PATHS_TOOL, false, WORKER, { risk: "R2", ...EFFECT }),
-  mcp(MERGE_BRANCH_TOOL, false, WORKER, { risk: "R2", ...EFFECT }),
-  mcp(GIT_PUSH_TOOL, false, WORKER, { risk: "R3", ...EFFECT }),
-  mcp(CREATE_PULL_REQUEST_TOOL, false, WORKER, { risk: "R3", ...EFFECT }),
+  mcp(DELETE_PATHS_TOOL, false, BOTH, { risk: "R2", ...EFFECT }),
+  mcp(MERGE_BRANCH_TOOL, false, BOTH, { risk: "R2", ...EFFECT }),
+  mcp(GIT_PUSH_TOOL, false, BOTH, { risk: "R3", ...EFFECT }),
+  mcp(CREATE_PULL_REQUEST_TOOL, false, BOTH, { risk: "R3", ...EFFECT }),
   mcp(LIST_SPACES_TOOL, true, CONTROL),
   mcp(CREATE_SPACE_OR_CHANNEL_TOOL, false, CONTROL),
   mcp(WRITE_SPACE_FILE_TOOL, false, CONTROL),
@@ -86,5 +87,5 @@ export const MCP_TOOL_ENTRIES: readonly ToolDecl[] = [
     FIRECRAWL_READ_PAPER_TOOL,
   ].map((t) => mcp(t, true, BOTH)),
   // Playwright: a local stdio child that keeps its state in the run's scratch dir.
-  ...PLAYWRIGHT_TOOLS.map((t) => mcp(t, false, WORKER, { needs: ["scratch"] })),
+  ...PLAYWRIGHT_TOOLS.map((t) => mcp(t, false, BOTH, { needs: ["scratch"] })),
 ];

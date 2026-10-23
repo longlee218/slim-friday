@@ -107,3 +107,22 @@ export function envelopeFromPlan(
     grantedBy: `plan:${ref.planId}@v${ref.version}`,
   };
 }
+
+/**
+ * Envelope of a teammate run (no goal, no owner grant): every effect tool is allowed on every location of the channel, and the
+ * effect tools ask the owner at EVERY act (`EffectsCtx.ownerPerAct`). It carries no authority of its own: the owner's click does.
+ */
+export const ownerPerActEnvelope = (
+  runKey: string,
+  locations: string[],
+  goalDir: string,
+): DispatchEnvelope => ({
+  ...defaultEnvelope(runKey, locations, goalDir),
+  classes: ["R0", "R1", "R2", "R3"],
+  effects: locations.flatMap((location) => [
+    { tool: GIT_PUSH_TOOL, scope: { location, branch: ANY } },
+    { tool: CREATE_PULL_REQUEST_TOOL, scope: { location, branch: ANY } },
+    { tool: MERGE_BRANCH_TOOL, scope: { location, into: ANY } },
+  ]),
+  grantedBy: "owner",
+});

@@ -57,9 +57,12 @@ export async function gitPush(
     def === undefined
       ? !grantNamesBranch(ctx.envelope, GIT_PUSH_TOOL, location, branch)
       : def === branch;
-  if (isDefault) {
+  // A default branch asks at every act; a teammate run (owner-per-act) asks for every push.
+  if (isDefault || ctx.ownerPerAct) {
     const yes = await ctx.confirm(
-      `Push to the default branch ${safeText(branch)} of ${safeText(location)}?`,
+      isDefault
+        ? `Push to the default branch ${safeText(branch)} of ${safeText(location)}?`
+        : `Push ${safeText(branch)} of ${safeText(location)} to ${safeText(remote)}?`,
     );
     if (!yes)
       return refused(
@@ -77,7 +80,7 @@ export async function gitPush(
     scope,
     result: JSON.stringify({ code: r.code, out: r.out }),
     undo: `delete the remote branch: git push ${remote} --delete ${branch}`,
-    owner: isDefault,
+    owner: isDefault || ctx.ownerPerAct,
   });
   return r.code === 0
     ? { ok: true, pushed: branch }

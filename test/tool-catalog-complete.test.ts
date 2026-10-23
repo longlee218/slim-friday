@@ -41,7 +41,6 @@ test("runKinds match what a worker ctx and a teammate ctx build", () => {
     reportSink: undefined,
     progress: undefined,
     message: undefined,
-    effects: undefined,
     admin: undefined,
   };
   const built = (ctx: typeof FULL_CTX) =>

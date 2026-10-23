@@ -23,6 +23,8 @@ export interface EffectsCtx {
   goalId: string;
   itemId: string;
   envelope: DispatchEnvelope;
+  /** A teammate run: the envelope grants nothing by itself, so every act asks the owner once (yes / no, fail closed). */
+  ownerPerAct?: boolean;
   /** Every location of the workspace (an act on one outside the envelope is R4, not a plain refusal). */
   locations: EffectLocation[];
   agentHome: string;
@@ -60,6 +62,26 @@ export function recordEffect(
     result: e.result,
     ...(e.undo && { undo: e.undo }),
   });
+}
+
+/**
+ * Owner-per-act runs only: ask the owner before the act, unless a stricter question was already asked (`asked`). Returns the
+ * refusal (written to the audit) when the owner says no or does not answer, undefined to go on.
+ */
+export async function askOwnerPerAct(
+  ctx: EffectsCtx,
+  e: { tool: string; scope: string; summary: string; asked?: boolean },
+): Promise<Reply | undefined> {
+  if (!ctx.ownerPerAct || e.asked) return undefined;
+  if (await ctx.confirm(e.summary)) return undefined;
+  return refuseLogged(
+    ctx,
+    e.tool,
+    e.scope,
+    "OWNER_DENIED",
+    "The owner did not allow this act.",
+    "denied",
+  );
 }
 
 /** Control, line-break, bidi and zero-width characters: they could forge lines in an owner question. */

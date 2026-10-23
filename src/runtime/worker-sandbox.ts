@@ -41,7 +41,7 @@ export function carve(root: string, blocked: string[], depth = 0): string[] {
 }
 
 /**
- * The sandbox settings of a run: only a run WITH an envelope (a worker) gets one.
+ * The sandbox settings of a run: only a run WITH a scratch dir (a worker's envelope goal dir, or a teammate run dir) gets one.
  * - Writes: only the run's write dirs and goal dir, and everything inside them.
  * - Reads: DENY BY DEFAULT for the owner's home (and `/Users`); the run's granted dirs, the toolchain dirs and git's global config
  *   are allowed back (an allow rule beats a deny rule, so a granted home is listed child by child around the agent home). A
@@ -50,9 +50,10 @@ export function carve(root: string, blocked: string[], depth = 0): string[] {
  *   empty allowlist and asks `canUseTool` (`SandboxNetworkAccess`) per host. The read/write limits above still bind. The sandbox is required and a command cannot opt out of it.
  */
 export function workerSandbox(guard: GuardrailContext | undefined): Options["sandbox"] | undefined {
-  const env = guard?.envelope;
-  if (!guard || !env) return undefined;
-  const allowWrite = [...new Set([...(guard.writePaths ?? []), env.goalDir])];
+  // The run's scratch dir: a worker's goal dir, or a teammate's own run dir. No scratch dir = no sandbox here.
+  const scratch = guard?.envelope?.goalDir ?? guard?.scratchDir;
+  if (!guard || !scratch) return undefined;
+  const allowWrite = [...new Set([...(guard.writePaths ?? []), scratch])];
   const home = realOrSame(homedir());
   const homes = [...new Set([homedir(), home])];
   const grants = [...allowWrite, ...(guard.readPaths ?? []), ...(guard.cwd ? [guard.cwd] : [])].map(

@@ -157,8 +157,8 @@ async function execRun(actual: string) {
     db: env.db,
     abortController: new AbortController(),
     queryFn: queryFn as never,
-    role: getRole("developer"),
-    guard: guardFor(getRole("developer"), {
+    role: bypassRole,
+    guard: guardFor(bypassRole, {
       cwd: env.home,
       readPaths: [env.location],
       writePaths: [env.home],
@@ -167,6 +167,9 @@ async function execRun(actual: string) {
   });
   return { opts: opts!, out };
 }
+
+/** A role that asks for bypass and holds no shell (a shell or an R2 tool is never left to bypass: `RunProtection`). */
+const bypassRole = { ...getRole("chief-of-staff"), permissionMode: "bypassPermissions" as const };
 
 test("runAgent: exec asks SDK for bypass with the opt-in; confirmed -> ask runs, else ask forced", async () => {
   const ok = await execRun("bypassPermissions");

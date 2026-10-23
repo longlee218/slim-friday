@@ -71,10 +71,18 @@ export function roleScope(config: AgentConfig, i: RoleRunInput, role: RoleDefini
     if (stored && stored.cwd === cwd) sessionId = stored.session_id;
   }
   const others = pinned ? [] : locations.map((r) => r.path).filter((p) => p !== cwd);
-  if (!policyOf(role).write) {
+  const policy = policyOf(role);
+  const attachments = workspacePaths(config.agentHome).attachments(i.threadId);
+  // A teammate with a shell or a scratch-needing tool (browser) gets its own run dir even without the write capability.
+  const ownScratch = role.kind === "teammate" && (policy.shell || policy.scratch);
+  if (!policy.write) {
     // Full text of a long owner attachment (saved by ingress, read-only): readable only when this thread has one.
-    const attached = workspacePaths(config.agentHome).attachments(i.threadId);
-    const additionalDirectories = [...others, ...(existsSync(attached) ? [attached] : [])];
+    const scratch = ownScratch ? makeScratch(config.agentHome, i.turnId) : undefined;
+    const additionalDirectories = [
+      ...others,
+      ...(existsSync(attachments) ? [attachments] : []),
+      ...(scratch ? [scratch] : []),
+    ];
     return {
       cwd,
       additionalDirectories,
@@ -86,16 +94,26 @@ export function roleScope(config: AgentConfig, i: RoleRunInput, role: RoleDefini
         denyPaths: [realOrSame(config.agentHome)],
         allowInside: grantedUnderHome(
           dirs,
-          attached,
+          attachments,
           projectsDir,
           locations.map((r) => r.path),
+          scratch,
         ),
+        ...(scratch && { scratchDir: scratch }),
       },
     };
   }
-  const scratch = workspacePaths(config.agentHome).run(i.turnId);
-  mkdirSync(scratch, { recursive: true, mode: 0o700 });
-  const real = { cwd: realpathSync(cwd), scratch: realpathSync(scratch) };
+  const real = { cwd: realpathSync(cwd), scratch: makeScratch(config.agentHome, i.turnId) };
+  const writePaths = [
+    ...new Set([real.cwd, ...locations.map((r) => realOrSame(r.path)), real.scratch]),
+  ];
+  const allowInside = grantedUnderHome(
+    dirs,
+    attachments,
+    projectsDir,
+    locations.map((r) => r.path),
+    real.scratch,
+  );
   return {
     cwd: real.cwd,
     additionalDirectories: [...others, real.scratch],
@@ -103,17 +121,20 @@ export function roleScope(config: AgentConfig, i: RoleRunInput, role: RoleDefini
     sessionId,
     guard: {
       cwd: real.cwd,
-      writePaths: [
-        ...new Set([real.cwd, ...locations.map((r) => realOrSame(r.path)), real.scratch]),
-      ],
+      writePaths,
+      // A writing run reads only what it may write plus its own dirs: never ~/.ssh, ~/.aws ...
+      readPaths: [...new Set([...writePaths, ...allowInside])],
       denyPaths: [realOrSame(config.agentHome)],
-      allowInside: grantedUnderHome(
-        dirs,
-        workspacePaths(config.agentHome).attachments(i.threadId),
-        projectsDir,
-        locations.map((r) => r.path),
-        real.scratch,
-      ),
+      allowInside,
+      // A worker's scratch is its envelope's goal dir; a teammate's is the run dir.
+      ...(role.kind !== "worker" && { scratchDir: real.scratch }),
     },
   };
+}
+
+/** The run's own scratch dir under AGENT_HOME (created, private), as a real path. */
+function makeScratch(agentHome: string, turnId: string): string {
+  const scratch = workspacePaths(agentHome).run(turnId);
+  mkdirSync(scratch, { recursive: true, mode: 0o700 });
+  return realpathSync(scratch);
 }

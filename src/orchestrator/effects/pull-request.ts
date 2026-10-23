@@ -2,10 +2,12 @@ import { isPlainRef } from "../../locations/git-run";
 import { CREATE_PULL_REQUEST_TOOL } from "../../mcp/effects/tools/CreatePullRequestTool/constants";
 import { checkEnvelope, isFallbackDefault } from "../../policy/check-envelope";
 import {
+  askOwnerPerAct,
   type EffectsCtx,
   locationPath,
   recordEffect,
   refuseLogged,
+  safeText,
 } from "../../policy/effect-context";
 import { type Reply, refuse } from "../reply";
 
@@ -32,6 +34,12 @@ export async function createPullRequest(
   if (!verdict.allow) return refused(verdict.code, verdict.reason);
   const cwd = locationPath(ctx, location);
   if (!cwd) return refused("OUT_OF_ENVELOPE", "Unknown location.");
+  const asked = await askOwnerPerAct(ctx, {
+    tool: CREATE_PULL_REQUEST_TOOL,
+    scope,
+    summary: `Create a pull request ${safeText(head)} into ${safeText(base)} in ${safeText(location)}?\nTitle: ${safeText(title)}`,
+  });
+  if (asked) return asked;
   const argv = [
     "gh",
     "pr",
@@ -51,6 +59,7 @@ export async function createPullRequest(
     scope,
     result: JSON.stringify({ code: r.code, out: r.out }),
     undo: "close the pull request: gh pr close <number>",
+    owner: ctx.ownerPerAct,
   });
   return r.code === 0
     ? { ok: true, url: r.out }

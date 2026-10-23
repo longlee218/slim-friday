@@ -7,10 +7,12 @@ import { buildServers } from "../mcp/mcp-servers";
 import type { RunRecorder } from "../observability/record-run";
 import { buildToolHooks, hookOptions } from "../observability/tool-hooks";
 import type { RoleDefinition } from "../roles/role-types";
+import { policyOf } from "../tools/role-policy";
 import { toolOptions } from "../tools/tool-catalog";
 import { buildCompactHooks } from "./compact-hooks";
 import { type ModeActive, resolvePermissionMode } from "./permission-mode";
 import type { RunAgentInput } from "./run-agent";
+import { runProtection } from "./run-protection";
 import { sdkEnv } from "./sdk-env";
 import type { RunSkills } from "./skills-plugin/plugin-builder";
 import { buildSystemPrompt } from "./system-prompt";
@@ -94,11 +96,13 @@ export function buildSdkOptions(
       : input.guard;
   // The role's pinned binaries (verified by sha256): env vars for the run, readable by its sandboxed shell. Only a run with
   // its own scratch dir (a dispatched worker) gets them.
-  const bins = pinnedBinaryEnv(role.binaries, input.guard?.envelope?.goalDir);
+  const protection = runProtection(role, policyOf(role), input.guard);
+  const bins = pinnedBinaryEnv(role.binaries, protection.scratchDir);
   const guard =
     withSkills && bins.paths.length ? { ...withSkills, binaryPaths: bins.paths } : withSkills;
-  const sandbox = config.sandboxOff ? undefined : workerSandbox(guard); // FRIDAY_SANDBOX_OFF: owner switch
-  const permissionMode = resolvePermissionMode(role, config, input.guard);
+  // FRIDAY_SANDBOX_OFF: owner switch
+  const sandbox = config.sandboxOff || !protection.sandbox ? undefined : workerSandbox(guard);
+  const permissionMode = resolvePermissionMode(role, config, protection);
   const perms = guard
     ? buildToolPermissions({
         ...input.code, // gateway, askLimit, onAskTimeout
@@ -125,11 +129,11 @@ export function buildSdkOptions(
     model: config.model,
     resume: input.resume,
     ...toolOptions(role),
-    // A local external server keeps its state in the run's own scratch dir (a worker with an envelope).
+    // A local external server keeps its state in the run's own scratch dir.
     mcpServers: buildServers(
       role,
       { ...input.appCtx?.(), memory: input.memory },
-      { scratchDir: input.guard?.envelope?.goalDir },
+      { scratchDir: protection.scratchDir },
     ),
     ...(permissionMode && { permissionMode }),
     // The SDK refuses bypassPermissions without this explicit opt-in (the guard hook stays the gate).
@@ -159,7 +163,7 @@ export function buildSdkOptions(
       includeGitInstructions: false,
       attribution: { commit: "", pr: "" },
     },
-    // A dispatched worker's shell runs in an OS sandbox (writes only in its dirs, network open); see worker-sandbox.ts.
+    // A protected run's shell (a worker, or a teammate with a shell) runs in an OS sandbox (writes only in its dirs, network open); see worker-sandbox.ts.
     ...(sandbox && { sandbox }),
     systemPrompt: buildSystemPrompt((input.extraContext ?? []).filter(Boolean).join("\n\n"), role),
     hooks: {
@@ -173,7 +177,7 @@ export function buildSdkOptions(
     },
     env: {
       ...sdkEnv(config, readProcessEnv(), {
-        worker: !!guard?.envelope,
+        worker: protection.scrubEnv,
         subagentDepth: role.subagents.depth,
       }),
       ...bins.env,

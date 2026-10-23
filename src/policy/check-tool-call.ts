@@ -62,6 +62,8 @@ export interface GuardrailContext {
   binaryPaths?: string[];
   /** False = the role has no shell capability: Bash is denied. Omitted (no role known) = allowed. */
   shell?: boolean;
+  /** The run's own scratch dir (real path) of a run without an envelope (a teammate with a shell): the sandbox lets it write there. */
+  scratchDir?: string;
   /** A dispatched worker's envelope: effect tools are checked against it and an `ask` is classified (fail closed). Omitted = no envelope. */
   envelope?: DispatchEnvelope;
   /** False = no SDK subagent tools (Agent, Task, SendMessage, ListAgents): denied. Omitted = allowed. */
