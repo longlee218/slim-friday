@@ -5,7 +5,7 @@ import type { CSSProperties, ReactNode } from "react";
  * Seven slots of the validated order; every other role shares the neutral "other".
  */
 const ROLE_SLOT: Record<string, string> = {
-  teammate: "--s1",
+  "chief-of-staff": "--s1",
   developer: "--s2",
   tester: "--s3",
   scout: "--s4",

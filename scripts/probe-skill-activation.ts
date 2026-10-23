@@ -7,7 +7,7 @@
  * MCP, no secrets beyond the OAuth token in `.env`. Not part of the app: run by hand, costs real money.
  *
  *   bun scripts/probe-skill-activation.ts --role developer --task "Build a CLI ..." [--runs 3] [--out runs.json]
- *   bun scripts/probe-skill-activation.ts --role teammate --task "Call the Skill tool with skill friday:worker-reporting"
+ *   bun scripts/probe-skill-activation.ts --role chief-of-staff --task "Call the Skill tool with skill friday:worker-reporting"
  *     (leak canary: a skill outside the role's list must come back as an error)
  */
 import { execFileSync } from "node:child_process";

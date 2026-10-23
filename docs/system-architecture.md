@@ -99,7 +99,7 @@ Worker run (detached; survives the owner message; `Report` action tool)
 | Budget | `budget/teammate-budget.ts`, `budget/task-budget.ts` | teammate runs have no daily cap; task ceiling (see [Budgets](#budgets)) |
 | Metrics | `observability/teammate-metrics.ts`, `teammate-metrics-cli.ts` | read-only `bun run metrics:teammate [--days N]` (see below) |
 
-### Chief-of-staff tool: `Orchestrate` (role `teammate`)
+### Chief-of-staff tool: `Orchestrate` (role `chief-of-staff`)
 
 One MCP action tool, called as `{ action, params }`. Each action is a row of `src/mcp/orchestration/tools/OrchestrateTool/orchestrate-actions.ts` bound to an existing chief-of-staff handler (the rules live in the handler). Errors: `BAD_PARAMS` (the action's own schema failed; the reply lists its params and one example), `BAD_ACTION` (unknown action), `ACTION_UNAVAILABLE` (the run lacks a part the action needs).
 

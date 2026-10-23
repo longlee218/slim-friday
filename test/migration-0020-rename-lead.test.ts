@@ -66,6 +66,16 @@ test("0020: lead values are renamed, engine sessions dropped, other rows untouch
         kind as string,
       );
 
+    for (const [id, scope] of [
+      ["f1", "lead tool call"],
+      ["f2", "role"],
+    ])
+      run(
+        "INSERT INTO effect_log (id, thread_id, tool, scope, granted_by, result, created_at) VALUES (?, 'th', 'Orchestrate', ?, 'role', 'ok', 1)",
+        id as string,
+        scope as string,
+      );
+
     migrate(drizzle({ client: db }), { migrationsFolder: REAL }); // applies 0020
     const col = (sql: string) =>
       db
@@ -87,6 +97,10 @@ test("0020: lead values are renamed, engine sessions dropped, other rows untouch
       'answer {"by":"owner"}',
     ]);
     expect(col("SELECT thread_id AS v FROM sessions")).toEqual(["s-role"]);
+    expect(col("SELECT scope AS v FROM effect_log ORDER BY id")).toEqual([
+      "teammate tool call",
+      "role",
+    ]);
     db.close();
   } finally {
     rmSync(old, { recursive: true, force: true });

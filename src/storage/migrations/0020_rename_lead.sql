@@ -18,3 +18,5 @@ UPDATE `thread_events` SET `kind` = 'teammate_decision' WHERE `kind` = 'lead_dec
 UPDATE `thread_events` SET `payload` = json_set(`payload`, '$.by', 'teammate') WHERE json_valid(`payload`) AND json_extract(`payload`, '$.by') = 'lead';
 --> statement-breakpoint
 DELETE FROM `sessions` WHERE `kind` = 'lead';
+--> statement-breakpoint
+UPDATE `effect_log` SET `scope` = 'teammate tool call' WHERE `scope` = 'lead tool call';

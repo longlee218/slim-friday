@@ -1,12 +1,13 @@
 import { logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
+import { CHIEF_OF_STAFF_ROLE } from "../roles/builtin/chief-of-staff-role";
 import { type MemoryAuditAction, recordMemoryAudit } from "../storage/memory-audit-store";
 import type { MemoryToolContext } from "./memory-tool-context";
 
 const log = logger.child({ module: "memory-audit" });
 
-/** Role recorded when the context names none: only the teammate writes memory. */
-const DEFAULT_ROLE = "chief-of-staff";
+/** Role recorded when the context names none: only the chief-of-staff writes memory. */
+const DEFAULT_ROLE = CHIEF_OF_STAFF_ROLE.name;
 
 /**
  * Append one `memory_audit` row for a memory write that just succeeded (hash only, never text). An audit failure is

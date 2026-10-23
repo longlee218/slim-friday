@@ -9,7 +9,7 @@ import { buildRoleSkills } from "../src/runtime/skills-plugin/role-skills";
 /*
  * Leak check: a run sees only the skills its role lists (`RoleDefinition.skills`). The plugin dirs hold only those
  * skill folders and the `skills` option names only those qualified names, so the Skill tool refuses any other
- * (real-SDK canary: scripts/probe-skill-activation.ts --role teammate asked to call a worker skill -> error result).
+ * (real-SDK canary: scripts/probe-skill-activation.ts --role chief-of-staff asked to call a worker skill -> error result).
  */
 const home = mkdtempSync(join(tmpdir(), "noleak-"));
 afterAll(() => removeTree(home));
