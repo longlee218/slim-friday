@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { REPORT_ARTIFACTS_MAX, REPORT_IMAGES_MAX } from "../../artifacts/artifact-limits";
+import { REPORT_FILES_MAX, REPORT_IMAGES_MAX } from "../../artifacts/artifact-limits";
 import { PRIORITY_VALUES, SUBJECT_MAX_CHARS } from "../../config/lead-caps";
 import { CREATE_PULL_REQUEST_TOOL } from "../../mcp/effects/tools/CreatePullRequestTool/constants";
 import { GIT_PUSH_TOOL } from "../../mcp/effects/tools/GitPushTool/constants";
@@ -84,7 +84,6 @@ export const DISPATCH_AGENT_SHAPE = {
       "true = a SMALL change: one fix or one edit in one file, nothing the owner would call a feature. Required to dispatch a role that writes; anything bigger takes create_plan",
     ),
 };
-export const TASK_STATUS_SHAPE = { taskId: TASK_ID.optional() };
 export const STEER_TASK_SHAPE = {
   taskId: TASK_ID,
   text: z.string().min(1).max(STEER_TEXT_MAX_CHARS),
@@ -145,8 +144,8 @@ const WORKER_REQUEST = z.preprocess(
     text: z.string().min(1).max(REQUEST_MAX_CHARS),
   }),
 );
-/** A doc a developer wrote in its granted location, named for the report (checked and registered by code). */
-const ARTIFACT_DOC = z.object({ title: z.string().min(1), path: z.string().min(1) });
+/** A deliverable file named for the report (checked by code; `forward` makes the artifact). */
+const REPORT_FILE = z.object({ title: z.string().min(1), path: z.string().min(1) });
 export const REPORT_RESULT_SHAPE = {
   title: z
     .string()
@@ -155,12 +154,12 @@ export const REPORT_RESULT_SHAPE = {
   status: z.enum(RESULT_KINDS as [string, ...string[]]),
   summary: z.string().min(1).max(REPORT_SUMMARY_MAX_CHARS),
   requests: z.array(WORKER_REQUEST).max(MAX_REQUESTS).optional(),
-  artifacts: z
-    .array(z.union([z.object({ id: z.string().min(1) }), ARTIFACT_DOC]))
-    .max(REPORT_ARTIFACTS_MAX)
+  files: z
+    .array(REPORT_FILE)
+    .max(REPORT_FILES_MAX)
     .optional()
     .describe(
-      "Artifacts of this result: the id of one you saved, or {title, path} of a doc you wrote in your location (path relative to it)",
+      "Deliverable files (md, html, diff, csv, txt) as {title, path}: path relative to your location, or to your scratch dir when you have no location. The lead forwards them to the owner",
     ),
   images: z
     .array(z.string().min(1))
@@ -183,7 +182,6 @@ export const REPORT_PROGRESS_SHAPE = {
 
 /** Parsed inputs, one per tool. */
 export type DispatchInput = z.infer<z.ZodObject<typeof DISPATCH_AGENT_SHAPE>>;
-export type TaskStatusInput = z.infer<z.ZodObject<typeof TASK_STATUS_SHAPE>>;
 export type SteerInput = z.infer<z.ZodObject<typeof STEER_TASK_SHAPE>>;
 export type CancelInput = z.infer<z.ZodObject<typeof CANCEL_TASK_SHAPE>>;
 export type RetryInput = z.infer<z.ZodObject<typeof RETRY_TASK_SHAPE>>;

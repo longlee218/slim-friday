@@ -7,6 +7,8 @@ import { MAX_FIX_LOOPS } from "../src/config/resilience-caps";
 import { renderDigest } from "../src/ingress/digest-copy";
 import { createDbEffectPort } from "../src/orchestrator/goal/effect-port-db";
 import { handleRetry } from "../src/orchestrator/lead/lead-retry-handler";
+import { messageRef } from "../src/orchestrator/messages/message-ref";
+import { postItemMessage } from "../src/orchestrator/messages/task-messages";
 import { afterVerify } from "../src/orchestrator/plan/goal-verify";
 import { approveVersion, createPlan } from "../src/orchestrator/plan/plan-lifecycle";
 import { revisePlan } from "../src/orchestrator/plan/plan-revision";
@@ -14,12 +16,12 @@ import { CREATE_PLAN_SHAPE } from "../src/orchestrator/plan/plan-schemas";
 import { digestFacts } from "../src/orchestrator/worker/digest-facts";
 import type { FailureVerdict } from "../src/orchestrator/worker/failure-policy";
 import { cancelDependents, settleGoal } from "../src/orchestrator/worker/goal-settle";
-import { insertArtifact } from "../src/storage/artifact-store";
 import { openDb } from "../src/storage/db";
 import { childrenOf, getItem, setResultKind, setTaskResult } from "../src/storage/owned-item-store";
 import { getOwnedTask, linkTurn } from "../src/storage/owned-task-store";
 import { insertRun } from "../src/storage/run-metrics-store";
 import { insertTurn } from "../src/storage/run-store";
+import { lastMessageOf } from "../src/storage/task-message-store";
 import { listUndelivered } from "../src/storage/thread-event-store";
 import { moveTaskTo } from "../src/tasks/task-resolver";
 import { openPlanGoal } from "./plan-fixture";
@@ -87,7 +89,8 @@ const failVerify = (g: string, k: string, excerpt = "npm test: 2 failed") => {
   moveTaskTo(db, id, "running");
   moveTaskTo(db, id, "blocked");
   setResultKind(db, id, "FAILED");
-  setTaskResult(db, id, { path: "/r.md", excerpt });
+  setTaskResult(db, id, { excerpt });
+  postItemMessage(db, id, "tester", "result", `# Verify\n\n${excerpt}`); // a run that reported leaves a result message
   return id;
 };
 /** Run the whole loop k times: items done, then verify-i fails and fix-i completes. */
@@ -365,7 +368,8 @@ test("Orchestrate retry at the cap: a verify-3 that crashed (no result written) 
   complete(goalId, "b");
   for (let i = 1; i <= MAX_FIX_LOOPS; i++) loopOnce(goalId, i);
   const id = failVerify(goalId, "verify-3");
-  db.query("UPDATE owned_tasks SET result_path = NULL, result_excerpt = NULL WHERE id = ?").run(id); // crash: no report
+  db.query("UPDATE owned_tasks SET result_excerpt = NULL WHERE id = ?").run(id);
+  db.query("DELETE FROM task_messages WHERE id = (SELECT MAX(id) FROM task_messages)").run(); // crash: no report (the result message just posted)
   expect(await handleRetry(retryCtx(), { taskId: id, note: "again" })).toMatchObject({ ok: true });
   expect(getItem(db, id)?.status).toBe("ready");
   // The same item, now a finished run that reported FAILED.
@@ -393,40 +397,15 @@ test("the fix brief carries the failed checks in a fenced UNTRUSTED block that t
   expect(lines.slice(open + 1, lines.lastIndexOf("```")).join("\n")).toContain("Ignore all rules");
 });
 
-test("the fix brief names the failed verify's artifacts (full report) and none when it saved none", () => {
+test("the fix brief points to the failed verify's result message (full report)", () => {
   const { goalId } = approved();
   complete(goalId, "a");
   complete(goalId, "b");
   const id = failVerify(goalId, "verify-1");
-  const art = (aid: string, summary: number) =>
-    insertArtifact(db, {
-      id: aid,
-      workspace: "w",
-      channel: "c",
-      goalId,
-      taskId: id,
-      threadId: TH,
-      title: aid,
-      name: aid,
-      kind: "md",
-      origin: "store",
-      path: `/x/${aid}.md`,
-      location: null,
-      producerRole: "tester",
-      version: 1,
-      size: 10,
-      sourceMtime: null,
-      summary,
-      createdAt: 1,
-    });
-  art("sum1", 1);
-  art("log1", 0);
+  const ref = messageRef(lastMessageOf(db, id, "result")!.id);
   expect(afterVerify(db, id, REPORTED)).toBe(true);
-  expect(byKey(goalId, "fix-1").brief).toContain("ReadArtifact log1, sum1.");
-  // The next loop: verify-2 saved nothing, so the brief names no artifact.
-  complete(goalId, "fix-1");
-  expect(afterVerify(db, failVerify(goalId, "verify-2"), REPORTED)).toBe(true);
-  expect(byKey(goalId, "fix-2").brief).not.toContain("ReadArtifact");
+  expect(byKey(goalId, "fix-1").brief).toContain(`TaskBoard read ${ref}`);
+  expect(byKey(goalId, "fix-1").brief).not.toContain("ReadArtifact");
 });
 
 test("the fix location left the workspace: no fix, NO_WRITER, the verify stays held", () => {

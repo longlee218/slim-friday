@@ -1,9 +1,10 @@
 import { SONNET_MODEL } from "../../config/model-ids";
-import { ARTIFACT_TOOLS } from "../../mcp/artifacts/artifact-tool-names";
+import { ARTIFACT_READ_TOOLS } from "../../mcp/artifacts/artifact-tool-names";
 import { MEMORY_EXPAND_TOOL } from "../../mcp/memory/tools/MemoryExpandTool/constants";
 import { MEMORY_GET_TOOL } from "../../mcp/memory/tools/MemoryGetTool/constants";
 import { MEMORY_SEARCH_TOOL } from "../../mcp/memory/tools/MemorySearchTool/constants";
 import { REPORT_TOOL } from "../../mcp/orchestration/tools/ReportTool/constants";
+import { TASK_BOARD_TOOL } from "../../mcp/orchestration/tools/TaskBoardTool/constants";
 import type { RoleDefinition } from "../role-types";
 
 /* Shared by the roster specialists (solution-architect, designer, tester, devops, humanizer-writer, hacker) and the
@@ -37,7 +38,8 @@ export const SPECIALIST_BASE = {
     MEMORY_SEARCH_TOOL,
     MEMORY_GET_TOOL,
     MEMORY_EXPAND_TOOL,
-    ...ARTIFACT_TOOLS,
+    ...ARTIFACT_READ_TOOLS,
     REPORT_TOOL,
+    TASK_BOARD_TOOL,
   ],
 } as const satisfies Partial<RoleDefinition>;

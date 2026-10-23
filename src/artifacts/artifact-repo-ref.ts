@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite";
-import { readFileSync, statSync } from "node:fs";
+import { readFileSync, type Stats, statSync } from "node:fs";
 import { isAbsolute, join, relative } from "node:path";
 import { redactText } from "../observability/redact";
 import { isHiddenByAgentHome, isInside, resolveReal } from "../policy/paths";
@@ -22,6 +22,32 @@ export type RepoRefInput = Omit<ArtifactInput, "body" | "kind" | "location"> & {
 };
 
 /**
+ * The safety checks of a repo reference, on their own so a repeat use (a second forward) runs them again: relative path,
+ * real path inside the location, not inside AGENT_HOME, not sensitive (given and real path), an existing regular file
+ * under the size limit. Returns the real path, the path relative to the real location and the file stat; throws otherwise.
+ */
+export function checkRepoFile(
+  location: { path: string },
+  relPath: string,
+  home: string,
+): { real: string; rel: string; st: Stats } {
+  if (isAbsolute(relPath)) throw new Error("repo artifact path must be relative");
+  const root = resolveReal(location.path);
+  const real = resolveReal(join(root, relPath));
+  if (!isInside(root, real)) throw new Error("repo artifact path leaves the location");
+  const rel = relative(root, real);
+  if (isHiddenByAgentHome(home, root, real))
+    throw new Error("repo artifact path is inside AGENT_HOME");
+  if (isSensitivePath(relPath) || isSensitivePath(rel))
+    throw new Error("repo artifact path is a sensitive file");
+  const st = statSync(real); // a missing target throws here
+  if (!st.isFile()) throw new Error("repo artifact path is not a file");
+  if (st.size > REPORT_REPO_DOC_MAX_BYTES)
+    throw new Error(`repo artifact file is over ${REPORT_REPO_DOC_MAX_BYTES} bytes`);
+  return { real, rel, st };
+}
+
+/**
  * Register a file of a granted location as an artifact (`origin` repo; the row keeps the location name and the path
  * relative to it). Refused: an absolute path, a path whose real location (symlinks resolved) is outside the location, a
  * missing, non-file or over-limit target, a file inside AGENT_HOME, a sensitive file or dir (`data/sensitive-paths.yaml`: checked on the given and on the real
@@ -32,19 +58,7 @@ export function registerRepoArtifact(
   a: RepoRefInput,
 ): { id: string; path: string; version: number } {
   assertScope(a.workspace, a.channel);
-  if (isAbsolute(a.relPath)) throw new Error("repo artifact path must be relative");
-  const root = resolveReal(a.location.path);
-  const real = resolveReal(join(root, a.relPath));
-  if (!isInside(root, real)) throw new Error("repo artifact path leaves the location");
-  const rel = relative(root, real);
-  if (isHiddenByAgentHome(a.home, root, real))
-    throw new Error("repo artifact path is inside AGENT_HOME");
-  if (isSensitivePath(a.relPath) || isSensitivePath(rel))
-    throw new Error("repo artifact path is a sensitive file");
-  const st = statSync(real); // a missing target throws here
-  if (!st.isFile()) throw new Error("repo artifact path is not a file");
-  if (st.size > REPORT_REPO_DOC_MAX_BYTES)
-    throw new Error(`repo artifact file is over ${REPORT_REPO_DOC_MAX_BYTES} bytes`);
+  const { real, rel, st } = checkRepoFile(a.location, a.relPath, a.home);
   const { stem, ext } = splitName(
     redactText(a.title ?? "").trim() || rel.split("/").pop(),
     a.kind,

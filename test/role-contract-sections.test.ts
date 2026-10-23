@@ -43,7 +43,7 @@ const CEILING: Record<string, number> = {
   scout: 6600,
   researcher: 6900,
   "discord-manager": 4300,
-  lead: 3600,
+  lead: 3800,
 };
 
 test("every role has a ceiling and stays under it", () => {
@@ -114,8 +114,8 @@ test("owner decisions: no-shell writers complete without committing; shell roste
   }
   // The brief carries the approved plan: no per-item plan approval.
   expect(contract("developer")).toContain("Write no plan file of your own");
-  // Method-skill documents: writing roles file them in docs/, others return them.
-  expect(TEAM_SKILL_TEXT).toContain("a role that cannot write returns it as an artifact");
+  // Method-skill documents: writing roles file them in docs/ (or scratch) and list them in `files`; no worker saves artifacts.
+  expect(TEAM_SKILL_TEXT).toContain("You cannot save artifacts");
 });
 
 test("scout and researcher split: lookups vs web research", () => {

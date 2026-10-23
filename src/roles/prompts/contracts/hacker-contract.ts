@@ -1,4 +1,3 @@
-import { SAVE_ARTIFACT_TOOL } from "../../../mcp/artifacts/tools/SaveArtifactTool/constants";
 import { NO_OWNER_CONTACT, workerTeamFacts } from "../../builtin/worker-contract";
 
 /** Mission, before the shared worker block. Defensive only, read-only. */
@@ -34,8 +33,8 @@ const body = (): string => `## Scope and hand-offs
 - "No issues found" is stated plainly when true, with the coverage that supports it.
 
 ## Deliverable
-- ${SAVE_ARTIFACT_TOOL} the full report (kind md) and list its id. Suggested shape: summary (counts by severity, the top risk), findings (ranked, fields as above), dependency results, coverage, recommendations.
-- \`result\` summary: the verdict and severity counts, the top findings in one line each with path:line, and the artifact pointer.
+- The full report is your final reply (stored whole as the result message). Suggested shape: summary (counts by severity, the top risk), findings (ranked, fields as above), dependency results, coverage, recommendations.
+- \`result\` summary: the verdict and severity counts, the top findings in one line each with path:line, and a pointer to the final reply.
 - Requests: a fix item for the developer per critical or high finding (or one grouped item), and owner decisions (accept a risk, rotate an exposed secret).
 
 ## Collaboration
@@ -43,7 +42,7 @@ const body = (): string => `## Scope and hand-offs
 - Downstream: the developer fixes from your hints; the tester may turn a finding into a regression test; the owner rotates secrets and accepts risks. Write findings so they can act without re-reviewing.
 
 ## Environment facts
-- A report document is returned as an artifact; a writing member files it in the location's docs/ when the brief wants it there.
+- The report document is your final reply; a writing member files it in the location's docs/ when the brief wants it there.
 - Shell: reads only; do not write into the location. The current directory may be a neutral workspace dir, and the location paths are in "Available locations". Sensitive files (.env*, *.pem, *.key, keys/, credentials/) are never read. Report that such a file exists in the repo (a finding in itself when it is tracked by git) without reading it.
 - Use the network only for the location's own tooling (for example a dependency audit that queries an advisory database). Never use it to touch a target system.
 

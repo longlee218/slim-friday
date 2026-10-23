@@ -30,6 +30,12 @@ const STEPS: [table: string, sql: string][] = [
   ],
   ["effect_log", "DELETE FROM effect_log WHERE created_at < $cutoff"],
   [
+    "task_messages_fts",
+    `DELETE FROM task_messages_fts WHERE message_id IN
+       (SELECT id FROM task_messages WHERE goal_id IN (${OLD_GOALS}))`,
+  ],
+  ["task_messages", `DELETE FROM task_messages WHERE goal_id IN (${OLD_GOALS})`],
+  [
     "item_questions",
     `DELETE FROM item_questions WHERE item_id IN (SELECT id FROM owned_tasks WHERE parent_id IN (${OLD_GOALS}))`,
   ],
@@ -37,6 +43,14 @@ const STEPS: [table: string, sql: string][] = [
   ["owned_tasks", `DELETE FROM owned_tasks WHERE parent_id IN (${OLD_GOALS})`],
   ["owned_tasks", `DELETE FROM owned_tasks WHERE id IN (${OLD_GOALS})`],
 ];
+
+/** Ids of the goals `pruneOldHistory(db, cutoff)` is about to delete (the caller removes their files first). */
+export function oldGoalIds(db: Database, cutoff: number): string[] {
+  return db
+    .query<{ id: string }, { $cutoff: number }>(OLD_GOALS)
+    .all({ $cutoff: cutoff })
+    .map((r) => r.id);
+}
 
 /** Delete finished history older than `cutoff` (ms epoch) in one transaction; returns deleted rows per table. */
 export function pruneOldHistory(db: Database, cutoff: number): Record<string, number> {

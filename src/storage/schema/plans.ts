@@ -18,6 +18,10 @@ export const work_plans = sqliteTable(
     objective: text().notNull(),
     /** Plan body (items). */
     body: text().notNull(),
+    /** Spec text of the goal (markdown); copied to each revision unless replaced. */
+    spec_md: text().notNull().default(""),
+    /** Plan text of the goal (markdown); item sections are headings of it. */
+    plan_md: text().notNull().default(""),
     /** JSON acceptance criteria. */
     acceptance: text().notNull().default("[]"),
     /** JSON envelope (roles, locations, risk classes). */

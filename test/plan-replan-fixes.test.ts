@@ -90,6 +90,8 @@ test("H1: reject -> Orchestrate create_plan(goalId) -> valid -> Orchestrate appr
   const made = real.createPlan({
     objective: "again",
     goalId,
+    spec: "# Spec",
+    plan: "# Plan",
     items: [item("q1")],
     acceptanceCriteria: ["works"],
     envelope: ENVELOPE,
@@ -221,6 +223,8 @@ test("L1: a refusal after the click is posted as a notice without the internal m
     goalId: "g1",
     objective: "o",
     doc: {
+      spec: "# Spec",
+      plan: "# Plan",
       items: [
         { key: "a", subject: "task", role: "developer", brief: "do a", dependsOn: [], risk: "R1" },
       ],

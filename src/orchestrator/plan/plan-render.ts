@@ -30,7 +30,7 @@ export function renderPlan(
   const e = doc.envelope;
   const rows = doc.items.map((it, n) => {
     const live = view?.itemStatus ? `, ${view.itemStatus.get(it.key) ?? "not started"}` : "";
-    return `${n + 1}. ${it.key} "${it.subject}" [${it.role}${it.location ? ` @ ${it.location}` : ""}, risk ${it.risk}${live}]${it.dependsOn.length ? ` after ${it.dependsOn.join(", ")}` : ""}: ${it.brief}`;
+    return `${n + 1}. ${it.key} "${it.subject}" [${it.role}${it.location ? ` @ ${it.location}` : ""}, risk ${it.risk}${it.section ? `, section "${it.section}"` : ""}${live}]${it.dependsOn.length ? ` after ${it.dependsOn.join(", ")}` : ""}: ${it.brief}`;
   });
   const head = clip(p.objective.replace(/\s+/g, " "), HEAD_OBJECTIVE_CHARS);
   // A long objective is shown once in full (the stored view keeps its clipped title line as well).
@@ -43,6 +43,8 @@ export function renderPlan(
         ]
       : [long ? `Plan v${p.version}` : `Plan v${p.version}: ${head}`]),
     ...(long ? [`Objective: ${p.objective}`] : []),
+    ...(doc.spec ? ["## Spec", doc.spec] : []),
+    ...(doc.plan ? ["## Plan", doc.plan] : []),
     "Steps (run one after another):",
     ...rows,
     ...(doc.acceptanceCriteria.length

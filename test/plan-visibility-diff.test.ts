@@ -27,6 +27,8 @@ const ENVELOPE = {
 /** A plan doc with the given items and criteria (the envelope is fixed). */
 const docOf = (items: ReturnType<typeof item>[], criteria = ["works"]): PlanDoc =>
   ({
+    spec: "# Spec",
+    plan: "# Plan",
     items,
     acceptanceCriteria: criteria,
     envelope: {
@@ -104,6 +106,8 @@ test("a re-plan after a reject posts one line with ~1 and the plan app receives 
   rejectVersion(db, r.plan.id, 1, "no");
   const diffs: RevisionDiff[] = [];
   const out = createPlanFor(plannerCtxOf({ db }, w.goalId, { notify: (d) => diffs.push(d) }), {
+    spec: "# Spec",
+    plan: "# Plan",
     items: [item("a"), item("b", { brief: "do b differently" })],
     acceptanceCriteria: ["works"],
     envelope: ENVELOPE,
@@ -165,6 +169,8 @@ test("the first version of a plan posts no revision line (the approval question 
   if (!w.ok) throw new Error("no goal");
   const diffs: RevisionDiff[] = [];
   const out = createPlanFor(plannerCtxOf({ db }, w.goalId, { notify: (d) => diffs.push(d) }), {
+    spec: "# Spec",
+    plan: "# Plan",
     items: [item("a")],
     acceptanceCriteria: ["works"],
     envelope: ENVELOPE,

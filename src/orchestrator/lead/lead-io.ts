@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { basename, extname } from "node:path";
 import { attachmentName, headingTitle } from "../../ingress/attachment-name";
 import { logEvent, logger } from "../../observability/logger";
-import { errText } from "../../observability/redact";
+import { errText, redactText } from "../../observability/redact";
 import { artifactIdByPath } from "../../storage/artifact-path-store";
 import { linkQuestionMessage } from "../../storage/item-question-store";
 import { openLinks } from "../../viewer/signed-link";
@@ -85,13 +85,14 @@ export function createLeadIo(
         return { answer: answer.replied, timedOut: false };
       }
       // An answer to a worker's question reaches the waiting worker too; nobody waiting (stopped, ended) is no success.
-      if (q.workerAskId && !relay.answer(q.taskId ?? q.workerAskId, answer))
+      if (q.workerAskId && !relay.answer(q.taskId ?? q.workerAskId, answer, "owner"))
         return { timedOut: true };
       return { answer, timedOut: false };
     },
     post: async (p) => {
       try {
-        const text = p.filePath ? readFileSync(p.filePath, "utf8") : (p.text ?? "");
+        // Redacted at post time too: a location file is posted from the repo as it is now, not from a redacted snapshot.
+        const text = redactText(p.filePath ? readFileSync(p.filePath, "utf8") : (p.text ?? ""));
         // A result file is posted as a file (the lead summarizes it in its own words), never as inline text. A markdown
         // file is named from its `# <title>` heading made filesystem-safe; any other kind (html, code, ...) keeps its real
         // file name, so an html artifact is never posted as `reply.md`.
@@ -104,7 +105,10 @@ export function createLeadIo(
                   ? attachmentName(headingTitle(text), "md")
                   : basename(p.filePath),
               // The artifact of that file opens in the viewer (no links when the viewer is off or the file is no artifact).
-              links: openLinks(deps.config.viewer, artifactIdByPath(deps.db, p.filePath)),
+              links: openLinks(
+                deps.config.viewer,
+                p.artifactId ?? artifactIdByPath(deps.db, p.filePath),
+              ),
             }),
           });
       } catch (err) {

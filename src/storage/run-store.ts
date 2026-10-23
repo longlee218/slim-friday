@@ -38,6 +38,14 @@ export function turnSessionId(db: Database, id: string): string | undefined {
   );
 }
 
+/** Epoch ms a turn started, or undefined when the row is missing. */
+export function turnStartedAt(db: Database, id: string): number | undefined {
+  return (
+    db.query<{ started_at: number }, [string]>("SELECT started_at FROM turns WHERE id = ?").get(id)
+      ?.started_at ?? undefined
+  );
+}
+
 /** Status of a turn row, or "" when the row is missing. */
 export function turnStatusOf(db: Database, id: string): string {
   return (

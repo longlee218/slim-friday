@@ -6,6 +6,7 @@ import { MEMORY_GET_TOOL } from "../../mcp/memory/tools/MemoryGetTool/constants"
 import { MEMORY_SAVE_TOOL } from "../../mcp/memory/tools/MemorySaveTool/constants";
 import { MEMORY_SEARCH_TOOL } from "../../mcp/memory/tools/MemorySearchTool/constants";
 import { ORCHESTRATE_TOOL } from "../../mcp/orchestration/tools/OrchestrateTool/constants";
+import { TASK_BOARD_TOOL } from "../../mcp/orchestration/tools/TaskBoardTool/constants";
 import { leadContract } from "../prompts/contracts/lead-contract";
 import type { RoleDefinition } from "../role-types";
 
@@ -40,6 +41,7 @@ export const LEAD_ROLE: RoleDefinition = {
     MEMORY_EXPAND_TOOL,
     ...ARTIFACT_TOOLS,
     ORCHESTRATE_TOOL,
+    TASK_BOARD_TOOL,
   ],
   limits: { maxAsk: MAX_ASK, maxTurns: MAX_TURNS },
   subagents: { parallel: 3, depth: 1 },

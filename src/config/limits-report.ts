@@ -9,6 +9,7 @@ const LIMIT_MODULES = [
   "./run-caps",
   "./resilience-caps",
   "./memory-caps",
+  "./message-caps",
   "./viewer-config",
   "./model-routing",
   "../orchestrator/lead/lead-limits",

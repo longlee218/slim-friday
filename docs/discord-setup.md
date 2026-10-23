@@ -213,6 +213,16 @@ Phase 5 (not verified live). Needs a thread with a PLAN goal; link steps need th
 9. A long plan (more than one Discord message of text): `/plan` is one message; item lines are cut first, the count and the link stay. Expect that cut, not a second message. `/plan history` lists every version.
 10. Ask the lead "show me the plan". Expect: the reply names `/plan` (and `/plan history`) and contains no URL.
 
+## Team messages (owner live checklist)
+Not verified live. Needs a PLAN goal with a developer item and a researcher or designer item.
+1. A PLAN goal: the approval message (and `/plan`) shows the Spec and the Plan text and the items; the lead saved no spec or plan artifact.
+2. The first developer item commits the spec and plan to `docs/superpowers/specs|plans/` of the location, from the `TaskBoard get` `doc` text.
+3. A worker that relies on an earlier step or an answer cites its message id ("per M42"); `TaskBoard read` of that id shows the text.
+4. A researcher result: the lead forwards it with `forward verbatim`; the owner gets an md artifact of the whole final reply (no cut).
+5. A designer item with no location writes an html file in its scratch dir and lists it in `files`; `forward verbatim` posts it as a second artifact.
+6. `TaskBoard` in a worker run on a task id of another thread is refused; no worker run has `SaveArtifact`.
+7. Restart mid-run: an open goal after the deploy step above works; retention (`DB_RETENTION_DAYS`) removes old `task_messages` and `<AGENT_HOME>/task-files/<goalId>`.
+
 ## Lead team hardening (owner live checklist)
 Phases 1-6a of [plans/261018-1145-lead-team-orchestration-hardening](../plans/261018-1145-lead-team-orchestration-hardening/plan.md) (committed, not verified live). Diagrams: [lead-team-flow.md](lead-team-flow.md). Run in a test guild on a test space. Limits named here: [limits](limits-and-stop-conditions.md). Only use local branches to lower a limit, never commit it. Record pass or fail in the changelog entry.
 
@@ -433,7 +443,7 @@ Run once after the limits work is merged (plan `plans/261017-1805-limits-and-sto
 6. **Goal cap.** A plan with 2 developer items.
    Pass: the second item's run budget is at most what the goal has left (log field `budget`).
 7. **Big plan.** Ask for a plan of 15-20 items.
-   Pass: the lead writes the spec and plan artifacts, `create_plan` stores it, the approval message renders (message or file) and you can approve it.
+   Pass: the lead writes the `spec` and `plan` inside `create_plan` (no spec or plan artifact), `create_plan` stores it, the approval message renders (message or file) and you can approve it.
 8. **Question relay.** Leave a worker question unanswered for more than 30 min.
    Pass: it still waits (up to the relay wait); answering through the lead resumes the worker.
 9. **Subagents.** A developer run spawns up to 3 in parallel (the 4th is denied, log). `discord-manager`, lead, scout and the specialists have no `Agent` tool. Allowlist check: ask the developer to have a subagent read a file (allowed), run a Bash command (allowed, sandboxed: a write outside the grant fails), call `Report result`, `GitPush` and a memory tool (each denied: `tool.denied` log with `agentId`); the parent's own `Report result` still works.
@@ -515,6 +525,9 @@ Text forms (`stop`, `go`, `init:workspace:`, `remember:`, `compact memory`, ...)
 
 ### Attachments
 A message over 2000 chars arrives as `message.txt`. The bot reads text attachments (`.txt`, `.md`, `text/*`; at most 2 files, 64 KB total) as data. A short file is passed whole. A longer one is summarized; the full redacted text is saved under `$AGENT_HOME/tmp/attachments/<thread id>/` for the lead. Other types, oversize files and failed downloads get a one-line notice.
+
+### Deploy: finish or cancel open goals first
+The team-messages build (migrations `0017`-`0019`) copies no data: `task_messages` starts empty and `0019` drops `owned_tasks.result_text` / `result_path`, so an open goal's earlier results and a plan version's spec and plan text are not carried over. Before starting the new build, finish or cancel every open goal: `/status` in each thread, then `Orchestrate cancel` through the lead or `/stop`. Then start the bot; the migrations run at start.
 
 ### Deploy: drain
 Set `FRIDAY_DRAIN=1` or `touch $AGENT_HOME/DRAIN` before a deploy. New tasks get "deploying, retry in a minute"; running tasks finish. Restart, then remove the flag. Tasks still running at restart are cut short; the owner is told, and a new request starts them again.

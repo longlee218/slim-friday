@@ -11,8 +11,8 @@ export const ARTIFACT_SEARCH_DEFAULT_LIMIT = 8;
 export const ARTIFACT_SEARCH_MAX_LIMIT = 20;
 /** Most rows one `ListArtifacts` call returns (newest first). */
 export const ARTIFACT_LIST_MAX = 50;
-/** Most artifacts one `Report` result may reference. */
-export const REPORT_ARTIFACTS_MAX = 10;
+/** Most files one `Report` result may name (`files`). */
+export const REPORT_FILES_MAX = 10;
 /** Largest repo file (bytes) a repo artifact may reference or read: a bigger file is refused at register and read as metadata only. */
 export const REPORT_REPO_DOC_MAX_BYTES = 2_000_000;
 

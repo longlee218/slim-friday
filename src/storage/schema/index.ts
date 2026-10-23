@@ -4,6 +4,7 @@ export * from "./artifacts";
 export * from "./effects";
 export * from "./events";
 export * from "./memory";
+export * from "./messages";
 export * from "./metrics";
 export * from "./plans";
 export * from "./sessions";

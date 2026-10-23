@@ -38,7 +38,7 @@ Single source of every limit and stop condition of the app. Other docs link here
 | `DUPLICATE_WINDOW_MS` | t | 24 h <!-- limit:DUPLICATE_WINDOW_MS=86400000 --> | `config/lead-caps.ts` | a completed item that completed longer ago than this is no longer compared (open items always are). The check reads only the thread's 500 newest goal and item rows (`CANDIDATES_MAX` in `storage/item-edit-store.ts`; `search` too), so very old work in a very long thread is not compared | code |
 | `PRIORITY_AGING_MS` | t | 30 min <!-- limit:PRIORITY_AGING_MS=1800000 --> | `config/lead-caps.ts` | a `ready` item that waited longer than this is started as if urgent (FIFO among urgent ones), so newer urgent items cannot starve a normal one; a running item is never preempted | code |
 | `DUPLICATE_MAX_MATCHES` | t | 3 <!-- limit:DUPLICATE_MAX_MATCHES=3 --> | `config/lead-caps.ts` | a `DUPLICATE_SUSPECT` refusal lists the best 3 matches | code |
-| `LEAD_OWNER_RUN_MAX_TURNS` | run | 60 <!-- limit:LEAD_OWNER_RUN_MAX_TURNS=60 --> | `config/lead-caps.ts` | turns of a lead run started by an owner message (it may brainstorm, save the spec and plan artifacts, `create_plan`, `approve_plan`); an announce run keeps the role's own `maxTurns` (30) | code |
+| `LEAD_OWNER_RUN_MAX_TURNS` | run | 60 <!-- limit:LEAD_OWNER_RUN_MAX_TURNS=60 --> | `config/lead-caps.ts` | turns of a lead run started by an owner message (it may brainstorm, write the spec and plan inside `create_plan`, `approve_plan`); an announce run keeps the role's own `maxTurns` (30) | code |
 | `LEAD_OWNER_RUN_BUDGET_USD` | run | $5 <!-- limit:LEAD_OWNER_RUN_BUDGET_USD=5 --> | `config/lead-caps.ts` | budget of a lead run started by an owner message; an announce run keeps the role's own `budgetUsd` ($1.5) | code |
 | `DISPATCHES_PER_RUN` | run | 1 <!-- limit:DISPATCHES_PER_RUN=1 --> | `config/lead-caps.ts` | second `Orchestrate dispatch` of a lead run refused | code |
 | `MAX_ASSIGNMENTS` | run | 20 <!-- limit:MAX_ASSIGNMENTS=20 --> | `orchestrator/lead/lead-limits.ts` | schema rejects; more than the policy allows so the policy can answer NEEDS_PLAN | code |
@@ -143,6 +143,8 @@ Subagents enabled per role (1 = on, 0 = off; drift-checked, guards "developer an
 | `PLAN_MAX_REVISIONS` | goal | 5 <!-- limit:PLAN_MAX_REVISIONS=5 --> | `config/lead-caps.ts` | no further revision after version 1 | code |
 | `PENDING_PLAN_MAX_AGE_MS` | goal | 24 h <!-- limit:PENDING_PLAN_MAX_AGE_MS=86400000 --> | `config/lead-caps.ts` | a `valid` plan no longer holds its goal open; the sweeper then rejects it (`timeout` event, code `PLAN_EXPIRED`) once `ASK_OWNER_TIMEOUT_MS` more passed (an owner question asked just before the limit can still be answered), and the goal settles (or closes when it never had a plan). Drafts are never kept, so only `valid` versions expire | code |
 | `BRIEF_MAX_CHARS` | item | 4000 chars <!-- limit:BRIEF_MAX_CHARS=4000 --> | `orchestrator/lead/lead-limits.ts` | schema rejects | code |
+| `PLAN_DOC_MAX_CHARS` | `spec` and `plan` text of `create_plan` / `revise_plan` (each) | 60000 chars <!-- limit:PLAN_DOC_MAX_CHARS=60000 --> | `orchestrator/lead/lead-limits.ts` | schema rejects | code |
+| `PLAN_SECTION_MAX_CHARS` | item `section` (a heading of the plan text) | 200 chars <!-- limit:PLAN_SECTION_MAX_CHARS=200 --> | `orchestrator/lead/lead-limits.ts` | schema rejects | code |
 | `SUBJECT_MAX_CHARS` | item | 80 chars <!-- limit:SUBJECT_MAX_CHARS=80 --> | `config/lead-caps.ts` | schema rejects (`subject` is required on every new item: dispatch assignment, `add`, plan item; `brief` stays the description) | code |
 
 - No plan body byte cap: the body is bounded by items x brief. Long approval text goes to the owner as an attachment.
@@ -244,13 +246,29 @@ All in `src/orchestrator/lead/lead-limits.ts` (zod shapes and the relay enforce 
 | `REQUEST_MAX_CHARS` | `Report result` | <!-- limit:REQUEST_MAX_CHARS=500 -->500 chars | schema rejects |
 | `PROGRESS_NOTE_MAX_CHARS` | `Report progress` | <!-- limit:PROGRESS_NOTE_MAX_CHARS=200 -->200 chars | schema rejects |
 | `BLOCKER_REASON_MAX_CHARS` | `Report blocker` | <!-- limit:BLOCKER_REASON_MAX_CHARS=1000 -->1000 chars | schema rejects |
-| `SEARCH_QUERY_MAX_CHARS` | `Orchestrate search`, `Plan search` | <!-- limit:SEARCH_QUERY_MAX_CHARS=200 -->200 chars | schema rejects |
-| `SEARCH_MAX_RESULTS` | `Orchestrate search`, `Plan search` | <!-- limit:SEARCH_MAX_RESULTS=10 -->10 matches (best first) | the rest is not returned |
-| `GET_RESULT_MAX_CHARS` | `Orchestrate get`, `Plan get` | <!-- limit:GET_RESULT_MAX_CHARS=8000 -->8000 chars of the item's primary result file (redacted; `resultClipped: true` when cut) | cut |
-| `GET_EVENTS_MAX` | `Orchestrate get`, `Plan get` | <!-- limit:GET_EVENTS_MAX=5 -->5 newest events of the item | older ones not listed |
+| `SEARCH_QUERY_MAX_CHARS` | `TaskBoard search` | <!-- limit:SEARCH_QUERY_MAX_CHARS=200 -->200 chars | schema rejects |
+| `SEARCH_MAX_RESULTS` | `TaskBoard search` (task matches) | <!-- limit:SEARCH_MAX_RESULTS=10 -->10 matches (best first) | the rest is not returned |
+| `GET_RESULT_MAX_CHARS` | `TaskBoard get` | <!-- limit:GET_RESULT_MAX_CHARS=8000 -->8000 chars of the item's newest `result` message (redacted; `resultClipped: true` when cut; the whole text is `TaskBoard read`) | cut |
+| `GET_EVENTS_MAX` | `TaskBoard get` | <!-- limit:GET_EVENTS_MAX=5 -->5 newest events of the item | older ones not listed |
 
 | `MEMORY_READ_MAX_CALLS_PER_RUN` | memory read tools | 100 per run (`mcp/memory/memory-read-shared.ts`, not drift-checked) | read refused |
 | `MAX_PATHS` | `DeletePaths` | 500 paths (`DeletePathsTool/constants.ts`, not drift-checked) | schema rejects |
+
+Task messages (`src/config/message-caps.ts`):
+
+| Name | Scope | Value | At the limit |
+|---|---|---|---|
+| `TASK_BOARD_PAGE_CHARS` | `TaskBoard messages`, `TaskBoard read` | <!-- limit:TASK_BOARD_PAGE_CHARS=8000 -->8000 chars per page | `nextSince` / `nextOffset` for the next page |
+| `TASK_BOARD_PREVIEW_CHARS` | `TaskBoard get` message headers | <!-- limit:TASK_BOARD_PREVIEW_CHARS=200 -->200 chars | cut |
+| `TASK_BOARD_HEADERS_MAX` | `TaskBoard get` | <!-- limit:TASK_BOARD_HEADERS_MAX=20 -->20 headers | older ones through `messages` |
+| `TASK_BOARD_LIST_MAX_ITEMS` | `TaskBoard list` | <!-- limit:TASK_BOARD_LIST_MAX_ITEMS=50 -->50 items | `truncated: true` |
+| `TASK_BOARD_LIST_MAX_GOALS` | `TaskBoard list` | <!-- limit:TASK_BOARD_LIST_MAX_GOALS=10 -->10 goals (newest first) | older not listed |
+| `TASK_BOARD_SEARCH_HITS` | `TaskBoard search` | <!-- limit:TASK_BOARD_SEARCH_HITS=10 -->10 task matches and 10 message hits | the rest is not returned |
+| `TASK_BOARD_SNIPPET_CHARS` | `TaskBoard search` | <!-- limit:TASK_BOARD_SNIPPET_CHARS=240 -->240 chars per hit | cut |
+| `TASK_THREAD_PUSH_CHARS` | a run's start prompt | <!-- limit:TASK_THREAD_PUSH_CHARS=12000 -->12000 chars of the run's own task thread (brief whole, then newest first; `progress` never) | older messages dropped with one pointer line |
+| `MESSAGE_PUSH_CHARS` | a run's start prompt | <!-- limit:MESSAGE_PUSH_CHARS=2000 -->2000 chars per pushed message | cut with `TaskBoard read` pointer |
+| `PLAN_SECTION_PUSH_CHARS` | an item's brief message | <!-- limit:PLAN_SECTION_PUSH_CHARS=6000 -->6000 chars of the plan section its `section` names (the rest through `TaskBoard get` `doc`) | cut |
+| `DEPENDENCY_RESULT_PUSH_CHARS` | a run's earlier steps | <!-- limit:DEPENDENCY_RESULT_PUSH_CHARS=4000 -->4000 chars of each dependency's result | cut with `TaskBoard read` pointer |
 
 - `BRIEF_MAX_CHARS` is in [Plans](#plans), `MAX_ASSIGNMENTS` in [Lead](#lead).
 - Other tool limits (informational, in each tool's `constants.ts`): `Orchestrate set_title` 2 calls per run, title 60 chars; `MemorySave` 20 calls per run, note 2000 chars; `MemoryEdit` 20 calls per run (`MEMORY_EDIT_MAX_CALLS_PER_RUN`), replacement text 2000 chars (`SAVE_MAX_CHARS`, `memory/memory-limits.ts`: a format guard, not a file size cap); effect tools: `DeletePaths` path 1000 / reason 300, `CreatePullRequest` title 200 / body 8000; `WriteSpaceFile` content 6000 (persona files; `MEMORY.md` has no cap), diff 16000, 10 backups; `DEFAULT_BOUNDS` of the envelope 200 items and 50 GB (`policy/risk-types.ts`).
@@ -263,20 +281,20 @@ All in `src/orchestrator/lead/lead-limits.ts` (zod shapes and the relay enforce 
 
 ## Artifacts
 
-Files: `artifacts/artifact-limits.ts`. An artifact body has no size cap (the owner decided; `SaveArtifact` takes any length); only its search index rows and the result of one read, search or list call are sized.
+Files: `artifacts/artifact-limits.ts`. An artifact body has no size cap (the owner decided; `SaveArtifact`, lead only, takes any length); only its search index rows and the result of one read, search or list call are sized.
 
 | Name | Value | At the limit |
 |---|---|---|
-| `RESULT_TEXT_CHARS` | 20000 chars (`orchestrator/worker/result-file.ts`, informational) | the report a run kept as text on its task row (it saved no file) is cut; `Orchestrate forward verbatim` posts it |
 | `ARTIFACT_CHUNK_CHARS` | <!-- limit:ARTIFACT_CHUNK_CHARS=2000 -->2000 chars per FTS row | the body is split at paragraph borders, a longer paragraph in fixed windows; one hit per artifact |
 | `ARTIFACT_READ_PAGE_CHARS` | <!-- limit:ARTIFACT_READ_PAGE_CHARS=8000 -->8000 chars per `ReadArtifact` page | bounds one tool result, not the artifact: the result names the next `offset` until the end |
 | `ARTIFACT_SEARCH_DEFAULT_LIMIT` | <!-- limit:ARTIFACT_SEARCH_DEFAULT_LIMIT=8 -->8 hits | `SearchArtifacts` without a `limit` |
 | `ARTIFACT_SEARCH_MAX_LIMIT` | <!-- limit:ARTIFACT_SEARCH_MAX_LIMIT=20 -->20 hits | a larger `limit` is cut |
 | `ARTIFACT_LIST_MAX` | <!-- limit:ARTIFACT_LIST_MAX=50 -->50 rows | `ListArtifacts` returns the newest 50; narrow with `goalId`, `threadId` |
-| `REPORT_ARTIFACTS_MAX` | <!-- limit:REPORT_ARTIFACTS_MAX=10 -->10 refs | the `Report result` `artifacts` list is refused (schema) |
+| `REPORT_FILES_MAX` | <!-- limit:REPORT_FILES_MAX=10 -->10 files | the `Report result` `files` list is refused (schema) |
 | `REPORT_IMAGES_MAX` | <!-- limit:REPORT_IMAGES_MAX=4 -->4 screenshots | the `Report result` `images` list is refused (schema) |
 | `REPORT_IMAGE_MAX_BYTES` | <!-- limit:REPORT_IMAGE_MAX_BYTES=8000000 -->8000000 bytes | one screenshot over it is refused (`INVALID_IMAGES`, the report is not stored); Discord's own limit is about 10 MB |
-| `REPORT_REPO_DOC_MAX_BYTES` | <!-- limit:REPORT_REPO_DOC_MAX_BYTES=2000000 -->2000000 bytes | a repo file over it is refused when reported, and read as metadata only (`SaveArtifact` stays uncapped) |
+| `REPORT_REPO_DOC_MAX_BYTES` | <!-- limit:REPORT_REPO_DOC_MAX_BYTES=2000000 -->2000000 bytes | a file of the granted location over it is refused when reported or forwarded, and read as metadata only (`SaveArtifact` stays uncapped) |
+| `REPORT_FILE_MAX_BYTES` | <!-- limit:REPORT_FILE_MAX_BYTES=5000000 -->5000000 bytes (`src/config/message-caps.ts`) | a scratch file over it is refused when reported (`INVALID_FILES`, the report is not stored); an accepted one is copied to `<AGENT_HOME>/task-files/<goalId>/<taskId>/` and removed with the goal's messages by the db retention sweep |
 | Search query / terms | 200 chars / 12 terms (shared with memory search, `memory/index/memory-search.ts`, not drift-checked) | query clipped, extra terms dropped |
 
 ## Viewer
@@ -326,7 +344,7 @@ Informational.
 | Promotion ledger (`memory_promotions`) | `JOURNAL_RETENTION_DAYS` + 1 = 31 days since the bullet was consumed; pruned with the episodes | `memory/memory-prune.ts` |
 | Episodes (`thread_summaries`) | `EPISODE_TTL_DAYS` = 90 days since the last update; pruned at start and every `PRUNE_INTERVAL_MS` | `memory/memory-prune.ts` |
 | Memory audit (`memory_audit`: one row per `MemorySave` / `MemoryEdit`, hash only) | forever (owner: no limit, no prune) | `storage/memory-audit-store.ts` |
-| Finished db history: ended turns with their runs, tool calls and approvals (a turn of a still-open item is kept); delivered `thread_events`; `effect_log`; closed goals with no open item, with their items, plans and item questions | `DB_RETENTION_DAYS` = 10 days <!-- limit:DB_RETENTION_DAYS=10 -->; swept at start and every 6 h | `config/resilience-caps.ts`, `storage/db-retention-store.ts`, `lifecycle/db-retention-sweeper.ts` |
+| Finished db history: ended turns with their runs, tool calls and approvals (a turn of a still-open item is kept); delivered `thread_events`; `effect_log`; closed goals with no open item, with their items, plans, item questions and `task_messages` (with `task_messages_fts` rows and the goal's `<AGENT_HOME>/task-files/<goalId>` copies) | `DB_RETENTION_DAYS` = 10 days <!-- limit:DB_RETENTION_DAYS=10 -->; swept at start and every 6 h | `config/resilience-caps.ts`, `storage/db-retention-store.ts`, `lifecycle/db-retention-sweeper.ts` |
 | AGENT_HOME files (2026-10-23): per-task logs `logs/tasks/*.jsonl`; app logs `logs/app.*.jsonl`; run dirs `runs/<turnId>/` (and the old `workspaces/<ws>/tasks/<id>/`) | task logs: `DB_RETENTION_DAYS` = 10 days by last write; app logs: `APP_LOG_RETENTION_DAYS` = 14 days <!-- limit:APP_LOG_RETENTION_DAYS=14 -->, an empty rolled file after 1 day; run dirs: `RUN_DIR_RETENTION_DAYS` = 3 days <!-- limit:RUN_DIR_RETENTION_DAYS=3 --> since the last write in the dir; empty `worktrees/` dirs and the planner-era `goals/` are removed; swept at start and every 6 h | `config/resilience-caps.ts`, `lifecycle/home-retention-sweeper.ts` |
 | Other database rows (threads, sessions, artifacts) | forever | see Not now |
 

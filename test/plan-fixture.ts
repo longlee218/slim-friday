@@ -2,6 +2,7 @@ import type { Database } from "bun:sqlite";
 import { expect } from "bun:test";
 import { PLAN_MAX_ITEMS } from "../src/config/lead-caps";
 import { PLAN_GOAL_BUDGET_MAX_USD } from "../src/config/model-routing";
+import { postItemMessage } from "../src/orchestrator/messages/task-messages";
 import { approveVersion, createPlan } from "../src/orchestrator/plan/plan-lifecycle";
 import { openDb } from "../src/storage/db";
 import { childrenOf, setResultKind, setTaskResult } from "../src/storage/owned-item-store";
@@ -116,7 +117,8 @@ export const failVerify = (db: Database, g: string, k: string, excerpt = "npm te
   moveTaskTo(db, id, "running");
   moveTaskTo(db, id, "blocked");
   setResultKind(db, id, "FAILED");
-  setTaskResult(db, id, { path: "/r.md", excerpt });
+  setTaskResult(db, id, { excerpt });
+  postItemMessage(db, id, "tester", "result", `# Verify\n\n${excerpt}`); // a run that reported leaves a result message
   return id;
 };
 /** Book `costUsd` as the cost of one run of the item (the goal's spend). */

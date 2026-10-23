@@ -21,13 +21,15 @@ test("owner big ask -> Orchestrate create_plan -> one approval -> items run in o
   const h = leadHarness(
     async (c) => {
       if (c.kind === "worker") {
-        order.push(/^do (\w+)/m.exec(c.prompt)?.[1] ?? "verify"); // the code-appended verify has no `do <key>` brief
+        order.push(/\[brief\] lead: do (\w+)/.exec(c.prompt)?.[1] ?? "verify"); // the code-appended verify has no `do <key>` brief
         await c.report("result", { title: "T", status: "COMPLETED", summary: "done" });
         return "worker done";
       }
       if (c.prompt.includes("<owner_message>\nbuild a todo app")) {
         const made = await c.orchestrate("create_plan", {
           objective: "build a todo app",
+          spec: "# Spec\nA todo app.",
+          plan: "# Plan\nmodel, api, ui",
           items: [item("model"), item("api", ["model"]), item("ui", ["api"])],
           acceptanceCriteria: ["the app runs"],
           envelope: {
@@ -89,6 +91,8 @@ test("owner rejects the plan -> no item runs, the goal stays open for a re-plan,
       if (c.prompt.includes("<owner_message>\nbuild")) {
         const made = await c.orchestrate("create_plan", {
           objective: "build it",
+          spec: "# Spec\nIt.",
+          plan: "# Plan\nonly",
           items: [item("only")],
           acceptanceCriteria: [],
           envelope: {

@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite";
 
-/** Tokenizer of the `memory_fts` and `artifacts_fts` indexes (folds diacritics). The migrations `0001_memory_fts.sql` and `0003_artifacts_fts.sql` hold the same text literally. */
+/** Tokenizer of the `memory_fts`, `artifacts_fts` and `task_messages_fts` indexes (folds diacritics). The migrations `0001_memory_fts.sql`, `0003_artifacts_fts.sql` and `0018_task_messages_fts.sql` hold the same text literally. */
 export const FTS_TOKENIZER = "unicode61 remove_diacritics 2";
 
 /** Temp table used only by the startup probe. */

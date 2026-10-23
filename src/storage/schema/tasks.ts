@@ -39,12 +39,8 @@ export const owned_tasks = sqliteTable(
     brief: text(),
     /** Kind of the typed result. */
     result_kind: text(),
-    /** Path of the result file. */
-    result_path: text(),
-    /** Short excerpt of the result. */
+    /** Short excerpt of the result (the full text is the task's newest `result` message). */
     result_excerpt: text(),
-    /** The redacted report of the last run when it saved no file (the result is not an artifact); `Orchestrate forward` posts it. */
-    result_text: text(),
     /** Who may change the goal's items: `lead` (DIRECT / DELEGATE) or `plan` (PLAN). Goal rows only; null on items. */
     structure_owner: text(),
     /** Item urgency: 0 normal, 10 high, 100 urgent. The scheduler starts ready items by priority, then age; nothing is preempted. */

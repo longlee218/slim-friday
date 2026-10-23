@@ -1,7 +1,5 @@
 import {
   ORCHESTRATE_ACTION_ADD,
-  ORCHESTRATE_ACTION_GET,
-  ORCHESTRATE_ACTION_SEARCH,
   ORCHESTRATE_ACTION_UPDATE,
 } from "../../mcp/orchestration/tools/OrchestrateTool/action-names";
 import { excerpt } from "../../observability/logger";
@@ -11,9 +9,9 @@ import { type Reply, refuse } from "../reply";
 import { checkAdd, checkUpdate, type GoalView } from "../strategy/add-policy";
 import { type LeadToolContext, leadCall } from "./lead-call";
 import { badTask } from "./lead-handlers";
-import type { AddItemInput, GetTaskInput, SearchTasksInput, UpdateItemInput } from "./task-schemas";
+import type { AddItemInput, UpdateItemInput } from "./task-schemas";
 
-/* The lead's task-tool handlers: add a task to its open goal, change one that has not started, read one, search.
+/* The lead's task-tool handlers: add a task to its open goal, change one that has not started.
    Pure over the `EffectPort`: they check the structure owner, the caps and the registries, then act through the port. */
 
 const GOAL_NOT_OPEN = "GOAL_NOT_OPEN";
@@ -124,15 +122,3 @@ export const handleUpdate = (ctx: LeadToolContext, input: UpdateItemInput): Prom
     },
     { fresh: true },
   ); // an update can be undone by the next one: never replay a stored result inside one run
-
-/** Orchestrate get: one task or goal of this thread in full. A pure read. */
-export const handleGet = (ctx: LeadToolContext, input: GetTaskInput): Promise<Reply> =>
-  leadCall(ctx, ORCHESTRATE_ACTION_GET, input, () => ({ reply: ctx.port.detail(input.taskId) }), {
-    read: true,
-  });
-
-/** Orchestrate search: this thread's goals and tasks by words. A pure read. */
-export const handleSearch = (ctx: LeadToolContext, input: SearchTasksInput): Promise<Reply> =>
-  leadCall(ctx, ORCHESTRATE_ACTION_SEARCH, input, () => ({ reply: ctx.port.search(input.query) }), {
-    read: true,
-  });

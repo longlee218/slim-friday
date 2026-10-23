@@ -1,18 +1,13 @@
 import type { Database } from "bun:sqlite";
 import { afterEach, expect, test } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { rmSync } from "node:fs";
 import { CHAIN_CAP, DELEGATE_MAX } from "../src/config/lead-caps";
 import { createDbEffectPort } from "../src/orchestrator/goal/effect-port-db";
 import { handleDispatch } from "../src/orchestrator/lead/lead-handlers";
 import { handleCreatePlan } from "../src/orchestrator/lead/lead-plan-handlers";
-import {
-  handleAdd,
-  handleGet,
-  handleSearch,
-  handleUpdate,
-} from "../src/orchestrator/lead/lead-task-handlers";
+import { handleAdd, handleUpdate } from "../src/orchestrator/lead/lead-task-handlers";
+import { boardGet, boardSearch } from "../src/orchestrator/messages/task-board-reads";
+import { postItemMessage } from "../src/orchestrator/messages/task-messages";
 import { openDb } from "../src/storage/db";
 import { getItem, setTaskResult } from "../src/storage/owned-item-store";
 import { insertOwnedTask } from "../src/storage/owned-task-store";
@@ -20,7 +15,7 @@ import { appendEvent } from "../src/storage/thread-event-store";
 import { moveTaskTo } from "../src/tasks/task-resolver";
 import { item, spend, TH } from "./plan-fixture";
 
-/* Phase 4 step 2A: the lead's add / update / get / search, the duplicate check (rule 3) on dispatch, add and Plan create. */
+/* Phase 4 step 2A: the lead's add / update, the board get / search, the duplicate check (rule 3) on dispatch, add and Plan create. */
 
 let db: Database;
 const dirs: string[] = [];
@@ -291,13 +286,10 @@ test("update: refused on a plan-owned goal (NOT_STRUCTURE_OWNER)", async () => {
 });
 
 test("get: an item in full (fields, full result text, last events), a goal with its items; another thread is BAD_TASK", async () => {
-  const { ctx, goalId, mainId } = await leadGoal();
-  const dir = mkdtempSync(join(tmpdir(), "get-"));
-  dirs.push(dir);
-  const file = join(dir, "main.md");
+  const { goalId, mainId } = await leadGoal();
   const long = `# Result\n${"line of the result ".repeat(100)}`; // well above the 600-char excerpt
-  writeFileSync(file, long);
-  setTaskResult(db, mainId, { path: file, excerpt: "short excerpt", kind: "COMPLETED" });
+  setTaskResult(db, mainId, { excerpt: "short excerpt", kind: "COMPLETED" });
+  const msgId = postItemMessage(db, mainId, "developer", "result", long) as number; // the full text is the result message
   moveTaskTo(db, mainId, "running");
   appendEvent(db, {
     id: "e1",
@@ -307,7 +299,7 @@ test("get: an item in full (fields, full result text, last events), a goal with 
     itemId: mainId,
     payload: { x: 1 },
   });
-  const got = (await handleGet(ctx(), { taskId: mainId })) as Record<string, any>;
+  const got = boardGet(db, TH, mainId) as Record<string, any>;
   expect(got).toMatchObject({
     ok: true,
     kind: "item",
@@ -318,12 +310,13 @@ test("get: an item in full (fields, full result text, last events), a goal with 
   });
   expect(got.result).toContain("line of the result");
   expect(got.result.length).toBeGreaterThan(600);
+  expect(got.resultMessage).toBe(`M${msgId}`);
   expect(got.events.map((e: { kind: string }) => e.kind)).toContain("result");
-  const goal = (await handleGet(ctx(), { taskId: goalId })) as Record<string, any>;
+  const goal = boardGet(db, TH, goalId) as Record<string, any>;
   expect(goal).toMatchObject({ ok: true, kind: "goal", structureOwner: "lead" });
   expect(goal.items[0]).toMatchObject({ key: "main", subject: "main" });
-  const other = setup("th-other");
-  expect(await handleGet(other.ctx(), { taskId: mainId })).toMatchObject({ code: "BAD_TASK" });
+  setup("th-other");
+  expect(boardGet(db, "th-other", mainId)).toMatchObject({ code: "BAD_TASK" });
 });
 
 test("search: finds this thread's tasks by words, best first; another thread's tasks stay out", async () => {
@@ -333,20 +326,18 @@ test("search: finds this thread's tasks by words, best first; another thread's t
     addArgs("docs", { subject: "Update readme docs", brief: "rewrite the readme" }),
   );
   await handleAdd(ctx(), addArgs("audit", { subject: "Audit billing", brief: "check invoices" }));
-  const r = (await handleSearch(ctx(), { query: "readme docs" })) as unknown as {
-    matches: { subject: string }[];
+  const r = boardSearch(db, TH, "readme docs") as unknown as {
+    tasks: { subject: string }[];
   };
-  expect(r.matches[0]?.subject).toBe("Update readme docs");
-  expect(r.matches.some((m) => m.subject === "Audit billing")).toBe(false);
+  expect(r.tasks[0]?.subject).toBe("Update readme docs");
+  expect(r.tasks.some((m) => m.subject === "Audit billing")).toBe(false);
   const other = setup("th-other");
   await handleDispatch(
     other.ctx(),
     dispatch({ assignments: [asg("zulu", { subject: "readme docs secret" })] }),
   );
-  const again = (await handleSearch(ctx(), { query: "secret" })) as unknown as {
-    matches: unknown[];
-  };
-  expect(again.matches).toEqual([]);
+  const again = boardSearch(db, TH, "secret") as unknown as { tasks: unknown[] };
+  expect(again.tasks).toEqual([]);
 });
 
 test("duplicate check: dispatch and add refuse a similar open task with the matches; confirmNew passes", async () => {
@@ -436,6 +427,8 @@ const planArgs = (
 ) => ({
   objective: "plan it",
   ...(goalId ? { goalId } : {}),
+  spec: "# Spec",
+  plan: "# Plan",
   items,
   acceptanceCriteria: ["works"],
   envelope: { locations: ["repo"], riskClasses: ["R0", "R1"], bounds: { maxItems: 8, maxGb: 1 } },

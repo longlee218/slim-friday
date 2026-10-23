@@ -17,6 +17,7 @@ import type { ResultKind } from "../src/storage/owned-item-store";
 import { getItem } from "../src/storage/owned-item-store";
 import { insertOwnedTask, linkTurn } from "../src/storage/owned-task-store";
 import { insertTurn, turnStatusOf } from "../src/storage/run-store";
+import { lastMessageOf } from "../src/storage/task-message-store";
 import { listUndelivered } from "../src/storage/thread-event-store";
 import { loadWorkspaces } from "../src/workspaces/workspace-registry";
 import { BRIEF, makeEnv, resultMsg, stubGateway } from "./helpers";
@@ -124,7 +125,6 @@ function startItem(o: {
           turnId,
           o.report && ({ status: o.report, summary: "s", requests: [] } as never),
           verdict.current,
-          [],
           crash,
         ),
     },
@@ -270,12 +270,12 @@ test("F4: a force-closed read-only run frees at once (no claim)", async () => {
   expect(zombieClaims(r.location)).toBe(false);
 });
 
-test("F6: a thrown run that stored COMPLETED keeps its status; an empty reply leaves no result text", async () => {
+test("F6: a thrown run that stored COMPLETED keeps its status; an empty reply leaves no result message", async () => {
   const r = startItem({ throwOnCwd: "boom", report: "COMPLETED", scope: true });
   await until(() => r.limiter.active() === 0);
   const it = getItem(r.db, r.id)!;
   expect(it.status).toBe("completed");
-  expect(it.resultText).toBeNull();
+  expect(lastMessageOf(r.db, r.id, "result")).toBeUndefined();
 });
 
 test("E-M6: a stale waiter of an aborted run cannot clear the next run's wait or lower its count", async () => {
@@ -290,7 +290,9 @@ test("E-M6: a stale waiter of an aborted run cannot clear the next run's wait or
     },
   ];
   const ask = (turnId: string) =>
-    relay.forWorker({ threadId: "t", goalId: "g", itemId: "item", turnId })(q as never);
+    relay.forWorker({ threadId: "t", goalId: "g", itemId: "item", turnId, role: "developer" })(
+      q as never,
+    );
   // Run 1 asks, then is replaced by run 2 of the same item (a retry) which asks too.
   const settle1 = registerRun({
     kind: "worker",
@@ -324,10 +326,62 @@ test("E-M6: release(turn) ends the wait of an ended run: a late answer finds nob
   const { db } = makeEnv();
   const relay = createQuestionRelay(db, () => {}, 60_000);
   const q = [{ question: "which?", header: "h", options: [], multiSelect: false }];
-  const p = relay.forWorker({ threadId: "t", goalId: "g", itemId: "item2", turnId: "w9" })(
-    q as never,
-  );
+  const p = relay.forWorker({
+    threadId: "t",
+    goalId: "g",
+    itemId: "item2",
+    turnId: "w9",
+    role: "developer",
+  })(q as never);
   relay.release("w9");
   expect(await p).toBeUndefined();
   expect(relay.answer("item2", "x")).toBe(false);
+});
+
+test("a crash after a report with files keeps the files on a result message", () => {
+  const env = makeEnv();
+  const { db } = env;
+  insertOwnedTask(db, {
+    id: "cg",
+    threadId: "cth",
+    ownerRole: "lead",
+    status: "open",
+    scope: "g",
+    correlationId: "c",
+  });
+  insertOwnedTask(db, {
+    id: "cit",
+    threadId: "cth",
+    ownerRole: "developer",
+    status: "running",
+    scope: "s",
+    correlationId: "c",
+    parentId: "cg",
+    itemKey: "main",
+  });
+  insertTurn(db, {
+    id: "ctn",
+    threadId: "cth",
+    source: "t",
+    location: "x",
+    role: "developer",
+    brief: BRIEF,
+  });
+  linkTurn(db, "ctn", "cit");
+  const files = [{ title: "Doc", base: "scratch" as const, path: "/h/task-files/g/i/t/1-doc.md" }];
+  recoverCrashedRun(
+    db,
+    {
+      threadId: "cth",
+      turnId: "ctn",
+      taskId: "cit",
+      resultKind: () => "COMPLETED",
+      resultTitle: () => "Done",
+      resultFiles: () => files,
+    },
+    new Error("boom"),
+  );
+  const msg = lastMessageOf(db, "cit", "result");
+  expect(msg).toBeDefined();
+  expect(JSON.parse(msg!.files!)).toEqual(files);
 });

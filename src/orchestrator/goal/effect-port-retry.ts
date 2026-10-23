@@ -5,6 +5,9 @@ import { latestTurnOfTask } from "../../storage/run-store";
 import { appendEvent } from "../../storage/thread-event-store";
 import { moveTaskTo } from "../../tasks/task-resolver";
 import { goalOverBudget } from "../budget/task-budget";
+import { AUTHOR_LEAD } from "../messages/message-kinds";
+import { messageRef } from "../messages/message-ref";
+import { postItemMessage } from "../messages/task-messages";
 import { cancelDependents, settleGoal } from "../worker/goal-settle";
 import type { EffectPort } from "./effect-port";
 import { cancelSet } from "./effect-port-queries";
@@ -25,6 +28,10 @@ export function createRetryPort(db: Database, threadId: string): Pick<EffectPort
         if (!moveTaskTo(db, taskId, "ready")) return "not_held";
         resetAttempt(db, taskId);
         clearResultKind(db, taskId); // no longer held: `isHeld` must not read the old FAILED
+        // The note is a lead message of the item's thread (the resumed run reads it there); the event keeps a short copy.
+        const messageId = note.trim()
+          ? postItemMessage(db, taskId, AUTHOR_LEAD, "steer", note)
+          : undefined;
         appendEvent(db, {
           id: `retry:${taskId}:${crypto.randomUUID()}`, // one event per call: a second retry with no run between must still write its note
           threadId,
@@ -32,6 +39,7 @@ export function createRetryPort(db: Database, threadId: string): Pick<EffectPort
           itemId: it.id,
           kind: "retry",
           payload: {
+            ...(messageId && { messageId: messageRef(messageId) }),
             note: redactClip(note, NOTE_CHARS),
             afterTurn: latestTurnOfTask(db, taskId)?.id,
             by: "lead",

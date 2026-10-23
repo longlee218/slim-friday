@@ -3,8 +3,9 @@ import { mkdirSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { type ArtifactToolCtx, readArtifact } from "../src/artifacts/artifact-access";
 import { ARTIFACT_READ_PAGE_CHARS } from "../src/artifacts/artifact-limits";
+import { registerRepoArtifact } from "../src/artifacts/artifact-repo-ref";
 import { searchArtifacts } from "../src/artifacts/artifact-search";
-import { ARTIFACT_TOOLS } from "../src/mcp/artifacts/artifact-tool-names";
+import { ARTIFACT_READ_TOOLS, ARTIFACT_TOOLS } from "../src/mcp/artifacts/artifact-tool-names";
 import { createListArtifactsTool } from "../src/mcp/artifacts/tools/ListArtifactsTool/list-artifacts-tool";
 import { createReadArtifactTool } from "../src/mcp/artifacts/tools/ReadArtifactTool/read-artifact-tool";
 import { createSaveArtifactTool } from "../src/mcp/artifacts/tools/SaveArtifactTool/save-artifact-tool";
@@ -16,7 +17,6 @@ import { ROLES } from "../src/roles/role-registry";
 import { getArtifact } from "../src/storage/artifact-store";
 import { makeEnv, outsideDir } from "./helpers";
 import { FULL_CTX, toolsByServer } from "./mcp-ctx-fixture";
-import { reportResultTool } from "./report-tool-helper";
 
 /** A run ctx of the channel `healthy` of space `main`, with a granted location holding a doc, a secret and a symlink out. */
 function setup(channel = "healthy") {
@@ -36,10 +36,22 @@ function setup(channel = "healthy") {
     channel,
     role: "scout",
     locations: [loc],
-    granted: loc,
     ...over,
   });
   return { ...env, root, ctx };
+}
+
+/** Register `docs/plan.md` of the run's location as a repo artifact (what `forward` does for a reported file). */
+function repoDoc(c: ArtifactToolCtx): string {
+  return registerRepoArtifact(c.db, {
+    workspace: c.workspace,
+    ...(c.channel && { channel: c.channel }),
+    title: "Plan",
+    kind: "md",
+    location: c.locations[0]!,
+    relPath: "docs/plan.md",
+    home: c.home,
+  }).id;
 }
 
 /** Call a tool handler and parse its JSON reply. */
@@ -134,61 +146,10 @@ test("SearchArtifacts finds by folded keywords; ListArtifacts newest first with 
   expect((await call(createListArtifactsTool(c), { goalId: "none" })).artifacts).toEqual([]);
 });
 
-test("Report result refs: own ids and repo docs pass; escapes, secrets and foreign ids are refused", async () => {
-  const { ctx } = setup();
-  const c = ctx();
-  const { id } = await call(createSaveArtifactTool(c), { title: "Rep", kind: "md", body: "x" });
-  const foreign = await call(createSaveArtifactTool(ctx({ channel: "other" })), {
-    title: "F",
-    kind: "md",
-    body: "y",
-  });
-  const report = (artifacts: object[]) => ({
-    title: "T",
-    status: "COMPLETED",
-    summary: "s",
-    artifacts,
-  });
-  const sink: { report?: unknown; artifactIds?: string[] } = {};
-  const t = reportResultTool(sink as never, c);
-  for (const bad of [
-    { title: "x", path: "../outside.md" },
-    { title: "x", path: "docs/link.md" },
-    { title: "x", path: ".env" },
-    { title: "x", path: "/etc/passwd" },
-    { title: "x", path: "docs/missing.md" },
-    { id: foreign.id },
-  ]) {
-    const r = await call(t, report([bad]));
-    expect([bad, r.isError, r.code]).toEqual([bad, true, "INVALID_ARTIFACTS"]);
-    expect(sink.report).toBeUndefined();
-  }
-  const ok = await call(t, report([{ id }, { title: "Plan doc", path: "docs/plan.md" }]));
-  expect(ok.ok).toBe(true);
-  expect(sink.artifactIds).toHaveLength(2);
-  expect(getArtifact(c.db, sink.artifactIds![1]!)).toMatchObject({
-    origin: "repo",
-    path: "docs/plan.md",
-    location: "location",
-  });
-  // A run without a granted location cannot report a repo doc.
-  const none = reportResultTool({} as never, ctx({ granted: undefined }));
-  expect((await call(none, report([{ title: "x", path: "docs/plan.md" }]))).code).toBe(
-    "INVALID_ARTIFACTS",
-  );
-});
-
 test("a repo artifact is re-indexed on read when its file changed; an unchanged one is not", async () => {
   const { ctx, root, db } = setup();
   const c = ctx();
-  const sink: { artifactIds?: string[] } = {};
-  await call(reportResultTool(sink as never, c), {
-    title: "T",
-    status: "COMPLETED",
-    summary: "s",
-    artifacts: [{ title: "Plan", path: "docs/plan.md" }],
-  });
-  const id = sink.artifactIds![0]!;
+  const id = repoDoc(c);
   const hits = (q: string) =>
     searchArtifacts(db, "main", { query: q, channel: "healthy", limit: 5 }).hits.length;
   expect(hits("hoach")).toBe(1);
@@ -206,14 +167,7 @@ test("a repo artifact is re-indexed on read when its file changed; an unchanged 
 
 test("a repo artifact of a location the run lacks is metadata only", async () => {
   const { ctx } = setup();
-  const sink: { artifactIds?: string[] } = {};
-  await call(reportResultTool(sink as never, ctx()), {
-    title: "T",
-    status: "COMPLETED",
-    summary: "s",
-    artifacts: [{ title: "Plan", path: "docs/plan.md" }],
-  });
-  const r = readArtifact(ctx({ locations: [] }), sink.artifactIds![0]!);
+  const r = readArtifact(ctx({ locations: [] }), repoDoc(ctx()));
   expect(r).toMatchObject({ ok: true, text: null });
 });
 
@@ -229,13 +183,15 @@ test("the guard allows exactly the artifact tools of the role's mcpTools", () =>
       ]);
     }
   }
-  for (const n of ["lead", "scout", "developer", "tester"])
-    expect(ROLES[n]?.mcpTools).toEqual(expect.arrayContaining([...ARTIFACT_TOOLS]));
+  // The lead alone saves; every other role reads.
+  expect(ROLES.lead?.mcpTools).toEqual(expect.arrayContaining([...ARTIFACT_TOOLS]));
+  for (const n of ["scout", "developer", "tester"])
+    expect(ROLES[n]?.mcpTools).toEqual(expect.arrayContaining([...ARTIFACT_READ_TOOLS]));
 });
 
 test("the artifacts server is built only with an artifacts ctx part", () => {
   const scout = ROLES.scout!;
-  expect(toolsByServer(buildServers(scout, FULL_CTX))[ARTIFACTS_MCP_SERVER]).toHaveLength(4);
+  expect(toolsByServer(buildServers(scout, FULL_CTX))[ARTIFACTS_MCP_SERVER]).toHaveLength(3);
   expect(
     buildServers(scout, { ...FULL_CTX, artifacts: undefined })[ARTIFACTS_MCP_SERVER],
   ).toBeUndefined();

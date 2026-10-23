@@ -70,7 +70,7 @@ test("MCP server and tool names are the real wire names", () => {
   expect(toolsByServer(buildServers(ALL_ROLE, FULL_CTX))).toEqual({
     artifacts: ["ListArtifacts", "ReadArtifact", "SaveArtifact", "SearchArtifacts"],
     memory: ["MemoryEdit", "MemoryExpand", "MemoryGet", "MemorySave", "MemorySearch"],
-    orchestration: ["Orchestrate", "Report"],
+    orchestration: ["Orchestrate", "Report", "TaskBoard"],
     effects: ["CreatePullRequest", "DeletePaths", "GitPush", "MergeBranch"],
     "discord-admin": ["CreateSpaceOrChannel", "ListSpaces", "WriteSpaceFile"],
   });

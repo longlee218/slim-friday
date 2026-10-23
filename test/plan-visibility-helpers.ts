@@ -68,6 +68,8 @@ export function createPlanHandlerFor(
 ) {
   if (o.replan)
     return createPlanFor(app, {
+      spec: "# Spec",
+      plan: "# Plan",
       items: o.replan,
       acceptanceCriteria: ["works"],
       envelope: {

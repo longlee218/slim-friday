@@ -3,7 +3,6 @@ import { mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { type ArtifactToolCtx, readArtifact } from "../src/artifacts/artifact-access";
 import { REPORT_REPO_DOC_MAX_BYTES } from "../src/artifacts/artifact-limits";
-import { resolveRefs } from "../src/artifacts/artifact-refs";
 import { registerRepoArtifact } from "../src/artifacts/artifact-repo-ref";
 import { writeArtifact } from "../src/artifacts/artifact-writer";
 import { writeFileExclusive } from "../src/artifacts/safe-write";
@@ -19,12 +18,8 @@ function ctxOf(env: ReturnType<typeof makeEnv>, path: string): ArtifactToolCtx {
     workspace: "main",
     channel: "healthy",
     locations: [loc],
-    granted: loc,
   };
 }
-
-const count = (db: ReturnType<typeof makeEnv>["db"]) =>
-  (db.query("SELECT COUNT(*) AS n FROM artifacts").get() as { n: number }).n;
 
 test("a $HOME-like location cannot reference a file inside AGENT_HOME, at register or on read", () => {
   const env = makeEnv();
@@ -58,31 +53,24 @@ test("a planted repo row that points into AGENT_HOME reads as metadata only", ()
   expect(r.text).toBeNull();
 });
 
-test("a refused entry rolls back the others: no rows", () => {
-  const env = makeEnv();
-  const root = outsideDir();
-  writeFileSync(join(root, "a.md"), "# a");
-  const r = resolveRefs(ctxOf(env, root), [
-    { title: "A", path: "a.md" },
-    { title: "B", path: "missing.md" },
-  ]);
-  expect("errors" in r).toBe(true);
-  expect(count(env.db)).toBe(0);
-  const ok = resolveRefs(ctxOf(env, root), [{ title: "A", path: "a.md" }]);
-  expect("ids" in ok && ok.ids).toHaveLength(1);
-  expect(count(env.db)).toBe(1);
-});
-
 test("a repo file over the size limit is refused at register and read as metadata only", () => {
   const env = makeEnv();
   const root = outsideDir();
   writeFileSync(join(root, "big.md"), "x".repeat(REPORT_REPO_DOC_MAX_BYTES + 1));
   writeFileSync(join(root, "small.md"), "# small");
   const ctx = ctxOf(env, root);
-  const r = resolveRefs(ctx, [{ title: "Big", path: "big.md" }]);
-  expect("errors" in r && r.errors[0]).toMatch(/over/);
-  const ok = resolveRefs(ctx, [{ title: "Small", path: "small.md" }]);
-  const id = "ids" in ok ? ok.ids[0]! : "";
+  const reg = (relPath: string) =>
+    registerRepoArtifact(env.db, {
+      workspace: "main",
+      channel: "healthy",
+      title: relPath,
+      kind: "md",
+      location: ctx.locations[0]!,
+      relPath,
+      home: env.home,
+    });
+  expect(() => reg("big.md")).toThrow(/over/);
+  const id = reg("small.md").id;
   writeFileSync(join(root, "small.md"), "x".repeat(REPORT_REPO_DOC_MAX_BYTES + 1));
   expect((readArtifact(ctx, id) as { text: string | null }).text).toBeNull();
 });
@@ -113,13 +101,4 @@ test("the file name slug comes from the redacted title", () => {
     body: "b",
   });
   expect(w.path).not.toContain("sk-ant");
-});
-
-test("a code file is not a repo artifact: refused with the document rule, no row", () => {
-  const env = makeEnv();
-  const root = outsideDir();
-  writeFileSync(join(root, "sign_test.go"), "package x");
-  const r = resolveRefs(ctxOf(env, root), [{ title: "tests", path: "sign_test.go" }]);
-  expect("errors" in r && r.errors[0]).toMatch(/code files are not artifacts/);
-  expect(count(env.db)).toBe(0);
 });

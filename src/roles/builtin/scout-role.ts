@@ -1,9 +1,10 @@
 import { HAIKU_MODEL } from "../../config/model-ids";
-import { ARTIFACT_TOOLS } from "../../mcp/artifacts/artifact-tool-names";
+import { ARTIFACT_READ_TOOLS } from "../../mcp/artifacts/artifact-tool-names";
 import { MEMORY_EXPAND_TOOL } from "../../mcp/memory/tools/MemoryExpandTool/constants";
 import { MEMORY_GET_TOOL } from "../../mcp/memory/tools/MemoryGetTool/constants";
 import { MEMORY_SEARCH_TOOL } from "../../mcp/memory/tools/MemorySearchTool/constants";
 import { REPORT_TOOL } from "../../mcp/orchestration/tools/ReportTool/constants";
+import { TASK_BOARD_TOOL } from "../../mcp/orchestration/tools/TaskBoardTool/constants";
 import { scoutContract } from "../prompts/contracts/scout-contract";
 import type { RoleDefinition } from "../role-types";
 import { TEAM_SKILL } from "./specialist-contract";
@@ -17,7 +18,7 @@ const MAX_TURNS = 40;
 
 /**
  * The scout: Haiku, reference search in the locations (files, symbols, call paths, structure) and library docs lookup;
- * changes no location (`sideEffects: "none"`: a report saved by the artifact tool is app-owned data, not a side effect).
+ * changes no location (`sideEffects: "none"`: a report is the final reply, app-owned data, not a side effect).
  * Web research beyond library docs is the researcher's. Reached only through the lead (`kind: "worker"`, `dispatchable`).
  * Skills are its own list (`skills`).
  */
@@ -39,8 +40,9 @@ export const SCOUT_ROLE: RoleDefinition = {
     MEMORY_SEARCH_TOOL,
     MEMORY_GET_TOOL,
     MEMORY_EXPAND_TOOL,
-    ...ARTIFACT_TOOLS,
+    ...ARTIFACT_READ_TOOLS,
     REPORT_TOOL,
+    TASK_BOARD_TOOL,
   ],
   noSubagents: true, // subagents: developer and tester only
   permissionMode: "auto",

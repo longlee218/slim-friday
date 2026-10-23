@@ -56,6 +56,8 @@ export interface PlanItem {
   subject: string;
   /** Urgency 10 (high) or 100 (urgent); omitted = 0 (normal). */
   priority?: number;
+  /** Heading of the plan text that holds this item's part; omitted = none. */
+  section?: string;
   /** Location name; omitted = none. */
   location?: string;
   /** Keys this item waits for (plan keys or earlier finished items of the goal). */
@@ -76,6 +78,10 @@ export interface Envelope {
 
 /** The content of one plan version. */
 export interface PlanDoc {
+  /** The spec text (markdown; empty when the version has none). */
+  spec: string;
+  /** The plan text (markdown) whose headings the items name in `section`. */
+  plan: string;
   items: PlanItem[];
   acceptanceCriteria: string[];
   envelope: Envelope;
@@ -90,6 +96,7 @@ type PlanErrorCode =
   | "UNKNOWN_DEP"
   | "CYCLE"
   | "BAD_LOCATION"
+  | "BAD_SECTION"
   | "DEAD_DEP"
   | "RELEASED_DEP"
   | "OUTSIDE_ENVELOPE"

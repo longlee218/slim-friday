@@ -11,6 +11,7 @@ import { MEMORY_SAVE_TOOL } from "../src/mcp/memory/tools/MemorySaveTool/constan
 import { MEMORY_SEARCH_TOOL } from "../src/mcp/memory/tools/MemorySearchTool/constants";
 import { ORCHESTRATE_TOOL } from "../src/mcp/orchestration/tools/OrchestrateTool/constants";
 import { REPORT_TOOL } from "../src/mcp/orchestration/tools/ReportTool/constants";
+import { TASK_BOARD_TOOL } from "../src/mcp/orchestration/tools/TaskBoardTool/constants";
 import { checkToolCall, guardFor } from "../src/policy/check-tool-call";
 import { getRole, ROLES } from "../src/roles/role-registry";
 import { ALL_TOOL_NAMES, FULL_CTX, LEAD_ONLY_TOOLS, toolsByServer } from "./mcp-ctx-fixture";
@@ -78,11 +79,12 @@ test("worker roles never hold a lead tool, even when the run (wrongly) brings a 
     for (const t of LEAD_ONLY_TOOLS)
       expect([role.name, t, names.includes(t)]).toEqual([role.name, t, false]);
   }
-  // Worker ctx as the engine builds it (no lead part): the orchestration instance is the Report tool only.
+  // Worker ctx as the engine builds it (no lead part): the orchestration instance is Report and the read-only TaskBoard.
   const { lead: _lead, ...workerCtx } = FULL_CTX;
   for (const role of WORKERS)
     expect(toolsByServer(buildServers(role, workerCtx))[ORCHESTRATION_MCP_SERVER]).toEqual([
       REPORT_TOOL,
+      TASK_BOARD_TOOL,
     ]);
 });
 

@@ -67,6 +67,7 @@ function leadOnce(
           },
         },
         io: createLeadIo(rt, ctx, threadId, turnId, ac.signal),
+        artifacts: artifactCtx(rt, ctx, threadId, "lead"), // `forward` makes the artifacts of a result in the thread's channel
       });
       const language = messageLanguage(ctx.message);
       const toolCtx = {
@@ -126,6 +127,7 @@ function leadOnce(
           team: buildTeamMd({ locations: ctx.locations }),
           appCtx: () => ({
             lead: toolCtx,
+            taskBoard: { db, threadId },
             artifacts: artifactCtx(rt, ctx, threadId, "lead"), // the lead reads and saves in its own channel
           }),
         },

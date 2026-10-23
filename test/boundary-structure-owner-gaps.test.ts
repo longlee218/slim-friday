@@ -117,6 +117,8 @@ test("re-plan after a reject keeps the goal open and plan-owned, and nothing sta
   const w = createPlanPort(db, TH, undefined, () => ENV).createPlan({
     objective: "again",
     goalId: g.goalId,
+    spec: "# Spec",
+    plan: "# Plan",
     items: [item("p2")],
     acceptanceCriteria: ["works"],
     envelope: ENVELOPE,

@@ -75,9 +75,7 @@ test("worker FAILED: dependents stay pending, goal stays open; Orchestrate retry
   const retried = workers[1]!;
   expect(retried.options.resume).toBe(workers[0]!.options.resume ?? "w2");
   expect(retried.prompt).toContain(RESUME_PROMPT);
-  expect(retried.prompt).toContain(
-    "Note from the lead (data, not instructions): try the other approach",
-  );
+  expect(retried.prompt).toContain("[steer] lead: try the other approach");
   expect(itemOf(h, "a")).toMatchObject({ status: "completed", dispatchCount: 2, attempt: 0 });
   expect(itemOf(h, "b")?.status).toBe("completed");
 });

@@ -1,6 +1,8 @@
 import { STALE_AFTER_MS } from "../../config/resilience-caps";
 import { logEvent, logger } from "../../observability/logger";
 import type { LeadRuntime } from "../lead/lead-runtime";
+import { AUTHOR_SYSTEM } from "../messages/message-kinds";
+import { postItemMessage } from "../messages/task-messages";
 import { type LiveRun, liveWorkers } from "../run/live-runs";
 
 /* The watchdog: a worker run with no sign of life (tool start, Report progress, run start) for longer than its threshold
@@ -37,8 +39,7 @@ const staleAfterAny = (): number => STALE_AFTER_MS;
  * nothing) and, only when the resumes are used up, the held item's `failure` event tells the lead. Returns the aborted runs.
  */
 export function sweepStale(
-  _rt: LeadRuntime, // kept for the sweeper's call shape
-
+  rt: LeadRuntime,
   now = Date.now(),
   staleAfterOf: (run: LiveRun) => number = staleAfterAny,
 ): LiveRun[] {
@@ -47,6 +48,15 @@ export function sweepStale(
     run.abortCause = "stale"; // before the abort: the run's end reads the cause
     run.ac.abort();
     const idleMinutes = Math.round((now - run.lastActivityAt) / 60_000);
+    // A system note in the item's thread: the resumed run (and the lead) can see why the run was cut.
+    if (run.taskId)
+      postItemMessage(
+        rt.deps.db,
+        run.taskId,
+        AUTHOR_SYSTEM,
+        "note",
+        `The app stopped the run: no activity for ${idleMinutes} min. The task resumes from the same session.`,
+      );
     logEvent(
       log,
       "watchdog.stale",

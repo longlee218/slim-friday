@@ -4,7 +4,6 @@ import {
   ORCHESTRATE_ACTION_CANCEL,
   ORCHESTRATE_ACTION_DISPATCH,
   ORCHESTRATE_ACTION_FORWARD,
-  ORCHESTRATE_ACTION_LIST,
   ORCHESTRATE_ACTION_RETRY,
   ORCHESTRATE_ACTION_STEER,
   orchestrateRef,
@@ -24,7 +23,6 @@ import type {
   DispatchInput,
   ForwardInput,
   SteerInput,
-  TaskStatusInput,
 } from "./lead-schemas";
 import { supersedeGate } from "./lead-supersede-gate";
 
@@ -35,7 +33,7 @@ import { supersedeGate } from "./lead-supersede-gate";
 export const ENDED = new Set(["completed", "failed", "cancelled"]);
 const BAD_TASK = "BAD_TASK";
 export const badTask = (id: string): Reply =>
-  refuse(BAD_TASK, `Task ${id} is not in this thread: list and use a current id.`);
+  refuse(BAD_TASK, `Task ${id} is not in this thread: use TaskBoard list for a current id.`);
 
 /** Orchestrate dispatch: check the policy, then one port transaction writes goal, items, `start` events and the audit row. */
 export const handleDispatch = (ctx: LeadToolContext, input: DispatchInput): Promise<Reply> =>
@@ -87,19 +85,6 @@ export const handleDispatch = (ctx: LeadToolContext, input: DispatchInput): Prom
     ctx.run.dispatched += 1;
     return { reply: { ok: true, goalId: w.goalId, itemIds: w.itemIds }, recorded: true };
   });
-
-/** The status tool: the facts of the goal (or of one task's goal) from the db. A pure read: never cached or recorded. */
-export const handleTaskStatus = (ctx: LeadToolContext, input: TaskStatusInput): Promise<Reply> =>
-  leadCall(
-    ctx,
-    ORCHESTRATE_ACTION_LIST,
-    input,
-    () => {
-      const snap = ctx.port.snapshot(input.taskId);
-      return { reply: snap ? { ok: true, ...snap } : badTask(input.taskId ?? "") };
-    },
-    { read: true },
-  );
 
 /** Orchestrate steer: owner text to one task of this thread. */
 export const handleSteer = (ctx: LeadToolContext, input: SteerInput): Promise<Reply> =>
@@ -205,15 +190,16 @@ export const handleAskOwner = (ctx: LeadToolContext, input: AskOwnerInput): Prom
   });
 
 /**
- * Orchestrate forward: post a finished item's result file(s) (verbatim) or its excerpt (summary). Verbatim posts one message
- * per file the task saved, the primary (result path) first; each file gets its own Open link.
+ * Orchestrate forward: post a finished item's result (verbatim) or its excerpt (summary). Verbatim makes the artifacts
+ * of the result (the result message as md, then each file the report named) and posts one message per file with its
+ * own Open link; a named file that is gone is reported in `notes` and skipped.
  */
 export const handleForward = (ctx: LeadToolContext, input: ForwardInput): Promise<Reply> =>
   leadCall(ctx, ORCHESTRATE_ACTION_FORWARD, input, async () => {
     const item = ctx.port.item(input.taskId);
     if (!item) return { reply: badTask(input.taskId) };
     const verbatim = input.mode === "verbatim";
-    if (verbatim ? !item.resultPath && !item.resultText : !item.resultExcerpt)
+    if (verbatim ? !ctx.port.resultMessage(input.taskId) : !item.resultExcerpt)
       return {
         reply: refuse("NO_RESULT", "The task has no result yet: wait for its result event."),
       };
@@ -221,14 +207,19 @@ export const handleForward = (ctx: LeadToolContext, input: ForwardInput): Promis
       await ctx.port.post({ text: item.resultExcerpt as string });
       return { reply: { ok: true, posted: input.mode }, itemId: item.id };
     }
-    const files = [
-      ...new Set([
-        ...(item.resultPath ? [item.resultPath] : []),
-        ...ctx.port.resultFiles(input.taskId),
-      ]),
-    ];
-    // The run saved no file: its report (kept as text on the task row) goes out as a chat message, not as an artifact.
-    if (!files.length) await ctx.port.post({ text: item.resultText as string });
-    for (const filePath of files) await ctx.port.post({ filePath });
-    return { reply: { ok: true, posted: input.mode, files: files.length }, itemId: item.id };
+    const plan = ctx.port.forwardArtifacts(input.taskId);
+    if (!plan)
+      return {
+        reply: refuse("NO_RESULT", "The task has no result yet: wait for its result event."),
+      };
+    for (const p of plan.posts) await ctx.port.post(p);
+    return {
+      reply: {
+        ok: true,
+        posted: input.mode,
+        files: plan.posts.length,
+        ...(plan.notes.length && { notes: plan.notes }),
+      },
+      itemId: item.id,
+    };
   });

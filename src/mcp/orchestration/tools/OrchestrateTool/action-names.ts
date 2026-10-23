@@ -8,12 +8,6 @@ export const ORCHESTRATE_ACTION_DISPATCH = "dispatch";
 export const ORCHESTRATE_ACTION_ADD = "add";
 /** Change a task that has not started (subject, brief, priority, dependsOn, role). */
 export const ORCHESTRATE_ACTION_UPDATE = "update";
-/** One task or goal in full: fields, dependencies, full result text, attempts, last events. */
-export const ORCHESTRATE_ACTION_GET = "get";
-/** Find this thread's goals and tasks by the words of their subject and brief. */
-export const ORCHESTRATE_ACTION_SEARCH = "search";
-/** Read the goal / item facts from the database (never from session memory). */
-export const ORCHESTRATE_ACTION_LIST = "list";
 /** Send owner text to a running worker (or answer its pending question). */
 export const ORCHESTRATE_ACTION_STEER = "steer";
 /** Re-queue a held (failed) task: it resumes its session with the lead's note. */

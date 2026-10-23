@@ -1,6 +1,4 @@
 import { z } from "zod";
-import type { ArtifactToolCtx } from "../../../../artifacts/artifact-access";
-import { resolveRefs } from "../../../../artifacts/artifact-refs";
 import { logEvent, logger } from "../../../../observability/logger";
 import {
   REPORT_PROGRESS_SHAPE,
@@ -8,6 +6,10 @@ import {
 } from "../../../../orchestrator/lead/lead-schemas";
 import { REPORT_BLOCKER_SHAPE } from "../../../../orchestrator/lead/task-schemas";
 import { refuse } from "../../../../orchestrator/reply";
+import {
+  checkReportFiles,
+  type ReportFilesCtx,
+} from "../../../../orchestrator/worker/report-files";
 import { checkReportImages } from "../../../../orchestrator/worker/report-images";
 import type { ReportSink } from "../../../../orchestrator/worker/report-sink";
 import { defineAction } from "../../../action-tool/action-types";
@@ -24,11 +26,13 @@ const log = logger.child({ module: "report-tool" });
 export interface ReportCtx {
   /** The run's progress port (bound to its task). */
   progress?: (p: { percent: number; note: string }) => void;
+  /** The run's message port (bound to its task): stores a message, returns its ref. */
+  message?: (kind: "blocker", text: string) => string;
   /** Where the typed result lands. */
   sink?: ReportSink;
-  /** Channel scope for the artifact refs of the result. */
-  artifacts?: ArtifactToolCtx;
-  /** The run's scratch dir: the only place a report's screenshots may be. */
+  /** Where the result's `files` are checked and scratch ones copied (home, copy dir, granted location); absent = the run has none. */
+  files?: Omit<ReportFilesCtx, "scratchDir">;
+  /** The run's scratch dir: where a report's screenshots and (without a location) files may be. */
   scratchDir?: string;
 }
 
@@ -52,23 +56,26 @@ export const REPORT_ACTIONS = [
       const sink = c.sink;
       if (!sink) return refuse(ACTION_UNAVAILABLE, "This run has no report sink.");
       if (sink.report) return refuse("ALREADY_REPORTED", "You already reported.");
-      // The refs are checked first: a bad one is refused here (the report is not stored) so the worker can fix it.
-      if (args.artifacts?.length) {
-        if (!c.artifacts) return refuse("INVALID_ARTIFACTS", "This run has no artifacts.");
-        const r = resolveRefs(c.artifacts, args.artifacts);
-        if ("errors" in r) return refuse("INVALID_ARTIFACTS", r.errors.join("; "));
-        sink.artifactIds = r.ids;
-      }
+      // Everything is checked before anything is kept: a refusal leaves no copy and no sink state, so the worker can
+      // report again. Images first (they copy nothing); a refused files check removes its own copies.
+      let images: ReportSink["images"];
       if (args.images?.length) {
         const r = checkReportImages(args.images, c.scratchDir);
         if ("errors" in r) return refuse("INVALID_IMAGES", r.errors.join("; "));
-        sink.images = r.images;
+        images = r.images;
       }
+      if (args.files?.length) {
+        if (!c.files) return refuse("INVALID_FILES", "This run has nowhere to read files from.");
+        const r = checkReportFiles(args.files, { ...c.files, scratchDir: c.scratchDir });
+        if ("errors" in r) return refuse("INVALID_FILES", r.errors.join("; "));
+        sink.files = r.files;
+      }
+      if (images) sink.images = images;
       sink.report = args;
       logEvent(log, "worker.report", {
         status: args.status,
         requests: args.requests?.length ?? 0,
-        artifacts: sink.artifactIds?.length ?? 0,
+        files: sink.files?.length ?? 0,
         images: sink.images?.length ?? 0,
       });
       return { ok: true };
@@ -85,7 +92,11 @@ export const REPORT_ACTIONS = [
       // A blocker IS a BLOCKED report: the task is held for the lead, the session is kept for the resume. The sink also
       // carries what it needs, so the end event tells the lead and the lead is woken at once.
       sink.report = { title: `Blocked: needs ${p.needs}`, status: "BLOCKED", summary: p.reason };
-      sink.blocker = p;
+      sink.blocker = {
+        ...p,
+        // The full blocker is a message of the task; the end event points to it.
+        messageId: c.message?.("blocker", `needs: ${p.needs}. ${p.reason}`),
+      };
       logEvent(log, "worker.blocker", { needs: p.needs });
       return { ok: true, note: "Blocker recorded. End your turn now: the lead decides." };
     },

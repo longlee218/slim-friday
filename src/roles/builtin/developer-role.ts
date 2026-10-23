@@ -1,5 +1,5 @@
 import { SONNET_MODEL } from "../../config/model-ids";
-import { ARTIFACT_TOOLS } from "../../mcp/artifacts/artifact-tool-names";
+import { ARTIFACT_READ_TOOLS } from "../../mcp/artifacts/artifact-tool-names";
 import { CREATE_PULL_REQUEST_TOOL } from "../../mcp/effects/tools/CreatePullRequestTool/constants";
 import { DELETE_PATHS_TOOL } from "../../mcp/effects/tools/DeletePathsTool/constants";
 import { GIT_PUSH_TOOL } from "../../mcp/effects/tools/GitPushTool/constants";
@@ -8,6 +8,7 @@ import { MEMORY_EXPAND_TOOL } from "../../mcp/memory/tools/MemoryExpandTool/cons
 import { MEMORY_GET_TOOL } from "../../mcp/memory/tools/MemoryGetTool/constants";
 import { MEMORY_SEARCH_TOOL } from "../../mcp/memory/tools/MemorySearchTool/constants";
 import { REPORT_TOOL } from "../../mcp/orchestration/tools/ReportTool/constants";
+import { TASK_BOARD_TOOL } from "../../mcp/orchestration/tools/TaskBoardTool/constants";
 import {
   askRules,
   CODE_STANDARDS,
@@ -62,8 +63,9 @@ export const DEVELOPER_ROLE: RoleDefinition = {
     MEMORY_SEARCH_TOOL,
     MEMORY_GET_TOOL,
     MEMORY_EXPAND_TOOL,
-    ...ARTIFACT_TOOLS,
+    ...ARTIFACT_READ_TOOLS,
     REPORT_TOOL,
+    TASK_BOARD_TOOL,
     DELETE_PATHS_TOOL,
     GIT_PUSH_TOOL,
     CREATE_PULL_REQUEST_TOOL,

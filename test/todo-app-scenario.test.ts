@@ -30,7 +30,7 @@ function scenario(worker: (key: string) => Promise<"COMPLETED" | "FAILED">, fina
       if (c.kind === "worker") {
         // The code-appended items have no `do <key>` brief: "Verify the goal: ..." and "Fix the goal: ...".
         const key =
-          /^do (\w+)/m.exec(c.prompt)?.[1] ??
+          /\[brief\] lead: do (\w+)/.exec(c.prompt)?.[1] ??
           (c.prompt.includes("Acceptance criteria:") ? "verify" : "fix");
         const status = await worker(key);
         await c.report("result", { title: "T", status, summary: `${key} ${status}` });
@@ -39,6 +39,8 @@ function scenario(worker: (key: string) => Promise<"COMPLETED" | "FAILED">, fina
       if (c.prompt.includes("<owner_message>\nbuild a todo app")) {
         const made = await c.orchestrate("create_plan", {
           objective: "build a todo app",
+          spec: "# Spec\nThe goal.",
+          plan: "# Plan\nThe steps.",
           items: ITEMS,
           acceptanceCriteria: ["the app runs"],
           envelope: {

@@ -24,6 +24,7 @@ export const FULL_CTX: RunCtx = {
   },
   artifacts: { db: new Database(":memory:"), home: "/nowhere", workspace: "w", locations: [] },
   lead: {} as never,
+  taskBoard: { db: new Database(":memory:"), threadId: "t1" },
   reportSink: {},
   progress: () => {},
   effects: {} as never,

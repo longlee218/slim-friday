@@ -209,3 +209,7 @@ export async function workersDone(db: import("bun:sqlite").Database, ms = 8000):
     ms,
   );
 }
+
+/** The brief line of a worker's start prompt (a first start sends the task thread: `M1 [brief] lead: <brief>`). */
+export const briefOf = (prompt: string): string =>
+  /\[brief\] lead: (.*)/.exec(prompt)?.[1] ?? prompt;

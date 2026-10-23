@@ -23,7 +23,7 @@ flowchart LR
 
     Owner -->|message| Lead
     Lead -->|"scout dispatch (facts)"| Orch
-    Scout -->|"Report result (artifact)"| Code
+    Scout -->|"Report result (result message)"| Code
     Lead -->|tool call| Orch
     Orch -->|"dispatch, add, update, create_plan, revise_plan, steer, retry, cancel"| Code
     Code -->|"goal, items, events"| DB
@@ -61,7 +61,7 @@ stateDiagram-v2
 
 ## 3. Plan, revision and re-plan (same goal)
 
-The lead brainstorms with the owner, gets code facts from a scout, writes the spec and plan artifacts, then calls `create_plan`. Every stored version waits for the owner's answer to `approve_plan`.
+The lead brainstorms with the owner, gets code facts from a scout, writes the spec and plan as the `spec` and `plan` fields of `create_plan` (stored on the version; no artifact). Every stored version waits for the owner's answer to `approve_plan`.
 
 ```mermaid
 flowchart TD

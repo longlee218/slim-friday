@@ -13,7 +13,7 @@ import { SPECIALIST_BASE, TEAM_SKILL } from "./specialist-contract";
 /**
  * The researcher: Sonnet, read-only web and deep research with cited reports (current facts, comparisons, markets,
  * papers). Shares the roster fields (budget, turns, no owner contact) and adds the hosted search tools (built only when
- * the owner set a key). Changes no location (`sideEffects: "none"`): its report is an artifact. Split from the scout on
+ * the owner set a key). Changes no location (`sideEffects: "none"`): its report is its final reply. Split from the scout on
  * 2026-10-20 (the scout keeps code lookups).
  */
 export const RESEARCHER_ROLE: RoleDefinition = {
@@ -32,7 +32,7 @@ export const RESEARCHER_ROLE: RoleDefinition = {
   name: "researcher",
   basePrompt: "custom", // writes no code: no SDK coding preset
   whenToUse:
-    "Facts from outside a location: versions, limits, prices, news, product or library comparisons, standards, papers, anything to verify or cite; opens public web pages. Cited report saved as an artifact.",
+    "Facts from outside a location: versions, limits, prices, news, product or library comparisons, standards, papers, anything to verify or cite; opens public web pages. Cited report in its final reply.",
   notFor: "A location's code or files; testing an app.",
   sideEffects: "none",
   capabilities: ["read", "web", "shell", "skills"],

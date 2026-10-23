@@ -13,11 +13,11 @@ import type {
   SteerReply,
   TaskSnapshot,
 } from "../src/orchestrator/goal/effect-port";
+import type { ForwardPlan } from "../src/orchestrator/goal/effect-port-forward";
 import type { AddItemWrite, GoalFacts } from "../src/orchestrator/goal/effect-port-item-types";
 import type { TaskMatch } from "../src/orchestrator/goal/task-reads";
 import type { LeadToolContext } from "../src/orchestrator/lead/lead-call";
 import type { CreateLeadPlanInput } from "../src/orchestrator/plan/plan-schemas";
-import type { Reply } from "../src/orchestrator/reply";
 import type { GoalState, PolicyEnv } from "../src/orchestrator/strategy/caps";
 import type { ItemEdit } from "../src/storage/item-edit-store";
 import type { ItemRow } from "../src/storage/owned-item-store";
@@ -40,9 +40,12 @@ export class FakePort implements EffectPort {
   steerReply: SteerReply = "queued";
   answer: OwnerAnswer = { answer: "yes", timedOut: false };
 
-  /** Test-set files a task saved (primary first). */
-  files = new Map<string, string[]>();
-  resultFiles = (taskId: string) => this.files.get(taskId) ?? [];
+  /** Test-set forwards: what `forwardArtifacts` returns for a task. */
+  forwards = new Map<string, ForwardPlan>();
+  forwardArtifacts = (taskId: string) => this.forwards.get(taskId);
+  /** Test-set result messages (the newest `result` message of a task). */
+  results = new Map<string, { ref: string; text: string }>();
+  resultMessage = (taskId: string) => this.results.get(taskId);
 
   recall = (key: string) => this.memo.get(key);
   /** Audit rows written by `remember` (scope / grantor overrides included). */
@@ -144,8 +147,6 @@ export class FakePort implements EffectPort {
     return true;
   };
   similar = () => this.matches;
-  detail = (taskId: string): Reply => ({ ok: true, id: taskId });
-  search = (): Reply => ({ ok: true, matches: [] });
   askOwner = async (q: OwnerQuestion) => (this.asked.push(q), this.answer);
   post = async (p: Post) => void this.posts.push(p);
 }
@@ -166,9 +167,7 @@ export const itemRow = (over: Partial<ItemRow> = {}): ItemRow => ({
   priority: 0,
   lastProgressAt: Date.now(),
   resultKind: null,
-  resultPath: null,
   resultExcerpt: null,
-  resultText: null,
   ...over,
 });
 

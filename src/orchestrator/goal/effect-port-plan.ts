@@ -1,9 +1,12 @@
 import type { Database } from "bun:sqlite";
 import {
   ORCHESTRATE_ACTION_CREATE_PLAN,
-  ORCHESTRATE_ACTION_LIST,
   orchestrateRef,
 } from "../../mcp/orchestration/tools/OrchestrateTool/action-names";
+import {
+  TASK_BOARD_ACTION_LIST,
+  taskBoardRef,
+} from "../../mcp/orchestration/tools/TaskBoardTool/action-names";
 import { excerpt } from "../../observability/logger";
 import { LEAD_ROLE } from "../../roles/builtin/lead-role";
 import { planAskSince } from "../../storage/effect-log-store";
@@ -81,6 +84,8 @@ export function createPlanPort(
           const r = createPlan(db, {
             goalId,
             objective: taskScope(db, goalId) ?? i.objective,
+            spec: i.spec,
+            plan: i.plan,
             items: i.items,
             acceptanceCriteria: i.acceptanceCriteria,
             envelope: i.envelope,
@@ -144,7 +149,7 @@ export function createPlanPort(
         openGoalIdOf(db, threadId) !== row.goalId
           ? {
               code: "GOAL_NOT_OPEN",
-              message: `Goal ${row.goalId} is not this thread's open goal: the plan cannot start. ${orchestrateRef(ORCHESTRATE_ACTION_LIST)}; then ${orchestrateRef(ORCHESTRATE_ACTION_CREATE_PLAN)} with the open goal's id, or without goalId for a fresh plan.`,
+              message: `Goal ${row.goalId} is not this thread's open goal: the plan cannot start. ${taskBoardRef(TASK_BOARD_ACTION_LIST)}; then ${orchestrateRef(ORCHESTRATE_ACTION_CREATE_PLAN)} with the open goal's id, or without goalId for a fresh plan.`,
             }
           : approvalBlocker(db, row);
       // An ask that ended without a decision is not repeated until the lead revises the version or the owner writes.

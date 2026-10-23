@@ -1,5 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { expect, test } from "bun:test";
+import { mkdirSync, readdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { DB_RETENTION_DAYS } from "../src/config/resilience-caps";
 import { sweepDb } from "../src/lifecycle/db-retention-sweeper";
 import { makeEnv } from "./helpers";
@@ -68,8 +70,29 @@ test("old finished history goes; recent rows and work in progress stay", () => {
   event(db, "e-undelivered", OLD, null);
   event(db, "e-new", NEW, NEW);
 
+  // Messages: those of the old closed goal (and their index rows) go; those of the goal with an open item stay.
+  for (const [goal, item] of [
+    ["g-old", "i-old"],
+    ["g-held", "i-held"],
+  ] as const) {
+    const id = Number(
+      db
+        .query(
+          `INSERT INTO task_messages (thread_id, goal_id, task_id, author, kind, text, created_at)
+           VALUES ('t', ?, ?, 'lead', 'brief', 'x', ?)`,
+        )
+        .run(goal, item, OLD).lastInsertRowid,
+    );
+    db.query(
+      "INSERT INTO task_messages_fts (text, message_id, thread_id, chunk, orig) VALUES ('x', ?, 't', 0, 'x')",
+    ).run(id);
+  }
+
   const counts = sweepDb(db, NOW);
 
+  expect(ids(db, "task_messages", "task_id")).toEqual(["i-held"]);
+  expect(db.query("SELECT COUNT(*) AS n FROM task_messages_fts").get()).toEqual({ n: 1 });
+  expect(counts).toMatchObject({ task_messages: 1 });
   expect(ids(db, "turns")).toEqual(["held", "new", "running"]);
   expect(ids(db, "runs")).toEqual(["r-held", "r-new", "r-running"]);
   expect(ids(db, "tool_calls")).toEqual(["c-held", "c-new", "c-running"]);
@@ -89,4 +112,21 @@ test("a second sweep deletes nothing", () => {
   turn(db, "old", OLD, OLD);
   sweepDb(db, NOW);
   expect(Object.values(sweepDb(db, NOW)).every((n) => n === 0)).toBe(true);
+});
+
+test("the task-files copies of a pruned goal go with its messages; the others stay", () => {
+  const { db, home, paths } = makeEnv();
+  task(db, "g-old", "completed", OLD);
+  task(db, "i-old", "completed", OLD, "g-old");
+  task(db, "g-held", "completed", OLD);
+  task(db, "i-held", "blocked", OLD, "g-held");
+  for (const [g, i] of [
+    ["g-old", "i-old"],
+    ["g-held", "i-held"],
+  ] as const) {
+    mkdirSync(paths.taskFilesOf(g, i), { recursive: true });
+    writeFileSync(join(paths.taskFilesOf(g, i), "1-a.md"), "copy");
+  }
+  sweepDb(db, NOW, home);
+  expect(readdirSync(paths.taskFiles)).toEqual(["g-held"]);
 });

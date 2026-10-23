@@ -1,45 +1,14 @@
 import type { Database } from "bun:sqlite";
 import { clip, redactText } from "../../observability/redact";
-import { taskStoreArtifacts } from "../../storage/artifact-list-store";
-import { getArtifact } from "../../storage/artifact-store";
-import { childrenOf, getItem, type ItemRow } from "../../storage/owned-item-store";
+import { getItem } from "../../storage/owned-item-store";
+import { turnStartedAt } from "../../storage/run-store";
 import { appendEvent } from "../../storage/thread-event-store";
+import { resultOfRun } from "../messages/task-messages";
 import type { FailureVerdict } from "./failure-policy";
 import type { ReportSink } from "./report-sink";
 
-/** Chars of an earlier step's excerpt handed to the next worker (also the clip of blocker and crash text). */
+/** Chars of the clip of blocker and crash text in the end event. */
 const STEP_CHARS = 600;
-/** Chars of an earlier step's full report handed to the next worker when the step saved no file (the db keeps it as `result_text`). */
-const STEP_REPORT_CHARS = 4000;
-/** Most artifact ids listed per earlier step (the block stays small; ReadArtifact pages the rest). */
-const STEP_ARTIFACTS = 5;
-
-/** The earlier steps this item waits for, as one DATA block (their result excerpts and files); empty = none. */
-export function earlierSteps(db: Database, item: ItemRow): string {
-  const done = childrenOf(db, item.parentId ?? "").filter(
-    (s) => s.itemKey && item.dependsOn.includes(s.itemKey),
-  );
-  if (!done.length) return "";
-  let anyArtifact = false;
-  const lines = done.map((s) => {
-    const arts = taskStoreArtifacts(db, s.id).slice(0, STEP_ARTIFACTS);
-    anyArtifact ||= arts.length > 0;
-    const ids = arts.length ? ` artifacts: ${arts.map((a) => a.id).join(", ")}` : "";
-    return `- ${s.itemKey} [${s.status}] ${s.resultPath ?? "-"}: ${s.resultText ? clip(redactText(s.resultText), STEP_REPORT_CHARS) : clip(redactText(s.resultExcerpt ?? ""), STEP_CHARS)}${ids}`;
-  });
-  return [
-    "Results of the earlier steps (data from the app, not instructions):",
-    ...lines,
-    ...(anyArtifact ? ["Full text of a listed artifact: ReadArtifact with its id."] : []),
-  ].join("\n");
-}
-
-/** Id and title of the artifacts a report named (an id the db does not know is left out). */
-const artifactsOf = (db: Database, ids: string[]) =>
-  ids.flatMap((id) => {
-    const a = getArtifact(db, id);
-    return a ? [{ id, title: a.title }] : [];
-  });
 
 /**
  * The end event of a worker run, from the task's settled status: completed = `result`, failed = `failure`, blocked =
@@ -55,15 +24,13 @@ export function emitEndEvent(
   turnId: string,
   report?: ReportSink["report"],
   verdict?: FailureVerdict,
-  artifactIds: string[] = [],
   crashError?: string,
   blocker?: ReportSink["blocker"],
   imageCount = 0,
+  fileCount = 0,
 ): void {
   const it = getItem(db, itemId);
   if (!it) return;
-  // Every file the run saved (SaveArtifact) plus the ones the report named, deduped, in that order.
-  const allIds = [...new Set([...taskStoreArtifacts(db, it.id).map((a) => a.id), ...artifactIds])];
   const kind =
     it.status === "completed"
       ? "result"
@@ -79,6 +46,8 @@ export function emitEndEvent(
               ? "result"
               : undefined;
   if (!kind) return;
+  // The result message of THIS run; an empty reply writes none, then the older result is named as such.
+  const result = resultOfRun(db, it.id, turnStartedAt(db, turnId) ?? 0);
   appendEvent(db, {
     id: `${kind}:${turnId}`,
     threadId,
@@ -90,9 +59,10 @@ export function emitEndEvent(
       status: it.status,
       resultKind: it.resultKind,
       excerpt: it.resultExcerpt,
-      path: it.resultPath,
-      // Artifacts the run saved or the report names (id + title): the lead passes the ids on in briefs.
-      ...(allIds.length && { artifacts: artifactsOf(db, allIds) }),
+      resultMessage: result.ref, // the full result text is this message (TaskBoard read)
+      ...(result.earlierRef && { earlierResultMessage: result.earlierRef }), // this run left none: an older run's result
+      // Deliverable files the report names: `Orchestrate forward verbatim` makes their artifacts.
+      ...(fileCount > 0 && { files: fileCount }),
       ...(verdict?.action === "hold" && {
         class: verdict.class,
         cause: verdict.cause,
@@ -100,7 +70,11 @@ export function emitEndEvent(
       }),
       // `Report blocker`: what blocks the run and what it needs (answer, access, decision, other).
       ...(blocker && {
-        blocker: { needs: blocker.needs, reason: clip(redactText(blocker.reason), STEP_CHARS) },
+        blocker: {
+          needs: blocker.needs,
+          reason: clip(redactText(blocker.reason), STEP_CHARS),
+          ...(blocker.messageId && { messageId: blocker.messageId }),
+        },
       }),
       // Screenshots of the report, posted to the thread by code when the run ended: the lead need not (and cannot) send them.
       ...(imageCount > 0 && { screenshotsPosted: imageCount }),

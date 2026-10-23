@@ -276,6 +276,8 @@ test("Orchestrate create_plan inside the open goal after a reject stores the nex
   const w = port.createPlan({
     objective: "re-plan",
     goalId,
+    spec: "# Spec",
+    plan: "# Plan",
     items: [item("n")],
     acceptanceCriteria: [],
     envelope: ENVELOPE,
@@ -287,6 +289,8 @@ test("Orchestrate create_plan inside the open goal after a reject stores the nex
     port.createPlan({
       objective: "x",
       goalId: "foreign",
+      spec: "# Spec",
+      plan: "# Plan",
       items: [item("m")],
       acceptanceCriteria: [],
       envelope: ENVELOPE,

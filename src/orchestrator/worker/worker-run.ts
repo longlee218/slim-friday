@@ -15,6 +15,8 @@ import { getOwnedTask } from "../../storage/owned-task-store";
 import { markStartDelivered } from "../../storage/thread-event-store";
 import { goalRoute } from "../budget/task-budget";
 import type { LeadRuntime, LeadThreadCtx } from "../lead/lead-runtime";
+import { ensureBriefMessage } from "../messages/brief-message";
+import { earlierSteps } from "../messages/earlier-steps";
 import { afterVerify } from "../plan/goal-verify";
 import type { RoleRunInput } from "../run/role-run-types";
 import { runTurn } from "../run/run-turn";
@@ -25,7 +27,7 @@ import { postReportImages } from "./post-report-images";
 import type { ReportSink } from "./report-sink";
 import { startInput } from "./resume-prompt";
 import { workerAppCtx } from "./worker-app-ctx";
-import { earlierSteps, emitEndEvent } from "./worker-end-event";
+import { emitEndEvent } from "./worker-end-event";
 
 /** Logger of this module. */
 const log = logger.child({ module: "worker-run" });
@@ -60,6 +62,7 @@ export async function startWorker(
     const role = getRole(getOwnedTask(db, item.id)?.ownerAgentId ?? "");
     // A first start or a lead retry sends the brief (or the resume prompt); an automatic resume and an answer to the
     // item's own question are no new dispatch (neither can loop: the owner or the lead paced them).
+    ensureBriefMessage(db, item); // the brief is the first message of the item's thread
     const start = startInput(db, item);
     if (!start.auto && !start.answer) bumpDispatch(db, item.id);
     clearQuestionLinks(db, item.id); // a new run: question messages of the earlier run no longer answer it
@@ -128,7 +131,7 @@ export async function startWorker(
             pinned,
           }),
           askRelay: role.capabilities.includes("ask")
-            ? rt.relay.forWorker({ threadId, goalId, itemId: item.id, turnId })
+            ? rt.relay.forWorker({ threadId, goalId, itemId: item.id, turnId, role: role.name })
             : undefined,
         };
         return {
@@ -146,6 +149,7 @@ export async function startWorker(
             slot,
             resultKind, // the schema enum is RESULT_KINDS
             resultTitle: () => sink.report?.title,
+            resultFiles: () => sink.files,
             failurePolicy: workerFailurePolicy({
               db,
               itemId: item.id,
@@ -167,10 +171,10 @@ export async function startWorker(
                 turnId,
                 sink.report,
                 verdict.current,
-                sink.artifactIds,
                 crash,
                 sink.blocker,
                 images.length,
+                sink.files?.length ?? 0,
               );
               // A held item (blocked) keeps its dependents waiting for the lead; only an item that truly failed
               // (a crash of the run itself, no retry possible) cancels them: they can never start.

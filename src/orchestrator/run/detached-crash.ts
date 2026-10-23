@@ -6,9 +6,10 @@ import { getItem, type ResultKind } from "../../storage/owned-item-store";
 import { finishTurn, turnStatusOf } from "../../storage/run-store";
 import { appendEvent } from "../../storage/thread-event-store";
 import { moveTaskTo, settleTaskAfterTurn } from "../../tasks/task-resolver";
-import type { ArtifactScope } from "../turns/result-file-save";
-import { saveResultFile } from "../turns/result-file-save";
+import type { ArtifactScope } from "../turns/result-message-record";
+import { recordTaskResult } from "../turns/result-message-record";
 import type { FlowResult } from "../turns/turn-result";
+import type { ReportFile } from "../worker/report-files";
 
 /* Crash path of a detached worker run (the run threw, its close step threw, or the reaper gave up on it): the turn row
    is closed and the item never stays `running` with no live run. A stored report is kept; otherwise the failure policy
@@ -16,6 +17,10 @@ import type { FlowResult } from "../turns/turn-result";
 
 /** Logger of this module. */
 const log = logger.child({ module: "detached-crash" });
+
+/** Reply text of a crashed run that had reported files (the final reply was lost; the files are on the message). */
+const CRASH_REPLY_MARKER =
+  "(The run ended before its final reply; the reported files are attached.)";
 
 /** What the recovery needs from the run. */
 interface CrashRun {
@@ -29,6 +34,7 @@ interface CrashRun {
   agentHome?: string;
   artifactScope?: ArtifactScope;
   resultTitle?: () => string | undefined;
+  resultFiles?: () => ReportFile[] | undefined;
   /** Goal-item failure policy (see `closeTurn`). */
   failurePolicy?: (res: FlowResult, status: string) => boolean;
 }
@@ -48,8 +54,11 @@ export function recoverCrashedRun(db: Database, run: CrashRun, err: unknown): bo
     const kind = run.resultKind();
     if (item?.parentId && kind && kind !== "FAILED") {
       moveTaskTo(db, item.id, STATUS_OF_RESULT[kind]); // the report was stored: the crash must not erase it
-      // ... nor its result text (`Orchestrate forward` reads it)
-      saveResultFile(db, run.turnId, "failed", "error", "", kind, run.resultTitle?.());
+      // ... nor its typed kind (the result message of the report was stored by the turn close)
+      // An empty reply writes no message, which would drop the reported files: a marker line carries them.
+      const files = run.resultFiles?.();
+      const reply = files?.length ? CRASH_REPLY_MARKER : "";
+      recordTaskResult(db, run.turnId, reply, kind, run.resultTitle?.(), files);
       return;
     }
     // Always `error`, even after a watchdog abort: a crash that reached here is a real failure (a force-closed run may

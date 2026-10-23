@@ -7,6 +7,8 @@ import type { ItemRow } from "../../storage/owned-item-store";
 import { insertOwnedTask, taskOrigin } from "../../storage/owned-task-store";
 import { appendEvent } from "../../storage/thread-event-store";
 import { SCOPE_CHARS } from "../../tasks/task-resolver";
+import { AUTHOR_SYSTEM } from "../messages/message-kinds";
+import { postItemMessage } from "../messages/task-messages";
 import { FIX_KEY, isReservedKey, VERIFY_KEY, VERIFY_ROLE } from "./plan-types";
 
 /* Keys and item builders of the verify / fix items (the loop itself is in goal-verify.ts). */
@@ -100,6 +102,8 @@ export function insertItem(
     subject: string;
     location?: string | null;
     dependsOn: string[];
+    /** Why the app made the item: stored as a `system` note in the item's message thread. */
+    note?: string;
   },
 ): void {
   const goal = taskOrigin(db, goalId);
@@ -119,6 +123,7 @@ export function insertItem(
     subject: it.subject,
     ...(it.location && { location: it.location }),
   });
+  if (it.note) postItemMessage(db, id, AUTHOR_SYSTEM, "note", it.note);
   appendEvent(db, {
     id: `verify:${goalId}:${it.key}`, // stable: the same key is never started twice
     threadId: goal.threadId,

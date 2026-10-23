@@ -1,4 +1,5 @@
 import { PLAN_MAX_ITEMS, PLAN_MAX_REVISIONS } from "../../config/lead-caps";
+import { planHeadings, sameHeading } from "./plan-section";
 import {
   budgetSpentMessage,
   isReservedKey,
@@ -9,6 +10,9 @@ import {
 } from "./plan-types";
 
 /* Pure plan validator: no db, no clock. The lead retries on the coded errors. */
+
+/** Most headings a BAD_SECTION message lists. */
+const MAX_HEADINGS_LISTED = 20;
 
 /** Keys that form a cycle (or wait for each other forever) among the plan's own items; Kahn's algorithm. */
 function cyclicKeys(items: PlanDoc["items"]): string[] {
@@ -50,6 +54,8 @@ export function validatePlan(doc: PlanDoc, ctx: PlanCtx): PlanError[] {
   for (const l of env.locations)
     if (!ctx.locations.includes(l))
       add("BAD_LOCATION", `Envelope location ${l} is not in this workspace.`);
+  // An item section must be a heading of the plan text (same match as the extractor: case and spacing ignored).
+  const headings = planHeadings(doc.plan).map((h) => h.text);
   const seen = new Set<string>();
   const known = new Set([...items.map((i) => i.key), ...ctx.existingKeys]);
   for (const it of items) {
@@ -60,6 +66,12 @@ export function validatePlan(doc: PlanDoc, ctx: PlanCtx): PlanError[] {
         it.key,
       );
     seen.add(it.key);
+    if (it.section && !headings.some((h) => sameHeading(h, it.section ?? "")))
+      add(
+        "BAD_SECTION",
+        `Section "${it.section}" is not a heading of the plan text. Headings: ${headings.slice(0, MAX_HEADINGS_LISTED).join(" | ") || "none"}.`,
+        it.key,
+      );
     if (!ctx.workerRoles.includes(it.role))
       add("UNKNOWN_ROLE", `Role ${it.role} is not a dispatchable worker.`, it.key);
     if (it.location && !ctx.locations.includes(it.location))

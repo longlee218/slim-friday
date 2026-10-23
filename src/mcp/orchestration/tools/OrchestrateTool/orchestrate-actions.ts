@@ -6,7 +6,6 @@ import {
   handleDispatch,
   handleForward,
   handleSteer,
-  handleTaskStatus,
 } from "../../../../orchestrator/lead/lead-handlers";
 import { handleRegisterLocation } from "../../../../orchestrator/lead/lead-location-handler";
 import {
@@ -23,20 +22,9 @@ import {
   REGISTER_LOCATION_SHAPE,
   RETRY_TASK_SHAPE,
   STEER_TASK_SHAPE,
-  TASK_STATUS_SHAPE,
 } from "../../../../orchestrator/lead/lead-schemas";
-import {
-  handleAdd,
-  handleGet,
-  handleSearch,
-  handleUpdate,
-} from "../../../../orchestrator/lead/lead-task-handlers";
-import {
-  ADD_ITEM_SHAPE,
-  GET_TASK_SHAPE,
-  SEARCH_TASKS_SHAPE,
-  UPDATE_ITEM_SHAPE,
-} from "../../../../orchestrator/lead/task-schemas";
+import { handleAdd, handleUpdate } from "../../../../orchestrator/lead/lead-task-handlers";
+import { ADD_ITEM_SHAPE, UPDATE_ITEM_SHAPE } from "../../../../orchestrator/lead/task-schemas";
 import {
   APPROVE_PLAN_SHAPE,
   CREATE_LEAD_PLAN_SHAPE,
@@ -51,12 +39,9 @@ import {
   ORCHESTRATE_ACTION_CREATE_PLAN,
   ORCHESTRATE_ACTION_DISPATCH,
   ORCHESTRATE_ACTION_FORWARD,
-  ORCHESTRATE_ACTION_GET,
-  ORCHESTRATE_ACTION_LIST,
   ORCHESTRATE_ACTION_REGISTER_LOCATION,
   ORCHESTRATE_ACTION_RETRY,
   ORCHESTRATE_ACTION_REVISE_PLAN,
-  ORCHESTRATE_ACTION_SEARCH,
   ORCHESTRATE_ACTION_SET_TITLE,
   ORCHESTRATE_ACTION_STEER,
   ORCHESTRATE_ACTION_UPDATE,
@@ -116,24 +101,6 @@ export const ORCHESTRATE_ACTIONS = [
     example: { ...TASK, priority: 10 },
     run: onLead(handleUpdate),
   }),
-  defineAction<OrchestrateCtx, typeof GET_TASK_SHAPE>({
-    name: ORCHESTRATE_ACTION_GET,
-    schema: z.object(GET_TASK_SHAPE),
-    example: TASK,
-    run: onLead(handleGet),
-  }),
-  defineAction<OrchestrateCtx, typeof SEARCH_TASKS_SHAPE>({
-    name: ORCHESTRATE_ACTION_SEARCH,
-    schema: z.object(SEARCH_TASKS_SHAPE),
-    example: { query: "login bug" },
-    run: onLead(handleSearch),
-  }),
-  defineAction<OrchestrateCtx, typeof TASK_STATUS_SHAPE>({
-    name: ORCHESTRATE_ACTION_LIST,
-    schema: z.object(TASK_STATUS_SHAPE),
-    example: TASK,
-    run: onLead(handleTaskStatus),
-  }),
   defineAction<OrchestrateCtx, typeof STEER_TASK_SHAPE>({
     name: ORCHESTRATE_ACTION_STEER,
     schema: z.object(STEER_TASK_SHAPE),
@@ -169,12 +136,15 @@ export const ORCHESTRATE_ACTIONS = [
     schema: z.object(CREATE_LEAD_PLAN_SHAPE),
     example: {
       objective: "Add OAuth login to the app",
+      spec: "# Spec\nWhat is built and why ...",
+      plan: "# Plan\n## Login\nSteps, files, checks ...",
       items: [
         {
           key: "build-login",
           subject: "Build OAuth login",
           role: "developer",
           brief: "goal: ...\ninputs: ...\ndeliver: ...\ndone when: ...",
+          section: "Login",
           location: "app",
           dependsOn: [],
           risk: "R1",

@@ -153,6 +153,8 @@ test("the planner cannot be a plan role: the registry and the validator refuse i
   expect(ENV.workerRoles).not.toContain("planner");
   expect(ENV.workerRoles).not.toContain("lead");
   const doc = (role: string) => ({
+    spec: "# Spec",
+    plan: "# Plan",
     items: [item("a", { role })],
     acceptanceCriteria: [],
     envelope: buildEnvelope(

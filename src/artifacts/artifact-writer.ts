@@ -1,13 +1,10 @@
 import type { Database } from "bun:sqlite";
-import { join } from "node:path";
 import { CHANNEL_NAME, WORKSPACE_NAME, workspacePaths } from "../config/workspace-paths";
 import { attachmentName } from "../ingress/attachment-name";
 import { redactText } from "../observability/redact";
-import { resolveReal } from "../policy/paths";
 import { insertArtifact, latestVersion } from "../storage/artifact-store";
 import { indexArtifact } from "./artifact-index";
 import { type ArtifactKind, isIndexedKind } from "./artifact-kinds";
-import { type DocsLocation, REPO_DOCS_DIR } from "./repo-docs";
 import { writeFileExclusive } from "./safe-write";
 
 /** Most file names tried for one save (each taken name moves to the next version). */
@@ -33,8 +30,6 @@ export interface ArtifactInput {
   producerRole?: string;
   /** Location name of a repo artifact. */
   location?: string;
-  /** The project the file goes into (`<path>/docs/friday/`) instead of AGENT_HOME; the row keeps its name as `location`. */
-  repoDocs?: DocsLocation;
   /** True for a file the code writes itself (a plan version): never counted as a file the run saved, hidden from list and search. */
   summary?: boolean;
 }
@@ -55,7 +50,7 @@ export function assertScope(workspace: string, channel?: string): void {
 
 /**
  * Write a document artifact: `workspaces/<ws>/channels/<channel>/artifacts/<title-slug>[-vN].<ext>` (workspace-level
- * `artifacts/` when no channel), or `<location>/docs/friday/<title-slug>[-vN].<ext>` with `repoDocs`; redacted, atomic,
+ * `artifacts/` when no channel); redacted, atomic,
  * owner-only; one `artifacts` row (`store`: the app wrote the file); text kinds are full-text indexed.
  * The same name in the same channel makes a new `-vN` file and row: the older ones stay. Returns the id, path and version.
  */
@@ -66,13 +61,9 @@ export function writeArtifact(
 ): { id: string; path: string; version: number } {
   assertScope(a.workspace, a.channel);
   const ws = workspacePaths(agentHome).workspace(a.workspace);
-  // The safe write keeps the file under `root` (symlinks resolved): AGENT_HOME, or the project for repo docs.
-  const root = a.repoDocs ? resolveReal(a.repoDocs.path) : agentHome;
-  const dir = a.repoDocs
-    ? join(root, REPO_DOCS_DIR)
-    : a.channel
-      ? ws.channel(a.channel).artifacts
-      : ws.artifacts;
+  // The safe write keeps the file under AGENT_HOME (symlinks resolved).
+  const root = agentHome;
+  const dir = a.channel ? ws.channel(a.channel).artifacts : ws.artifacts;
   const { stem, ext } = splitName(
     redactText(a.title ?? "").trim() || undefined,
     a.kind,
@@ -104,7 +95,7 @@ export function writeArtifact(
     kind: a.kind,
     origin: "store",
     path,
-    location: a.repoDocs?.name ?? a.location ?? null,
+    location: a.location ?? null,
     producerRole: a.producerRole ?? null,
     version,
     size: Buffer.byteLength(body),

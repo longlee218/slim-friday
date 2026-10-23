@@ -16,7 +16,7 @@ import {
 import { readRepoText } from "./artifact-repo-sync";
 import { type ArtifactHit, searchArtifacts } from "./artifact-search";
 import { writeArtifact } from "./artifact-writer";
-import { repoDocsTarget, storeRootOf } from "./repo-docs";
+import { storeRootOf } from "./repo-docs";
 
 /**
  * What the artifact tools know about the run they belong to. The scope (workspace + channel) comes from the run, never
@@ -37,8 +37,6 @@ export interface ArtifactToolCtx {
   role?: string;
   /** Locations of the run's channel: a repo artifact is read through its location. */
   locations: { name: string; path: string }[];
-  /** The run's own granted location: the only one a repo doc may be reported from. */
-  granted?: { name: string; path: string };
 }
 
 /** A refusal (same shape as the orchestration `Reply`; this module imports nothing of it). */
@@ -170,16 +168,7 @@ export function readArtifact(c: ArtifactToolCtx, id: string, offset = 0, limit?:
   };
 }
 
-/** The run's project for a saved file (see `repoDocsTarget`), as the writer's `repoDocs` input; empty = AGENT_HOME. */
-const withRepoDocs = (c: ArtifactToolCtx) => {
-  const repoDocs = repoDocsTarget(c.granted, c.locations);
-  return repoDocs ? { repoDocs } : {};
-};
-
-/**
- * Save a document artifact in the run's channel (through the phase-3 writer; no size cap). The file goes into the run's
- * project (`<location>/docs/friday/`) when it has one, else into AGENT_HOME.
- */
+/** Save a document artifact in the run's channel (the lead only; through the writer, no size cap), under AGENT_HOME. */
 export function saveArtifact(
   c: ArtifactToolCtx,
   a: { title: string; kind: ArtifactKind; body: string },
@@ -195,7 +184,6 @@ export function saveArtifact(
     fallbackName: "artifact",
     kind: a.kind,
     body: a.body,
-    ...withRepoDocs(c),
   });
   return { ok: true as const, id: w.id, version: w.version };
 }

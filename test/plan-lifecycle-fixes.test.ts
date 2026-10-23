@@ -83,6 +83,8 @@ const view = (over: Record<string, unknown> = {}) => ({
   goalId: "g1",
   objective: "build it",
   doc: {
+    spec: "# Spec",
+    plan: "# Plan",
     items: [
       {
         key: "a",

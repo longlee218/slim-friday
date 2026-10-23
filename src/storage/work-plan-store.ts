@@ -20,6 +20,10 @@ export interface WorkPlanRow {
   objective: string;
   /** Plan text / items as written by the lead. */
   body: string;
+  /** Spec text of the goal (markdown; empty when none). */
+  specMd: string;
+  /** Plan text of the goal (markdown; empty when none). */
+  planMd: string;
   /** JSON array of acceptance criteria. */
   acceptance: string;
   /** JSON object: limits the run must stay inside (tools, locations, ...). */
@@ -36,22 +40,26 @@ export interface WorkPlanRow {
   approvedAt: number | null;
 }
 
-const COLUMNS = `id, version, goal_id AS goalId, status, strategy, objective, body, acceptance, envelope,
+const COLUMNS = `id, version, goal_id AS goalId, status, strategy, objective, body, spec_md AS specMd, plan_md AS planMd, acceptance, envelope,
   budget_usd AS budgetUsd, effects, reason, created_at AS createdAt,
   approved_at AS approvedAt`;
 
 /** Insert a new plan version (`version` = previous latest + 1, 1 for the first). Returns the stored row. */
 export function insertPlanVersion(
   db: Database,
-  p: Omit<WorkPlanRow, "version" | "createdAt" | "approvedAt" | "status"> & { status?: PlanStatus },
+  p: Omit<WorkPlanRow, "version" | "createdAt" | "approvedAt" | "status" | "specMd" | "planMd"> & {
+    status?: PlanStatus;
+    specMd?: string;
+    planMd?: string;
+  },
 ): WorkPlanRow {
   // Read latest + insert in one transaction: two writers never take the same version.
   const version = db.transaction(() => {
     const next = (latestPlan(db, p.id)?.version ?? 0) + 1;
     db.query(
-      `INSERT INTO work_plans (id, version, goal_id, status, strategy, objective, body, acceptance, envelope,
+      `INSERT INTO work_plans (id, version, goal_id, status, strategy, objective, body, spec_md, plan_md, acceptance, envelope,
        budget_usd, effects, reason, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       p.id,
       next,
@@ -60,6 +68,8 @@ export function insertPlanVersion(
       p.strategy,
       p.objective,
       p.body,
+      p.specMd ?? "",
+      p.planMd ?? "",
       p.acceptance,
       p.envelope,
       p.budgetUsd,

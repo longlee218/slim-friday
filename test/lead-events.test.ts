@@ -52,7 +52,13 @@ test("question relay: the worker's ask is a question event and waits; answer res
   const { db } = makeEnv();
   const woke: string[] = [];
   const relay = createQuestionRelay(db, (t) => woke.push(t), 40);
-  const ask = relay.forWorker({ threadId: "t", goalId: "g", itemId: "i", turnId: "u" });
+  const ask = relay.forWorker({
+    threadId: "t",
+    goalId: "g",
+    itemId: "i",
+    turnId: "u",
+    role: "developer",
+  });
   const q = [{ question: "Which?", options: [{ label: "a" }] }];
   const waiting = ask(q);
   expect(woke).toEqual(["t"]);

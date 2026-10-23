@@ -37,9 +37,13 @@ export interface Edit {
   /** Full replacement of the acceptance criteria; omit to keep them. */
   acceptanceCriteria?: string[] | undefined;
   cancel: string[];
+  /** Full replacement of the spec / plan text; omit to keep the base version's. */
+  spec?: string | undefined;
+  plan?: string | undefined;
   modify: {
     key: string;
     brief?: string | undefined;
+    section?: string | undefined;
     location?: string | undefined;
     dependsOn?: string[] | undefined;
     risk?: string | undefined;
@@ -97,6 +101,8 @@ export function revisePlan(
   const computed = planBudgetUsd({ items, verifies: acceptanceCriteria.length > 0, spentUsd });
   const budgetUsd = base.status === "approved" ? Math.max(computed, oldEnv.budgetUsd) : computed;
   const doc: PlanDoc = {
+    spec: a.edit.spec ?? baseDoc.spec,
+    plan: a.edit.plan ?? baseDoc.plan,
     items,
     acceptanceCriteria,
     envelope: buildEnvelope(

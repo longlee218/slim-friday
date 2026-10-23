@@ -34,6 +34,7 @@ import { MEMORY_SAVE_TOOL } from "./memory/tools/MemorySaveTool/constants";
 import { MEMORY_SEARCH_TOOL } from "./memory/tools/MemorySearchTool/constants";
 import { ORCHESTRATE_TOOL } from "./orchestration/tools/OrchestrateTool/constants";
 import { REPORT_TOOL } from "./orchestration/tools/ReportTool/constants";
+import { TASK_BOARD_TOOL } from "./orchestration/tools/TaskBoardTool/constants";
 import { PLAYWRIGHT_TOOLS } from "./playwright/playwright-tool-names";
 
 /**
@@ -60,6 +61,7 @@ export const MCP_TOOL_SERVER: Readonly<Record<string, string>> = {
   [MEMORY_SEARCH_TOOL]: MEMORY_MCP_SERVER,
   [ORCHESTRATE_TOOL]: ORCHESTRATION_MCP_SERVER,
   [REPORT_TOOL]: ORCHESTRATION_MCP_SERVER,
+  [TASK_BOARD_TOOL]: ORCHESTRATION_MCP_SERVER,
   [FIRECRAWL_SEARCH_TOOL]: FIRECRAWL_MCP_SERVER,
   [FIRECRAWL_SCRAPE_TOOL]: FIRECRAWL_MCP_SERVER,
   [FIRECRAWL_MAP_TOOL]: FIRECRAWL_MCP_SERVER,

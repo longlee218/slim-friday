@@ -63,6 +63,8 @@ test("plan approved -> DeletePaths in the envelope (trash, no question); outside
       if (c.prompt.includes("<owner_message>\ncleanup")) {
         const made = await c.orchestrate("create_plan", {
           objective: "clean up",
+          spec: "# Spec\nThe goal.",
+          plan: "# Plan\nThe steps.",
           items: [
             {
               key: "cleanup",

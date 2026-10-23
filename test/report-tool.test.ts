@@ -1,4 +1,7 @@
 import { expect, test } from "bun:test";
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { buildServers } from "../src/mcp/mcp-servers";
 import { ORCHESTRATION_MCP_SERVER } from "../src/mcp/mcp-tool-names";
 import { REPORT_TOOL } from "../src/mcp/orchestration/tools/ReportTool/constants";
@@ -47,7 +50,7 @@ test("an action refuses with ACTION_UNAVAILABLE when the run lacks its part", as
   expect(r.code).toBe("ACTION_UNAVAILABLE");
 });
 
-test("result stores the first report; a second is ALREADY_REPORTED; artifacts need an artifact ctx", async () => {
+test("result stores the first report; a second is ALREADY_REPORTED; files need a place to read from", async () => {
   const sink: ReportSink = {};
   const t = createReportTool({ sink });
   const body = { title: "T", status: "COMPLETED", summary: "done" };
@@ -57,8 +60,8 @@ test("result stores the first report; a second is ALREADY_REPORTED; artifacts ne
   expect(again).toMatchObject({ isError: true, code: "ALREADY_REPORTED" });
   expect(sink.report?.status).toBe("COMPLETED");
   const fresh = createReportTool({ sink: {} });
-  const noArt = await call(fresh, "result", { ...body, artifacts: [{ id: "x" }] });
-  expect(noArt.code).toBe("INVALID_ARTIFACTS");
+  const noFiles = await call(fresh, "result", { ...body, files: [{ title: "x", path: "x.md" }] });
+  expect(noFiles.code).toBe("INVALID_FILES");
 });
 
 test("worker roles hold Report when the run has a progress port or a sink; the lead never does", () => {
@@ -82,4 +85,70 @@ test("the guard allows Report for every worker role and denies it for the others
       name,
       checkToolCall(full, {}, guardFor(role, { readPaths: ["/r"] })).decision === "allow",
     ]).toEqual([name, role.kind === "worker"]);
+});
+
+test("result files: a scratch file is checked and copied into the sink; a bad one refuses the report", async () => {
+  const base = realpathSync(mkdtempSync(join(tmpdir(), "report-files-tool-")));
+  try {
+    const scratch = join(base, "scratch");
+    mkdirSync(scratch);
+    writeFileSync(join(scratch, "notes.md"), "# notes");
+    const home = join(base, "home");
+    mkdirSync(home);
+    const files = { home, copyDir: join(home, "task-files", "g", "t") };
+    const body = { title: "T", status: "COMPLETED", summary: "done" };
+    const bad: ReportSink = {};
+    const refused = await call(
+      createReportTool({ sink: bad, files, scratchDir: scratch }),
+      "result",
+      {
+        ...body,
+        files: [{ title: "x", path: "../escape.md" }],
+      },
+    );
+    expect(refused).toMatchObject({ isError: true, code: "INVALID_FILES" });
+    expect(bad.report).toBeUndefined();
+    const sink: ReportSink = {};
+    const ok = await call(createReportTool({ sink, files, scratchDir: scratch }), "result", {
+      ...body,
+      files: [{ title: "Notes", path: "notes.md" }],
+    });
+    expect(ok.ok).toBe(true);
+    expect(sink.files).toEqual([
+      { title: "Notes", base: "scratch", path: join(home, "task-files", "g", "t", "1-notes.md") },
+    ]);
+  } finally {
+    rmSync(base, { recursive: true, force: true });
+  }
+});
+
+test("result files: an image refusal keeps no copy and no files, so the worker can report again", async () => {
+  const base = realpathSync(mkdtempSync(join(tmpdir(), "report-files-img-")));
+  try {
+    const scratch = join(base, "scratch");
+    mkdirSync(scratch);
+    writeFileSync(join(scratch, "notes.md"), "# notes");
+    const home = join(base, "home");
+    mkdirSync(home);
+    const files = { home, copyDir: join(home, "task-files", "g", "t") };
+    const sink: ReportSink = {};
+    const tool = createReportTool({ sink, files, scratchDir: scratch });
+    const body = { title: "T", status: "COMPLETED", summary: "done" };
+    const refused = await call(tool, "result", {
+      ...body,
+      files: [{ title: "Notes", path: "notes.md" }],
+      images: ["missing.png"],
+    });
+    expect(refused).toMatchObject({ isError: true, code: "INVALID_IMAGES" });
+    expect(sink.files).toBeUndefined();
+    expect(existsSync(files.copyDir)).toBe(false);
+    const again = await call(tool, "result", {
+      ...body,
+      files: [{ title: "Notes", path: "notes.md" }],
+    });
+    expect(again.ok).toBe(true);
+    expect(sink.files).toHaveLength(1);
+  } finally {
+    rmSync(base, { recursive: true, force: true });
+  }
 });

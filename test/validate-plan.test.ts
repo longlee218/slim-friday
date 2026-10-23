@@ -16,6 +16,8 @@ const item = (key: string, over: Record<string, unknown> = {}) =>
   toPlanItem({ key, role: "developer", brief: `do ${key}`, dependsOn: [], risk: "R1", ...over });
 /** A plan doc over the given items; the envelope covers repo + R0-R2 by default. */
 const doc = (items: ReturnType<typeof item>[], env: Record<string, unknown> = {}): PlanDoc => ({
+  spec: "# Spec",
+  plan: "# Plan",
   items,
   acceptanceCriteria: ["done"],
   envelope: {

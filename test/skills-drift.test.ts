@@ -3,6 +3,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import * as orchestrateNames from "../src/mcp/orchestration/tools/OrchestrateTool/action-names";
 import * as reportNames from "../src/mcp/orchestration/tools/ReportTool/action-names";
+import * as taskBoardNames from "../src/mcp/orchestration/tools/TaskBoardTool/action-names";
 import { PUBLISHER_SKILLS_DIR } from "../src/runtime/skills-plugin/publisher-skills";
 
 /* Drift guards for the app-owned skills (`.agents/skills/<name>/references/*.md`): the refusal codes and the action
@@ -74,4 +75,17 @@ test("every action heading in a skill's references/actions.md is a real action, 
     seen.push(d);
   }
   expect(seen).toEqual(expect.arrayContaining(["lead-orchestration"]));
+});
+
+test("team-protocol names every TaskBoard action; worker skills never tell a worker to SaveArtifact", () => {
+  const text = (name: string) =>
+    files(join(PUBLISHER_SKILLS_DIR, name), ".md")
+      .map((f) => readFileSync(f, "utf8"))
+      .join("\n");
+  const protocol = text("team-protocol");
+  const missing = actionsOf(taskBoardNames).filter((a) => !protocol.includes(`\`${a}\``));
+  expect(missing).toEqual([]);
+  for (const d of ["team-protocol", "worker-reporting"]) {
+    expect(text(d), `${d} mentions SaveArtifact`).not.toContain("SaveArtifact");
+  }
 });

@@ -24,13 +24,13 @@ export function buildLeadContextBlock(
   if (!snap.goalId) return `${LEAD_DATA_TAG}\nNo goal yet in this thread.\n</goal_state>`;
   const rows = snap.items.map(
     (it) =>
-      `| ${it.id} | ${it.key ?? "-"} | ${it.status} | ${cell(it.pendingQuestion)} | ${it.resultKind ?? "-"} | ${cell(it.resultExcerpt)} | ${it.resultPath ?? "-"} |`,
+      `| ${it.id} | ${it.key ?? "-"} | ${it.status} | ${cell(it.pendingQuestion)} | ${it.resultKind ?? "-"} | ${cell(it.resultExcerpt)} | ${it.resultMessage ?? "-"} |`,
   );
   return [
     LEAD_DATA_TAG,
     `Goal ${snap.goalId}: ${cell(snap.intent)}`,
     ...(criteria.length ? ["Criteria:", ...criteria.map((c) => `- ${cell(c)}`)] : []),
-    "| task | key | status | question | result | excerpt | file |",
+    "| task | key | status | question | result | excerpt | result message |",
     "|---|---|---|---|---|---|---|",
     ...rows,
     "</goal_state>",

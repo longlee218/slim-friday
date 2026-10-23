@@ -68,8 +68,6 @@ const EXPECTED: Record<string, string[]> = {
     "location",
     "brief",
     "result_kind",
-    "result_path",
-    "result_text",
     "result_excerpt",
     "structure_owner",
     "priority",
@@ -181,6 +179,18 @@ const EXPECTED: Record<string, string[]> = {
     "counts_toward_cap",
     "owned_task_id",
   ],
+  task_messages: [
+    "id",
+    "thread_id",
+    "goal_id",
+    "task_id",
+    "author",
+    "kind",
+    "reply_to",
+    "text",
+    "files",
+    "created_at",
+  ],
   work_plans: [
     "id",
     "version",
@@ -189,6 +199,8 @@ const EXPECTED: Record<string, string[]> = {
     "strategy",
     "objective",
     "body",
+    "spec_md",
+    "plan_md",
     "acceptance",
     "envelope",
     "budget_usd",
@@ -205,12 +217,18 @@ test("fresh db has exactly the baseline tables and columns", () => {
     expect(cols(db, table).sort(), table).toEqual([...expected].sort());
   const tables = db
     .query<{ name: string }, []>(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'memory_fts_%' AND name NOT LIKE 'artifacts_fts_%'",
+      "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'memory_fts_%' AND name NOT LIKE 'artifacts_fts_%' AND name NOT LIKE 'task_messages_fts_%'",
     )
     .all()
     .map((r) => r.name);
   expect(tables.sort()).toEqual(
-    [...Object.keys(EXPECTED), "__drizzle_migrations", "artifacts_fts", "memory_fts"].sort(),
+    [
+      ...Object.keys(EXPECTED),
+      "__drizzle_migrations",
+      "artifacts_fts",
+      "memory_fts",
+      "task_messages_fts",
+    ].sort(),
   );
   // Dropped with the v8 chain: no proposals/meta table, no dead columns.
   expect(tables).not.toContain("proposals");
@@ -239,7 +257,7 @@ test("reopening a file db is a no-op and a foreign db is refused", () => {
     a.close();
     const b = openDb(file);
     expect(b.query("SELECT thread_id FROM threads").all()).toHaveLength(1);
-    expect(b.query("SELECT COUNT(*) AS n FROM __drizzle_migrations").get()).toEqual({ n: 17 });
+    expect(b.query("SELECT COUNT(*) AS n FROM __drizzle_migrations").get()).toEqual({ n: 20 });
     b.close();
 
     const foreign = join(dir, "foreign.db");

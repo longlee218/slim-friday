@@ -12,6 +12,9 @@ import { errText } from "../../observability/redact";
 import { type DigestGoal, goalsWithLiveWork, heldTooLong } from "../../storage/check-in-store";
 import { appendEvent } from "../../storage/thread-event-store";
 import { type LeadRuntime, postTo } from "../lead/lead-runtime";
+import { AUTHOR_SYSTEM } from "../messages/message-kinds";
+import { messageRef } from "../messages/message-ref";
+import { postItemMessage } from "../messages/task-messages";
 import { planLinks, planUrlOfGoal } from "../plan/plan-artifact";
 import { digestFacts, factsKey } from "./digest-facts";
 
@@ -22,6 +25,9 @@ import { digestFacts, factsKey } from "./digest-facts";
 
 /** Logger of this module. */
 const log = logger.child({ module: "check-in" });
+
+/** Thrown inside the escalation write to roll the note back when the event already exists. */
+class DuplicateEscalation extends Error {}
 
 /** Escalate every held item that waited long enough (again after `HOLD_REESCALATE_MS` while it stays undecided). */
 function escalateHolds(rt: LeadRuntime, now: number): void {
@@ -34,21 +40,38 @@ function escalateHolds(rt: LeadRuntime, now: number): void {
     HOLD_REESCALATE_MS,
   )) {
     // The query already spaced the escalations (floor); the id carries the moment so each one is its own event.
-    const written = appendEvent(rt.deps.db, {
-      id: `hold:${h.itemId}:${h.dispatchCount}:${now}`,
-      createdAt: now, // the clock of the tick (the repeat floor compares against it)
-      threadId: h.threadId,
-      taskId: h.goalId,
-      itemId: h.itemId,
-      kind: "timeout",
-      payload: {
-        key: h.itemKey,
-        status: "blocked",
-        cause: "hold_undecided",
-        heldMinutes: Math.round((now - h.heldAt) / 60_000),
-      },
+    // The note and the event are ONE write: a duplicate event (the same tick twice) rolls the note back.
+    const written = rt.deps.db.transaction(() => {
+      const messageId = postItemMessage(
+        rt.deps.db,
+        h.itemId,
+        AUTHOR_SYSTEM,
+        "note",
+        `The app asked the lead to decide: this item has been held ${Math.round((now - h.heldAt) / 60_000)} min with no decision.`,
+      );
+      const ok = appendEvent(rt.deps.db, {
+        id: `hold:${h.itemId}:${h.dispatchCount}:${now}`,
+        createdAt: now, // the clock of the tick (the repeat floor compares against it)
+        threadId: h.threadId,
+        taskId: h.goalId,
+        itemId: h.itemId,
+        kind: "timeout",
+        payload: {
+          ...(messageId && { messageId: messageRef(messageId) }),
+          key: h.itemKey,
+          status: "blocked",
+          cause: "hold_undecided",
+          heldMinutes: Math.round((now - h.heldAt) / 60_000),
+        },
+      });
+      if (!ok) throw new DuplicateEscalation();
     });
-    if (!written) continue; // the same tick twice
+    try {
+      written();
+    } catch (err) {
+      if (err instanceof DuplicateEscalation) continue; // the same tick twice
+      throw err;
+    }
     logEvent(log, "hold.escalated", { itemId: h.itemId, threadId: h.threadId }, "warn");
     rt.announce(h.threadId);
   }

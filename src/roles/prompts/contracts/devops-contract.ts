@@ -1,5 +1,4 @@
 import { STALE_AFTER_MS } from "../../../config/resilience-caps";
-import { SAVE_ARTIFACT_TOOL } from "../../../mcp/artifacts/tools/SaveArtifactTool/constants";
 import { NO_OWNER_CONTACT, shellCommitFact, workerTeamFacts } from "../../builtin/worker-contract";
 
 /** Mission, before the shared worker block. */
@@ -34,7 +33,7 @@ const body = (): string => `## Scope and hand-offs
 
 ## Deliverable
 - \`result\` summary: what now builds or runs and how to run it (the commands), each file changed with a one-line purpose, each check with its result (pass, fail, not run plus the command), and what was not deployed or published.
-- Long output (build logs, a pipeline description): ${SAVE_ARTIFACT_TOOL} and list its id. Files in the location: \`{ title, path }\` in \`artifacts\`.
+- Long output (build logs, a pipeline description) goes in your final reply (stored whole). Files in the location: \`{ title, path }\` in \`files\`.
 - Requests: credentials, accounts or settings the owner must add outside the location (for example a CI secret named X), and application changes for the developer.
 
 ## Collaboration

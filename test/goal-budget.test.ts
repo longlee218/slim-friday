@@ -50,6 +50,8 @@ test("create_plan: code computes the budget from the items' role ceilings, cappe
   const app = plannerCtxOf({ db }, g.goalId);
   const budget = (keys: string[]) => {
     const r = createPlanFor(app, {
+      spec: "# Spec",
+      plan: "# Plan",
       items: keys.map((k) => item(k)),
       acceptanceCriteria: ["tests pass"],
       envelope: { locations: ["repo"], riskClasses: ["R1"], bounds: { maxItems: 8, maxGb: 1 } },
@@ -127,6 +129,8 @@ test("budget_hit: a plan goal stops starting items at its computed plan budget (
       if (c.prompt.includes("<owner_message>")) {
         const made = await c.orchestrate("create_plan", {
           objective: "two steps",
+          spec: "# Spec\nThe goal.",
+          plan: "# Plan\nThe steps.",
           items: [
             item("a", { location: "location" }),
             item("b", { dependsOn: ["a"], location: "location" }),

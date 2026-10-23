@@ -51,6 +51,8 @@ test("a worker that reports NEEDS_PLANNING wakes the lead, which writes a plan (
         await c.orchestrate("create_plan", {
           goalId,
           objective: "rewrite everything",
+          spec: "# Spec\nThe goal.",
+          plan: "# Plan\nThe steps.",
           items: [
             {
               key: "part1",

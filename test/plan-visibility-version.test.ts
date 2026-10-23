@@ -101,6 +101,8 @@ test("a re-plan after a reject gets its own artifact per version (the rejected o
   rejectVersion(db, planId, 1, "no");
   const ctx = plannerCtxOf({ db }, goalId);
   const r = createPlanFor(ctx, {
+    spec: "# Spec",
+    plan: "# Plan",
     items: [item("n")],
     acceptanceCriteria: ["works"],
     envelope: ENVELOPE,

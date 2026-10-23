@@ -40,30 +40,19 @@ export function listChannelArtifacts(
     .all(...params);
 }
 
-/**
- * Files a task saved itself (store origin, `task_id` = the task, not a code-written result summary: after a resume the old summary must not win), the task's PRIMARY first: the largest (a research
- * report beats its short summary), a tie goes to the newest. Used for the result path, the end event and verbatim forward.
- * A name the task saved more than once counts once: only its newest version (an older draft is never posted again).
- */
-export function taskStoreArtifacts(db: Database, taskId: string): ArtifactRow[] {
+/** Every version of the artifacts of one task with this title and origin, newest first (a re-forward reuses an equal one). */
+export function taskArtifactsByTitle(
+  db: Database,
+  taskId: string,
+  title: string,
+  origin: "store" | "repo",
+): ArtifactRow[] {
   return db
-    .query<ArtifactRow, [string]>(
-      `SELECT ${COLUMNS} FROM artifacts a WHERE task_id = ? AND origin = 'store' AND summary = 0
-        AND NOT EXISTS (SELECT 1 FROM artifacts b WHERE b.task_id = a.task_id AND b.origin = 'store'
-          AND b.summary = 0 AND b.name = a.name AND b.version > a.version)
-        ORDER BY size DESC, rowid DESC`,
+    .query<ArtifactRow, [string, string, string]>(
+      `SELECT ${COLUMNS} FROM artifacts a WHERE task_id = ? AND title = ? AND origin = ? AND summary = 0
+        ORDER BY version DESC, rowid DESC`,
     )
-    .all(taskId);
-}
-
-/** Ids of every stored artifact of a task, its code-written result summary included: files the run saved first, newest first. */
-export function taskArtifactIds(db: Database, taskId: string): string[] {
-  return db
-    .query<{ id: string }, [string]>(
-      "SELECT id FROM artifacts WHERE task_id = ? AND origin = 'store' ORDER BY summary ASC, rowid DESC",
-    )
-    .all(taskId)
-    .map((r) => r.id);
+    .all(taskId, title, origin);
 }
 
 /** Drop the index rows of one artifact (before it is indexed again from a changed file). */

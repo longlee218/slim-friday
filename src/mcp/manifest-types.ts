@@ -7,9 +7,11 @@ import type {
 import type { ArtifactToolCtx } from "../artifacts/artifact-access";
 import type { MemoryToolContext } from "../memory/memory-tool-context";
 import type { LeadToolContext } from "../orchestrator/lead/lead-call";
+import type { ReportFilesCtx } from "../orchestrator/worker/report-files";
 import type { ReportSink } from "../orchestrator/worker/report-sink";
 import type { EffectsCtx } from "../policy/effect-context";
 import type { ReadBudget } from "./memory/memory-read-shared";
+import type { TaskBoardCtx } from "./orchestration/tools/TaskBoardTool/task-board-ctx";
 
 /**
  * Everything a run can bring to its MCP tools, as optional parts. A tool reads the part it needs; a run without that
@@ -22,15 +24,21 @@ export interface RunCtx {
   lead?: LeadToolContext;
   /** The run's own scratch dir (a dispatched worker): where its screenshots are checked from. */
   scratchDir?: string;
+  /** Where a worker's `Report result` `files` are checked and scratch ones copied. */
+  reportFiles?: Omit<ReportFilesCtx, "scratchDir">;
   /** Where a worker's `Report` result lands. */
   reportSink?: ReportSink;
   /** A worker's `Report` progress port, bound to its task (percent + note in, redacted and recorded by the callee). */
   progress?: (p: { percent: number; note: string }) => void;
+  /** A worker's `Report` message port, bound to its task: stores a message of the task's thread, returns its ref (`M42`). */
+  message?: (kind: "blocker", text: string) => string;
+  /** `TaskBoard` (lead and workers): the app db and the run's thread. Absent = no task board. */
+  taskBoard?: TaskBoardCtx;
   /** Effect tools: the worker run's envelope, locations and owner gate. */
   effects?: EffectsCtx;
   /** Discord admin tools: the control-channel run. */
   admin?: AdminContext;
-  /** Artifact tools (and the artifact refs of `Report` result): the run's channel scope. Absent = no artifact tools. */
+  /** Artifact tools: the run's channel scope. Absent = no artifact tools. */
   artifacts?: ArtifactToolCtx;
   /** Per-server-instance read cap shared by the memory read tools (set by the memory manifest's `prepare`). */
   readBudget?: ReadBudget;

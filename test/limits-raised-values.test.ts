@@ -110,7 +110,7 @@ test(`a ${PLAN_MAX_ITEMS}-item plan with ${BRIEF_MAX_CHARS}-char briefs validate
     TASK_BUDGET_USD,
     [],
   );
-  const doc: PlanDoc = { items, acceptanceCriteria: ["done"], envelope };
+  const doc: PlanDoc = { spec: "", plan: "", items, acceptanceCriteria: ["done"], envelope };
   // No body size cap: more than the old 16 KB validates.
   expect(JSON.stringify({ items }).length).toBeGreaterThan(16 * 1024);
   expect(

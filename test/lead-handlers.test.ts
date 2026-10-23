@@ -6,7 +6,6 @@ import {
   handleDispatch,
   handleForward,
   handleSteer,
-  handleTaskStatus,
 } from "../src/orchestrator/lead/lead-handlers";
 import type { DispatchInput } from "../src/orchestrator/lead/lead-schemas";
 import { FakePort, itemRow, leadCtx } from "./lead-fake-port";
@@ -88,7 +87,9 @@ test("idempotent: the same call twice in one lead turn is one effect, the stored
 
 test("idempotent: steer, cancel, forward act once per key", async () => {
   const port = new FakePort();
-  port.rows.set("t1", itemRow({ resultPath: "/r.md", resultExcerpt: "x" }));
+  port.rows.set("t1", itemRow({ resultExcerpt: "x" }));
+  port.results.set("t1", { ref: "M1", text: "# R\n\nbody" });
+  port.forwards.set("t1", { posts: [{ filePath: "/r.md" }], notes: [] });
   const ctx = leadCtx(port);
   for (let i = 0; i < 2; i++) {
     await handleSteer(ctx, { taskId: "t1", text: "hi" });
@@ -96,15 +97,6 @@ test("idempotent: steer, cancel, forward act once per key", async () => {
     await handleForward(ctx, { taskId: "t1", mode: "verbatim" });
   }
   expect([port.steered.length, port.cancelled.length, port.posts.length]).toEqual([1, 1, 1]);
-});
-
-test("task status: facts, or BAD_TASK for a task of another thread", async () => {
-  const port = new FakePort();
-  port.rows.set("t1", itemRow());
-  expect(await handleTaskStatus(leadCtx(port), {})).toMatchObject({ ok: true, goalId: "g1" });
-  expect(await handleTaskStatus(leadCtx(port), { taskId: "zzz" })).toMatchObject({
-    code: "BAD_TASK",
-  });
 });
 
 test("steer: result passes through; unknown task refused; writes a steer event", async () => {
@@ -181,7 +173,9 @@ test("ask owner: kind maps to port options; options that do not fit the kind are
 
 test("forward: verbatim posts the file, summary the excerpt, no result is refused", async () => {
   const port = new FakePort();
-  port.rows.set("t1", itemRow({ resultPath: "/r.md", resultExcerpt: "short" }));
+  port.rows.set("t1", itemRow({ resultExcerpt: "short" }));
+  port.results.set("t1", { ref: "M1", text: "# R\n\nbody" });
+  port.forwards.set("t1", { posts: [{ filePath: "/r.md" }], notes: [] });
   port.rows.set("t2", itemRow({ id: "t2" }));
   await handleForward(leadCtx(port), { taskId: "t1", mode: "verbatim" });
   await handleForward(leadCtx(port), { taskId: "t1", mode: "summary" });
@@ -191,28 +185,24 @@ test("forward: verbatim posts the file, summary the excerpt, no result is refuse
   });
 });
 
-test("forward verbatim: a run that saved no file posts its report text; no file and no text is refused", async () => {
+test("forward verbatim: posts what the port made, passes its notes on; no result message is refused", async () => {
   const port = new FakePort();
-  port.rows.set(
-    "t1",
-    itemRow({ resultPath: null, resultExcerpt: "short", resultText: "# T\n\nfull report" }),
-  );
+  port.rows.set("t1", itemRow({ resultExcerpt: "short" }));
+  port.results.set("t1", { ref: "M7", text: "# T\n\nfull report" });
+  port.forwards.set("t1", {
+    posts: [{ filePath: "/full.md", artifactId: "a1" }, { filePath: "/second.md" }],
+    notes: ['FILE_GONE: "Old" (x.md) no longer exists in repo; skipped.'],
+  });
   port.rows.set("t2", itemRow({ id: "t2" }));
   const r = await handleForward(leadCtx(port), { taskId: "t1", mode: "verbatim" });
-  expect(port.posts).toEqual([{ text: "# T\n\nfull report" }]);
-  expect(r).toMatchObject({ ok: true, files: 0 });
+  expect(port.posts).toEqual([
+    { filePath: "/full.md", artifactId: "a1" },
+    { filePath: "/second.md" },
+  ]);
+  expect(r).toMatchObject({ ok: true, files: 2, notes: [expect.stringContaining("FILE_GONE")] });
   expect(await handleForward(leadCtx(port), { taskId: "t2", mode: "verbatim" })).toMatchObject({
     code: "NO_RESULT",
   });
-});
-
-test("forward verbatim: one message per saved file, primary (result path) first, no duplicate", async () => {
-  const port = new FakePort();
-  port.rows.set("t1", itemRow({ resultPath: "/full.md", resultExcerpt: "short" }));
-  port.files.set("t1", ["/full.md", "/second.md"]);
-  const r = await handleForward(leadCtx(port), { taskId: "t1", mode: "verbatim" });
-  expect(port.posts).toEqual([{ filePath: "/full.md" }, { filePath: "/second.md" }]);
-  expect(r).toMatchObject({ ok: true, files: 2 });
 });
 
 test("ask owner: a plan waiting for approve_plan refuses PLAN_PENDING; a relayed worker question still goes", async () => {

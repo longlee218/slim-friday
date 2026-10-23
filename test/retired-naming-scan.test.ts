@@ -209,6 +209,10 @@ const TASK_ID_OK = [
   "artifact-store.ts",
   "artifact-list-store.ts", // taskStoreArtifacts: the files a task saved
   "dispatch-ready.ts", // writes the outbox event of a dispatched task
+  // task_messages.task_id: the item a lead <-> worker message belongs to (team messages, 2026-10-23)
+  "messages.ts",
+  "task-message-store.ts",
+  "task-message-fts-store.ts",
 ];
 
 /**

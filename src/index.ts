@@ -79,7 +79,7 @@ async function main(): Promise<void> {
     }
   }
   startTrashSweeper(config.agentHome); // boot sweep + every 6h: trash entries past 7 days go
-  startDbRetention(db); // boot sweep + every 6h: finished history past DB_RETENTION_DAYS goes
+  startDbRetention(db, config.agentHome); // boot sweep + every 6h: finished history past DB_RETENTION_DAYS goes (and the copies of reported files)
   startHomeRetention(config.agentHome); // boot sweep + every 6h: old task logs, app logs and run dirs go
   // Client is created after the handler, so the gateway looks it up lazily.
   let botClient: Client | undefined;

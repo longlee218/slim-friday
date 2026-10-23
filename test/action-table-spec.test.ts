@@ -2,20 +2,18 @@ import { expect, test } from "bun:test";
 import { ORCHESTRATE_ACTIONS } from "../src/mcp/orchestration/tools/OrchestrateTool/orchestrate-actions";
 import { createOrchestrateTool } from "../src/mcp/orchestration/tools/OrchestrateTool/orchestrate-tool";
 import { REPORT_ACTIONS } from "../src/mcp/orchestration/tools/ReportTool/report-actions";
+import { TASK_BOARD_ACTIONS } from "../src/mcp/orchestration/tools/TaskBoardTool/task-board-actions";
 
 /* Phase 4 spec, "Tools" table: each action tool holds exactly the actions the spec names, one table row each. */
 
 const names = (table: { name: string }[]) => table.map((a) => a.name).sort();
 
-test("Orchestrate (lead) holds the 16 spec actions, set_title included", () => {
+test("Orchestrate (lead) holds the 13 spec actions, set_title included", () => {
   expect(names(ORCHESTRATE_ACTIONS)).toEqual(
     [
       "dispatch",
       "add",
       "update",
-      "list",
-      "get",
-      "search",
       "steer",
       "retry",
       "cancel",
@@ -28,6 +26,10 @@ test("Orchestrate (lead) holds the 16 spec actions, set_title included", () => {
       "register_location",
     ].sort(),
   );
+});
+
+test("TaskBoard (read) holds the 5 read actions", () => {
+  expect(names(TASK_BOARD_ACTIONS)).toEqual(["list", "get", "messages", "read", "search"].sort());
 });
 
 test("Report (worker) holds the 3 spec actions", () => {

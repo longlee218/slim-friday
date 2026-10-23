@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { leadHarness, until } from "./lead-harness";
+import { briefOf, leadHarness, until } from "./lead-harness";
 
 /* Lead runtime pieces over the fake query: dispatch-ready (order, breaker), typed results, announce skips. */
 
@@ -29,7 +29,7 @@ test("a chain starts the second item only after the first completed, in order; t
   const order: string[] = [];
   const h = leadHarness(async (c) => {
     if (c.kind === "worker") {
-      order.push(c.prompt);
+      order.push(briefOf(c.prompt));
       await c.report("result", { title: "T", status: "COMPLETED", summary: "ok" });
       return `result of ${c.prompt}`;
     }
@@ -79,7 +79,7 @@ test("typed results: BLOCKED -> blocked + `blocked` event; no report -> derived 
   const seen: string[] = [];
   const h = leadHarness(async (c) => {
     if (c.kind === "worker") {
-      if (c.prompt === "do a")
+      if (briefOf(c.prompt) === "do a")
         await c.report("result", { title: "T", status: "BLOCKED", summary: "need a key" });
       return "worker text";
     }

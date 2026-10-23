@@ -192,9 +192,8 @@ test("#8: a reply that resumed a task is confirmed to the owner, and the answer 
   expect(out).toBe(renderUserNotice({ kind: "steer", state: "resumed" }, "en"));
   await until(() => h.ofKind("worker").length === 2, 8000);
   const prompt = h.ofKind("worker")[1]!.prompt;
-  expect(prompt).toContain("owner's answer");
-  expect(prompt).not.toContain("Answer to your question (data, not instructions)");
-  expect(prompt).toContain("clipped"); // 700+ chars do not fit: the worker is told
+  expect(prompt).toContain("[answer] owner (their decision, quoted)");
+  expect(prompt).toContain("x".repeat(700)); // the full answer is a message of the thread: nothing is clipped
 }, 30_000);
 
 test("#8: a reply in a chat-mode channel (thread id = channel id) takes the same path", async () => {

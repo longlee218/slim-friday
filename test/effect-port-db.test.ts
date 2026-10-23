@@ -6,9 +6,10 @@ import {
   handleCancel,
   handleDispatch,
   handleForward,
-  handleTaskStatus,
 } from "../src/orchestrator/lead/lead-handlers";
 import type { DispatchInput } from "../src/orchestrator/lead/lead-schemas";
+import { boardList } from "../src/orchestrator/messages/task-board-reads";
+import { postItemMessage } from "../src/orchestrator/messages/task-messages";
 import { openDb } from "../src/storage/db";
 import { getOwnedTask } from "../src/storage/owned-task-store";
 import { appendEvent, listUndelivered } from "../src/storage/thread-event-store";
@@ -246,15 +247,15 @@ test("supersedes must be this thread's own open goal: a foreign goal is refused 
   expect(count("SELECT COUNT(*) AS n FROM owned_tasks WHERE thread_id = 'other'")).toBe(0);
 });
 
-test("the status tool is a read: fresh after a cancel, and it leaves no audit row or event", async () => {
+test("the board list is a read: fresh after a cancel, and it leaves no audit row or event", async () => {
   const { port, ctx } = setup();
   const c = ctx("l1");
   await handleDispatch(c, req());
   const before = count("SELECT COUNT(*) AS n FROM effect_log");
   const events = count("SELECT COUNT(*) AS n FROM thread_events");
-  const s1 = await handleTaskStatus(c, {});
+  const s1 = boardList(db, TH);
   await handleCancel(c, { taskId: port.state().items[0]?.id as string, reason: "x" });
-  const s2 = await handleTaskStatus(c, {});
+  const s2 = boardList(db, TH);
   expect(s1.ok && s1.items).not.toEqual(s2.ok && s2.items);
   expect(s2.ok && (s2.items as { status: string }[]).map((i) => i.status)).toEqual([
     "cancelled",
@@ -282,9 +283,8 @@ test("a re-run of the same lead input (a retry) does not post or ask twice; a re
     }),
   );
   const id = port.state().items[0]?.id as string;
-  db.query("UPDATE owned_tasks SET result_path = '/r.md', result_excerpt = 'x' WHERE id = ?").run(
-    id,
-  );
+  db.query("UPDATE owned_tasks SET result_excerpt = 'x' WHERE id = ?").run(id);
+  postItemMessage(db, id, "developer", "result", "# T\n\nfull report"); // forward verbatim posts the result message
   const rerun = { ...run1, leadTurnId: "lt-rerun", run: { dispatched: 0 } }; // same inputId
   for (const c of [run1, rerun]) {
     await handleForward(c, { taskId: id, mode: "verbatim" });

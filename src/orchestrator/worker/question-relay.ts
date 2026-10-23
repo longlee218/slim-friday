@@ -2,7 +2,10 @@ import type { Database } from "bun:sqlite";
 import { RELAY_WAIT_MS } from "../../config/run-caps";
 import { clip, redactText } from "../../observability/redact";
 import type { AskQuestion } from "../../runtime/tool-permissions";
+import { lastMessageOf } from "../../storage/task-message-store";
 import { appendEvent } from "../../storage/thread-event-store";
+import { messageRef } from "../messages/message-ref";
+import { postTaskMessage } from "../messages/task-messages";
 import { setWaiting } from "./run-activity";
 
 /* Worker question relay: a lead-dispatched worker never asks the owner itself. Its AskUserQuestion becomes a `question`
@@ -26,9 +29,11 @@ export interface QuestionRelay {
     goalId: string;
     itemId: string;
     turnId: string;
+    /** Role of the worker: the author of its `question` message. */
+    role: string;
   }): (questions: AskQuestion[]) => Promise<Record<string, string> | undefined>;
-  /** Hand an answer to the worker waiting on `itemId`; false when none waits. */
-  answer(itemId: string, text: string): boolean;
+  /** Hand an answer to the worker waiting on `itemId`; false when none waits. `by` = who wrote it (the message author). */
+  answer(itemId: string, text: string, by?: "lead" | "owner"): boolean;
   /** Ends the wait of one turn with no answer (its run ended): a stale wait never answers or clears a later run's. */
   release(turnId: string): void;
   /** Ends every wait of one thread with no answer (`/stop`): a late answer finds nobody waiting. */
@@ -71,6 +76,15 @@ export function createQuestionRelay(
         };
         waiting.set(w.turnId, entry);
         const text = questions.map((q) => q.question).join("\n");
+        // The full question is a message; the event keeps the short text so the lead decides without a read.
+        const messageId = postTaskMessage(db, {
+          threadId: w.threadId,
+          goalId: w.goalId,
+          taskId: w.itemId,
+          author: w.role,
+          kind: "question",
+          text,
+        });
         appendEvent(db, {
           id: `question:${w.turnId}:${crypto.randomUUID()}`,
           threadId: w.threadId,
@@ -78,22 +92,36 @@ export function createQuestionRelay(
           itemId: w.itemId,
           kind: "question",
           payload: {
+            messageId: messageRef(messageId),
             question: clip(redactText(text), QUESTION_CHARS),
             options: questions.flatMap((q) => q.options.map((o) => o.label)),
           },
         });
         onQuestion(w.threadId);
       }),
-    answer(itemId, text) {
+    answer(itemId, text, by = "lead") {
       const w = [...waiting.values()].reverse().find((e) => e.itemId === itemId); // newest wait of the item
       if (!w) return false;
+      const messageId = postTaskMessage(db, {
+        threadId: w.threadId,
+        goalId: w.goalId,
+        taskId: itemId,
+        author: by,
+        kind: "answer",
+        text,
+        replyTo: lastMessageOf(db, itemId, "question")?.id,
+      });
       appendEvent(db, {
         id: `answer:${itemId}:${crypto.randomUUID()}`,
         threadId: w.threadId,
         taskId: w.goalId,
         itemId,
         kind: "answer",
-        payload: { text: clip(redactText(text), QUESTION_CHARS), by: "lead" },
+        payload: {
+          messageId: messageRef(messageId),
+          text: clip(redactText(text), QUESTION_CHARS),
+          by,
+        },
       });
       // Every question of the call gets the one answer (the lead answers the whole ask).
       w.resolve(Object.fromEntries(w.questions.map((q) => [q.question, text])));

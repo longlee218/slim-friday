@@ -6,6 +6,8 @@ import { threadOfTask } from "../../storage/owned-task-store";
 import { latestTurnOfTask } from "../../storage/run-store";
 import { appendEvent } from "../../storage/thread-event-store";
 import { moveTaskTo } from "../../tasks/task-resolver";
+import { messageRef } from "../messages/message-ref";
+import { postItemMessage } from "../messages/task-messages";
 
 /* A goal item in `waiting_user` has no run (its run ended with a question or no report). The owner's answer brings it
    back: the item goes `ready` and the next dispatch pass resumes its session with the answer as the prompt. The same holds
@@ -39,6 +41,7 @@ export function resumeWaiting(
       clearResultKind(db, itemId); // no longer held
     }
     clearQuestionLinks(db, itemId); // answered: an older question message must not answer a later question of the item
+    const messageId = postItemMessage(db, itemId, by, "answer", text); // the full answer; the event keeps a short copy
     appendEvent(db, {
       id: `answer:${itemId}:${crypto.randomUUID()}`,
       threadId: threadOfTask(db, itemId) ?? "",
@@ -46,6 +49,7 @@ export function resumeWaiting(
       itemId,
       kind: "answer",
       payload: {
+        ...(messageId && { messageId: messageRef(messageId) }),
         key: it.itemKey,
         text: redactClip(text, ANSWER_CHARS),
         ...(text.length > ANSWER_CHARS && { clipped: true }), // the resumed session is told the text was cut

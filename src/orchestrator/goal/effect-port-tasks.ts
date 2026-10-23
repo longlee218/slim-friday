@@ -12,7 +12,7 @@ import { appendEvent } from "../../storage/thread-event-store";
 import { SCOPE_CHARS } from "../../tasks/task-resolver";
 import { goalOverBudget } from "../budget/task-budget";
 import type { TaskPort } from "./effect-port-item-types";
-import { searchTasks, similarOpenWork, taskDetail } from "./task-reads";
+import { similarOpenWork } from "./task-reads";
 
 /* The task-tool methods of the db-backed EffectPort. */
 
@@ -75,7 +75,5 @@ export function createTaskPort(db: Database, threadId: string, correlationId?: s
       })(),
     editItem: (taskId, edit) => mine(taskId) && editNotStartedItem(db, taskId, edit),
     similar: (drafts, exclude) => similarOpenWork(db, threadId, drafts, exclude),
-    detail: (taskId) => taskDetail(db, threadId, taskId),
-    search: (query) => searchTasks(db, threadId, query),
   };
 }

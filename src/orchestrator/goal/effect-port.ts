@@ -7,6 +7,7 @@ import type { CreateLeadPlanInput } from "../plan/plan-schemas";
 import type { PlanDoc, PlanStatusView } from "../plan/plan-types";
 import type { Caps, GoalState, PolicyEnv } from "../strategy/caps";
 import type { ItemDraft } from "../strategy/dispatch-policy";
+import type { ForwardPlan } from "./effect-port-forward";
 import type { TaskPort } from "./effect-port-item-types";
 
 /* The port the lead's tool handlers act through. Handlers hold the rules and stay pure over it: tests pass a fake,
@@ -19,6 +20,8 @@ export type SteerReply = "queued" | "held" | "full" | "ended" | "answered" | "re
 interface ItemFacts {
   id: string;
   key: string | null;
+  /** Worker role of the item (null = none recorded). */
+  role: string | null;
   /** Location the item works in (the verify fix cap is per location); absent = none. */
   location?: string | undefined;
   status: string;
@@ -32,7 +35,8 @@ interface ItemFacts {
   progress?: { percent?: number; note?: string; idleSeconds: number };
   resultKind: ResultKind | null;
   resultExcerpt: string | null;
-  resultPath: string | null;
+  /** Ref (`M42`) of the task's newest `result` message; null until a run reported one. */
+  resultMessage: string | null;
 }
 
 /** Goal and item facts of a thread (or of one task). */
@@ -67,6 +71,8 @@ export interface OwnerAnswer {
 export interface Post {
   text?: string;
   filePath?: string;
+  /** Artifact of `filePath` (its Open link); absent = looked up by path. */
+  artifactId?: string;
 }
 
 /** A new event for the thread's outbox (id = idempotency key). */
@@ -163,8 +169,13 @@ export interface EffectPort extends TaskPort {
   snapshot(taskId?: string): TaskSnapshot | undefined;
   /** One item of this thread, or undefined. */
   item(taskId: string): ItemRow | undefined;
-  /** Paths of the files the task saved itself (SaveArtifact), the primary (largest) first; [] = none or not this thread's. */
-  resultFiles(taskId: string): string[];
+  /**
+   * Make the artifacts of a task's result (the result message as md, each file the report named; a repeat makes none)
+   * and say what to post and what was skipped; undefined = no result message, or not this thread's.
+   */
+  forwardArtifacts(taskId: string): ForwardPlan | undefined;
+  /** The task's newest `result` message (ref `M42` and full text), or undefined: none yet, or not this thread's. */
+  resultMessage(taskId: string): { ref: string; text: string } | undefined;
   /**
    * Start a goal in ONE transaction: cancel the superseded goal, open the new goal, add its items, one `start` event per
    * item and the audit row (`key` = idempotency key). A failure part-way leaves nothing behind. `supersedes` must be the

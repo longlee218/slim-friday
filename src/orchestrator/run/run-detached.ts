@@ -3,8 +3,9 @@ import { getLogContext, logEvent, logger, tryLog } from "../../observability/log
 import { errText } from "../../observability/redact";
 import { getItem, type ResultKind } from "../../storage/owned-item-store";
 import type { DeliveryExpectation } from "../turns/completion";
-import type { ArtifactScope } from "../turns/result-file-save";
+import type { ArtifactScope } from "../turns/result-message-record";
 import { closeTurn, type FlowResult } from "../turns/turn-result";
+import type { ReportFile } from "../worker/report-files";
 import { appendCrashEvent, recoverCrashedRun } from "./detached-crash";
 import { liveRunsOf, registerRun } from "./live-runs";
 import type { DispatchDeps, RoleRunInput } from "./role-run-types";
@@ -31,6 +32,8 @@ export interface DetachedOpts {
   artifactScope?: ArtifactScope;
   /** Title the worker reported (read after the run ends): the heading and file name of its result artifact. */
   resultTitle?: () => string | undefined;
+  /** Deliverable files the worker reported (read after the run ends): stored on the result message. */
+  resultFiles?: () => ReportFile[] | undefined;
   /** The role changes files of the location: after a force-close the location stays claimed until the run really returns. */
   writer?: boolean;
   /** Goal-item failure policy (see `closeTurn`): a failed run resumes or holds its item instead of failing it. */
@@ -90,6 +93,7 @@ export function runDetached(deps: DispatchDeps, input: RoleRunInput, o: Detached
     agentHome: config.agentHome,
     artifactScope: o.artifactScope,
     resultTitle: o.resultTitle,
+    resultFiles: o.resultFiles,
   };
   /** Log + recover a crash; returns the error text for the end event, or undefined when the bare event was appended. */
   const crashed = (err: unknown): string | undefined => {
@@ -134,6 +138,7 @@ export function runDetached(deps: DispatchDeps, input: RoleRunInput, o: Detached
                 ...(o.artifactScope && { artifactScope: o.artifactScope }),
                 resultKind: o.resultKind(),
                 resultTitle: o.resultTitle?.(),
+                resultFiles: o.resultFiles?.(),
                 ...(o.failurePolicy && { failurePolicy: o.failurePolicy }),
               }),
       );

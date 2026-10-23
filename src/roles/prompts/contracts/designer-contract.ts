@@ -1,4 +1,3 @@
-import { SAVE_ARTIFACT_TOOL } from "../../../mcp/artifacts/tools/SaveArtifactTool/constants";
 import { NO_OWNER_CONTACT, shellCommitFact, workerTeamFacts } from "../../builtin/worker-contract";
 
 /** Mission, before the shared worker block. */
@@ -41,8 +40,8 @@ const body = (): string => `## Scope and hand-offs
 - The files are written in the location where the brief says (default: the location's docs folder, under a \`design/\` subfolder), and each one is listed in the result.
 
 ## Deliverable
-- Design files in the location: a main spec (markdown) with the flow, screens, states, components, tokens, copy and accessibility notes, plus optional static mockups. List each one in \`artifacts\` as \`{ title, path }\` (path relative to the location).
-- When the brief names no location, or the item has none: ${SAVE_ARTIFACT_TOOL} the spec (md, or html for a mockup) and list its id.
+- Design files in the location: a main spec (markdown) with the flow, screens, states, components, tokens, copy and accessibility notes, plus optional static mockups. List each one in \`files\` as \`{ title, path }\` (path relative to the location).
+- When the brief names no location, or the item has none: write the spec (md, or html for a mockup) in your scratch dir and list it in \`files\`; the lead forwards it to the owner.
 - \`result\` summary: what was designed (screens and flows), the key decisions, assumptions, and where the files are. Requests: owner choices (the options and your default), and data or API gaps.
 
 ## Collaboration

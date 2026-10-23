@@ -21,6 +21,11 @@ export const PROJECT_NAME_MAX_CHARS = 40;
 /** Max chars of the text a `Orchestrate steer` call sends to a worker. */
 export const STEER_TEXT_MAX_CHARS = 4000;
 
+/** Max chars of the `spec` and of the `plan` text of an `Orchestrate create_plan` / `revise_plan` (each). */
+export const PLAN_DOC_MAX_CHARS = 60_000;
+/** Max chars of a plan item `section` (a heading of the plan text). */
+export const PLAN_SECTION_MAX_CHARS = 200;
+
 /** Max chars of one `Orchestrate dispatch` worker brief. */
 export const BRIEF_MAX_CHARS = 4000;
 /** Max chars of the `Orchestrate dispatch` intent / reason sentences. */

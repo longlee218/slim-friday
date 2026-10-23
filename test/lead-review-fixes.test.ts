@@ -56,6 +56,7 @@ test("M1: /stop cancels the announce timer and ends the thread's worker question
     goalId: "g",
     itemId: "i1",
     turnId: "u1",
+    role: "developer",
   })([{ question: "Which?", options: [{ label: "a" }, { label: "b" }] }] as never);
   t.sys.stopThread("t1");
   expect(await wait).toBeUndefined(); // the wait ended with no answer

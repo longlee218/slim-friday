@@ -84,6 +84,8 @@ test("H2: the rendered plan carries each brief, the objective and the criteria i
     version: 1,
     objective,
     doc: {
+      spec: "# Spec",
+      plan: "# Plan",
       items: [{ key: "a", subject: "task", role: "developer", brief, dependsOn: [], risk: "R1" }],
       acceptanceCriteria: ["c".repeat(290)],
       envelope: {

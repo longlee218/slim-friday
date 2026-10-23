@@ -20,6 +20,7 @@ export interface ItemInput {
   /** Absent = the first words of the brief. */
   subject?: string | undefined;
   priority?: number | undefined;
+  section?: string | undefined;
   location?: string | undefined;
   dependsOn: string[];
   risk: string;
@@ -39,6 +40,7 @@ export const toPlanItem = (i: ItemInput): PlanItem => ({
   brief: i.brief,
   subject: i.subject ?? subjectFromBrief(i.brief),
   ...(i.priority && { priority: i.priority }),
+  ...(i.section && { section: i.section }),
   ...(i.location && { location: i.location }),
   dependsOn: [...new Set(i.dependsOn)],
   risk: normalizeRisk(i.risk),
@@ -65,6 +67,8 @@ export function buildEnvelope(
 export function rowFieldsOf(doc: PlanDoc) {
   return {
     body: JSON.stringify({ items: doc.items }),
+    specMd: doc.spec,
+    planMd: doc.plan,
     acceptance: JSON.stringify(doc.acceptanceCriteria),
     envelope: JSON.stringify(doc.envelope),
     budgetUsd: doc.envelope.budgetUsd,
@@ -91,6 +95,8 @@ export function docOfRow(r: WorkPlanRow): PlanDoc {
     effects: [],
   });
   return {
+    spec: r.specMd,
+    plan: r.planMd,
     // A plan stored before `subject` existed has none: the first words of its brief stand in.
     items: (parse<{ items?: PlanItem[] }>(r.body, {}).items ?? []).map((i) => ({
       ...i,

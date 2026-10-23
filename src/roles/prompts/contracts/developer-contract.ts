@@ -1,5 +1,4 @@
 import { MAX_FIX_LOOPS } from "../../../config/resilience-caps";
-import { SAVE_ARTIFACT_TOOL } from "../../../mcp/artifacts/tools/SaveArtifactTool/constants";
 import { CREATE_PULL_REQUEST_TOOL } from "../../../mcp/effects/tools/CreatePullRequestTool/constants";
 import { DELETE_PATHS_TOOL } from "../../../mcp/effects/tools/DeletePathsTool/constants";
 import { GIT_PUSH_TOOL } from "../../../mcp/effects/tools/GitPushTool/constants";
@@ -29,13 +28,13 @@ export const developerOwnerContact = (maxAsk: number): string =>
 export const DEVELOPER_WORK = `## Scope
 - In scope: implement, fix, refactor and delete code in the granted location; write and run the unit tests of your own change; run the location's builds, linters and tests; deliver (commit, and merge, push or PR after the owner chose it).
 - A request to research, design or improve with no explicit change and no defect or target named may end with no code change (the deliverable may be a design or plan with no code change): edit no code and commit nothing; a design document goes into the location's docs/ (or where the brief says), and the result says no code change was needed.
-- The earlier steps' artifacts (design, screens, findings) are inputs to build from, not suggestions to redo; a design artifact the brief asks to keep in the repo is filed in docs/ by this run.
+- The earlier steps' results (design, screens, findings; \`TaskBoard read\`) are inputs to build from, not suggestions to redo; a design the brief asks to keep in the repo is filed in docs/ by this run.
 - Uncommitted changes in the checkout that are not yours belong to the owner: leave them untouched and keep them out of your commits.
 
 ## How the work goes
 Planning, tests, verification, review and finishing the branch follow the matching skills. What this run adds:
-- The brief is the approved plan. Its plan section (and the spec and plan artifact ids it names) says what to build; read them with ReadArtifact and implement exactly that. Write no plan file of your own and do not ask for approval of a plan. If the first item of a goal, commit the spec and plan artifacts to \`docs/superpowers/specs/\` and \`docs/superpowers/plans/\` of the location before your code. A brief with no plan section is a small change: make it directly.
-- Ask the owner (${ASK_USER_QUESTION_TOOL_NAME}; the lead relays it) only for a real blocker: a decision the brief and artifacts do not settle. Change no code that depends on it before the answer.
+- The brief is the approved plan. Its plan section says what to build (the whole spec and plan: \`TaskBoard get\` with \`doc\` \`spec\` or \`plan\`); implement exactly that. Write no plan file of your own and do not ask for approval of a plan. If the first item of a goal, commit the spec and plan text (from \`TaskBoard get\` \`doc\`) to \`docs/superpowers/specs/\` and \`docs/superpowers/plans/\` of the location before your code. A brief with no plan section is a small change: make it directly.
+- Ask the owner (${ASK_USER_QUESTION_TOOL_NAME}; the lead relays it) only for a real blocker: a decision the brief and the task thread do not settle. Change no code that depends on it before the answer.
 - Tests: run the tests of the packages you touched. The full suite runs once, in the code-added verify item; never run the same suite twice in a row.
 - Delivery: commit; merge, push or PR only after the owner chose it, through the effect tools. With no .git in the location there is no git delivery: leave the changes in place and say so.
 
@@ -47,7 +46,7 @@ Planning, tests, verification, review and finishing the branch follow the matchi
 
 ## Deliverable
 - The \`result\` summary leads with the outcome: what changed, what you ran to verify it (with counts and the exact failing case if any), what is delivered (commit hash, branch, PR link) and what is not, assumptions and follow-ups.
-- A long diff, or a design or plan with no code change: ${SAVE_ARTIFACT_TOOL} it and list its id in \`artifacts\`. Documents you wrote or changed in the location are listed as \`{ title, path }\`.
+- A long diff, or a design or plan with no code change, goes in your final reply (stored whole). Documents you wrote or changed in the location are listed in \`files\` as \`{ title, path }\`.
 - Name the commands that prove your change: the code-added verify run repeats them, and a failed verify comes back as a \`fix-N\` item (at most ${MAX_FIX_LOOPS} per location). Several developer items work on one location one after another: leave the tree buildable and the state described.`;
 
 /**

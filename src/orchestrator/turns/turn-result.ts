@@ -8,8 +8,9 @@ import type { ResultKind } from "../../storage/owned-item-store";
 import { finishTurn, setTurnStatus, type TurnStatus, turnStatusOf } from "../../storage/run-store";
 import { setSession } from "../../storage/session-store";
 import { budgetHitReply } from "../budget/budget-hit";
+import type { ReportFile } from "../worker/report-files";
 import type { DeliveryExpectation } from "./completion";
-import { type ArtifactScope, saveResultFile } from "./result-file-save";
+import { type ArtifactScope, recordTaskResult } from "./result-message-record";
 import { settleTurn } from "./turn-settle";
 
 /* The result of a role run, and the bookkeeping that closes a run. */
@@ -134,6 +135,8 @@ export function closeTurn(
     resultKind?: ResultKind;
     /** Title the worker gave its result (heading and artifact name). */
     resultTitle?: string;
+    /** Deliverable files the worker reported: stored on the result message. */
+    resultFiles?: ReportFile[];
     /** Delivery effects the plan promised: a COMPLETED last item without their `effect_log` rows is not delivered. */
     delivery?: DeliveryExpectation;
     /** Worker failure policy: true = it moved the item itself (resume or hold), skip the normal settle. */
@@ -145,7 +148,7 @@ export function closeTurn(
   const status = turnStatusOf(db, ids.turnId);
   const settled = settleTurn(db, ids.turnId, res, status, o);
   reply += settled.note;
-  saveResultFile(db, ids.turnId, status, res.outcome, reply, o.resultKind, o.resultTitle);
+  recordTaskResult(db, ids.turnId, reply, o.resultKind, o.resultTitle, o.resultFiles);
   logEvent(log, "task.finished", {
     location: res.location && res.location !== "*" ? res.location : o.location,
     outcome: res.outcome,

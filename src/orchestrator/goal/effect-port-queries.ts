@@ -11,6 +11,7 @@ import {
 } from "../../storage/owned-item-store";
 import { taskScope } from "../../storage/owned-task-store";
 import { countChainStarts, lastEventOfItem } from "../../storage/thread-event-store";
+import { resultRefOf } from "../messages/task-messages";
 import type { Caps } from "../strategy/caps";
 import { progressOf } from "../worker/run-activity";
 import type { TaskSnapshot } from "./effect-port";
@@ -57,6 +58,7 @@ export function snapshotOf(db: Database, threadId: string, taskId?: string): Tas
       return {
         id: it.id,
         key: it.itemKey,
+        role: it.ownerRole,
         ...(it.location && { location: it.location }),
         status: it.status,
         subject: it.subject,
@@ -65,7 +67,7 @@ export function snapshotOf(db: Database, threadId: string, taskId?: string): Tas
         ...(progress && { progress }),
         resultKind: it.resultKind,
         resultExcerpt: it.resultExcerpt,
-        resultPath: it.resultPath,
+        resultMessage: resultRefOf(db, it.id),
       };
     }),
   };

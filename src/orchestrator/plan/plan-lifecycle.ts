@@ -1,10 +1,13 @@
 import type { Database } from "bun:sqlite";
 import {
   ORCHESTRATE_ACTION_CREATE_PLAN,
-  ORCHESTRATE_ACTION_LIST,
   ORCHESTRATE_ACTION_REVISE_PLAN,
   orchestrateRef,
 } from "../../mcp/orchestration/tools/OrchestrateTool/action-names";
+import {
+  TASK_BOARD_ACTION_LIST,
+  taskBoardRef,
+} from "../../mcp/orchestration/tools/TaskBoardTool/action-names";
 import { getOwnedTask } from "../../storage/owned-task-store";
 import {
   casPlanStatus,
@@ -42,6 +45,9 @@ export function createPlan(
   a: {
     goalId: string;
     objective: string;
+    /** Spec and plan text (markdown); the lead tool requires both, an empty one means none. */
+    spec?: string;
+    plan?: string;
     items: ItemInput[];
     acceptanceCriteria: string[];
     envelope: EnvelopeInput;
@@ -66,6 +72,8 @@ export function createPlan(
     spentUsd: spentOf(db, a.goalId),
   });
   const doc: PlanDoc = {
+    spec: a.spec ?? "",
+    plan: a.plan ?? "",
     items,
     acceptanceCriteria: a.acceptanceCriteria,
     envelope: buildEnvelope(a.envelope, items, budgetUsd, a.effects),
@@ -89,7 +97,7 @@ export function approvalBlocker(db: Database, row: WorkPlanRow): Fail | undefine
   if (getOwnedTask(db, row.goalId)?.status !== "open")
     return fail(
       "GOAL_CLOSED",
-      `Goal ${row.goalId} is no longer open: the plan cannot start. ${orchestrateRef(ORCHESTRATE_ACTION_LIST)}; then ${orchestrateRef(ORCHESTRATE_ACTION_CREATE_PLAN)} with the open goal's id, or without goalId for a fresh plan.`,
+      `Goal ${row.goalId} is no longer open: the plan cannot start. ${taskBoardRef(TASK_BOARD_ACTION_LIST)}; then ${orchestrateRef(ORCHESTRATE_ACTION_CREATE_PLAN)} with the open goal's id, or without goalId for a fresh plan.`,
     );
   // The goal may have spent on since the plan was stored: a budget at or below the spend could never start an item.
   if (row.budgetUsd !== null && row.budgetUsd <= spentOf(db, row.goalId))

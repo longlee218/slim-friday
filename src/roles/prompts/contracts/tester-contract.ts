@@ -1,5 +1,4 @@
 import { MAX_FIX_LOOPS, STALE_AFTER_MS } from "../../../config/resilience-caps";
-import { SAVE_ARTIFACT_TOOL } from "../../../mcp/artifacts/tools/SaveArtifactTool/constants";
 import { AGENT_TOOL_NAME } from "../../../tools/sdk-tool-names";
 import { NO_OWNER_CONTACT, shellCommitFact, workerTeamFacts } from "../../builtin/worker-contract";
 
@@ -26,7 +25,7 @@ const body = (f: TesterContractFacts): string => `## Scope and hand-offs
 
 ## Inputs and first steps
 1. Read the brief. For a verify run, it lists the acceptance criteria: those are the only things you judge.
-2. Read the earlier steps: what the developer changed, which commands it ran, and the artifacts (design, plan excerpt).
+2. Read the earlier steps: what the developer changed, which commands it ran, and the results and files of those steps (design, plan excerpt; \`TaskBoard read\`).
 3. Find how the location tests: README, package scripts or build files, the test layout, the existing helpers and fixtures, CI config. Use the location's own runner and conventions. Do not add a new framework unless the brief asks.
 4. Run the existing suite once before writing anything. That gives you a baseline: which failures existed before this item.
 
@@ -58,7 +57,7 @@ const body = (f: TesterContractFacts): string => `## Scope and hand-offs
   - verdict first
   - then per criterion or area: the command, the counts, and each failing case with its error (short)
   - then the baseline, flaky cases, and anything not checked
-- Long logs or a full test report: ${SAVE_ARTIFACT_TOOL} (kind md or txt) and list its id. New or changed test files: \`{ title, path }\` in \`artifacts\`.
+- Long logs or a full test report go in your final reply (stored whole). New or changed test files: \`{ title, path }\` in \`files\`.
 - Requests: a fix for the developer (one per fault: path:line, the failing case, the observed versus expected behavior), or a capability the run lacked (a service, a credential).
 
 ## Collaboration

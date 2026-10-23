@@ -5,6 +5,9 @@ import { getItem, setResultKind } from "../../storage/owned-item-store";
 import { appendEvent, holdCount } from "../../storage/thread-event-store";
 import { moveTaskTo } from "../../tasks/task-resolver";
 import type { LeadRuntime } from "../lead/lead-runtime";
+import { AUTHOR_SYSTEM } from "../messages/message-kinds";
+import { messageRef } from "../messages/message-ref";
+import { postItemMessage } from "../messages/task-messages";
 import { runOfTask } from "../run/live-runs";
 import { clearHold } from "./resume-backoff";
 
@@ -39,6 +42,13 @@ export function sweepItemAge(
     if (!item?.parentId || !moveTaskTo(db, id, "blocked")) continue;
     setResultKind(db, id, "FAILED");
     clearHold(id); // a backoff entry of the held item must not outlive it
+    const messageId = postItemMessage(
+      db,
+      id,
+      AUTHOR_SYSTEM,
+      "note",
+      `The app held this item: it ran past the age limit (${ageHours} h without a result). Waiting for the lead to retry or cancel.`,
+    );
     appendEvent(db, {
       id: `failure:${id}:${item.dispatchCount}:${holdCount(db, id)}`, // the count: a second hold is its own event
       threadId,
@@ -47,6 +57,7 @@ export function sweepItemAge(
       kind: "failure",
       // Same shape as the end event of a held run (worker-end-event.ts), so the lead reads both alike.
       payload: {
+        ...(messageId && { messageId: messageRef(messageId) }),
         key: item.itemKey,
         status: "blocked",
         resultKind: "FAILED",

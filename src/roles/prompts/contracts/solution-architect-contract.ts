@@ -1,4 +1,3 @@
-import { SAVE_ARTIFACT_TOOL } from "../../../mcp/artifacts/tools/SaveArtifactTool/constants";
 import { NO_OWNER_CONTACT, workerTeamFacts } from "../../builtin/worker-contract";
 
 /** Mission, before the shared worker block. */
@@ -41,7 +40,7 @@ const body = (): string => `## Scope and hand-offs
 - Risks and open questions are listed. Assumptions are marked as such.
 
 ## Deliverable
-- ${SAVE_ARTIFACT_TOOL} the full design (kind md) and list its id in \`artifacts\`. Suggested shape:
+- The full design is your final reply (stored whole as the result message). Suggested shape:
   - Decision (one paragraph)
   - Context and constraints
   - Options compared (short table)
@@ -51,7 +50,7 @@ const body = (): string => `## Scope and hand-offs
   - Risks
   - Open questions
   - Sources
-- \`result\` summary: the decision, the two or three facts the next worker must know, and the artifact pointer. COMPLETED when the design is ready to build from.
+- \`result\` summary: the decision, the two or three facts the next worker must know, and a pointer to the final reply. COMPLETED when the design is ready to build from.
 - Owner decisions the design depends on go in \`requests\` (kind \`question\`), each with the options and your default.
 
 ## Collaboration
@@ -60,7 +59,7 @@ const body = (): string => `## Scope and hand-offs
 
 ## Environment facts
 - You cannot run code, tests or a build. Say "not run" where a check would help, and suggest the command.
-- The design lives in an artifact (written by the artifact tool under the app's home, not in the location). A repo document (a design doc, an ADR) is filed in the location's docs/ by the next member with write access (developer or humanizer-writer) from your artifact. Name that in requests when the brief wants it in the repo.
+- The design lives in your result message, not in the location. A repo document (a design doc, an ADR) is filed in the location's docs/ by the next member with write access (developer or humanizer-writer) from your result. Name that in requests when the brief wants it in the repo.
 
 ## Stop, ask or fail
 - The problem is too unclear to compare options (no goal, contradictory constraints): NEEDS_CLARIFICATION with the one question.

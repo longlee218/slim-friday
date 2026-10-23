@@ -56,6 +56,8 @@ const planArgs = (goalId: string) => ({
 const leadPlan = (goalId?: string) => ({
   objective: "plan it",
   ...(goalId && { goalId }),
+  spec: "# Spec",
+  plan: "# Plan",
   items: [item("p1")],
   acceptanceCriteria: ["works"],
   envelope: ENVELOPE,

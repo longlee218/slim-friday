@@ -33,6 +33,10 @@ export function workspacePaths(agentHome: string) {
     projects: join(agentHome, "projects"),
     /** Run data of one task (`runs/<turnId>/`): the scratch dir the run may write to; swept `RUN_DIR_RETENTION_DAYS` after its last write. */
     run: (turnId: string) => join(agentHome, "runs", turnId),
+    /** Root of the copies of reported scratch files, `<goalId>/<taskId>/<n>-<name>` (removed with the goal's messages by the db retention sweep). */
+    taskFiles: join(agentHome, "task-files"),
+    /** Copies of the scratch files one task reported (`Report result` `files`). */
+    taskFilesOf: (goalId: string, taskId: string) => join(agentHome, "task-files", goalId, taskId),
     /** Root of the per-task run dirs (swept by the home retention sweeper). */
     runs: join(agentHome, "runs"),
     /** Workspaces: CONFIG and MEMORY only; each holds channels (`workspaces/<ws>/channels/<name>/`) and the locations named in its yaml. */

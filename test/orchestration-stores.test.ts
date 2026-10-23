@@ -48,9 +48,8 @@ test("owned items: children in order, goalOf, deps parsed, dispatch counter, res
   expect(goalOf(db, "g")).toBeUndefined();
   expect(bumpDispatch(db, "i1")).toBe(1);
   expect(bumpDispatch(db, "i1")).toBe(2);
-  setTaskResult(db, "i1", { path: "/p", excerpt: "e", kind: "COMPLETED" });
+  setTaskResult(db, "i1", { excerpt: "e", kind: "COMPLETED" });
   expect(getItem(db, "i1")).toMatchObject({
-    resultPath: "/p",
     resultExcerpt: "e",
     resultKind: "COMPLETED",
   });

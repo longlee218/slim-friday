@@ -1,4 +1,4 @@
-/** Kinds of event on a thread's outbox (`progress` is UI only and never stored). */
+/** Kinds of event on a thread's outbox (`progress` is UI only and never stored). Payloads of question, answer, retry, blocked and timeout events carry `messageId` (`M42`): the full text is the task message, the event keeps a short copy. */
 export type EventKind =
   | "owner_message"
   | "start"

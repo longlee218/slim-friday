@@ -72,7 +72,7 @@ Folders under `src/orchestrator/`:
 - Config as data: roles stay TypeScript objects. Roles as files plus a resolver is closed (owner decision, 2026-10-12). Keep role data flat so the move stays possible.
 
 ## MCP Tools
-- Five in-process servers, listed in `src/mcp/manifests.ts`: `memory`, `artifacts`, `orchestration`, `effects`, `discord-admin` (the `plan` server was removed 2026-10-22; plan actions are `Orchestrate` rows). Each server has `src/mcp/<server>/server.ts` (manifest) and tools in `src/mcp/<server>/tools/`.
+- Five in-process servers, listed in `src/mcp/manifests.ts`: `memory`, `artifacts`, `orchestration`, `effects`, `discord-admin` (the `plan` server was removed 2026-10-22; plan actions are `Orchestrate` rows). `orchestration` holds `Orchestrate` (lead), `Report` (workers) and `TaskBoard` (read only, thread-scoped; reads live in `src/orchestrator/messages/`). Each server has `src/mcp/<server>/server.ts` (manifest) and tools in `src/mcp/<server>/tools/`.
 - Tool folder: `src/mcp/<server>/tools/<Name>Tool/` (PascalCase folder). Files are kebab-case:
   - `constants.ts`: leaf data with the `<NAME>_TOOL` name constant. It imports only leaf files (two memory tools import `src/memory/memory-limits.ts`).
   - `prompt.ts`: the tool description.
@@ -99,7 +99,7 @@ Folders under `src/orchestrator/`:
 ## Storage
 - **Schema:** TypeScript tables in `src/storage/schema/*.ts` (one file per domain). Migrations are generated into `src/storage/migrations/`.
 - **Change a schema:** edit the TypeScript schema, run `bun run db:generate`, review the new SQL.
-- **FTS5:** `memory_fts` is a hand-written custom migration (`0001_memory_fts.sql`). `drizzle-kit` does not generate it.
+- **FTS5:** `memory_fts`, `artifacts_fts` and `task_messages_fts` are hand-written custom migrations (`0001_memory_fts.sql`, `0003_artifacts_fts.sql`, `0018_task_messages_fts.sql`). `drizzle-kit` does not generate it.
 - **Baseline:** one baseline (`0000_baseline`), no upgrade path. A database that has tables but no `__drizzle_migrations` is refused at start (`src/storage/db.ts`). Reset steps: [discord-setup.md, First start and reset](discord-setup.md#first-start-and-reset).
 - **SQL location:** SQL lives in `src/storage/*-store.ts`; stores take the database handle. `test/no-sql-in-orchestrator.test.ts` enforces this under `src/orchestrator/`.
   - Known exceptions outside `src/storage/`: the read-only report `src/observability/lead-metrics.ts` and one query in `src/lifecycle/startup.ts` (held tasks). Move them into a store when next touched.

@@ -14,6 +14,7 @@ import { setProgress } from "../src/orchestrator/worker/run-activity";
 import { openDb } from "../src/storage/db";
 import { setResultKind } from "../src/storage/owned-item-store";
 import { insertOwnedTask } from "../src/storage/owned-task-store";
+import { listTaskMessages } from "../src/storage/task-message-store";
 import { appendEvent, listUndelivered } from "../src/storage/thread-event-store";
 
 /* Check-in over a real db and a fake clock: digest floor, change-only, language, post failure, hold escalation, 0 LLM calls. */
@@ -473,4 +474,24 @@ test("E-L13: an undecided hold escalates again after the floor, not before", asy
   await tick(rt, LATE + HOLD_REESCALATE_MS + 1_000);
   expect(timeouts()).toHaveLength(2);
   expect(woken).toEqual(["th", "th"]);
+});
+
+test("escalation: an event that already exists (same id) leaves no extra note", async () => {
+  setup("blocked");
+  hold("it", T0);
+  const now = T0 + HOLD_ESCALATE_MS;
+  // The same escalation was written before (older than the hold, so the query does not suppress it).
+  appendEvent(db, {
+    id: `hold:it:1:${now}`,
+    threadId: "th",
+    itemId: "it",
+    kind: "timeout",
+    payload: {},
+    createdAt: T0 - 1,
+  });
+  const { rt, woken } = rtOf();
+  await createCheckIn()(rt, now);
+  expect(woken).toEqual([]);
+  const notes = listTaskMessages(db, "it").filter((m) => m.kind === "note");
+  expect(notes).toHaveLength(0);
 });

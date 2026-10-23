@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { PLAN_MAX_CRITERIA, PLAN_MAX_ITEMS } from "../../config/lead-caps";
-import { BRIEF_MAX_CHARS, REASON_MAX_CHARS } from "../lead/lead-limits";
+import {
+  BRIEF_MAX_CHARS,
+  PLAN_DOC_MAX_CHARS,
+  PLAN_SECTION_MAX_CHARS,
+  REASON_MAX_CHARS,
+} from "../lead/lead-limits";
 import {
   CONFIRM_NEW,
   KEY,
@@ -14,6 +19,14 @@ import { DELIVERY_EFFECT_TOOLS } from "./plan-types";
 /* Input schemas (zod raw shapes) of the lead's Orchestrate create_plan / revise_plan / approve_plan. The SDK
    validates a call against them before any handler runs; the handler input types are inferred from the same shapes. */
 
+/** A heading of the plan text that holds this item's part of the plan (its text goes into the item's brief). */
+const SECTION = z
+  .string()
+  .min(1)
+  .max(PLAN_SECTION_MAX_CHARS)
+  .optional()
+  .describe("Heading of `plan` with this item's part (its text is added to the brief)");
+
 /** One plan item. The risk is free text here: code turns an unknown word into R2. */
 const PLAN_ITEM = z.object({
   key: KEY.describe("Unique within the goal; never looks like verify-N / fix-N (reserved)"),
@@ -25,6 +38,7 @@ const PLAN_ITEM = z.object({
     .min(1)
     .max(BRIEF_MAX_CHARS)
     .describe("Self-contained: the worker sees only this"),
+  section: SECTION,
   location: z.string().min(1).max(80).optional(),
   dependsOn: z
     .array(KEY)
@@ -71,6 +85,16 @@ export const CREATE_LEAD_PLAN_SHAPE = {
   goalId: TASK_ID.optional().describe(
     "Plan inside this open goal (re-plan after a reject or an expiry)",
   ),
+  spec: z
+    .string()
+    .min(1)
+    .max(PLAN_DOC_MAX_CHARS)
+    .describe("The spec, markdown: what is built and why (stored once, workers read it on demand)"),
+  plan: z
+    .string()
+    .min(1)
+    .max(PLAN_DOC_MAX_CHARS)
+    .describe("The plan, markdown, one heading per part; items name a heading in `section`"),
   items: CREATE_PLAN_SHAPE.items,
   acceptanceCriteria: CREATE_PLAN_SHAPE.acceptanceCriteria,
   envelope: CREATE_PLAN_SHAPE.envelope,
@@ -89,6 +113,7 @@ export const PROPOSE_REVISION_SHAPE = {
         subject: SUBJECT.optional(),
         priority: PRIORITY_VALUE.optional(),
         brief: z.string().min(1).max(BRIEF_MAX_CHARS).optional(),
+        section: SECTION,
         location: z.string().min(1).max(80).optional(),
         dependsOn: z
           .array(KEY)
@@ -104,6 +129,18 @@ export const PROPOSE_REVISION_SHAPE = {
     .max(PLAN_MAX_CRITERIA)
     .optional()
     .describe("Full replacement; omit to keep them"),
+  spec: z
+    .string()
+    .min(1)
+    .max(PLAN_DOC_MAX_CHARS)
+    .optional()
+    .describe("Full replacement; omit to keep the spec"),
+  plan: z
+    .string()
+    .min(1)
+    .max(PLAN_DOC_MAX_CHARS)
+    .optional()
+    .describe("Full replacement; omit to keep the plan text"),
   reason: z.string().min(1).max(REASON_MAX_CHARS),
   envelope: ENVELOPE.optional().describe("Full replacement; omit to keep the approved one"),
   effects: EFFECTS.optional(),

@@ -1,5 +1,4 @@
 import type { Database } from "bun:sqlite";
-import { readFileSync } from "node:fs";
 import {
   DUPLICATE_MAX_MATCHES,
   DUPLICATE_MIN_OVERLAP,
@@ -18,7 +17,9 @@ import {
   taskScope,
   threadOfTask,
 } from "../../storage/owned-task-store";
+import { lastMessageOf } from "../../storage/task-message-store";
 import { GET_EVENTS_MAX, GET_RESULT_MAX_CHARS, SEARCH_MAX_RESULTS } from "../lead/lead-limits";
+import { messageRef } from "../messages/message-ref";
 import { type Reply, refuse } from "../reply";
 import { queryScore, similarity, type TaskText } from "./task-match";
 
@@ -82,7 +83,7 @@ export function duplicateRefusal(matches: readonly TaskMatch[]): Reply | undefin
   const lines = matches.map((m) => `- ${m.id} [${m.status}] "${m.subject}" (overlap ${m.score})`);
   return refuse(
     "DUPLICATE_SUSPECT",
-    `Similar work already exists in this thread:\n${lines.join("\n")}\nUse it (get, steer, retry), or repeat the call with confirmNew: true when this is new work.`,
+    `Similar work already exists in this thread:\n${lines.join("\n")}\nUse it (TaskBoard get, then steer, retry), or repeat the call with confirmNew: true when this is new work.`,
   );
 }
 
@@ -96,30 +97,28 @@ export function searchTasks(db: Database, threadId: string, query: string): Repl
   return { ok: true, matches: hits.map((h) => matchOf(h.c, h.score)) };
 }
 
-/** The primary result file of an item as redacted text (cut at `GET_RESULT_MAX_CHARS`); the stored text when it saved no file, the excerpt when the file is gone. */
+/** The item's newest result message as redacted text (cut at `GET_RESULT_MAX_CHARS`); the excerpt when no run left one. */
 function resultText(
-  path: string | null,
+  message: string | undefined,
   excerpt: string | null,
-  stored: string | null,
 ): { text: string; clipped: boolean } {
-  let raw = stored ?? excerpt ?? "";
-  if (path)
-    try {
-      raw = readFileSync(path, "utf8");
-    } catch {
-      // the file was removed: the stored excerpt is all that is left
-    }
-  const text = redactText(raw);
+  const text = redactText(message ?? excerpt ?? "");
   return { text: clip(text, GET_RESULT_MAX_CHARS), clipped: text.length > GET_RESULT_MAX_CHARS };
 }
 
 /** Facts of one task of this thread: an item in full, or a goal with its item table. */
 export function taskDetail(db: Database, threadId: string, taskId: string): Reply {
   if (threadOfTask(db, taskId) !== threadId)
-    return refuse("BAD_TASK", `Task ${taskId} is not in this thread: list and use a current id.`);
+    return refuse(
+      "BAD_TASK",
+      `Task ${taskId} is not in this thread: use TaskBoard list for a current id.`,
+    );
   const item = getItem(db, taskId);
   if (!item)
-    return refuse("BAD_TASK", `Task ${taskId} is not in this thread: list and use a current id.`);
+    return refuse(
+      "BAD_TASK",
+      `Task ${taskId} is not in this thread: use TaskBoard list for a current id.`,
+    );
   if (!item.parentId) {
     const goal = getOwnedTask(db, taskId);
     return {
@@ -140,9 +139,10 @@ export function taskDetail(db: Database, threadId: string, taskId: string): Repl
       })),
     };
   }
+  const resultMessage = lastMessageOf(db, item.id, "result");
   const result =
-    item.resultPath || item.resultExcerpt || item.resultText
-      ? resultText(item.resultPath, item.resultExcerpt, item.resultText)
+    resultMessage || item.resultExcerpt
+      ? resultText(resultMessage?.text, item.resultExcerpt)
       : undefined;
   return {
     ok: true,
@@ -161,7 +161,7 @@ export function taskDetail(db: Database, threadId: string, taskId: string): Repl
     dispatchCount: item.dispatchCount,
     resultKind: item.resultKind,
     ...(result && { result: result.text, ...(result.clipped && { resultClipped: true }) }),
-    resultPath: item.resultPath,
+    resultMessage: resultMessage ? messageRef(resultMessage.id) : null,
     events: recentItemEvents(db, item.id, GET_EVENTS_MAX).map((e) => ({
       kind: e.kind,
       at: new Date(e.createdAt).toISOString(),

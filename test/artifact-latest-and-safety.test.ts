@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { mkdirSync, rmSync, symlinkSync } from "node:fs";
+import { mkdirSync, symlinkSync } from "node:fs";
 import { join } from "node:path";
 import {
   type ArtifactToolCtx,
@@ -10,12 +10,12 @@ import {
 import { writeArtifact } from "../src/artifacts/artifact-writer";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { logger } from "../src/observability/logger";
-import { saveResultFile } from "../src/orchestrator/turns/result-file-save";
+import { recordTaskResult } from "../src/orchestrator/turns/result-message-record";
 import { beginTurn } from "../src/orchestrator/turns/turn-tracker";
 import { ROLES } from "../src/roles/role-registry";
-import { taskStoreArtifacts } from "../src/storage/artifact-list-store";
 import { getItem } from "../src/storage/owned-item-store";
 import { ownedTaskOfTurn } from "../src/storage/owned-task-store";
+import { lastMessageOf } from "../src/storage/task-message-store";
 import { makeEnv, outsideDir } from "./helpers";
 
 const base = { workspace: "main", channel: "healthy", kind: "md" as const };
@@ -74,24 +74,9 @@ test("list and search show only the latest version of a name; ReadArtifact still
   expect(old.text).toContain("old text");
 });
 
-test("a task that saved the same name twice lists only the newest version (verbatim forward posts it once)", () => {
+test("a run that saved no file writes no artifact: its report is the result message", () => {
   const env = makeEnv();
-  const taskId = "task-1";
-  // v1 is the larger file: without the version filter it would be the primary and post first.
-  writeArtifact(env.db, env.home, { ...base, taskId, title: "Import guide", body: "a long draft" });
-  const v2 = writeArtifact(env.db, env.home, {
-    ...base,
-    taskId,
-    title: "Import guide",
-    body: "final",
-  });
-  const other = writeArtifact(env.db, env.home, { ...base, taskId, title: "Sample", body: "s" });
-  expect(taskStoreArtifacts(env.db, taskId).map((a) => a.id)).toEqual([v2.id, other.id]);
-});
-
-test("a run that saved no file writes no artifact: its report is text on the task row; a later saved file is the primary", () => {
-  const env = makeEnv();
-  const { db, home } = env;
+  const { db } = env;
   const role = Object.values(ROLES).find((r) => r.kind === "worker")!.name;
   beginTurn(
     db,
@@ -100,27 +85,14 @@ test("a run that saved no file writes no artifact: its report is text on the tas
     { location: "*", role, brief: "b" },
   );
   const taskId = ownedTaskOfTurn(db, "t1")!;
-  const scope = { workspace: "main", channel: "general" };
   const long = "long summary ".repeat(300);
   // First run: no saved file, so no artifact at all; the report is kept as text on the row.
-  saveResultFile(db, "t1", "done", "success", long);
-  expect(taskStoreArtifacts(db, taskId)).toEqual([]);
+  recordTaskResult(db, "t1", long);
   expect(db.query("SELECT COUNT(*) AS n FROM artifacts").get()).toEqual({ n: 0 });
-  expect(getItem(db, taskId)).toMatchObject({ resultPath: null });
-  expect(getItem(db, taskId)?.resultText).toContain("long summary");
-  // After a resume the run saves a small file itself: it is the primary and the row keeps no text.
-  const saved = writeArtifact(db, home, {
-    ...scope,
-    kind: "md",
-    taskId,
-    title: "Report",
-    body: "tiny",
-  });
-  expect(taskStoreArtifacts(db, taskId).map((a) => a.path)).toEqual([saved.path]);
-  saveResultFile(db, "t1", "done", "success", "short");
-  expect(getItem(db, taskId)?.resultPath).toBe(saved.path);
-  expect(getItem(db, taskId)?.resultText).toBeNull();
-  expect(db.query("SELECT COUNT(*) AS n FROM artifacts").get()).toEqual({ n: 1 });
+  expect(lastMessageOf(db, taskId, "result")?.text).toContain("long summary");
+  recordTaskResult(db, "t1", "short");
+  expect(getItem(db, taskId)?.resultExcerpt).toBe("short");
+  expect(db.query("SELECT COUNT(*) AS n FROM artifacts").get()).toEqual({ n: 0 });
 });
 
 test("a symlinked parent dir (artifacts/<ws>, artifacts) that leads outside AGENT_HOME is refused", () => {
