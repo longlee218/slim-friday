@@ -20,6 +20,7 @@ bun run db:generate         # drizzle-kit generate: after a schema edit
 ```
 
 ## Design Rules
+- **Adapter packages stay narrow:** `packages/store-sqlite` imports only `@friday/core`, `drizzle-orm`, `bun:sqlite`, node and itself; `packages/config` only `@friday/core`, `zod`, node and itself; neither reads env, console or the wall clock. New SQL lives only in `packages/store-sqlite`. Enforced by each package's `test/boundary.test.ts`.
 - **`packages/runtime-claude` is the only package that knows the Claude Agent SDK:** it imports only `@friday/core`, the SDK, `node:*` and its own files, reads no env, console or wall clock (the caller passes the env). Enforced by `packages/runtime-claude/test/boundary.test.ts`.
 - **`packages/core` stands alone:** no `dependencies`, imports only its own files, names no vendor or domain, reads no env, console or wall clock (time comes from the `Clock` port). Enforced by `packages/core/test/core-boundary.test.ts`.
 1. **Code is a generic engine; roles are data.** The engine (`src/orchestrator/{teammate,worker,run,goal}/`) reads role fields (`kind`, `capabilities`, `streaming`, `limits`, `budgetUsd`) and never a role name (`test/engine-layering.test.ts`).

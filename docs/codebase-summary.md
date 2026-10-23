@@ -1,6 +1,6 @@
 # Codebase Summary
 
-Last updated: 2026-10-24 (after plan 3). Design: [2026-10-23-friday-team-engine-design.md](superpowers/specs/2026-10-23-friday-team-engine-design.md).
+Last updated: 2026-10-24 (after plan 4). Design: [2026-10-23-friday-team-engine-design.md](superpowers/specs/2026-10-23-friday-team-engine-design.md).
 
 Friday is a self-hosted personal agent on the Claude Agent SDK (Bun + TypeScript + SQLite/Drizzle). The engine is being rebuilt; this is what is in `src/` now.
 
@@ -8,6 +8,8 @@ Friday is a self-hosted personal agent on the Claude Agent SDK (Bun + TypeScript
 |---|---|
 | `packages/core/` | domain types, ports, routing, permission decision, bot hub (no dependencies; tests with fakes in `packages/core/test/`) |
 | `packages/runtime-claude/` | `AgentRuntime` on the Claude Agent SDK: streaming session, event mapper, SDK options, hard floor check; `floor/` = OS sandbox, env scrub, sensitive paths (tests with a fake `query`) |
+| `packages/store-sqlite/` | engine db (conversations, messages, grants, sessions, spend, audit) on Drizzle with its own migrations |
+| `packages/config/` | file config: bots, groups, settings, tool annotations; schemas, merge with defaults, live reload |
 | `src/index.ts`, `src/lifecycle/` | boot, startup hygiene, trash and home-retention sweepers |
 | `src/config/` | env and file config, limits (the only place that reads env) |
 | `src/runtime/` | run agent, SDK options, run protection, supervisor, compaction hooks (sandbox, env builder, sensitive files moved to `packages/runtime-claude/src/floor/`; thin re-exports stay) |

@@ -1,6 +1,6 @@
 # Friday System Architecture
 
-Last updated: 2026-10-24 (plans 1-3 of 6 done: the old engine is removed; `packages/core` and `packages/runtime-claude` exist, not wired to the app yet). Target design: [2026-10-23-friday-team-engine-design.md](superpowers/specs/2026-10-23-friday-team-engine-design.md).
+Last updated: 2026-10-24 (plans 1-4 of 6 done: the old engine is removed; `packages/core`, `runtime-claude`, `store-sqlite` and `config` exist, not wired to the app yet). Target design: [2026-10-23-friday-team-engine-design.md](superpowers/specs/2026-10-23-friday-team-engine-design.md).
 
 ## Now
 - `bun run start` loads config, opens the SQLite db (Drizzle baseline), runs startup hygiene, starts the trash sweeper and the home-retention sweeper, logs `engine.absent` and waits for SIGINT / SIGTERM. Nothing answers messages yet.
@@ -13,6 +13,14 @@ Domain, ports and use cases; no dependencies, imports only itself (`packages/cor
 - **Permission** (`permission/`): `decide` is pure: hard-floor deny, tool override, matching grant, then the autonomy level (careful / balanced / autonomous) for the tool's class from its annotations. Unannotated = ask; irreversible = ask always (no "Always allow"). `PermissionGate` asks through the `Surface`, stores grants, audits, and denies on timeout.
 - **Hub** (`hub/`): `BotHub` keeps one session per active bot, pushes one turn at a time (a message to a busy bot waits for the turn to end), turns mentions into hand-offs, applies the daily spend cap, closes idle sessions, resumes after a crash, and serves `stop` and `status`.
 - Defaults: `packages/core/src/config-defaults.ts`.
+
+## `packages/store-sqlite` and `packages/config` (plan 4)
+Bots and groups are files; the db holds the rest. Plan 5 joins them: `{ ...engineStore, bots: config.bots, groups: config.groups }` is the core `Store`.
+- **Engine db** (`store-sqlite`): `openEngineDb(file)` (WAL, owner-only file and sidecars, refuses a db with tables but no migration log) and `openEngineStore(file)`: tables `conversations`, `messages`, `grants`, `sessions`, `spend`, `audit` (Drizzle schema in `src/schema/`, migrations generated into `src/migrations/` by `bun run db:generate:engine`). `messages.recent` = last N oldest first; `grants.list` = the bot's grants plus `*`; `spend.add` increments. Imports only core, drizzle, `bun:sqlite`, node (`test/boundary.test.ts`). The old `src/storage` db is untouched until plan 5.
+- **Config dir** (`config`): `bots/<id>.md` (YAML header: name (one word), title, model, tools, skills, subagents, workspaces, autonomy; body = instructions), `groups/<id>.yaml` (name, members, entryBot), `settings.yaml` (autonomy level, per-bot levels, per-tool outcomes, limits over the core defaults), `tools.yaml` (tool annotations). Shipped defaults in `packages/config/defaults/` (the 11 built-in SDK tools, level `balanced`); the user dir wins by id / tool name.
+- **Bad files:** each file is parsed alone; one that fails is skipped and listed in `problems` with its path, the rest loads. After the merge a bot with a repeated name and a group naming a missing bot are dropped with a problem.
+- **Live:** `FileConfig` serves bots, groups, the tool catalog, `settings()` and `limits()` from the current snapshot; `reload()` swaps the snapshot in one assignment and returns the changed or removed bots (they get a fresh session); `watch()` reloads on file changes (debounced). A failed reload keeps the last good snapshot.
+- **Not built:** the `Memory` port (plan 6), retention of messages and audit, wiring (plan 5).
 
 ## `packages/runtime-claude` (plan 3)
 `AgentRuntime` on the Claude Agent SDK. Imports only `@friday/core`, the SDK and node (`packages/runtime-claude/test/boundary.test.ts`); never reads `process.env` (the caller passes the env).
