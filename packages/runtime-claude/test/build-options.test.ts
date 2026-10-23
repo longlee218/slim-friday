@@ -103,3 +103,27 @@ test("a decide that throws is a deny", async () => {
   const { s } = spec(bot(), new Error("boom"));
   expect((await build(s).canUseTool?.("Bash", { command: "ls" }, opts))?.behavior).toBe("deny");
 });
+
+/** Run the PreToolUse hook of the options like the SDK does (it runs even for calls the CLI auto-allows). */
+async function preToolUse(tool: string, toolInput: Record<string, unknown>) {
+  const hook = build(spec(bot()).s).hooks?.PreToolUse?.[0]?.hooks[0];
+  return hook?.(
+    {
+      hook_event_name: "PreToolUse",
+      tool_name: tool,
+      tool_input: toolInput,
+      tool_use_id: "t1",
+    } as never,
+    "t1",
+    { signal: new AbortController().signal },
+  );
+}
+
+test("a PreToolUse hook applies the floor to calls the CLI auto-allows", async () => {
+  const denied = await preToolUse("Read", { file_path: join(ws1, ".env") });
+  expect(denied).toMatchObject({ hookSpecificOutput: { permissionDecision: "deny" } });
+  const agentHome = await preToolUse("Grep", { pattern: "x", path: home });
+  expect(agentHome).toMatchObject({ hookSpecificOutput: { permissionDecision: "deny" } });
+  expect(await preToolUse("Read", { file_path: join(ws1, "a.ts") })).toEqual({ continue: true });
+  expect(await preToolUse("Bash", { command: "ls" })).toEqual({ continue: true });
+});

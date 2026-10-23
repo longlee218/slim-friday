@@ -32,6 +32,7 @@ const setup = () => {
     agentHome: join(root, "home"),
     scratchRoot: join(root, "runs"),
     queryFn: fq.queryFn,
+    sessionExists: async () => true,
   });
   return { fq, rt };
 };
@@ -137,4 +138,15 @@ test("stop aborts the SDK, ends the input and events, and a later send is droppe
   s.send(turn("late"));
   await tick();
   expect(fq.sent()).toEqual([]);
+});
+
+test("resume throws when the stored session is gone, so the hub can start a fresh one", async () => {
+  const fq = fakeQuery();
+  const rt = new ClaudeRuntime({
+    agentHome: join(root, "home"),
+    scratchRoot: join(root, "runs"),
+    queryFn: fq.queryFn,
+    sessionExists: async () => false,
+  });
+  await expect(rt.resume("gone", spec)).rejects.toThrow("gone");
 });

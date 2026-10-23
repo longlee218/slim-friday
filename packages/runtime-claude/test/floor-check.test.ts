@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, realpathSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { floorCheck } from "../src/session/floor-check";
@@ -64,4 +64,17 @@ test("Bash and MCP tools are left to the sandbox and the permission decision", (
 test("Grep and Glob without a path search the cwd", () => {
   expect(floorCheck({ tool: "Grep", input: { pattern: "x" } }, ctx)).toBeUndefined();
   expect(floorCheck({ tool: "Glob", input: { pattern: "*.ts", path: "/etc" } }, ctx)).toBeString();
+});
+
+test("a dangling symlink inside a workspace is denied (it could point anywhere)", () => {
+  symlinkSync(join(base, "nowhere", "x"), join(ws, "dangling"));
+  expect(
+    floorCheck({ tool: "Write", input: { file_path: join(ws, "dangling") } }, ctx),
+  ).toBeString();
+});
+
+test("a Glob with an absolute pattern is checked by its base dir", () => {
+  expect(floorCheck({ tool: "Glob", input: { pattern: "/etc/**/*.conf" } }, ctx)).toBeString();
+  expect(floorCheck({ tool: "Glob", input: { pattern: `${home}/data/**` } }, ctx)).toBeString();
+  expect(floorCheck({ tool: "Glob", input: { pattern: `${ws}/**/*.ts` } }, ctx)).toBeUndefined();
 });

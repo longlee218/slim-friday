@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { query } from "@anthropic-ai/claude-agent-sdk";
+import { getSessionInfo, query } from "@anthropic-ai/claude-agent-sdk";
 import type { AgentRuntime, BotRuntimeSpec, BotSession } from "@friday/core";
 import { buildOptions, type ClaudeRuntimeConfig } from "./session/build-options";
 import { ClaudeSession } from "./session/claude-session";
@@ -14,13 +14,21 @@ export class ClaudeRuntime implements AgentRuntime {
   constructor(private readonly config: ClaudeRuntimeConfig) {}
 
   /** Start a new session. Returns at once: the id is ours (the SDK is told to use it), not read from `init`. */
-  open(spec: BotRuntimeSpec): Promise<BotSession> {
-    return Promise.resolve(this.start(spec, undefined));
+  async open(spec: BotRuntimeSpec): Promise<BotSession> {
+    return this.start(spec, undefined);
   }
 
-  /** Continue a stored session. */
-  resume(sessionId: string, spec: BotRuntimeSpec): Promise<BotSession> {
-    return Promise.resolve(this.start(spec, sessionId));
+  /**
+   * Continue a stored session. Throws when the SDK no longer has its transcript (cleaned up, other cwd, wiped home),
+   * so the caller can drop the stored id and open a fresh session instead of crashing on it forever.
+   */
+  async resume(sessionId: string, spec: BotRuntimeSpec): Promise<BotSession> {
+    const dir = spec.bot.workspaces[0] ?? join(this.config.scratchRoot, spec.bot.id);
+    const exists =
+      this.config.sessionExists ??
+      (async (id: string, d: string) => !!(await getSessionInfo(id, { dir: d })));
+    if (!(await exists(sessionId, dir))) throw new Error(`session ${sessionId} not found`);
+    return this.start(spec, sessionId);
   }
 
   /** Create the scratch dir, the input queue and the SDK stream, and wrap them in a session. */

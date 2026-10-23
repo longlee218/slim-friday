@@ -21,6 +21,8 @@ export interface ClaudeRuntimeConfig {
   mcpServers?: Record<string, McpServerConfig>;
   /** Replaces the SDK `query` (tests). */
   queryFn?: QueryFn;
+  /** True when the SDK still has this session's transcript for `dir` (default: the SDK's `getSessionInfo`). */
+  sessionExists?: (sessionId: string, dir: string) => Promise<boolean>;
 }
 
 /** What `buildOptions` needs for one session. */
@@ -91,6 +93,32 @@ export function buildOptions(input: BuildOptionsInput): Options {
       denyPaths: [config.agentHome],
       allowInside: [scratchDir],
     }),
+    // The CLI auto-allows reads inside the cwd and extra dirs without calling `canUseTool`; a hook runs for every call,
+    // so the floor holds there too (and for Glob / Grep with no path).
+    hooks: {
+      PreToolUse: [
+        {
+          hooks: [
+            async (hook) => {
+              if (hook.hook_event_name !== "PreToolUse") return { continue: true };
+              const reason = floorCheck(
+                { tool: hook.tool_name, input: (hook.tool_input ?? {}) as Record<string, unknown> },
+                floor,
+              );
+              return reason
+                ? {
+                    hookSpecificOutput: {
+                      hookEventName: "PreToolUse" as const,
+                      permissionDecision: "deny" as const,
+                      permissionDecisionReason: reason,
+                    },
+                  }
+                : { continue: true };
+            },
+          ],
+        },
+      ],
+    },
     async canUseTool(tool, toolInput, opts) {
       const denied = floorCheck({ tool, input: toolInput }, floor);
       if (denied) return { behavior: "deny", message: denied };
