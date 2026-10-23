@@ -64,7 +64,7 @@ test("ensureHome creates AGENTS/USER/MEMORY/BOOTSTRAP once and never overwrites 
   expect(readFileSync(p.user, "utf8")).toContain("mine");
 });
 
-test("persona: workspace files replace root per file; templates and comments inject nothing", () => {
+test("persona: one version at the root; workspace persona files are ignored; templates and comments inject nothing", () => {
   const env = makeEnv();
   clearWorkspaces(env.home);
   addLocation(env.home, "api");
@@ -76,17 +76,11 @@ test("persona: workspace files replace root per file; templates and comments inj
   expect(shared.text).not.toContain("<!--"); // comments stripped
   // The commit rules live in the dev role prompt, not in the owner's AGENTS.md.
   expect(shared.text).not.toContain("## Commits");
-  // The workspace has no persona files yet: everything falls back to root.
-  const forMain = buildPersonaContext(env.home, "main");
-  expect(forMain.text).toContain("Name: Friday");
-  expect(forMain.text).toContain("Vietnamese");
   const ws = p.workspace("main");
   writeFileSync(ws.user, "# User\n- Reply in English.\n");
-  writeFileSync(ws.soul, "<!-- nothing yet -->");
-  const en = buildPersonaContext(env.home, "main").text;
-  expect(en).toContain("Reply in English");
-  expect(en).not.toContain("Vietnamese");
-  expect(en).toContain("Concise, direct"); // empty workspace SOUL -> root SOUL
+  const en = buildPersonaContext(env.home).text;
+  expect(en).toContain("Vietnamese");
+  expect(en).not.toContain("Reply in English");
 });
 
 test("persona: order is AGENTS, IDENTITY, SOUL, USER; a file over 8000 chars is cut in the middle and flagged", () => {
@@ -126,7 +120,7 @@ test("persona: <file> tags list only the files that have content; <team> comes a
   const { text } = buildPersonaContext(env.home);
   expect(text).toContain('<file name="SOUL.md">');
   for (const f of ["AGENTS.md", "IDENTITY.md", "USER.md"]) expect(text).not.toContain(f);
-  const withTeam = buildPersonaContext(env.home, undefined, undefined, "## Members").text;
+  const withTeam = buildPersonaContext(env.home, "## Members").text;
   expect(withTeam.endsWith("</owner_files>\n\n<team>\n## Members\n</team>")).toBe(true);
   writeFileSync(p.soul, "<!-- nothing -->");
   expect(buildPersonaContext(env.home).text).toBe("");

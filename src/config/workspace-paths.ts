@@ -12,7 +12,7 @@ export function workspacePaths(agentHome: string) {
     appLog: () => join(agentHome, "logs", "app"),
     /** Raw per-task event stream; lines are tied to a workspace by the task row, not by the path. */
     taskLog: (taskId: string) => join(agentHome, "logs", "tasks", `${taskId}.jsonl`),
-    /** Default identity/soul shared by every workspace (a workspace file overrides them). */
+    /** The one identity/soul/agents/user the prompt reads (workspace and channel files are ignored). */
     identity: join(agentHome, "IDENTITY.md"),
     soul: join(agentHome, "SOUL.md"),
     /** Owner operating notes, owner profile (preferences), root memory, owner guide (never injected). */

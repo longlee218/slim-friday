@@ -107,25 +107,16 @@ const PERSONA_FILES = [
  * The persona block of a teammate or control run, as XML data boundaries: `<owner_files>` with one `<file name="…">` per
  * non-empty AGENTS.md, IDENTITY.md, SOUL.md, USER.md (the owner's own text, headings kept as written), then `<team>`
  * (`team`, built by code: roster and locations) when given. The owner files come first: they change less often than
- * the team (a new location), so the cached prefix lasts longer. Per file the first non-empty of channel, workspace,
- * root wins; `workspace` undefined = root files only (the control channel). `truncated` is true when any file was cut.
+ * the team (a new location), so the cached prefix lasts longer. One version of each file, at the root (no workspace
+ * or channel override). `truncated` is true when any file was cut.
  * Text is "" when no section has content.
  */
 export function buildPersonaContext(
   agentHome: string,
-  workspace?: string,
-  channel?: string,
   team?: string,
 ): { text: string; truncated: boolean } {
   const paths = workspacePaths(agentHome);
-  const ws = workspace ? paths.workspace(workspace) : undefined;
-  const ch = workspace && channel ? ws?.channel(channel) : undefined;
-  // First non-empty of channel, workspace, root.
-  const read = (f: (typeof PERSONA_FILES)[number]) =>
-    [ch?.[f.key], ws?.[f.key], paths[f.key]]
-      .map((file) => (file ? readPersona(file, f.name) : NONE))
-      .find((r) => r.body) ?? NONE;
-  const files = PERSONA_FILES.map((f) => ({ name: f.name, ...read(f) }));
+  const files = PERSONA_FILES.map((f) => ({ name: f.name, ...readPersona(paths[f.key], f.name) }));
   const loaded = files.filter((f) => f.body);
   const owner = loaded.length
     ? `<owner_files>\n${loaded.map((f) => `<file name="${f.name}">\n${f.body}\n</file>`).join("\n")}\n</owner_files>`

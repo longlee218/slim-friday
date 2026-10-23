@@ -123,18 +123,15 @@ test("memory layers: root then channel, both whole (no cut); other channel or no
   expect(l.channel).toContain("fact number 399 ");
 });
 
-test("persona: channel file > space file > root file, first non-empty wins", () => {
+test("persona: only the root file is read; space and channel persona files are ignored", () => {
   const { home, paths } = space();
   writeFileSync(workspacePaths(home).soul, "# Soul\n- root tone\n");
-  expect(buildPersonaContext(home, WS, "finance").text).toContain("root tone");
   writeFileSync(paths.soul, "# Soul\n- space tone\n");
-  expect(buildPersonaContext(home, WS, "finance").text).toContain("space tone");
   writeFileSync(paths.channel("finance").soul, "# Soul\n- channel tone\n");
-  const text = buildPersonaContext(home, WS, "finance").text;
-  expect(text).toContain("channel tone");
+  const text = buildPersonaContext(home).text;
+  expect(text).toContain("root tone");
   expect(text).not.toContain("space tone");
-  // Another channel keeps the space file.
-  expect(buildPersonaContext(home, WS, "chat-room").text).toContain("space tone");
+  expect(text).not.toContain("channel tone");
 });
 
 test("MemorySave scope channel writes the run's channel file; no channel = error", async () => {

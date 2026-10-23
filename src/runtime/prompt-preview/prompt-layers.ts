@@ -67,8 +67,7 @@ export function buildPromptPreview(role: RoleDefinition, i: PreviewInput): Promp
   const text = systemPromptText(systemPrompt);
 
   // The pieces the context blocks are made of, rebuilt with the same arguments, to name each block.
-  const persona =
-    role.kind === "worker" ? "" : buildPersonaContext(i.agentHome, workspace, i.channel, team).text;
+  const persona = role.kind === "worker" ? "" : buildPersonaContext(i.agentHome, team).text;
   const known: [string, string | undefined][] = [
     [
       "registry (locations of the run)",

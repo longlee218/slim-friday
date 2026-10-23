@@ -40,7 +40,7 @@ export interface PromptContextInput {
 export function buildPromptContext(i: PromptContextInput): string[] {
   const teammate = i.kind === "teammate";
   const persona = teammate
-    ? buildPersonaContext(i.agentHome, i.workspace, i.channel, i.team)
+    ? buildPersonaContext(i.agentHome, i.team)
     : { text: "", truncated: false };
   const registry = teammate ? "" : (i.registry ?? "");
   const locationRules = teammate ? "" : (i.locationRules ?? "");
