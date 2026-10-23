@@ -16,8 +16,8 @@ import type { Teammate } from "./teammate-types";
 
 /** What a channel runs as. */
 export type TeammateResolution =
-  /** No row: the default chief-of-staff, exactly as before teammates existed. */
-  | { ok: true; role: RoleDefinition }
+  /** No row: the default chief-of-staff; `promptBlock` is the directory of the active teammates (absent when there are none). */
+  | { ok: true; role: RoleDefinition; promptBlock?: string }
   /** A row: its role, the mark of its config, and the profile + directory text of its system prompt. */
   | { ok: true; teammate: Teammate; role: RoleDefinition; configMark: string; promptBlock: string }
   /** A row that cannot run (unknown preset, a tool id no teammate may hold): refused, never the default. */
@@ -33,7 +33,12 @@ export function resolveTeammate(db: Database, channelId: string): TeammateResolu
     // An archived teammate keeps its channel: it must not quietly turn into the default teammate.
     const archived = archivedTeammateByChannel(db, channelId);
     if (archived) return { ok: false, teammate: archived, reason: "it is archived" };
-    return { ok: true, role: getRole(CHIEF_OF_STAFF) };
+    const directory = directoryBlock(listActiveTeammates(db), "");
+    return {
+      ok: true,
+      role: getRole(CHIEF_OF_STAFF),
+      ...(directory && { promptBlock: directory }),
+    };
   }
   let preset: RoleDefinition;
   try {

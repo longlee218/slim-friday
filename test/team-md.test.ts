@@ -45,7 +45,7 @@ test("TEAM.md: authoritative members from the registry, the channel's locations,
     expect(md).not.toContain(gone);
   // Section order: members, locations, strategies, limits.
   const at = (h: string) => md.indexOf(h);
-  const heads = ["## Members", "## Locations", "## Strategies", "## Limits"].map(at);
+  const heads = ["## Workers", "## Locations", "## Strategies", "## Limits"].map(at);
   expect(heads).toEqual([...heads].sort((a, b) => a - b));
 });
 

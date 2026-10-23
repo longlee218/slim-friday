@@ -138,3 +138,13 @@ test("setSession stores config_mark; generation resets only when the session id 
   setSession(db, { ...base, sessionId: "s1", configMark: "m2" });
   expect(getSession(db, "t")).toMatchObject({ config_mark: "m2", generation: g });
 });
+
+test("resolve: the default teammate sees the active teammates (directory), none when there are none", () => {
+  const db = openDb(":memory:");
+  const none = resolveTeammate(db, "c0");
+  expect("promptBlock" in none).toBe(false);
+  insertTeammate(db, mk("alpha", "c1"));
+  const r = resolveTeammate(db, "c0");
+  expect(r).toMatchObject({ ok: true });
+  expect("promptBlock" in r && r.promptBlock).toContain("alpha");
+});

@@ -18,6 +18,7 @@ exports[`tool policy of every role is unchanged 1`] = `
         "mcp__artifacts__SearchArtifacts",
         "mcp__orchestration__Orchestrate",
         "mcp__orchestration__TaskBoard",
+        "mcp__teammates__MessageTeammate",
       ],
       "shell": false,
       "subagentTools": [
@@ -43,6 +44,7 @@ exports[`tool policy of every role is unchanged 1`] = `
       "mcp__artifacts__SearchArtifacts",
       "mcp__orchestration__Orchestrate",
       "mcp__orchestration__TaskBoard",
+      "mcp__teammates__MessageTeammate",
     ],
     "subagentToolsFor": [
       "Read",

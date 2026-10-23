@@ -19,6 +19,7 @@ mcpTools:
   - SearchArtifacts
   - Orchestrate
   - TaskBoard
+  - MessageTeammate
 limits:
   maxTurns: 30
 subagents:

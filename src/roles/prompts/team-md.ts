@@ -94,9 +94,9 @@ export function buildTeamMd(i: TeamMdInput = {}): string {
   const locations = i.locations ?? [];
   return [
     "# TEAM",
-    "Built by code for this run; the members and locations below are complete.",
+    "Built by code for this run; the workers and locations below are complete. Workers are not teammates: a teammate has its own channel and memory and is reached with a message, never dispatched.",
     "",
-    "## Members (role names for the dispatch tool)",
+    "## Workers (role names for the dispatch tool)",
     ...(workers.length ? [...memberTable(workers), ...memberFacts(workers)] : ["- none available"]),
     "",
     "## Locations (the only names a brief may use)",
