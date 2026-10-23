@@ -1,7 +1,7 @@
+import { type Reply, refuse } from "../../effects/reply";
 import { DEFAULT_LANGUAGE } from "../../i18n/languages";
 import { renderUserNotice } from "../../ingress/user-copy";
 import { clip, redactText } from "../../observability/redact";
-import { type Reply, refuse } from "../reply";
 import type { TeammateToolContext } from "./teammate-call";
 
 /** Chars of the goal's intent shown in the owner question. */

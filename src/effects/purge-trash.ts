@@ -1,8 +1,8 @@
 import type { Database } from "bun:sqlite";
-import type { OwnerLanguage } from "../../i18n/languages";
-import { t } from "../../i18n/translate";
-import { effectGoalIdsOfThread } from "../../storage/effect-log-store";
-import { goalIdsOfThread } from "../../storage/owned-item-store";
+import type { OwnerLanguage } from "../i18n/languages";
+import { t } from "../i18n/translate";
+import { effectGoalIdsOfThread } from "../storage/effect-log-store";
+import { goalIdsOfThread } from "../storage/owned-item-store";
 import { purgeGoalTrash } from "./trash-store";
 
 /**

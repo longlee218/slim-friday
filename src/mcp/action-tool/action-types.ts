@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import type { Reply } from "../../orchestrator/reply";
+import type { Reply } from "../../effects/reply";
 
 /**
  * One action of an action tool: its name (a constant), its own params schema, one example call and the handler.

@@ -10,9 +10,9 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { purgeThreadTrash } from "../src/effects/purge-trash";
+import { moveToTrash } from "../src/effects/trash-store";
 import { sweepTrash } from "../src/lifecycle/trash-sweeper";
-import { purgeThreadTrash } from "../src/orchestrator/effects/purge-trash";
-import { moveToTrash } from "../src/orchestrator/effects/trash-store";
 import { openDb } from "../src/storage/db";
 import { insertOwnedTask } from "../src/storage/owned-task-store";
 

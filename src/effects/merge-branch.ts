@@ -1,14 +1,14 @@
-import { isPlainRef } from "../../locations/git-run";
-import { MERGE_BRANCH_TOOL } from "../../mcp/effects/tools/MergeBranchTool/constants";
-import { checkEnvelope, grantNamesBranch } from "../../policy/check-envelope";
+import { isPlainRef } from "../locations/git-run";
+import { MERGE_BRANCH_TOOL } from "../mcp/effects/tools/MergeBranchTool/constants";
+import { checkEnvelope, grantNamesBranch } from "../policy/check-envelope";
 import {
   type EffectsCtx,
   locationPath,
   recordEffect,
   refuseLogged,
   safeText,
-} from "../../policy/effect-context";
-import type { Reply } from "../reply";
+} from "../policy/effect-context";
+import type { Reply } from "./reply";
 
 /* MergeBranch: a local merge of `from` into the checked-out branch `into` (R2). `into` must be covered by a grant. */
 

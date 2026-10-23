@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import type { Reply } from "../../effects/reply";
 import type { OwnerLanguage } from "../../ingress/user-copy";
 import { orchestrateAudit } from "../../mcp/orchestration/tools/OrchestrateTool/action-names";
 import { ORCHESTRATE_TOOL } from "../../mcp/orchestration/tools/OrchestrateTool/constants";
@@ -7,7 +8,6 @@ import { logEvent, logger } from "../../observability/logger";
 import type { EventKind } from "../events/event-types";
 import type { EffectPort } from "../goal/effect-port";
 import type { PlanSideEffects } from "../plan/plan-side-effects";
-import type { Reply } from "../reply";
 
 /* Wrapper of every teammate tool call: idempotency, the `teammate.decision` log line and the thread event. The handlers
    decide; this only records. */

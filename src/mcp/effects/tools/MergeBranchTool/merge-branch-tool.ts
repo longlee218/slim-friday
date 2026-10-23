@@ -1,6 +1,6 @@
 import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
-import { mergeBranch } from "../../../../orchestrator/effects/merge-branch";
+import { mergeBranch } from "../../../../effects/merge-branch";
 import type { EffectsCtx } from "../../../../policy/effect-context";
 import { runTool } from "../../../tool-result";
 import { MERGE_BRANCH_TOOL, NAME_MAX_CHARS } from "./constants";

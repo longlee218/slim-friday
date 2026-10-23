@@ -1,3 +1,4 @@
+import { type Reply, refuse } from "../../effects/reply";
 import {
   ORCHESTRATE_ACTION_APPROVE_PLAN,
   ORCHESTRATE_ACTION_ASK_OWNER,
@@ -13,7 +14,6 @@ import { ROLES } from "../../roles/role-registry";
 import { isHeld } from "../../storage/owned-item-store";
 import type { OwnerQuestion } from "../goal/effect-port";
 import { duplicateRefusal } from "../goal/task-reads";
-import { type Reply, refuse } from "../reply";
 import { checkDispatch, dispatchQuestion } from "../strategy/dispatch-policy";
 import { type TeammateToolContext, teammateCall } from "./teammate-call";
 import { OPTIONS_MAX, OPTIONS_MIN } from "./teammate-limits";

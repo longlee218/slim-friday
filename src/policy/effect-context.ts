@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite";
+import { type Reply, refuse } from "../effects/reply";
 import { clip } from "../observability/redact";
-import { type Reply, refuse } from "../orchestrator/reply";
 import { appendEffect } from "../storage/effect-log-store";
 import type { DispatchEnvelope } from "./envelope";
 import { realOrSame } from "./paths";

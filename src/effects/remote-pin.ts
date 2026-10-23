@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import type { EffectsCtx } from "../../policy/effect-context";
-import { appendEffect, effectScope, REMOTE_PIN_TOOL } from "../../storage/effect-log-store";
+import type { EffectsCtx } from "../policy/effect-context";
+import { appendEffect, effectScope, REMOTE_PIN_TOOL } from "../storage/effect-log-store";
 
 /* The remote a goal pushes to is pinned: its (push) URL must be a plain network URL and, once recorded for the goal, must not
    change. A worker that rewrites `remote.<name>.url` (it cannot through the shell, but a script can) is refused at the next push. */

@@ -1,4 +1,4 @@
-import type { EFFECT_TOOL_NAMES } from "../orchestrator/effects/effect-tool-names";
+import type { EFFECT_TOOL_NAMES } from "../effects/effect-tool-names";
 import type { Risk } from "../orchestrator/plan/plan-types";
 
 /* Shared words of the approval policy (R0-R4). Pure types and constants: no db, no fs. */

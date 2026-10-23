@@ -1,5 +1,5 @@
+import { type Reply, refuse } from "../../../../effects/reply";
 import { applyThreadTitle } from "../../../../ingress/thread-title";
-import { type Reply, refuse } from "../../../../orchestrator/reply";
 import { SET_TITLE_MAX_CALLS_PER_RUN } from "./constants";
 import type { OrchestrateCtx } from "./orchestrate-ctx";
 

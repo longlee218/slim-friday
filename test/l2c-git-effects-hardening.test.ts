@@ -1,10 +1,10 @@
 import { afterAll, expect, test } from "bun:test";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { gitPush } from "../src/effects/git-push";
+import { mergeBranch } from "../src/effects/merge-branch";
 import { GIT_PUSH_TOOL } from "../src/mcp/effects/tools/GitPushTool/constants";
 import { MERGE_BRANCH_TOOL } from "../src/mcp/effects/tools/MergeBranchTool/constants";
-import { gitPush } from "../src/orchestrator/effects/git-push";
-import { mergeBranch } from "../src/orchestrator/effects/merge-branch";
 import type { EffectsCtx, Runner } from "../src/policy/effect-context";
 import { ANY, defaultEnvelope, type EffectGrant, envelopeWithGrants } from "../src/policy/envelope";
 import { openDb } from "../src/storage/db";

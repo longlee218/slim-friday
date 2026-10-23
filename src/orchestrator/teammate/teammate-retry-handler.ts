@@ -1,8 +1,8 @@
 import { MAX_DISPATCHES_PER_ITEM, MAX_FIX_LOOPS } from "../../config/resilience-caps";
+import { type Reply, refuse } from "../../effects/reply";
 import { ORCHESTRATE_ACTION_RETRY } from "../../mcp/orchestration/tools/OrchestrateTool/action-names";
 import { isHeld } from "../../storage/owned-item-store";
 import { fixesAt, isVerifyKey } from "../plan/verify-items";
-import { type Reply, refuse } from "../reply";
 import { type TeammateToolContext, teammateCall } from "./teammate-call";
 import { badTask, ENDED } from "./teammate-handlers";
 import type { RetryInput } from "./teammate-schemas";

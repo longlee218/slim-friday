@@ -1,8 +1,8 @@
 import { afterAll, expect, test } from "bun:test";
 import { existsSync, mkdirSync, readdirSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { deletePaths } from "../src/orchestrator/effects/delete-paths";
-import { moveToTrash } from "../src/orchestrator/effects/trash-store";
+import { deletePaths } from "../src/effects/delete-paths";
+import { moveToTrash } from "../src/effects/trash-store";
 import { type EffectsCtx, safeText } from "../src/policy/effect-context";
 import { defaultEnvelope } from "../src/policy/envelope";
 import { goalLocations } from "../src/policy/load-envelope";

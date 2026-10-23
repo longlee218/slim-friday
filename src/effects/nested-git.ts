@@ -1,6 +1,6 @@
 import { lstatSync, opendirSync } from "node:fs";
 import { join } from "node:path";
-import { foldName } from "../../policy/protected-names";
+import { foldName } from "../policy/protected-names";
 
 /* Does a delete target CONTAIN a git dir (a nested repo, a submodule, a worktree)? Its history would go to the trash with it and
    `/purge` makes that final, so the owner is asked. The walk is bounded; a walk that stops early answers "unknown" = yes. */

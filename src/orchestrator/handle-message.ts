@@ -1,10 +1,10 @@
+import { purgeThreadTrash } from "../effects/purge-trash";
 import type { InboundMessage } from "../ingress/inbound-message";
 import { renderStatus } from "../ingress/status-copy";
 import { localizeUserCopy, messageLanguage, renderUserNotice } from "../ingress/user-copy";
 import { DRAIN_REPLY, isDraining } from "../lifecycle/drain";
 import { logEvent, logger, runWithLogContext } from "../observability/logger";
 import { ownerConfirm } from "../owner-approval/owner-confirm";
-import { purgeThreadTrash } from "./effects/purge-trash";
 import { createHandlerServices } from "./handler-services";
 import type { TurnHandlerDeps } from "./handler-types";
 import { parseMessageCommand } from "./message-commands";

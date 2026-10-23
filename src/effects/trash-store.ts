@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { cpSync, lstatSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
-import { treeTotals } from "../../policy/tree-totals";
+import { treeTotals } from "../policy/tree-totals";
 
 /* The trash of `DeletePaths`: <AGENT_HOME>/trash/<goalId>/<epoch ms>-<random>/<n>-<name>, kept 7 days (sweeper), emptied by /purge. */
 

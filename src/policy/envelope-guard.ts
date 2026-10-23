@@ -1,6 +1,6 @@
+import { EFFECT_TOOL_NAMES } from "../effects/effect-tool-names";
 import { CREATE_PULL_REQUEST_TOOL } from "../mcp/effects/tools/CreatePullRequestTool/constants";
 import { EFFECTS_MCP_SERVER, mcpToolName } from "../mcp/mcp-tool-names";
-import { EFFECT_TOOL_NAMES } from "../orchestrator/effects/effect-tool-names";
 import { checkEnvelope } from "./check-envelope";
 import type { Decision, GuardrailContext } from "./check-tool-call";
 import { classifyToolCall } from "./classify-tool-call";

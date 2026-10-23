@@ -4,6 +4,7 @@ import {
   DUPLICATE_MIN_OVERLAP,
   DUPLICATE_WINDOW_MS,
 } from "../../config/teammate-caps";
+import { type Reply, refuse } from "../../effects/reply";
 import { clip, redactText } from "../../observability/redact";
 import {
   recentItemEvents,
@@ -19,7 +20,6 @@ import {
 } from "../../storage/owned-task-store";
 import { lastMessageOf } from "../../storage/task-message-store";
 import { messageRef } from "../messages/message-ref";
-import { type Reply, refuse } from "../reply";
 import {
   GET_EVENTS_MAX,
   GET_RESULT_MAX_CHARS,

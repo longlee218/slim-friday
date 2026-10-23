@@ -1,6 +1,6 @@
 import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
-import { deletePaths } from "../../../../orchestrator/effects/delete-paths";
+import { deletePaths } from "../../../../effects/delete-paths";
 import type { EffectsCtx } from "../../../../policy/effect-context";
 import { runTool } from "../../../tool-result";
 import { DELETE_PATHS_TOOL, MAX_PATHS, PATH_MAX_CHARS, REASON_MAX_CHARS } from "./constants";

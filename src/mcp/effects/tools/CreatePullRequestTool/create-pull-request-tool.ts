@@ -1,6 +1,6 @@
 import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
-import { createPullRequest } from "../../../../orchestrator/effects/pull-request";
+import { createPullRequest } from "../../../../effects/pull-request";
 import type { EffectsCtx } from "../../../../policy/effect-context";
 import { runTool } from "../../../tool-result";
 import {

@@ -1,7 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { TASK_BOARD_PAGE_CHARS } from "../../config/message-caps";
+import { type Reply, refuse } from "../../effects/reply";
 import { getTaskMessage, listTaskMessages } from "../../storage/task-message-store";
-import { type Reply, refuse } from "../reply";
 import { messageRef, parseMessageRef } from "./message-ref";
 import { asData, isRefusal, resolveItem } from "./task-board-scope";
 

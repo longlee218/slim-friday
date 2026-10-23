@@ -1,9 +1,9 @@
 import type { Database } from "bun:sqlite";
+import { type Reply, refuse } from "../../effects/reply";
 import { taskCandidates } from "../../storage/item-edit-store";
 import { getItem, type ItemRow } from "../../storage/owned-item-store";
 import { threadOfTask } from "../../storage/owned-task-store";
 import { neutralizePromptTags } from "../../text/neutralize-prompt-tags";
-import { type Reply, refuse } from "../reply";
 
 /* Scope of the `TaskBoard` reads: the thread comes from the run (never from params), so every read starts by
    proving that the task or message it names belongs to that thread. */

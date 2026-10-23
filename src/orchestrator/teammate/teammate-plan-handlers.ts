@@ -1,3 +1,4 @@
+import { type Reply, refuse } from "../../effects/reply";
 import { DEFAULT_LANGUAGE } from "../../i18n/languages";
 import { renderUserNotice } from "../../ingress/user-copy";
 import {
@@ -14,7 +15,6 @@ import type {
   CreateTeammatePlanInput,
   ProposeRevisionInput,
 } from "../plan/plan-schemas";
-import { type Reply, refuse } from "../reply";
 import { checkPlanRequest } from "../strategy/plan-policy";
 import { type TeammateToolContext, teammateCall } from "./teammate-call";
 

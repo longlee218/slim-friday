@@ -1,6 +1,6 @@
+import type { Reply } from "../effects/reply";
 import { logger } from "../observability/logger";
 import { errText } from "../observability/redact";
-import type { Reply } from "../orchestrator/reply";
 
 const log = logger.child({ module: "teammate-tool" });
 

@@ -2,6 +2,7 @@ import { mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { readProcessEnv } from "../../config/process-env";
 import { workspacePaths } from "../../config/workspace-paths";
+import { type Reply, refuse } from "../../effects/reply";
 import {
   ORCHESTRATE_ACTION_ASK_OWNER,
   ORCHESTRATE_ACTION_REGISTER_LOCATION,
@@ -12,7 +13,6 @@ import { defaultProjectPath, defaultProjectsDir } from "../../workspaces/default
 import { inspectLocation, type LocationCandidate } from "../../workspaces/location-candidate";
 import { registerLocation } from "../../workspaces/register-location";
 import { loadWorkspaces } from "../../workspaces/workspace-registry";
-import { type Reply, refuse } from "../reply";
 import { pathInText } from "./owner-path-match";
 import { type TeammatePlace, type TeammateToolContext, teammateCall } from "./teammate-call";
 import type { RegisterLocationInput } from "./teammate-schemas";

@@ -8,6 +8,7 @@ import {
   TASK_BOARD_SEARCH_HITS,
   TASK_BOARD_SNIPPET_CHARS,
 } from "../../config/message-caps";
+import { type Reply, refuse } from "../../effects/reply";
 import { TASK_BOARD_DOC_SPEC } from "../../mcp/orchestration/tools/TaskBoardTool/action-names";
 import { buildMatch, queryTerms } from "../../memory/index/fold-text";
 import {
@@ -24,7 +25,6 @@ import { listTaskMessages } from "../../storage/task-message-store";
 import { latestPlan, newestApprovedVersion, planIdOfGoal } from "../../storage/work-plan-store";
 import { snapshotOf } from "../goal/effect-port-queries";
 import { searchTasks, taskDetail } from "../goal/task-reads";
-import { type Reply, refuse } from "../reply";
 import { messageRef } from "./message-ref";
 import { asData, badTaskRef, isRefusal, resolveItem } from "./task-board-scope";
 

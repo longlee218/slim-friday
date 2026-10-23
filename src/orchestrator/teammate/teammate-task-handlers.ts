@@ -1,3 +1,4 @@
+import { type Reply, refuse } from "../../effects/reply";
 import {
   ORCHESTRATE_ACTION_ADD,
   ORCHESTRATE_ACTION_UPDATE,
@@ -5,7 +6,6 @@ import {
 import { excerpt } from "../../observability/logger";
 import { SCOPE_CHARS } from "../../tasks/task-resolver";
 import { duplicateRefusal } from "../goal/task-reads";
-import { type Reply, refuse } from "../reply";
 import { checkAdd, checkUpdate, type GoalView } from "../strategy/add-policy";
 import type { AddItemInput, UpdateItemInput } from "./task-schemas";
 import { type TeammateToolContext, teammateCall } from "./teammate-call";

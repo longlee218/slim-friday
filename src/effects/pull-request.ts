@@ -1,6 +1,6 @@
-import { isPlainRef } from "../../locations/git-run";
-import { CREATE_PULL_REQUEST_TOOL } from "../../mcp/effects/tools/CreatePullRequestTool/constants";
-import { checkEnvelope, isFallbackDefault } from "../../policy/check-envelope";
+import { isPlainRef } from "../locations/git-run";
+import { CREATE_PULL_REQUEST_TOOL } from "../mcp/effects/tools/CreatePullRequestTool/constants";
+import { checkEnvelope, isFallbackDefault } from "../policy/check-envelope";
 import {
   askOwnerPerAct,
   type EffectsCtx,
@@ -8,8 +8,8 @@ import {
   recordEffect,
   refuseLogged,
   safeText,
-} from "../../policy/effect-context";
-import { type Reply, refuse } from "../reply";
+} from "../policy/effect-context";
+import { type Reply, refuse } from "./reply";
 
 /* CreatePullRequest: `gh pr create` as an argv array. The head is a feature branch the grant covers. */
 
