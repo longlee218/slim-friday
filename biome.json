@@ -11,6 +11,7 @@
       "src/**",
       "!src/storage/migrations",
       "test/**",
+      "packages/**",
       "package.json",
       "tsconfig.json",
       "biome.json"

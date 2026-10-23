@@ -3,14 +3,17 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "start": "bun run src/index.ts",
     "db:generate": "drizzle-kit generate",
     "metrics:skills": "bun run scripts/metrics-skills.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
-    "format": "biome format --write src test",
-    "lint": "biome check src test"
+    "format": "biome format --write src test packages",
+    "lint": "biome check src test packages"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.295",
