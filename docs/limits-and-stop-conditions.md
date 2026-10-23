@@ -44,6 +44,9 @@ Single source of every limit and stop condition of the app. Other docs link here
 | `PEER_MESSAGE_MAX_CHARS` | run | 4000 <!-- limit:PEER_MESSAGE_MAX_CHARS=4000 --> | `config/teammate-caps.ts` | longest peer message (`MessageTeammate`); longer is refused `TOO_LONG` | code |
 | `PEER_SENDS_PER_HOUR` | teammate | 20 <!-- limit:PEER_SENDS_PER_HOUR=20 --> | `config/teammate-caps.ts` | peer messages one teammate may send per hour; the next is refused `RATE_LIMIT` | code |
 | `PEER_REPEAT_WINDOW_MS` | teammate | 600000 <!-- limit:PEER_REPEAT_WINDOW_MS=600000 --> | `config/teammate-caps.ts` | same sender, target and text inside this window (10 min) is refused `REPEAT` | code |
+| `CHAT_ROLLOVER_IDLE_MS` | teammate | 7200000 <!-- limit:CHAT_ROLLOVER_IDLE_MS=7200000 --> | `config/teammate-caps.ts` | a chat-mode session idle this long (2 h) starts fresh at the next owner message | code |
+| `CHAT_ROLLOVER_COMPACTIONS` | teammate | 3 <!-- limit:CHAT_ROLLOVER_COMPACTIONS=3 --> | `config/teammate-caps.ts` | a chat-mode session that saw this many compactions is replaced by a fresh one | code |
+| `CHAT_ROLLOVER_SEED_MESSAGES` | teammate | 20 <!-- limit:CHAT_ROLLOVER_SEED_MESSAGES=20 --> | `config/teammate-caps.ts` | visible channel messages in a rolled-over session's first user turn | code |
 | `DISPATCHES_PER_RUN` | run | 1 <!-- limit:DISPATCHES_PER_RUN=1 --> | `config/teammate-caps.ts` | second `Orchestrate dispatch` of a teammate run refused | code |
 | `MAX_ASSIGNMENTS` | run | 20 <!-- limit:MAX_ASSIGNMENTS=20 --> | `orchestrator/teammate/teammate-limits.ts` | schema rejects; more than the policy allows so the policy can answer NEEDS_PLAN | code |
 | `ANNOUNCE_MAX_EVENTS` | t | 20 events <!-- limit:ANNOUNCE_MAX_EVENTS=20 --> | `config/teammate-caps.ts` | the rest stays undelivered; the block says how many more and a new announce is armed after the run; one `budget_hit` per goal per batch | code |

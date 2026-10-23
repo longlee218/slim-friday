@@ -51,6 +51,7 @@ const FILE_MARKER = "[file]";
 export function toRecent(
   messages: Iterable<HistoryMessage>,
   p: { currentId: string; ownerId: string; botId: string },
+  keep = RECENT_COUNT,
 ): RecentMessage[] {
   const rows: RecentMessage[] = [];
   const sorted = [...messages]
@@ -62,17 +63,18 @@ export function toRecent(
     const file = (m.attachments?.size ?? 0) > 0 ? FILE_MARKER : "";
     rows.push({ from, text: `${m.content || componentsText(m.components)} ${file}`.trim() });
   }
-  return cleanRecent(rows);
+  return cleanRecent(rows, keep);
 }
 
 /** Read the thread history from Discord. Never throws: a failed fetch is no history (the run still works). */
 export async function fetchRecent(
   channel: HistoryChannel,
   p: { currentId: string; ownerId: string; botId: string },
+  keep = RECENT_COUNT,
 ): Promise<RecentMessage[]> {
   try {
-    const got = await channel.messages.fetch({ limit: RECENT_COUNT + FETCH_EXTRA });
-    return toRecent(got.values(), p);
+    const got = await channel.messages.fetch({ limit: keep + FETCH_EXTRA });
+    return toRecent(got.values(), p, keep);
   } catch {
     return [];
   }

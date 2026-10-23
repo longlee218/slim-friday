@@ -2,6 +2,7 @@ import { type Client, Events } from "discord.js";
 import pkg from "../package.json";
 import { TEAMMATE_POOL_MAX, TEAMMATE_WAITING_MAX, WORKER_POOL_MAX } from "./config/run-caps";
 import { workspacePaths } from "./config/workspace-paths";
+import { FETCH_RECENT_TIMEOUT_MS, fetchRecent } from "./ingress/thread-history";
 import { threadLanguage } from "./ingress/thread-language";
 import { createThreadsPort } from "./ingress/threads-port";
 import { type BootState, loadBootState } from "./lifecycle/boot-checks";
@@ -107,6 +108,17 @@ async function main(): Promise<void> {
     threadTitle: createThreadTitlePort(() => botClient),
     // The teammate's boot wake has no owner message to answer through: post into the thread by id.
     openThread: (channelId, name) => openPeerThread(botClient, channelId, name),
+    recentMessages: async (threadId, currentId, n) => {
+      const channel = await botClient?.channels.fetch(threadId);
+      const botId = botClient?.user?.id;
+      if (!channel?.isTextBased() || !botId) return [];
+      // biome-ignore lint/style/noNonNullAssertion: checked at startup
+      const ids = { ownerId: config.ownerDiscordId!, botId };
+      return Promise.race([
+        fetchRecent(channel, { currentId, ...ids }, n),
+        new Promise<never[]>((r) => setTimeout(() => r([]), FETCH_RECENT_TIMEOUT_MS).unref()),
+      ]);
+    },
     post: async (threadId, text) => {
       const channel = await botClient?.channels.fetch(threadId);
       if (channel?.isSendable()) await sendReply(channel, text, threadLanguage(db, threadId));

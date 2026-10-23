@@ -77,3 +77,12 @@ export const PEER_SENDS_PER_HOUR = 20;
 
 /** The same sender, target and text inside this window (ms) is a repeat (`REPEAT`). */
 export const PEER_REPEAT_WINDOW_MS = 600_000;
+
+/** A chat-mode session idle longer than this (ms) starts fresh at the next owner message (seeded with the episode and the last messages). */
+export const CHAT_ROLLOVER_IDLE_MS = 2 * 60 * 60 * 1000;
+
+/** A chat-mode session that has seen this many compactions since it started is replaced by a fresh one. */
+export const CHAT_ROLLOVER_COMPACTIONS = 3;
+
+/** Visible messages of the channel put in a rolled-over session's first user turn. */
+export const CHAT_ROLLOVER_SEED_MESSAGES = 20;

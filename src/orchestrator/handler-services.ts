@@ -33,6 +33,7 @@ export function createHandlerServices(deps: TurnHandlerDeps, log: Logger) {
     deps: dispatchDeps,
     post: deps.post,
     openThread: deps.openThread,
+    recentMessages: deps.recentMessages,
     ...deps.teammateTiming,
     track: (run) => void tracker.track(run.then(() => undefined)),
   });

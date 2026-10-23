@@ -1,5 +1,6 @@
 import { TEAMMATE_POOL_MAX, TEAMMATE_WAITING_MAX } from "../../config/run-caps";
 import type { InboundMessage } from "../../ingress/inbound-message";
+import type { RecentMessage } from "../../ingress/intent-types";
 import { messageLanguage, renderUserNotice } from "../../ingress/user-copy";
 import { logEvent, logger } from "../../observability/logger";
 import { errText } from "../../observability/redact";
@@ -55,6 +56,8 @@ export function createTeammateSystem(o: {
   post?: (threadId: string, text: string) => Promise<void>;
   /** Open a new thread in a channel (a peer request to a task-mode teammate); returns its id. */
   openThread?: (channelId: string, name: string) => Promise<string>;
+  /** Last messages of a thread (rollover seed). */
+  recentMessages?: (threadId: string, currentId: string, n: number) => Promise<RecentMessage[]>;
   /** Keep a teammate run in the shutdown drain. */
   track?: (run: Promise<void>) => void;
   announceWindowMs?: number;
@@ -127,6 +130,7 @@ export function createTeammateSystem(o: {
       return id;
     },
   };
+  rt.recentMessages = o.recentMessages;
   rt.peerSend = (from, m) => sendPeerMessage(peerDeps, from, m);
   /** Per thread: announces the full teammate pool dropped in a row (the re-arm delay grows with it; a teammate run of the thread resets it). */
   const dropStreak = new Map<string, number>();

@@ -19,6 +19,7 @@ import { planSideEffects } from "../plan/plan-side-effects";
 import { registerRun } from "../run/live-runs";
 import { runTurn, type TeammateTurnResult } from "../run/run-turn";
 import { dispatchReady } from "../worker/dispatch-ready";
+import { chatRollover } from "./chat-rollover";
 import { teammateEffectsCtx } from "./teammate-effects-ctx";
 import {
   announceBlock,
@@ -59,6 +60,8 @@ function teammateOnce(
     resolved: Extract<TeammateResolution, { ok: true }>;
     /** Peer hops behind this run (0 = the owner started it); a message it sends is hop + 1. */
     hop: number;
+    /** Set when a chat-mode session is replaced (idle or compactions): no resume, the seed rides in the first user turn. */
+    rollover?: { reason: string; seed: string };
   },
 ): Promise<TeammateTurnResult> {
   const { deps } = rt;
@@ -121,9 +124,13 @@ function teammateOnce(
       const stored = getSession(db, threadId);
       // A session resumes only under the config it was made with (model, tools, skills, preset): else a fresh one.
       const sameKind = stored?.kind === "teammate" ? stored : null;
-      const existing = sameKind && (sameKind.config_mark ?? null) === mark ? sameKind : null;
+      const existing =
+        !o.rollover && sameKind && (sameKind.config_mark ?? null) === mark ? sameKind : null;
       if (sameKind && !existing)
-        logEvent(log, "teammate.session_rollover", { threadId, reason: "config" });
+        logEvent(log, "teammate.session_rollover", {
+          threadId,
+          reason: o.rollover?.reason ?? "config",
+        });
       const turn = buildTeammateUserTurn(db, {
         agentHome: deps.config.agentHome,
         ctx,
@@ -133,6 +140,7 @@ function teammateOnce(
         ownerText: o.ownerText,
         body: o.text,
         snapshot: port.snapshot() ?? { items: [] },
+        previousSession: o.rollover?.seed,
         hasTitlePort: !!titlePortFor({ threadId, channelId: ctx.channelId }, deps.threadTitle),
       });
       memory = turn.memory;
@@ -267,6 +275,15 @@ export async function runTeammate(rt: TeammateRuntime, input: TeammateInput): Pr
       } else stopped = true; // worker news stays pending for the fixed row: no notice, no re-arm
       return;
     }
+    const rollover =
+      input.kind === "owner"
+        ? await chatRollover(db, {
+            threadId,
+            chat: ctx.channelMode === "chat",
+            currentMessageId: ctx.message.messageId,
+            recent: rt.recentMessages,
+          })
+        : undefined;
     const inputId = crypto.randomUUID();
     const out = await teammateOnce(rt, ctx, {
       threadId,
@@ -278,6 +295,7 @@ export async function runTeammate(rt: TeammateRuntime, input: TeammateInput): Pr
       ac,
       trigger: input.kind,
       resolved,
+      rollover,
       hop: Math.max(0, ...batch.shown.map(peerHopOf)),
       ...(input.kind === "owner" && input.text && { ownerText: input.text }),
     });

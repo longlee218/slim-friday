@@ -16,6 +16,8 @@ export const ownerMessageBlock = (text: string): string =>
 
 /** Join the parts of a teammate user turn (empty parts are left out). */
 export function teammateUserTurn(p: {
+  /** `<previous_session>` seed of a rolled-over chat session ("" = none). */
+  previous?: string;
   /** `<memory>` block, "" when the session already has this memory. */
   memory: string;
   /** Related earlier threads of the channel ("" = none). */
@@ -27,7 +29,9 @@ export function teammateUserTurn(p: {
   /** Thread-title note lines (empty = titled, or no rename tool). */
   titleNote: readonly string[];
 }): string {
-  return [p.memory, p.related, p.state, ...p.titleNote, p.trigger].filter(Boolean).join("\n\n");
+  return [p.previous, p.memory, p.related, p.state, ...p.titleNote, p.trigger]
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 /**
@@ -49,6 +53,8 @@ export function buildTeammateUserTurn(
     snapshot: TaskSnapshot;
     /** The run can rename its thread (gates the title note). */
     hasTitlePort: boolean;
+    /** `<previous_session>` seed when a chat session was just replaced. */
+    previousSession?: string;
   },
 ): { text: string; memory: TeammateMemoryTurn } {
   const { workspace, channel } = p.ctx;
@@ -59,6 +65,7 @@ export function buildTeammateUserTurn(
       ? relatedEpisodesBlock(db, { workspace, channel, threadId: p.threadId, text: p.ownerText })
       : "";
   const text = teammateUserTurn({
+    previous: p.previousSession,
     memory: memory.block,
     related,
     state: buildTeammateContextBlock(p.snapshot),

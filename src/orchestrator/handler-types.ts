@@ -1,5 +1,6 @@
 import type { Database } from "bun:sqlite";
 import type { AgentConfig } from "../config/agent-config";
+import type { RecentMessage } from "../ingress/intent-types";
 import type { ThreadTitlePort } from "../ingress/thread-title";
 import type { ApprovalGateway } from "../owner-approval/approval-types";
 import type { QueryFn } from "../runtime/run-agent";
@@ -25,6 +26,8 @@ export interface TurnHandlerDeps {
   post?: (threadId: string, text: string) => Promise<void>;
   /** Open a new thread in a teammate channel (a peer request to a task-mode teammate); returns its id. */
   openThread?: (channelId: string, name: string) => Promise<string>;
+  /** The last `n` visible messages of a thread before `currentId` (owner and bot, oldest first); seeds a rolled-over chat session. Omitted = no messages in the seed. */
+  recentMessages?: (threadId: string, currentId: string, n: number) => Promise<RecentMessage[]>;
   /** Timing knobs of the teammate queue (tests shorten the owner debounce and the announce batch). */
   teammateTiming?: { debounceMs?: number; announceWindowMs?: number };
 }

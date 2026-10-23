@@ -1,4 +1,5 @@
 import type { ImageAttachment, InboundMessage } from "../../ingress/inbound-message";
+import type { RecentMessage } from "../../ingress/intent-types";
 import type { ReportLink } from "../../ingress/report-links";
 import type { Location } from "../../locations/location-registry";
 import type { PeerIntent, PeerResult, PeerSender } from "../../teammates/peer/send-peer-message";
@@ -31,6 +32,8 @@ export interface TeammateRuntime {
   announce(threadId: string, delayMs?: number): void;
   relay: QuestionRelay;
   /** Send a peer message for a run of this process (`MessageTeammate`); absent in a runtime built without the peer wiring. */
+  /** Last messages of a thread for the rollover seed (absent = none). */
+  recentMessages?: (threadId: string, currentId: string, n: number) => Promise<RecentMessage[]>;
   peerSend?: (
     from: PeerSender,
     m: { to: string; text: string; intent: PeerIntent; replyTo?: number },
