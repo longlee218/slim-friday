@@ -132,7 +132,7 @@ export class BotHub {
     text: string,
     hop: number,
   ): Promise<void> {
-    const { store, surface, clock } = this.deps;
+    const { store, clock } = this.deps;
     const bot = await store.bots.get(botId);
     const conv = await store.conversations.get(conversationId);
     if (!bot || !conv) return;
