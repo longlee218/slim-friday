@@ -1,0 +1,105 @@
+import { expect, test } from "bun:test";
+import { mkdirSync, mkdtempSync, realpathSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { Bot, BotRuntimeSpec, RuntimeToolCall, ToolDecision } from "@friday/core";
+import { buildOptions } from "../src/session/build-options";
+
+const base = realpathSync(mkdtempSync(join(tmpdir(), "opts-")));
+const ws1 = join(base, "ws1");
+const ws2 = join(base, "ws2");
+const home = join(base, "home");
+const scratch = join(home, "runs", "b1");
+for (const d of [ws1, ws2, scratch]) mkdirSync(d, { recursive: true });
+
+const bot = (over: Partial<Bot> = {}): Bot => ({
+  id: "b1",
+  name: "Ann",
+  title: "Dev",
+  instructions: "Be brief.",
+  model: "sonnet",
+  tools: ["Read", "Bash"],
+  skills: [],
+  subagents: [],
+  workspaces: [ws1, ws2],
+  ...over,
+});
+
+/** A spec whose `decide` records its calls and answers `answer`. */
+function spec(b: Bot, answer: ToolDecision | Error = { behavior: "allow" }) {
+  const calls: RuntimeToolCall[] = [];
+  const s: BotRuntimeSpec = {
+    bot: b,
+    async decide(call) {
+      calls.push(call);
+      if (answer instanceof Error) throw answer;
+      return answer;
+    },
+  };
+  return { s, calls };
+}
+
+const config = { agentHome: home, scratchRoot: join(home, "runs"), oauthToken: "tok" };
+const build = (s: BotRuntimeSpec, resume?: string) =>
+  buildOptions({ spec: s, config, resume, abort: new AbortController(), scratchDir: scratch });
+const opts = { signal: new AbortController().signal, toolUseID: "t1", requestId: "r1" };
+
+test("options carry the bot's model, dirs, tools and safe defaults", () => {
+  const o = build(spec(bot()).s);
+  expect(o.model).toBe("sonnet");
+  expect(o.cwd).toBe(ws1);
+  expect(o.additionalDirectories).toEqual([ws2]);
+  expect(o.tools).toEqual(["Read", "Bash"]);
+  expect(o.settingSources).toEqual([]);
+  expect(o.permissionMode).toBe("default");
+  expect(o.systemPrompt).toBe("You are Ann, Dev.\n\nBe brief.");
+  expect(build(spec(bot()).s, "abc").resume).toBe("abc");
+});
+
+test("subagents are background agents; the env allows background tasks and hides secrets", () => {
+  const sub = { name: "helper", description: "d", prompt: "p", tools: ["Read"], model: "haiku" };
+  const o = build(spec(bot({ subagents: [sub] })).s);
+  expect(o.agents?.helper).toMatchObject({
+    description: "d",
+    prompt: "p",
+    tools: ["Read"],
+    background: true,
+  });
+  expect(o.env && "CLAUDE_CODE_DISABLE_BACKGROUND_TASKS" in o.env).toBe(false);
+  expect(o.env?.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB).toBe("1");
+  expect(o.env?.CLAUDE_CODE_OAUTH_TOKEN).toBe("tok");
+});
+
+test("a bot with no workspaces runs in the scratch dir and the sandbox writes only there", () => {
+  const o = build(spec(bot({ workspaces: [] })).s);
+  expect(o.cwd).toBe(scratch);
+  expect(o.sandbox?.filesystem?.allowWrite).toEqual([scratch]);
+});
+
+test("the floor denies a file outside the workspaces and decide is not called", async () => {
+  const { s, calls } = spec(bot());
+  const r = await build(s).canUseTool?.("Read", { file_path: "/etc/hosts" }, opts);
+  expect(r?.behavior).toBe("deny");
+  expect(calls).toEqual([]);
+});
+
+test("Bash goes to decide with the subagent's task id and the answer is mapped", async () => {
+  const allow = spec(bot());
+  const r = await build(allow.s).canUseTool?.(
+    "Bash",
+    { command: "ls" },
+    { ...opts, agentID: "task-9" },
+  );
+  expect(r).toMatchObject({ behavior: "allow", updatedInput: { command: "ls" } });
+  expect(allow.calls).toEqual([{ tool: "Bash", input: { command: "ls" }, taskId: "task-9" }]);
+  const deny = spec(bot(), { behavior: "deny", reason: "no" });
+  expect(await build(deny.s).canUseTool?.("Bash", { command: "ls" }, opts)).toMatchObject({
+    behavior: "deny",
+    message: "no",
+  });
+});
+
+test("a decide that throws is a deny", async () => {
+  const { s } = spec(bot(), new Error("boom"));
+  expect((await build(s).canUseTool?.("Bash", { command: "ls" }, opts))?.behavior).toBe("deny");
+});
