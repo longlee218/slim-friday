@@ -17,6 +17,7 @@
     "lint": "biome check src test packages"
   },
   "dependencies": {
+    "@friday/config": "workspace:*",
     "@friday/store-sqlite": "workspace:*",
     "@friday/core": "workspace:*",
     "@friday/runtime-claude": "workspace:*",

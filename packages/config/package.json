@@ -1,0 +1,11 @@
+{
+  "name": "@friday/config",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "dependencies": {
+    "@friday/core": "workspace:*",
+    "zod": "^4.6.5"
+  }
+}
