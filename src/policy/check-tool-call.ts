@@ -9,6 +9,7 @@
 import { MCP_PREFIX } from "../mcp/mcp-tool-names";
 import { mcpToolNamesOfRole } from "../mcp/tool-names-of-role";
 import type { RoleDefinition } from "../roles/role-types";
+import { policyOf } from "../tools/role-policy";
 import {
   AGENT_TOOL_NAME,
   ASK_USER_QUESTION_TOOL_NAME,
@@ -26,7 +27,7 @@ import {
   SEND_MESSAGE_TOOL_NAME,
   WRITE_TOOL_NAME,
 } from "../tools/sdk-tool-names";
-import { autoAllowedTools, subagentToolsFor, toolsFor } from "../tools/tool-catalog";
+import { autoAllowedTools, subagentToolsFor } from "../tools/tool-catalog";
 import { checkFileRead, checkFileWrite } from "./deny-dangerous";
 import type { DispatchEnvelope } from "./envelope";
 import { envelopeGate } from "./envelope-guard";
@@ -82,7 +83,7 @@ export function guardFor(role: RoleDefinition, scope: GuardScope): GuardrailCont
   return {
     ...scope,
     allowTools: [...autoAllowedTools(role), ...mcpToolNamesOfRole(role)],
-    shell: toolsFor(role).includes(BASH_TOOL_NAME),
+    shell: policyOf(role).shell,
     subagentTools: subagentToolsFor(role),
     // Subagent tools on/off comes from the role's data only.
     subagents: !role.noSubagents,

@@ -8,6 +8,7 @@ import {
 } from "../../config/teammate-caps";
 import type { Location } from "../../locations/location-registry";
 import { PLAYWRIGHT_TOOLS } from "../../mcp/playwright/playwright-tool-names";
+import { policyOf } from "../../tools/role-policy";
 import { dispatchableWorkers } from "../role-registry";
 import type { Capability, RoleDefinition } from "../role-types";
 
@@ -28,9 +29,9 @@ const PLAN_LINE =
 /** Member facts after the table: who can install or commit, how a screenshot reaches the owner, who may ask the owner (all from role data). */
 const memberFacts = (workers: readonly RoleDefinition[]): string[] => {
   const browser = workers.filter(hasBrowser);
-  const askers = workers.filter((r) => r.capabilities.includes("ask")).map((r) => r.name);
+  const askers = workers.filter((r) => policyOf(r).ids.has("ask")).map((r) => r.name);
   return [
-    workers.some((r) => r.capabilities.includes("shell"))
+    workers.some((r) => policyOf(r).shell)
       ? "- A command needs a member with shell; an install, a build that writes files or a commit needs one that also changes the location."
       : "- No member has a shell: no item can run commands, tests or commits.",
     ...(browser.length

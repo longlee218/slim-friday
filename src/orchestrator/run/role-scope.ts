@@ -3,6 +3,7 @@ import type { AgentConfig } from "../../config/agent-config";
 import { workspacePaths } from "../../config/workspace-paths";
 import { isInside, realOrSame } from "../../policy/paths";
 import type { RoleDefinition } from "../../roles/role-types";
+import { policyOf } from "../../tools/role-policy";
 import { controlScope } from "./control-scope";
 import type { RoleRunInput } from "./role-run-types";
 import type { RoleScope } from "./role-scope-types";
@@ -58,9 +59,7 @@ export function roleScope(config: AgentConfig, i: RoleRunInput, role: RoleDefini
     sessionId = i.resume.sessionId;
   } else if (role.kind === "worker") {
     // A worker role that cannot write (a scout) works in the neutral dir and reads the locations as extra dirs.
-    cwd =
-      pinned?.path ??
-      (role.capabilities.includes("write") ? (locations[0]?.path ?? dirs.cwd) : dirs.cwd);
+    cwd = pinned?.path ?? (policyOf(role).write ? (locations[0]?.path ?? dirs.cwd) : dirs.cwd);
     sessionId = i.resume?.sessionId; // a resumed item: same computed cwd as its first run
   } else {
     const stored = i.existing;
@@ -72,7 +71,7 @@ export function roleScope(config: AgentConfig, i: RoleRunInput, role: RoleDefini
     if (stored && stored.cwd === cwd) sessionId = stored.session_id;
   }
   const others = pinned ? [] : locations.map((r) => r.path).filter((p) => p !== cwd);
-  if (!role.capabilities.includes("write")) {
+  if (!policyOf(role).write) {
     // Full text of a long owner attachment (saved by ingress, read-only): readable only when this thread has one.
     const attached = workspacePaths(config.agentHome).attachments(i.threadId);
     const additionalDirectories = [...others, ...(existsSync(attached) ? [attached] : [])];

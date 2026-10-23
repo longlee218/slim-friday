@@ -1,0 +1,65 @@
+import type { Capability } from "../roles/role-types";
+import {
+  AGENT_TOOL_NAME,
+  ASK_USER_QUESTION_TOOL_NAME,
+  BASH_TOOL_NAME,
+  EDIT_TOOL_NAME,
+  GLOB_TOOL_NAME,
+  GREP_TOOL_NAME,
+  LIST_AGENTS_TOOL_NAME,
+  LIST_MCP_RESOURCES_TOOL_NAME,
+  LSP_TOOL_NAME,
+  MULTI_EDIT_TOOL_NAME,
+  NOTEBOOK_EDIT_TOOL_NAME,
+  READ_MCP_RESOURCE_DIR_TOOL_NAME,
+  READ_MCP_RESOURCE_TOOL_NAME,
+  READ_TOOL_NAME,
+  REFRESH_MCP_TOOLS_TOOL_NAME,
+  REPORT_FINDINGS_TOOL_NAME,
+  SEND_FEEDBACK_TOOL_NAME,
+  SEND_MESSAGE_TOOL_NAME,
+  SKILL_TOOL_NAME,
+  TASK_CREATE_TOOL_NAME,
+  TASK_GET_TOOL_NAME,
+  TASK_LIST_TOOL_NAME,
+  TASK_STOP_TOOL_NAME,
+  TASK_UPDATE_TOOL_NAME,
+  TODO_WRITE_TOOL_NAME,
+  TOOL_SEARCH_TOOL_NAME,
+  WAIT_FOR_MCP_SERVERS_TOOL_NAME,
+  WEB_FETCH_TOOL_NAME,
+  WEB_SEARCH_TOOL_NAME,
+  WRITE_TOOL_NAME,
+} from "./sdk-tool-names";
+
+/** Built-in tools of each capability. */
+export const CAPABILITY_TOOLS: Record<Capability, readonly string[]> = {
+  // LSP is inert unless the owner installs a code-intelligence plugin: no app code for that.
+  read: [READ_TOOL_NAME, GLOB_TOOL_NAME, GREP_TOOL_NAME, LSP_TOOL_NAME],
+  write: [WRITE_TOOL_NAME, EDIT_TOOL_NAME, MULTI_EDIT_TOOL_NAME, NOTEBOOK_EDIT_TOOL_NAME],
+  shell: [BASH_TOOL_NAME],
+  web: [WEB_SEARCH_TOOL_NAME, WEB_FETCH_TOOL_NAME],
+  skills: [SKILL_TOOL_NAME],
+  // Agent starts the SDK's built-in subagent; SendMessage resumes one; ListAgents lists the reachable ones (the app
+  // defines no subagent types). `toolsFor` adds them to every role without `noSubagents`; roles do not list the capability.
+  subagents: [AGENT_TOOL_NAME, SEND_MESSAGE_TOOL_NAME, LIST_AGENTS_TOOL_NAME],
+  tasks: [
+    TODO_WRITE_TOOL_NAME,
+    TASK_CREATE_TOOL_NAME,
+    TASK_UPDATE_TOOL_NAME,
+    TASK_LIST_TOOL_NAME,
+    TASK_GET_TOOL_NAME,
+    TASK_STOP_TOOL_NAME,
+    TOOL_SEARCH_TOOL_NAME,
+  ],
+  mcp: [
+    LIST_MCP_RESOURCES_TOOL_NAME,
+    READ_MCP_RESOURCE_TOOL_NAME,
+    READ_MCP_RESOURCE_DIR_TOOL_NAME,
+    REFRESH_MCP_TOOLS_TOOL_NAME,
+    WAIT_FOR_MCP_SERVERS_TOOL_NAME,
+  ],
+  review: [REPORT_FINDINGS_TOOL_NAME],
+  feedback: [SEND_FEEDBACK_TOOL_NAME],
+  ask: [ASK_USER_QUESTION_TOOL_NAME],
+};

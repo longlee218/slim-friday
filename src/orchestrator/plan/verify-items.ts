@@ -7,6 +7,7 @@ import type { ItemRow } from "../../storage/owned-item-store";
 import { insertOwnedTask, taskOrigin } from "../../storage/owned-task-store";
 import { appendEvent } from "../../storage/thread-event-store";
 import { SCOPE_CHARS } from "../../tasks/task-resolver";
+import { policyOf } from "../../tools/role-policy";
 import { AUTHOR_SYSTEM } from "../messages/message-kinds";
 import { postItemMessage } from "../messages/task-messages";
 import { FIX_KEY, isReservedKey, VERIFY_KEY, VERIFY_ROLE } from "./plan-types";
@@ -40,9 +41,7 @@ export const fixesAt = (items: readonly KeyAt[], location: string | null): numbe
 /** True for a role that changes code in a location: side effects on the location and a shell, never the verify role
     itself (the tester only changes test files). */
 export const isWriterRole = (role: RoleDefinition | undefined): boolean =>
-  role?.name !== VERIFY_ROLE &&
-  role?.sideEffects === "location" &&
-  role.capabilities.includes("shell");
+  role?.name !== VERIFY_ROLE && role?.sideEffects === "location" && policyOf(role).shell;
 
 /** True for an item that changes code in a location (a fix goes back to the same role and place): a writer role with a
     location, never a reserved (verify / fix) key. */

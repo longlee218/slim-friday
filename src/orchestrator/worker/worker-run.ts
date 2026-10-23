@@ -13,6 +13,7 @@ import {
 } from "../../storage/owned-item-store";
 import { getOwnedTask } from "../../storage/owned-task-store";
 import { markStartDelivered } from "../../storage/thread-event-store";
+import { policyOf } from "../../tools/role-policy";
 import { goalRoute } from "../budget/task-budget";
 import { ensureBriefMessage } from "../messages/brief-message";
 import { earlierSteps } from "../messages/earlier-steps";
@@ -130,7 +131,7 @@ export async function startWorker(
             sink,
             pinned,
           }),
-          askRelay: role.capabilities.includes("ask")
+          askRelay: policyOf(role).ids.has("ask")
             ? rt.relay.forWorker({ threadId, goalId, itemId: item.id, turnId, role: role.name })
             : undefined,
         };

@@ -1,4 +1,5 @@
 import type { RoleDefinition } from "../roles/role-types";
+import { policyOf } from "../tools/role-policy";
 import { LIST_ARTIFACTS_TOOL } from "./artifacts/tools/ListArtifactsTool/constants";
 import { READ_ARTIFACT_TOOL } from "./artifacts/tools/ReadArtifactTool/constants";
 import { SAVE_ARTIFACT_TOOL } from "./artifacts/tools/SaveArtifactTool/constants";
@@ -74,7 +75,7 @@ export const MCP_TOOL_SERVER: Readonly<Record<string, string>> = {
 
 /** Full names (`mcp__<server>__<tool>`) of the MCP tools of a role (the guard allows exactly these). */
 export const mcpToolNamesOfRole = (role: RoleDefinition): string[] =>
-  (role.mcpTools ?? []).flatMap((t) => {
+  policyOf(role).mcpTools.flatMap((t) => {
     const server = MCP_TOOL_SERVER[t];
     return server ? [mcpToolName(server, t)] : [];
   });

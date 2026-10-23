@@ -1,4 +1,5 @@
 import type { RoleDefinition } from "../../roles/role-types";
+import { policyOf } from "../../tools/role-policy";
 import { toolsFor } from "../../tools/tool-catalog";
 import type { PromptPreview } from "./prompt-layers";
 import { summarizeSchema } from "./schema-summary";
@@ -44,7 +45,7 @@ export function renderRole(v: RoleView): { md: string; stats: RoleStats } {
     "",
     `- model: ${role.model}; permissionMode: ${role.permissionMode ?? "default"}; maxTurns: ${role.limits.maxTurns}; budget: $${role.budgetUsd}`,
     `- base: ${custom ? "custom (our text is the whole system prompt; the SDK adds its billing header + one identity line, tools and the environment block)" : "claude_code preset, our text appended"}`,
-    `- Skill tool: ${role.capabilities.includes("skills") ? "available" : "NOT available"}`,
+    `- Skill tool: ${policyOf(role).ids.has("skills") ? "available" : "NOT available"}`,
     "",
     "## System prompt layers (in order)",
   ];

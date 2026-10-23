@@ -6,6 +6,7 @@ import { withPrefix } from "../../roles/prompts/first-prompt-prefix";
 import type { RoleDefinition } from "../../roles/role-types";
 import { newAskLimit } from "../../runtime/ask-limit";
 import { runAgent } from "../../runtime/run-agent";
+import { policyOf } from "../../tools/role-policy";
 import { setProgressNote } from "../turns/progress-notes";
 import { touch } from "../worker/run-activity";
 import type { askTimeoutControl } from "./ask-timeout-control";
@@ -94,7 +95,7 @@ export function agentRunOnce(p: OnceParts) {
       abortController: ctl.ac,
       queryFn: deps.queryFn,
       // The owner's buttons exist for a role with the ask capability; without it every `ask` is a deny.
-      code: role.capabilities.includes("ask")
+      code: policyOf(role).ids.has("ask")
         ? {
             threadId: i.threadId,
             gateway: approvals,
