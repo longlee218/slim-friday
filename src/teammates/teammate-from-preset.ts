@@ -28,6 +28,8 @@ export function teammateFromPreset(
     id?: string;
     name: string;
     description: string;
+    title?: string;
+    instructions?: string;
     channelId: string;
     model?: string;
     now?: number;
@@ -37,6 +39,8 @@ export function teammateFromPreset(
   return {
     id: o.id ?? crypto.randomUUID(),
     name: o.name,
+    title: o.title ?? "",
+    instructions: o.instructions ?? "",
     description: o.description,
     channelId: o.channelId,
     ...teammateValuesOf(preset),

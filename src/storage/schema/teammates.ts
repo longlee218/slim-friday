@@ -6,6 +6,10 @@ export const teammates = sqliteTable("teammates", {
   id: text().primaryKey(),
   /** Short unique name (`[a-z0-9-]{2,32}`): how other teammates address it. */
   name: text().notNull().unique(),
+  /** Short role title shown in the profile ("" = none). */
+  title: text().notNull().default(""),
+  /** Owner's private instructions for this teammate ("" = none); sent in its system prompt, never shown to other teammates. */
+  instructions: text().notNull().default(""),
   /** Public profile: one or two lines the other teammates see. */
   description: text().notNull(),
   /** Discord channel id; workspace and channel names come from `workspace.yaml` at run time (one source). */

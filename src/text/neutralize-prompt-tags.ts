@@ -3,7 +3,7 @@
  * state, events, owner message).
  */
 const PROMPT_TAGS =
-  "owner_files|file|team|profile|teammates|memory|goal_state|events|owner_message";
+  "owner_files|file|team|profile|instructions|teammates|memory|goal_state|events|owner_message";
 
 /** An opening or closing prompt tag, any case. */
 const TAG_RE = new RegExp(`<(/?)(${PROMPT_TAGS})\\b`, "gi");

@@ -5,6 +5,10 @@ export interface Teammate {
   id: string;
   /** Short unique name, how other teammates address it. */
   name: string;
+  /** Short role title ("" = none). */
+  title: string;
+  /** Owner's private instructions ("" = none): in this teammate's system prompt only. */
+  instructions: string;
   /** Public profile (what the other teammates see). */
   description: string;
   /** Discord channel id; the workspace and channel names come from `workspace.yaml`. */

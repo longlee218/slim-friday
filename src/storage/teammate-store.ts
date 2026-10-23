@@ -7,6 +7,8 @@ import type { Teammate } from "../teammates/teammate-types";
 interface Row {
   id: string;
   name: string;
+  title: string;
+  instructions: string;
   description: string;
   channel_id: string;
   preset: string;
@@ -35,6 +37,8 @@ function list(json: string): string[] {
 const toTeammate = (r: Row): Teammate => ({
   id: r.id,
   name: r.name,
+  title: r.title,
+  instructions: r.instructions,
   description: r.description,
   channelId: r.channel_id,
   preset: r.preset,
@@ -79,11 +83,13 @@ export function listActiveTeammates(db: Database): Teammate[] {
 /** Insert a teammate. Throws on a duplicate name or channel (both unique). */
 export function insertTeammate(db: Database, t: Teammate): void {
   db.query(
-    `INSERT INTO teammates (id, name, description, channel_id, preset, model, tools, skills, budget_usd, max_turns,
-       created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO teammates (id, name, title, instructions, description, channel_id, preset, model, tools, skills, budget_usd, max_turns,
+       created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     t.id,
     t.name,
+    t.title,
+    t.instructions,
     t.description,
     t.channelId,
     t.preset,
@@ -99,7 +105,17 @@ export function insertTeammate(db: Database, t: Teammate): void {
 
 /** Fields an edit may change. */
 export type TeammatePatch = Partial<
-  Pick<Teammate, "description" | "model" | "tools" | "skills" | "budgetUsd" | "maxTurns">
+  Pick<
+    Teammate,
+    | "title"
+    | "instructions"
+    | "description"
+    | "model"
+    | "tools"
+    | "skills"
+    | "budgetUsd"
+    | "maxTurns"
+  >
 >;
 
 /** Edit an active teammate; returns false when none matches. Only the given fields change. */
@@ -115,9 +131,11 @@ export function updateTeammate(
   if (!cur) return false;
   const next = { ...toTeammate(cur), ...patch };
   db.query(
-    `UPDATE teammates SET description = ?, model = ?, tools = ?, skills = ?, budget_usd = ?, max_turns = ?,
+    `UPDATE teammates SET title = ?, instructions = ?, description = ?, model = ?, tools = ?, skills = ?, budget_usd = ?, max_turns = ?,
        updated_at = ? WHERE id = ?`,
   ).run(
+    next.title,
+    next.instructions,
     next.description,
     next.model,
     JSON.stringify(next.tools),

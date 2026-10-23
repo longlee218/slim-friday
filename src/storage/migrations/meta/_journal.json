@@ -155,6 +155,13 @@
       "when": 1792744829875,
       "tag": "0021_teammates",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1792749106989,
+      "tag": "0022_teammate_title_instructions",
+      "breakpoints": true
     }
   ]
 }
