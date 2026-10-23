@@ -8,7 +8,6 @@
     "bootstrap:discord": "bun run src/providers/discord/setup/bootstrap-discord-cli.ts",
     "db:generate": "drizzle-kit generate",
     "metrics:skills": "bun run scripts/metrics-skills.ts",
-    "metrics:memory": "bun run scripts/metrics-memory.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "format": "biome format --write src test",

@@ -7,7 +7,7 @@ import {
   type MemorySaveScope,
 } from "../mcp/memory/tools/MemorySaveTool/constants";
 import { logEvent, logger } from "../observability/logger";
-import { bulletHash } from "./dream-inputs";
+import { bulletHash } from "./bullet-hash";
 import { makeId } from "./index/memory-ids";
 import { formatLesson } from "./lesson-format";
 import { auditWrite } from "./memory-audit";

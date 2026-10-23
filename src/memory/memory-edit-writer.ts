@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { EDIT_BACKUP_KEEP } from "../config/memory-caps";
 import { workspacePaths } from "../config/workspace-paths";
-import { bulletHash } from "./dream-inputs";
+import { bulletHash } from "./bullet-hash";
 import { chunkMemory } from "./index/memory-chunker";
 import type { ParsedId } from "./index/memory-ids";
 import { pickChunk } from "./index/memory-resolve";

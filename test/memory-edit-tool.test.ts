@@ -21,7 +21,7 @@ import {
 import { MEMORY_GET_TOOL } from "../src/mcp/memory/tools/MemoryGetTool/constants";
 import { MEMORY_SAVE_TOOL } from "../src/mcp/memory/tools/MemorySaveTool/constants";
 import { MEMORY_SEARCH_TOOL } from "../src/mcp/memory/tools/MemorySearchTool/constants";
-import { bulletHash } from "../src/memory/dream-inputs";
+import { bulletHash } from "../src/memory/bullet-hash";
 import { searchIndex } from "../src/memory/index/memory-search";
 import type { MemoryToolContext } from "../src/memory/memory-tool-context";
 import { openDb } from "../src/storage/db";
