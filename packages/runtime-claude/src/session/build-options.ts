@@ -29,6 +29,8 @@ export interface BuildOptionsInput {
   config: ClaudeRuntimeConfig;
   /** Session id to resume. */
   resume?: string;
+  /** Id a NEW session gets (a UUID); not used together with `resume`. */
+  sessionId?: string;
   abort: AbortController;
   /** The bot's scratch dir (always writable, cwd when the bot has no workspace). */
   scratchDir: string;
@@ -74,6 +76,7 @@ export function buildOptions(input: BuildOptionsInput): Options {
     permissionMode: "default",
     abortController: input.abort,
     ...(input.resume && { resume: input.resume }),
+    ...(input.sessionId && { sessionId: input.sessionId }),
     ...(config.mcpServers && { mcpServers: config.mcpServers }),
     env: sdkEnv(
       { hasRealAuth: !!config.oauthToken, oauthToken: config.oauthToken },
