@@ -141,6 +141,13 @@
       "when": 1792699286294,
       "tag": "0019_drop_task_result_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1792737382994,
+      "tag": "0020_rename_lead",
+      "breakpoints": true
     }
   ]
 }

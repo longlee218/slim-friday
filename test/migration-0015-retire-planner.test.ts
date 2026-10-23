@@ -35,7 +35,13 @@ test("0015: planner-owned goals become plan-owned, open planner items are cancel
     row("p-done", "completed", "planner", null);
     row("d-running", "running", "developer", null);
 
-    migrate(drizzle({ client: db }), { migrationsFolder: REAL }); // applies 0015
+    // Stop before 0020: it renames the `lead` values this test checks.
+    const all = JSON.parse(readFileSync(join(REAL, "meta/_journal.json"), "utf8")) as typeof j;
+    writeFileSync(
+      jPath,
+      JSON.stringify({ ...all, entries: all.entries.filter((e) => e.idx < 20) }),
+    );
+    migrate(drizzle({ client: db }), { migrationsFolder: old }); // applies 0015 (and later ones up to 0019)
     const get = (id: string) =>
       db
         .query<{ s: string; o: string | null }, [string]>(

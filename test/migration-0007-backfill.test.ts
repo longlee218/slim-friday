@@ -40,7 +40,13 @@ test("0007 backfill: goal with plan = planner, goal with a planner item and no p
       "INSERT INTO owned_tasks (id, thread_id, status, correlation_id, created_at, last_progress_at, parent_id, item_key) VALUES ('i2', 't', 'running', 'c', 1, 1, 'gPlain', 'm')",
     ).run();
 
-    migrate(drizzle({ client: db }), { migrationsFolder: REAL }); // applies 0007
+    // Stop before 0020: it renames the `lead` values this test checks.
+    const all = JSON.parse(readFileSync(join(REAL, "meta/_journal.json"), "utf8")) as typeof j;
+    writeFileSync(
+      jPath,
+      JSON.stringify({ ...all, entries: all.entries.filter((e) => e.idx < 20) }),
+    );
+    migrate(drizzle({ client: db }), { migrationsFolder: old }); // applies 0007 (and later ones up to 0019)
     const owner = (id: string) =>
       db
         .query<{ o: string | null }, [string]>(

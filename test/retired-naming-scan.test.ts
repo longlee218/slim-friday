@@ -185,6 +185,7 @@ const TASK_ID_OK = [
   "turns.ts", // schema: turns.owned_task_id
   "events.ts", // schema: thread_events.task_id, run_messages.task_id
   "db-schema-baseline.test.ts",
+  "migration-0020-rename-lead.test.ts", // seeds task_messages.task_id
   "worktree-store.ts",
   "item-age-store.ts", // reads turns.owned_task_id
   "item-age.test.ts",
