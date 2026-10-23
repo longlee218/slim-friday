@@ -12,7 +12,6 @@ skills:
 preloadSkills:
   - team-protocol
 limits:
-  maxAsk: 0
   maxTurns: 40
 subagents:
   parallel: 3

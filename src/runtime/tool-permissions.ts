@@ -9,7 +9,6 @@ import {
 } from "../policy/check-tool-call";
 import { newSubagentLimit } from "../policy/subagent-limit";
 import { ASK_USER_QUESTION_TOOL_NAME } from "../tools/sdk-tool-names";
-import { type AskLimit, askLimitDenial, newAskLimit } from "./ask-limit";
 import { guardHook, subagentPostHooks } from "./guard-hook";
 import type { ModeActive } from "./permission-mode";
 
@@ -29,8 +28,6 @@ export interface ToolPermissionInput {
   guard: GuardrailContext;
   /** Owner approval via Discord. Omitted (a run without a gateway): every `ask` becomes a deny. */
   gateway?: ApprovalGateway;
-  /** The AskUserQuestion budget of the run (the role's `limits.maxAsk`). Omitted = no questions (cap 0). */
-  askLimit?: AskLimit;
   /**
    * The run is in SDK `auto` mode: a guard `ask` is left to the SDK classifier (canUseTool only if it cannot
    * decide). Every ask when `active` is false still forces the owner prompt.
@@ -94,7 +91,6 @@ export function buildToolPermissions(p: ToolPermissionInput): {
 } {
   const log = logger.child({ module: "tool-permissions" });
   const decisions = new Map<string, LoggedDecision>();
-  const askLimit = p.askLimit ?? newAskLimit(0);
 
   // Subagents in flight of THIS run: one per permission layer, so it resets per run.
   const limit = newSubagentLimit(p.maxSubagents ?? 0);
@@ -110,9 +106,6 @@ export function buildToolPermissions(p: ToolPermissionInput): {
     if (p.runSignal?.aborted) return { behavior: "deny", message: RUN_STOPPED_REASON };
     try {
       if (tool === ASK_USER_QUESTION_TOOL_NAME && p.askRelay) {
-        if (askLimit.calls >= askLimit.max)
-          return { behavior: "deny", message: askLimitDenial(askLimit.max) };
-        askLimit.calls++;
         const questions = (input.questions ?? []) as AskQuestion[];
         const answers = await p.askRelay(questions);
         if (!answers) {
@@ -127,10 +120,6 @@ export function buildToolPermissions(p: ToolPermissionInput): {
       // biome-ignore lint/style/noNonNullAssertion: a run that can ask has a gateway
       const gateway = p.gateway!;
       if (tool === ASK_USER_QUESTION_TOOL_NAME) {
-        // At most the role's `limits.maxAsk` calls per run, enforced here (not only in the prompt): later ones never reach the owner.
-        if (askLimit.calls >= askLimit.max)
-          return { behavior: "deny", message: askLimitDenial(askLimit.max) };
-        askLimit.calls++;
         const questions = (input.questions ?? []) as AskQuestion[];
         const answers: Record<string, string> = {};
         for (const q of questions) {

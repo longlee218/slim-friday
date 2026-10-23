@@ -47,7 +47,6 @@ requiredSkills:
   - requesting-code-review
   - finishing-a-development-branch
 limits:
-  maxAsk: 6
   maxTurns: 150
 subagents:
   parallel: 3

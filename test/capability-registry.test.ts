@@ -10,7 +10,7 @@ const role = (name: string, over: Partial<RoleDefinition> = {}): RoleDefinition 
   name,
   whenToUse: `use ${name}`,
   kind: "teammate",
-  limits: { maxAsk: 0, maxTurns: 20 },
+  limits: { maxTurns: 20 },
   subagents: { parallel: 3, depth: 1 },
   sideEffects: "none",
   capabilities: ["read"],

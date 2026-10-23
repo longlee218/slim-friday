@@ -45,7 +45,7 @@ test("workspace skills load in the dev run; no workflow mode rules", async () =>
   expect([...exec.skills].sort()).toEqual(withSet("main:deploy"));
   expect(exec.settingSources).toEqual([]);
   expect(exec.systemPrompt.append).not.toContain("workflow: full");
-  expect(exec.systemPrompt.append).toContain("At most 6"); // the ask boundary applies to every code task
+  expect(exec.systemPrompt.append).toContain("## Asking the teammate"); // the ask rules apply to every code task
 });
 
 test("the location CLAUDE.md reaches the dev prompt only through the location rules block (no SDK settings)", async () => {

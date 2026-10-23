@@ -96,7 +96,6 @@ test("numbers in the contracts match the role data", () => {
   // Budget and turn numbers stay out of every prompt: code enforces them, a model cannot track them.
   for (const name of [...TASK_WORKERS, "planner"])
     expect(contract(name)).not.toMatch(/\$\d+ budget|\d+ turns/);
-  expect(contract("developer")).toContain(`at most ${ROLES.developer!.limits.maxAsk} per run`);
   expect(contract("developer")).toContain(
     `up to ${ROLES.developer!.subagents.parallel} in parallel`,
   );

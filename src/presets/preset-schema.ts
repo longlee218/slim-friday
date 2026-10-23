@@ -26,9 +26,7 @@ export const presetSchema = z
       .strict(),
     dispatchable: z.boolean().optional(),
     mcpTools: z.array(mcpTool).optional(),
-    limits: z
-      .object({ maxAsk: z.number().int().min(0), maxTurns: z.number().int().min(1) })
-      .strict(),
+    limits: z.object({ maxTurns: z.number().int().min(1) }).strict(),
     model: z.enum(MODEL_ALIASES),
     thinking: z
       .object({ type: z.enum(["adaptive", "disabled"]) })

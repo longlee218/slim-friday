@@ -3,7 +3,6 @@ dispatchable: true
 noSubagents: true
 permissionMode: auto
 limits:
-  maxAsk: 0
   maxTurns: 60
 subagents:
   parallel: 3

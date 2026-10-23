@@ -20,7 +20,6 @@ mcpTools:
   - Orchestrate
   - TaskBoard
 limits:
-  maxAsk: 0
   maxTurns: 30
 subagents:
   parallel: 3

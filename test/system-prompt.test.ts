@@ -78,7 +78,6 @@ test("base: a coding role appends to the claude_code preset, a non-coding role s
 
 test("ask boundary in dev only (the role's cap); no workflow mode rules", () => {
   expect(rules(dev)).toContain(ASK_USER_QUESTION_TOOL_NAME);
-  expect(rules(dev)).toContain(`At most ${dev.limits.maxAsk}`);
   expect(rules(dev)).not.toContain("[workflow: full]");
   expect(rules(teammate)).not.toContain(ASK_USER_QUESTION_TOOL_NAME);
 });

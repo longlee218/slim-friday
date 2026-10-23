@@ -4,7 +4,6 @@ import { buildMemoryToolContext } from "../../memory/memory-context";
 import { guardFor } from "../../policy/check-tool-call";
 import { withPrefix } from "../../roles/prompts/first-prompt-prefix";
 import type { RoleDefinition } from "../../roles/role-types";
-import { newAskLimit } from "../../runtime/ask-limit";
 import { runAgent } from "../../runtime/run-agent";
 import { policyOf } from "../../tools/role-policy";
 import { setProgressNote } from "../turns/progress-notes";
@@ -93,7 +92,6 @@ export function agentRunOnce(p: OnceParts) {
         ? {
             threadId: i.threadId,
             gateway: approvals,
-            askLimit: newAskLimit(role.limits.maxAsk),
             onAskTimeout: ctl.onAskTimeout,
             askRelay: i.askRelay,
           }

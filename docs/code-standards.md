@@ -27,7 +27,7 @@ bun run bootstrap:discord   # create the ops channels
    - Subagents are the SDK built-in `Agent` tool. The app defines no subagent types.
    - Adding or removing a skill is a data change. A skill name in code is a bug.
 4. **Tools are data.** An MCP tool is one folder, one manifest line, and its name in the `mcpTools` of each role that may use it. A tool adapter is thin; the logic lives in a domain module (see [MCP Tools](#mcp-tools)).
-5. **Limits live in the role file.** `MAX_ASK`, `MAX_TURNS` and `BUDGET_USD` are named constants at the top of `src/roles/builtin/<role>-role.ts`. The task ceiling `TASK_BUDGET_USD` lives only in `src/config/model-routing.ts`. Other run-wide caps are constants only in the config limit files (`teammate-caps.ts`, `run-caps.ts`, `resilience-caps.ts`, `model-routing.ts`) or `orchestrator/teammate/teammate-limits.ts`. Every limit is documented in [limits-and-stop-conditions.md](limits-and-stop-conditions.md): adding or changing a number without its `<!-- limit:NAME=VALUE -->` marker fails `test/limits-doc-drift.test.ts`.
+5. **Limits live in the role's preset file.** `limits.maxTurns` and `budgetUsd` are fields of `config/presets/<role>/preset.yaml`. The task ceiling `TASK_BUDGET_USD` lives only in `src/config/model-routing.ts`. Other run-wide caps are constants only in the config limit files (`teammate-caps.ts`, `run-caps.ts`, `resilience-caps.ts`, `model-routing.ts`) or `orchestrator/teammate/teammate-limits.ts`. Every limit is documented in [limits-and-stop-conditions.md](limits-and-stop-conditions.md): adding or changing a number without its `<!-- limit:NAME=VALUE -->` marker fails `test/limits-doc-drift.test.ts`.
 6. **Guard layers, by run kind.**
    - `src/policy/` deny list: every run. It returns allow, ask or deny per tool call; hard denies are never approvable.
    - Envelope (`src/policy/envelope*.ts`): dispatched workers only. R2/R3 work goes only through the effect tools; their Bash is not parsed, the OS sandbox (`src/runtime/worker-sandbox.ts`) bounds it.
@@ -65,7 +65,7 @@ Folders under `src/orchestrator/`:
 - Effect tool names are constants in `src/orchestrator/effects/effect-tool-names.ts` (`EFFECT_TOOL_NAMES`). A new effect tool needs: a risk class in `src/policy/classify-tool-call.ts`, a grant rule in `src/policy/check-envelope.ts`, a test in `test/effect-tools-scope.test.ts`, and a line in the developer shell rules (`DEVELOPER_SHELL_RULES`) if a shell command is the same act.
 
 ## Roles
-- One `RoleDefinition` object per file: `src/roles/builtin/<name>-role.ts`. Prompt text sits in the role file or in `src/roles/prompts/` (`team-md.ts`, `memory-prompts.ts`).
+- One folder per role: `config/presets/<name>/{preset.yaml,prompt.md}` (loaded into a `RoleDefinition` by `src/presets/`). Shared prompt text sits in `config/presets/_partials/`; other prompt pieces in `src/roles/prompts/` (`team-md.ts`, `memory-prompts.ts`).
 - Role fields are described in [system-architecture.md, Role Model](system-architecture.md#role-model).
 - `model` is one fixed full id per role (`src/config/model-ids.ts`). No tiers, no escalation, no per-role env pins. Two Haiku ids: `HAIKU_MODEL` (`claude-haiku-5-5`) for the Haiku roles and every Haiku task run; `HAIKU_SUMMARY_MODEL` (`claude-haiku-4-5-20251001`) for the one-shot summary and compaction calls (`config.memoryModel`).
 - Prompts: role contracts state runtime facts and scope only (no tone, no method). Method lives in the role's skills (`skills` list) and persona files. Preview a role's exact prompt with `bun run prompt:show <role>`.
@@ -125,7 +125,7 @@ Scan tests read `src/` (and `docs/` where noted) on every `bun test` run. A viol
 | No skill, plugin or subagent name in `src/` (code, comments, prompt strings) | `test/no-hardcoded-skills-or-subagents.test.ts` |
 | No stage concept in `src/` | `test/no-stage-concept.test.ts` |
 | Tool names come from constants (`sdk-tool-names.ts`, MCP `constants.ts`); no name literal elsewhere | `test/tool-name-literals.test.ts`, `test/tool-names.test.ts`, `test/tool-catalog.test.ts` |
-| Role limits only in role files; `TASK_BUDGET_USD` only in `model-routing.ts` | `test/role-limits-declared-in-role-files.test.ts` |
+| Role limits only in preset files; `TASK_BUDGET_USD` only in `model-routing.ts` | `test/role-limits-declared-in-role-files.test.ts` |
 | Every limit constant and role limit has a matching marker in the limits doc | `test/limits-doc-drift.test.ts` |
 | Engine reads no role names; layering holds | `test/engine-layering.test.ts`, `test/role-leftover-scan.test.ts`, `test/mcp-layering.test.ts` |
 | No `dev` or `assistant` role literal in `src/` | `test/retired-naming-scan.test.ts` |
@@ -165,7 +165,7 @@ Scan tests read `src/` (and `docs/` where noted) on every `bun test` run. A viol
 - **Authorship:** the owner's own git identity. No AI or Claude attribution (`Co-Authored-By`, "Generated with") in commits or PRs.
 - **Before commit:** `bun run format && bun run lint && bun test && bunx tsc --noEmit`.
 - **Secrets:** never commit `.env` or real credentials. `.env.example` holds `REPLACE_ME` placeholders.
-- **Agent commits:** the developer agent commits in the owner's checkout as the owner. Its rules are `COMMIT_RULES` in `src/roles/builtin/developer-role.ts`.
+- **Agent commits:** the developer agent commits in the owner's checkout as the owner. Its rules are the "Commits" section of `config/presets/developer/prompt.md`.
 
 ## Security and Privacy
 - **No hardcoded secrets.** All config comes from env through the schema.

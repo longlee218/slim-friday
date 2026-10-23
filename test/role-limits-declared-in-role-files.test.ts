@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 /**
- * Limits live only in the role's preset file (`config/presets/<role>/preset.yaml`: `limits.maxAsk`, `limits.maxTurns`, `budgetUsd`); the per-task ceiling
+ * Limits live only in the role's preset file (`config/presets/<role>/preset.yaml`: `limits.maxTurns`, `budgetUsd`); the per-task ceiling
  * `TASK_BUDGET_USD` only in `config/model-routing.ts`. A constant of the same name in `src/` would be a second source of truth.
  */
 const SRC = join(import.meta.dir, "..", "src");
@@ -23,7 +23,7 @@ function declaredIn(name: string): string[] {
 }
 
 test("role limits are declared in the preset files, not as constants in src/", () => {
-  for (const name of ["MAX_ASK", "BUDGET_USD", "MAX_TURNS"]) expect(declaredIn(name)).toEqual([]);
+  for (const name of ["BUDGET_USD", "MAX_TURNS"]) expect(declaredIn(name)).toEqual([]);
   const presets = join(import.meta.dir, "..", "config", "presets");
   const roles = readdirSync(presets, { withFileTypes: true }).filter(
     (e) => e.isDirectory() && !e.name.startsWith("_"),
@@ -31,7 +31,7 @@ test("role limits are declared in the preset files, not as constants in src/", (
   expect(roles.length).toBeGreaterThan(0);
   for (const r of roles) {
     const text = readFileSync(join(presets, r.name, "preset.yaml"), "utf8");
-    for (const key of ["maxAsk:", "maxTurns:", "budgetUsd:"])
+    for (const key of ["maxTurns:", "budgetUsd:"])
       expect([r.name, text.includes(key)]).toEqual([r.name, true]);
   }
 });

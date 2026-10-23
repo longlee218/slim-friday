@@ -18,7 +18,7 @@ const BARE: RoleDefinition = {
   name: "bare",
   whenToUse: "bare",
   kind: "teammate",
-  limits: { maxAsk: 0, maxTurns: 20 },
+  limits: { maxTurns: 20 },
   subagents: { parallel: 3, depth: 1 },
   sideEffects: "none",
   capabilities: ["read"],

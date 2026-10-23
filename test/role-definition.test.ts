@@ -10,7 +10,6 @@ test("dev is a background role: one run, bypass from the first token, no plan co
   expect(getRole("developer").kind).toBe("worker");
   expect(getRole("developer").permissionMode).toBe("bypassPermissions");
   expect(getRole("developer").streaming).toBe(true);
-  expect(getRole("developer").limits.maxAsk).toBe(6);
   expect(getRole("developer").budgetUsd).toBe(8);
   expect(getRole("developer").capabilities).toContain("ask");
   expect(getRole("developer").capabilities).not.toContain("planControl" as never);
@@ -41,8 +40,6 @@ test("validateRole refuses a role without a positive budget or with a bad ask li
   expect(validateRole(getRole("scout"))).toBeUndefined();
   const bad = (p: Partial<RoleDefinition>) => validateRole({ ...getRole("developer"), ...p });
   expect(bad({ budgetUsd: 0 })).toContain("budget");
-  expect(bad({ limits: { ...getRole("developer").limits, maxAsk: -1 } })).toContain("ask limit");
-  expect(bad({ limits: { ...getRole("developer").limits, maxAsk: 1.5 } })).toContain("ask limit");
 });
 
 const SPAWNERS = new Set(["developer", "tester"]);

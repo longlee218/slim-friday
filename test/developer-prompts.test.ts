@@ -20,13 +20,9 @@ test("the skills bootstrap block is gone; skills are not described in the prompt
   }
 });
 
-test("the ask cap is the role's limit, stated once in the ask rules", () => {
-  expect(rules(DEVELOPER_ROLE)).toContain(
-    `At most ${DEVELOPER_ROLE.limits.maxAsk} ${ASK_USER_QUESTION_TOOL_NAME} calls per run`,
-  );
-  expect(
-    rules(DEVELOPER_ROLE).split(`${ASK_USER_QUESTION_TOOL_NAME} calls per run`).length - 1,
-  ).toBe(1);
+test("the prompt states no owner-question count (the ask capability is the switch)", () => {
+  expect(rules(DEVELOPER_ROLE)).toContain(ASK_USER_QUESTION_TOOL_NAME);
+  expect(rules(DEVELOPER_ROLE)).not.toMatch(/at most \d+ (per run|AskUserQuestion)/i);
 });
 
 test("dev: one contract, approval before changes by ask, a design request may end with no code change, no skill routing, no subagent text", () => {

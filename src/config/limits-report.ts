@@ -20,7 +20,7 @@ const LIMIT_MODULES = [
 
 /**
  * Every limit of the code as name -> value: the exported numbers of the limit files, then per role
- * `role.<name>.{maxTurns,budgetUsd,maxAsk,subagents.parallel,subagents.depth,subagents.enabled}` (enabled: 1 or 0).
+ * `role.<name>.{maxTurns,budgetUsd,subagents.parallel,subagents.depth,subagents.enabled}` (enabled: 1 or 0).
  * Throws when an exported name is used by two files (the name is the key).
  */
 export async function collectLimits(): Promise<Map<string, number>> {
@@ -36,7 +36,6 @@ export async function collectLimits(): Promise<Map<string, number>> {
   for (const r of Object.values(ROLES)) {
     out.set(`role.${r.name}.maxTurns`, r.limits.maxTurns);
     out.set(`role.${r.name}.budgetUsd`, r.budgetUsd);
-    out.set(`role.${r.name}.maxAsk`, r.limits.maxAsk);
     out.set(`role.${r.name}.subagents.parallel`, r.subagents.parallel);
     out.set(`role.${r.name}.subagents.depth`, r.subagents.depth);
     out.set(`role.${r.name}.subagents.enabled`, r.noSubagents ? 0 : 1);

@@ -66,8 +66,8 @@ export interface RoleDefinition {
    * and only when it has the tool's ctx part; the guard denies every other `mcp__*` tool. Omitted = none.
    */
   mcpTools?: string[];
-  /** Limits of one run: AskUserQuestion calls (enforced in the permission guard) and agent loops (SDK turns, `maxTurns`). */
-  limits: { maxAsk: number; maxTurns: number };
+  /** Limits of one run: agent loops (SDK turns, `maxTurns`). Owner questions have no count: the `ask` capability is the only switch. */
+  limits: { maxTurns: number };
   /** Fixed model id of the role's runs (a full id, e.g. `claude-sonnet-5-5`; see `config/model-ids.ts`). Changing it is a data edit. */
   model: string;
   /** Fixed SDK thinking config of the role's runs (`{ type: "adaptive" }`, `{ type: "disabled" }`, ...). Omitted = the SDK default. */

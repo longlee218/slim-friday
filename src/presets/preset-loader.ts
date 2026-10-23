@@ -25,7 +25,6 @@ const TOOL_NAMES: Record<string, string> = Object.fromEntries(
 const viewOf = (p: Preset): PromptView => ({
   tool: TOOL_NAMES,
   limit: {
-    maxAsk: p.limits.maxAsk,
     maxTurns: p.limits.maxTurns,
     subagentsParallel: p.subagents.parallel,
     maxFixLoops: MAX_FIX_LOOPS,

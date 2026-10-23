@@ -42,7 +42,7 @@ test("dev lists every skill of each publisher pack it uses (so worktree and fini
   expect(ROLES["chief-of-staff"]?.skills).toEqual(["teammate-orchestration", "brainstorming"]);
 });
 
-test("limits live in the role: dev asks up to 6; the teammate has no ask capability", () => {
-  expect(ROLES.developer?.limits.maxAsk).toBe(6);
-  expect(ROLES["chief-of-staff"]?.limits.maxAsk).toBe(0);
+test("limits live in the role: dev has the ask capability; the teammate has none", () => {
+  expect(ROLES.developer?.capabilities).toContain("ask");
+  expect(ROLES["chief-of-staff"]?.capabilities).not.toContain("ask");
 });

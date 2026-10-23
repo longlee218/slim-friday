@@ -102,7 +102,7 @@ function roleLine(limits: ReadonlyMap<string, number>, name: string): string {
   const subs = get("subagents.enabled")
     ? `subagents on (parallel ${get("subagents.parallel")}, depth ${get("subagents.depth")})`
     : "subagents off";
-  return `- ${name} (${model}): maxTurns ${get("maxTurns")}, budgetUsd ${show("_USD", get("budgetUsd"))}, maxAsk ${get("maxAsk")}, ${subs}`;
+  return `- ${name} (${model}): maxTurns ${get("maxTurns")}, budgetUsd ${show("_USD", get("budgetUsd"))}, ${subs}`;
 }
 
 /**

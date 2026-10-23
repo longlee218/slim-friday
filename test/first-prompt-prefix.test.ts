@@ -63,7 +63,7 @@ const PROBE: RoleDefinition = {
   name: "prefix-probe",
   whenToUse: "test only",
   kind: "teammate",
-  limits: { maxAsk: 3, maxTurns: 20 },
+  limits: { maxTurns: 20 },
   subagents: { parallel: 3, depth: 1 },
   sideEffects: "none",
   capabilities: ["read"],

@@ -6,7 +6,5 @@ import type { RoleDefinition } from "../../roles/role-types";
 /** Refusal text when the engine cannot run `role` as data says, else undefined. */
 export function validateRole(role: RoleDefinition): string | undefined {
   if (!(role.budgetUsd > 0)) return `Role ${role.name} has no positive budget.`;
-  if (!Number.isInteger(role.limits.maxAsk) || role.limits.maxAsk < 0)
-    return `Role ${role.name} has an invalid ask limit.`;
   return undefined;
 }

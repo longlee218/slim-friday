@@ -13,7 +13,7 @@ const PROBE: RoleDefinition = {
   name: "probe-reviewer",
   whenToUse: "test only",
   kind: "teammate",
-  limits: { maxAsk: 3, maxTurns: 20 },
+  limits: { maxTurns: 20 },
   subagents: { parallel: 3, depth: 1 },
   sideEffects: "none",
   capabilities: ["read"],

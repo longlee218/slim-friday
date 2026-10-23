@@ -5,7 +5,7 @@ Single source of every limit and stop condition of the app. Other docs link here
 - Value cells hold a raw `<!-- limit:NAME=VALUE -->` marker (ms, USD, bytes, counts) and a human form. `test/limits-doc-drift.test.ts` compares each marker with the code: every exported number of the limit files and every role field must have a marker, and a marker must match the code value.
 - Rows without a marker are informational and NOT drift-checked: the Model column of the roles table, retention, approval click, Discord output, the memory note and journal guards, other tools' limits and one-shot budgets. Every marked value is checked, and the test also fails when the doc has fewer markers than the code has limits.
 - `/limits [role]` (owner only, private reply, `limits.md` file when long) shows these values read from code at runtime (`collectLimits` in `src/config/limits-report.ts`, the same scan as the drift test) plus the live pool state. Owner live checklist: [discord-setup.md](discord-setup.md#limits-pools-and-subagents-owner-live-checklist).
-- Limit files: `src/config/teammate-caps.ts`, `src/config/run-caps.ts`, `src/config/resilience-caps.ts`, `src/config/memory-caps.ts`, `src/config/model-routing.ts`, `src/orchestrator/teammate/teammate-limits.ts`, and the role files in `src/roles/builtin/`. Pools are code constants, no env.
+- Limit files: `src/config/teammate-caps.ts`, `src/config/run-caps.ts`, `src/config/resilience-caps.ts`, `src/config/memory-caps.ts`, `src/config/model-routing.ts`, `src/orchestrator/teammate/teammate-limits.ts`, and the role files in `config/presets/*/preset.yaml`. Pools are code constants, no env.
 
 ## Definitions
 
@@ -90,20 +90,20 @@ Single source of every limit and stop condition of the app. Other docs link here
 - The never-started clock (`last_progress_at`) is stamped when the item becomes ready, and not written again while it is not running.
 ## Roles
 
-One row per role. All five fields are role data (constants at the top of each role file). `subagents` on/off is `noSubagents`; `parallel` and `depth` are only used when subagents are on.
+One row per role. All fields are role data (`config/presets/<role>/preset.yaml`). Owner questions have no count: the `ask` capability is the only switch. `subagents` on/off is `noSubagents`; `parallel` and `depth` are only used when subagents are on.
 
-| Role | Model | maxTurns | budgetUsd | maxAsk | Subagents | parallel | depth |
-|---|---|---|---|---|---|---|---|
-| `teammate` | Sonnet | 30 <!-- limit:role.chief-of-staff.maxTurns=30 --> | $1.5 <!-- limit:role.chief-of-staff.budgetUsd=1.5 --> | 0 <!-- limit:role.chief-of-staff.maxAsk=0 --> | off | 3 <!-- limit:role.chief-of-staff.subagents.parallel=3 --> | 1 <!-- limit:role.chief-of-staff.subagents.depth=1 --> |
-| `scout` | Haiku | 40 <!-- limit:role.scout.maxTurns=40 --> | $1.5 <!-- limit:role.scout.budgetUsd=1.5 --> | 0 <!-- limit:role.scout.maxAsk=0 --> | off | 3 <!-- limit:role.scout.subagents.parallel=3 --> | 1 <!-- limit:role.scout.subagents.depth=1 --> |
-| `researcher` | Sonnet | 60 <!-- limit:role.researcher.maxTurns=60 --> | $4 <!-- limit:role.researcher.budgetUsd=4 --> | 0 <!-- limit:role.researcher.maxAsk=0 --> | off | 3 <!-- limit:role.researcher.subagents.parallel=3 --> | 1 <!-- limit:role.researcher.subagents.depth=1 --> |
-| `developer` | Sonnet | 150 <!-- limit:role.developer.maxTurns=150 --> | $8 <!-- limit:role.developer.budgetUsd=8 --> | 6 <!-- limit:role.developer.maxAsk=6 --> | on | 3 <!-- limit:role.developer.subagents.parallel=3 --> | 1 <!-- limit:role.developer.subagents.depth=1 --> |
-| `solution-architect` | Sonnet | 60 <!-- limit:role.solution-architect.maxTurns=60 --> | $4 <!-- limit:role.solution-architect.budgetUsd=4 --> | 0 <!-- limit:role.solution-architect.maxAsk=0 --> | off | 3 <!-- limit:role.solution-architect.subagents.parallel=3 --> | 1 <!-- limit:role.solution-architect.subagents.depth=1 --> |
-| `designer` | Opus | 60 <!-- limit:role.designer.maxTurns=60 --> | $4 <!-- limit:role.designer.budgetUsd=4 --> | 0 <!-- limit:role.designer.maxAsk=0 --> | off | 3 <!-- limit:role.designer.subagents.parallel=3 --> | 1 <!-- limit:role.designer.subagents.depth=1 --> |
-| `tester` | Sonnet | 60 <!-- limit:role.tester.maxTurns=60 --> | $4 <!-- limit:role.tester.budgetUsd=4 --> | 0 <!-- limit:role.tester.maxAsk=0 --> | on | 2 <!-- limit:role.tester.subagents.parallel=2 --> | 1 <!-- limit:role.tester.subagents.depth=1 --> |
-| `devops` | Sonnet | 60 <!-- limit:role.devops.maxTurns=60 --> | $4 <!-- limit:role.devops.budgetUsd=4 --> | 0 <!-- limit:role.devops.maxAsk=0 --> | off | 3 <!-- limit:role.devops.subagents.parallel=3 --> | 1 <!-- limit:role.devops.subagents.depth=1 --> |
-| `humanizer-writer` | Sonnet | 60 <!-- limit:role.humanizer-writer.maxTurns=60 --> | $4 <!-- limit:role.humanizer-writer.budgetUsd=4 --> | 0 <!-- limit:role.humanizer-writer.maxAsk=0 --> | off | 3 <!-- limit:role.humanizer-writer.subagents.parallel=3 --> | 1 <!-- limit:role.humanizer-writer.subagents.depth=1 --> |
-| `hacker` | Sonnet | 60 <!-- limit:role.hacker.maxTurns=60 --> | $4 <!-- limit:role.hacker.budgetUsd=4 --> | 0 <!-- limit:role.hacker.maxAsk=0 --> | off | 3 <!-- limit:role.hacker.subagents.parallel=3 --> | 1 <!-- limit:role.hacker.subagents.depth=1 --> |
+| Role | Model | maxTurns | budgetUsd | Subagents | parallel | depth |
+|---|---|---|---|---|---|---|
+| `teammate` | Sonnet | 30 <!-- limit:role.chief-of-staff.maxTurns=30 --> | $1.5 <!-- limit:role.chief-of-staff.budgetUsd=1.5 --> | off | 3 <!-- limit:role.chief-of-staff.subagents.parallel=3 --> | 1 <!-- limit:role.chief-of-staff.subagents.depth=1 --> |
+| `scout` | Haiku | 40 <!-- limit:role.scout.maxTurns=40 --> | $1.5 <!-- limit:role.scout.budgetUsd=1.5 --> | off | 3 <!-- limit:role.scout.subagents.parallel=3 --> | 1 <!-- limit:role.scout.subagents.depth=1 --> |
+| `researcher` | Sonnet | 60 <!-- limit:role.researcher.maxTurns=60 --> | $4 <!-- limit:role.researcher.budgetUsd=4 --> | off | 3 <!-- limit:role.researcher.subagents.parallel=3 --> | 1 <!-- limit:role.researcher.subagents.depth=1 --> |
+| `developer` | Sonnet | 150 <!-- limit:role.developer.maxTurns=150 --> | $8 <!-- limit:role.developer.budgetUsd=8 --> | on | 3 <!-- limit:role.developer.subagents.parallel=3 --> | 1 <!-- limit:role.developer.subagents.depth=1 --> |
+| `solution-architect` | Sonnet | 60 <!-- limit:role.solution-architect.maxTurns=60 --> | $4 <!-- limit:role.solution-architect.budgetUsd=4 --> | off | 3 <!-- limit:role.solution-architect.subagents.parallel=3 --> | 1 <!-- limit:role.solution-architect.subagents.depth=1 --> |
+| `designer` | Opus | 60 <!-- limit:role.designer.maxTurns=60 --> | $4 <!-- limit:role.designer.budgetUsd=4 --> | off | 3 <!-- limit:role.designer.subagents.parallel=3 --> | 1 <!-- limit:role.designer.subagents.depth=1 --> |
+| `tester` | Sonnet | 60 <!-- limit:role.tester.maxTurns=60 --> | $4 <!-- limit:role.tester.budgetUsd=4 --> | on | 2 <!-- limit:role.tester.subagents.parallel=2 --> | 1 <!-- limit:role.tester.subagents.depth=1 --> |
+| `devops` | Sonnet | 60 <!-- limit:role.devops.maxTurns=60 --> | $4 <!-- limit:role.devops.budgetUsd=4 --> | off | 3 <!-- limit:role.devops.subagents.parallel=3 --> | 1 <!-- limit:role.devops.subagents.depth=1 --> |
+| `humanizer-writer` | Sonnet | 60 <!-- limit:role.humanizer-writer.maxTurns=60 --> | $4 <!-- limit:role.humanizer-writer.budgetUsd=4 --> | off | 3 <!-- limit:role.humanizer-writer.subagents.parallel=3 --> | 1 <!-- limit:role.humanizer-writer.subagents.depth=1 --> |
+| `hacker` | Sonnet | 60 <!-- limit:role.hacker.maxTurns=60 --> | $4 <!-- limit:role.hacker.budgetUsd=4 --> | off | 3 <!-- limit:role.hacker.subagents.parallel=3 --> | 1 <!-- limit:role.hacker.subagents.depth=1 --> |
 
 Subagents enabled per role (1 = on, 0 = off; drift-checked, guards "developer and tester only"):
 
@@ -127,9 +127,9 @@ Subagents enabled per role (1 = on, 0 = off; drift-checked, guards "developer an
 
 | Name | Scope | Value | File | At the limit |
 |---|---|---|---|---|
-| Enablement | run | developer and tester only (data: `noSubagents` unset; drift-checked as `role.<name>.subagents.enabled`) | role files | other roles get no `Agent`, `SendMessage`, `ListAgents` |
+| Enablement | run | developer and tester only (data: `noSubagents` unset; drift-checked as `role.<name>.subagents.enabled`) | preset files | other roles get no `Agent`, `SendMessage`, `ListAgents` |
 | Parallel | run | role `subagents.parallel` (3 for developer, 2 for tester) | `policy/subagent-limit.ts` | the guard denies the next start |
-| Depth | run | role `subagents.depth` (1: a subagent has no `Agent` tool) | role files | - |
+| Depth | run | role `subagents.depth` (1: a subagent has no `Agent` tool) | preset files | - |
 | Total spawns | run | no cap | - | bounded by the run budget |
 | Background | run | off (`run_in_background` not covered; env disables background tasks) | `policy/subagent-limit.ts` | informational |
 
@@ -159,7 +159,7 @@ Subagents enabled per role (1 = on, 0 = off; drift-checked, guards "developer an
 
 | Name | Scope | Value | File | At the limit | Configurable |
 |---|---|---|---|---|---|
-| Run budget | run | `budgetUsd` per role, see [Roles](#roles) | role files | run stops, budget-stop reply | code |
+| Run budget | run | `budgetUsd` per role, see [Roles](#roles) | preset files | run stops, budget-stop reply | code |
 | `TASK_BUDGET_USD` | goal / task | $15 <!-- limit:TASK_BUDGET_USD=15 --> | `config/model-routing.ts` | task ceiling summed over all runs of one task; a run gets at most what is left; a spent ceiling refuses the start | code |
 | Goal-left cap | item run | what the goal has left of the ceiling (`route.capUsd`) | `orchestrator/budget/task-budget.ts` | an item run never exceeds the goal's rest; never raised by an extra budget | code |
 | `MAX_BUDGET_USD` | run | optional global cap | env, `config/agent-config.ts` | applied as a minimum on every run | env |

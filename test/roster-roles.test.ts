@@ -27,7 +27,7 @@ test("every roster role is a dispatchable worker (Sonnet, the designer Opus) tha
     expect(r.model).toBe(name === "designer" ? OPUS_MODEL : SONNET_MODEL);
     expect(r.budgetUsd).toBe(SPECIALIST_BUDGET_USD);
     expect(r.mcpTools).toContain(REPORT_TOOL);
-    expect(r.limits.maxAsk).toBe(0);
+    expect(r.capabilities).not.toContain("ask");
     expect(dispatchableWorkers().map((w) => w.name)).toContain(name);
   }
 });

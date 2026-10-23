@@ -105,7 +105,7 @@ export function buildSdkOptions(
   const permissionMode = resolvePermissionMode(role, config, protection);
   const perms = guard
     ? buildToolPermissions({
-        ...input.code, // gateway, askLimit, onAskTimeout
+        ...input.code, // gateway, onAskTimeout
         turnId: input.turnId,
         threadId: input.code?.threadId ?? "",
         guard,
