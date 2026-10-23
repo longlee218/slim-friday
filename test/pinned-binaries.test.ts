@@ -93,19 +93,16 @@ test("only the designer lists a pinned binary, and every listed name is pinned",
 
 test("sandbox: a run's pinned binary is readable, never writable", () => {
   const bin = "/opt/pinned/tool";
-  const sb = workerSandbox({
-    writePaths: [tmp],
-    binaryPaths: [bin],
-    envelope: {
-      goalId: "g",
-      locations: [],
-      goalDir: tmp,
-      classes: ["R0"],
-      effects: [],
-      bounds: { maxItems: 1, maxBytes: 1 },
-      grantedBy: "envelope",
-    },
-  });
+  const envelope = {
+    goalId: "g",
+    locations: [],
+    goalDir: tmp,
+    classes: ["R0" as const],
+    effects: [],
+    bounds: { maxItems: 1, maxBytes: 1 },
+    grantedBy: "envelope" as const,
+  };
+  const sb = workerSandbox({ writePaths: [tmp], binaryPaths: [bin], envelope });
   expect(sb?.filesystem?.allowRead).toContain(bin);
   expect(sb?.filesystem?.allowWrite ?? []).not.toContain(bin);
 });
