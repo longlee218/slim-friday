@@ -1,5 +1,6 @@
 import type { Bot, BotId } from "../domain/bot";
 import type { ConversationId } from "../domain/conversation";
+import type { Author } from "../domain/message";
 import type { PermissionGate } from "../permission/permission-gate";
 import type { AgentRuntime, BotRuntimeSpec, BotSession } from "../ports/agent-runtime";
 import type { Clock } from "../ports/clock";
@@ -9,6 +10,14 @@ import type { Store } from "../ports/store";
 export interface TaskInfo {
   description: string;
   conversationId: ConversationId;
+  hop: number;
+}
+
+/** A message waiting for the bot to finish its current turn. */
+export interface QueuedWake {
+  conversationId: ConversationId;
+  sender: Author;
+  text: string;
   hop: number;
 }
 
@@ -23,6 +32,8 @@ export interface PoolEntry {
   /** The conversation (and chain depth) the bot is answering now. */
   current: { conversationId: ConversationId; hop: number };
   tasks: Map<string, TaskInfo>;
+  /** Messages that arrived while the bot was busy; one turn at a time keeps each answer with its question. */
+  queue: QueuedWake[];
   /** The event pump is running for this session. */
   pumping?: boolean;
   /** Set before a deliberate stop, so the end of the event stream is not reported as a crash. */
@@ -77,6 +88,8 @@ export class SessionPool {
           (c.taskId ? e?.tasks.get(c.taskId)?.conversationId : undefined) ??
           e?.current.conversationId ??
           "";
+        if (!conversationId)
+          return Promise.resolve({ behavior: "deny", reason: "no conversation to ask in" });
         return this.gate.decide(
           { tool: c.tool, input: c.input, botId: bot.id, conversationId },
           bot.name,
@@ -84,9 +97,16 @@ export class SessionPool {
       },
     };
     const stored = await this.store.sessions.get(bot.id);
-    const session = stored
-      ? await this.runtime.resume(stored, spec)
-      : await this.runtime.open(spec);
+    let session: BotSession | undefined;
+    if (stored) {
+      try {
+        session = await this.runtime.resume(stored, spec);
+      } catch {
+        // The stored session is gone or unreadable: forget it and start a fresh one.
+        await this.store.sessions.clear(bot.id);
+      }
+    }
+    session ??= await this.runtime.open(spec);
     await this.store.sessions.set(bot.id, session.id);
     const entry: PoolEntry = {
       bot,
@@ -95,6 +115,7 @@ export class SessionPool {
       busy: false,
       current: { conversationId: "", hop: 0 },
       tasks: new Map(),
+      queue: [],
       stopping: false,
     };
     ref.entry = entry;

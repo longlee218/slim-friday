@@ -10,7 +10,7 @@ import type { InboundMessage, Surface } from "../ports/surface";
 import { ChainGuard } from "../routing/chain-guard";
 import { routeMessage } from "../routing/route-message";
 import { dayOf, pumpEvents } from "./event-pump";
-import { type PoolEntry, SessionPool } from "./session-pool";
+import { type PoolEntry, type QueuedWake, SessionPool } from "./session-pool";
 
 /** What /status shows for one running bot. */
 export interface BotStatus {
@@ -49,7 +49,16 @@ export class BotHub {
   /** Start listening to the surface. */
   start(): void {
     this.deps.surface.onMessage((m) => {
-      void this.handle(m);
+      this.handle(m).catch(async (err) => {
+        // Never lose a failure: tell the user where it happened.
+        const why = err instanceof Error ? err.message : String(err);
+        await this.deps.surface
+          .post(m.conversationId, {
+            author: { kind: "system" },
+            text: `Could not deliver the message: ${why}`,
+          })
+          .catch(() => {});
+      });
     });
   }
 
@@ -134,19 +143,35 @@ export class BotHub {
       return this.notice(conversationId, "spend");
 
     const entry = await this.pool.get(bot);
-    const first = !entry.pumping;
-    entry.pumping = true;
-    if (first) void this.runPump(entry);
-    entry.current = { conversationId, hop };
+    if (!entry.pumping) {
+      entry.pumping = true;
+      this.runPump(entry).catch(() => {});
+    }
+    this.guard.record(w);
+    // One turn at a time per bot: a message that arrives mid-turn waits, so each answer goes where it was asked.
+    if (entry.busy) entry.queue.push({ conversationId, sender, text, hop });
+    else await this.dispatch(entry, { conversationId, sender, text, hop });
+  }
+
+  /** Send one message into the bot's session. */
+  private async dispatch(entry: PoolEntry, q: QueuedWake): Promise<void> {
+    const { store, surface, clock } = this.deps;
+    const conv = await store.conversations.get(q.conversationId);
+    const context =
+      conv?.kind === "group"
+        ? await store.messages.recent(q.conversationId, this.limits.groupContextMessages)
+        : [];
+    entry.current = { conversationId: q.conversationId, hop: q.hop };
     entry.busy = true;
     entry.lastActive = clock.now();
-    surface.showActivity(conversationId, { kind: "typing", botId });
-    const context =
-      conv.kind === "group"
-        ? await store.messages.recent(conversationId, this.limits.groupContextMessages)
-        : [];
-    entry.session.send({ conversationId, from: sender, text, hop, context });
-    this.guard.record(w);
+    surface.showActivity(q.conversationId, { kind: "typing", botId: entry.bot.id });
+    entry.session.send({
+      conversationId: q.conversationId,
+      from: q.sender,
+      text: q.text,
+      hop: q.hop,
+      context,
+    });
   }
 
   private runPump(entry: PoolEntry): Promise<void> {
@@ -158,13 +183,24 @@ export class BotHub {
         for (const t of await this.targets(conv, text, e.bot.id))
           await this.wake(t, conv.id, author, text, e.current.hop + 1);
       },
+      onTurnEnd: async (e) => {
+        e.busy = false;
+        const next = e.queue.shift();
+        if (next) await this.dispatch(e, next);
+      },
       onClosed: async (e, crashed, reason) => {
         if (this.pool.entry(e.bot.id) === e) this.pool.remove(e.bot.id);
-        if (crashed)
-          await this.deps.surface.post(e.current.conversationId, {
+        e.queue = [];
+        if (!crashed) return;
+        // A crashed session must not stay alive next to the one the next message resumes.
+        e.stopping = true;
+        await e.session.stop().catch(() => {});
+        await this.deps.surface
+          .post(e.current.conversationId, {
             author: { kind: "system" },
             text: `${e.bot.name} stopped unexpectedly${reason ? `: ${reason}` : ""}. Send a message to continue.`,
-          });
+          })
+          .catch(() => {});
       },
     });
   }

@@ -109,3 +109,41 @@ test("every asked call writes one audit entry with the outcome and the answer", 
   expect(store.auditLog).toHaveLength(1);
   expect(store.auditLog[0]).toMatchObject({ outcome: "ask", answer: "once" });
 });
+
+test("C2: no Always allow for a scope value of '*'; a forged always stores nothing", async () => {
+  const { gate, surface, store } = setup();
+  surface.answerWith("always");
+  await gate.decide(call("Push", { repo: "*" }), "W");
+  expect(surface.approvals[0]?.card.offerAlways).toBe(false);
+  expect(store.grantList).toHaveLength(0);
+});
+
+test("I4: no Always allow for a tool the catalog does not know", async () => {
+  const { gate, surface, store } = setup();
+  surface.answerWith("always");
+  await gate.decide(call("Mystery"), "W");
+  expect(surface.approvals[0]?.card.offerAlways).toBe(false);
+  expect(store.grantList).toHaveLength(0);
+});
+
+test("I5: any answer other than once or always is a deny", async () => {
+  const { gate, surface } = setup();
+  for (const bad of [undefined, "cancel", "ALWAYS"]) {
+    surface.answerWith(bad as never);
+    expect((await gate.decide(call("Push", { repo: "a" }), "W")).behavior).toBe("deny");
+  }
+});
+
+test("I5: a failing store or surface denies instead of throwing", async () => {
+  const { gate, surface, store } = setup();
+  store.grants.list = async () => {
+    throw new Error("db down");
+  };
+  expect((await gate.decide(call("Read"), "W")).behavior).toBe("deny");
+  const s2 = setup();
+  s2.surface.askApproval = () => {
+    throw new Error("surface down");
+  };
+  expect((await s2.gate.decide(call("Push", { repo: "a" }), "W")).behavior).toBe("deny");
+  expect(surface.approvals).toHaveLength(0);
+});

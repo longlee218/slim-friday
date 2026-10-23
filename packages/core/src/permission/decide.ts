@@ -50,14 +50,19 @@ export interface DecideInput {
 export function decide(input: DecideInput): { outcome: Outcome; reason: string } {
   const { call, spec, grants, settings, now } = input;
   if (input.floorDenyReason) return { outcome: "deny", reason: input.floorDenyReason };
+  const irreversible = isIrreversible(spec);
+  const upgrade = (outcome: Outcome, reason: string): { outcome: Outcome; reason: string } =>
+    outcome === "ask" && irreversible
+      ? { outcome: "ask_always", reason: `${reason}; cannot be undone` }
+      : { outcome, reason };
   const override = settings.tools?.[call.tool];
-  if (override) return { outcome: override, reason: "tool override" };
-  const grant = matchGrant(grants, call, scopeOf(call, spec), now);
+  if (override) return upgrade(override, "tool override");
+  // An irreversible call never matches a grant: no permanent permission for what cannot be undone.
+  const grant = irreversible ? undefined : matchGrant(grants, call, scopeOf(call, spec), now);
   if (grant) return { outcome: "allow", reason: `grant ${grant.id}` };
   const cls = classifyTool(spec);
   const level = settings.botLevels?.[call.botId] ?? settings.level;
   const outcome = LEVEL_MAP[level][cls];
-  if (outcome === "ask" && isIrreversible(spec))
-    return { outcome: "ask_always", reason: `${cls} call that cannot be undone` };
+  if (outcome === "ask") return upgrade(outcome, `${level}: ${cls}`);
   return { outcome, reason: `${level}: ${cls}` };
 }

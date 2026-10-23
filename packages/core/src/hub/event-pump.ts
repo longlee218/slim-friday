@@ -8,6 +8,8 @@ import type { PoolEntry } from "./session-pool";
 export interface PumpHooks {
   /** A bot said something: store and route it (hand-offs). */
   onBotText(entry: PoolEntry, text: string): Promise<void>;
+  /** A turn ended: the bot is free for the next queued message. */
+  onTurnEnd(entry: PoolEntry): Promise<void>;
   /** The session ended: drop it; `crashed` is false after a deliberate stop. */
   onClosed(entry: PoolEntry, crashed: boolean, reason?: string): Promise<void>;
 }
@@ -58,6 +60,7 @@ export async function pumpEvents(
       } else if (e.type === "turn_end") {
         entry.busy = false;
         await store.spend.add(entry.bot.id, dayOf(clock.now()), e.costUsd);
+        await hooks.onTurnEnd(entry);
       } else if (e.type === "error") {
         await hooks.onClosed(entry, true, e.message);
         return;

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 /* Boundary scans: `core` is the domain; nothing vendor- or runtime-specific may enter it. */
 
@@ -28,13 +28,32 @@ test("core has no runtime dependencies", () => {
   expect(pkg.dependencies ?? {}).toEqual({});
 });
 
+/** Every module specifier in a file: from "x", import "x", import("x"), require("x"), either quote. */
+const specifiers = (text: string): string[] =>
+  [...text.matchAll(/(?:\bfrom|\bimport|\brequire)\s*\(?\s*(["'])([^"']+)\1/g)].map(
+    (m) => m[2] ?? "",
+  );
+
 test("core imports only its own files", () => {
   const bad = coreFiles().flatMap((f) =>
-    [...f.text.matchAll(/(?:from|import\()\s*"([^"]+)"/g)]
-      .filter((m) => !/^\.\.?\//.test(m[1] ?? ""))
-      .map((m) => `${f.file}: ${m[1]}`),
+    specifiers(f.text)
+      .filter((spec) => {
+        if (!/^\.\.?\//.test(spec)) return true;
+        // a relative import must stay inside packages/core/src
+        const target = resolve(dirname(join(ROOT, f.file)), spec);
+        return !target.startsWith(`${SRC}/`) && target !== SRC;
+      })
+      .map((spec) => `${f.file}: ${spec}`),
   );
   expect(bad).toEqual([]);
+});
+
+test("the scan itself catches what it must", () => {
+  expect(
+    specifiers(
+      "import x from 'a'; import 'b'; await import(\"c\"); require('d'); export * from \"./e\"",
+    ),
+  ).toEqual(["a", "b", "c", "d", "./e"]);
 });
 
 test("core names no vendor or domain", () => {
@@ -44,7 +63,7 @@ test("core names no vendor or domain", () => {
 test("core logic reads no env, console or wall clock", () => {
   expect(
     offenders(
-      /process\.env|console\.|Date\.now\(|setTimeout\(|setInterval\(/,
+      /process\.env|\bBun\.|console\.|Date\.now\(|new Date\(\)|performance\.now|setTimeout\(|setInterval\(/,
       "src/ports/clock.ts",
     ),
   ).toEqual([]);

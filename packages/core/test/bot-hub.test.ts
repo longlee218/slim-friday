@@ -48,6 +48,8 @@ test("a second message to the same bot reuses the open session", async () => {
   const { runtime, surface } = makeHub();
   surface.deliver({ conversationId: "dc", text: "one" });
   await flush();
+  runtime.nth(0).emit({ type: "turn_end", costUsd: 0 });
+  await flush();
   surface.deliver({ conversationId: "dc", text: "two" });
   await flush();
   expect(runtime.opened).toHaveLength(1);
@@ -78,6 +80,8 @@ test("status lists running tasks; text after task_done goes to the conversation 
   s.emit({ type: "task_started", taskId: "t1", description: "dig" });
   await flush();
   expect(hub.status()[0]?.tasks).toEqual([{ taskId: "t1", description: "dig" }]);
+  s.emit({ type: "turn_end", costUsd: 0 });
+  await flush();
   // the same bot is now asked in the group chat meanwhile
   surface.deliver({ conversationId: "gc", text: "@editor quick question" });
   await flush();
@@ -95,6 +99,8 @@ test("a tool decision made by a task asks in the conversation that started the t
   await flush();
   const s = runtime.nth(0);
   s.emit({ type: "task_started", taskId: "t1", description: "dig" });
+  await flush();
+  s.emit({ type: "turn_end", costUsd: 0 });
   await flush();
   surface.deliver({ conversationId: "gc", text: "@editor other chat" });
   await flush();
@@ -139,4 +145,70 @@ test("stop ends the session and status no longer lists it", async () => {
   await hub.stop("editor");
   expect(runtime.opened[0]?.stopped).toBe(true);
   expect(hub.status()).toEqual([]);
+});
+
+test("I1: a message to a busy bot waits for the end of its turn; the answer goes where it was asked", async () => {
+  const { runtime, surface } = makeHub();
+  surface.deliver({ conversationId: "dc", text: "secret dm" });
+  await flush();
+  surface.deliver({ conversationId: "gc", text: "@editor hi group" });
+  await flush();
+  const s = runtime.nth(0);
+  expect(s.sent).toHaveLength(1); // the group message is queued, not sent
+  s.emit({ type: "text", text: "dm answer" });
+  s.emit({ type: "turn_end", costUsd: 0 });
+  await flush();
+  expect(surface.posts.find((p) => p.message.text === "dm answer")?.conversationId).toBe("dc");
+  expect(s.sent).toHaveLength(2);
+  expect(s.sent[1]).toMatchObject({ conversationId: "gc" });
+  s.emit({ type: "text", text: "group answer" });
+  await flush();
+  expect(surface.posts.find((p) => p.message.text === "group answer")?.conversationId).toBe("gc");
+});
+
+test("I2: a stored session that cannot be resumed is cleared and a fresh session opens", async () => {
+  const { runtime, surface, store } = makeHub();
+  store.sessionMap.set("editor", "stale");
+  runtime.resume = async () => {
+    throw new Error("gone");
+  };
+  surface.deliver({ conversationId: "dc", text: "hello" });
+  await flush();
+  expect(runtime.opened).toHaveLength(1);
+  expect(store.sessionMap.get("editor")).toBe(runtime.nth(0).id);
+});
+
+test("I2: a failure while handling a message posts a notice instead of an unhandled rejection", async () => {
+  const { runtime, surface } = makeHub();
+  runtime.open = async () => {
+    throw new Error("cannot start");
+  };
+  surface.deliver({ conversationId: "dc", text: "hello" });
+  await flush();
+  expect(surface.posts.some((p) => p.message.author.kind === "system")).toBe(true);
+});
+
+test("I3: an error event stops the session so it cannot run twice on one transcript", async () => {
+  const { runtime, surface, hub } = makeHub();
+  surface.deliver({ conversationId: "dc", text: "one" });
+  await flush();
+  runtime.nth(0).emit({ type: "error", message: "boom", retryable: false });
+  await flush();
+  expect(runtime.nth(0).stopped).toBe(true);
+  expect(hub.status()).toEqual([]);
+  expect(surface.posts.some((p) => p.message.author.kind === "system")).toBe(true);
+});
+
+test("I6: a tool decision made while the session opens (no conversation yet) is denied, with no card", async () => {
+  const { runtime, surface } = makeHub();
+  let early: unknown;
+  const open = runtime.open.bind(runtime);
+  runtime.open = async (spec) => {
+    early = await spec.decide({ tool: "X", input: {} });
+    return open(spec);
+  };
+  surface.deliver({ conversationId: "dc", text: "one" });
+  await flush();
+  expect(early).toEqual({ behavior: "deny", reason: "no conversation to ask in" });
+  expect(surface.approvals).toHaveLength(0);
 });

@@ -23,8 +23,23 @@ export interface PermissionGateDeps {
 export class PermissionGate {
   constructor(private deps: PermissionGateDeps) {}
 
-  /** Decide one call; every call is audited once. */
+  /** Decide one call; every call is audited once. Any failure on the way is a deny. */
   async decide(call: ToolCall, botName: string, floorDenyReason?: string): Promise<ToolDecision> {
+    try {
+      return await this.decideOrThrow(call, botName, floorDenyReason);
+    } catch (err) {
+      return {
+        behavior: "deny",
+        reason: `permission check failed: ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
+  }
+
+  private async decideOrThrow(
+    call: ToolCall,
+    botName: string,
+    floorDenyReason?: string,
+  ): Promise<ToolDecision> {
     const { store, catalog, clock } = this.deps;
     const spec = (await catalog.list()).find((t) => t.name === call.tool);
     const scope = scopeOf(call, spec);
@@ -55,14 +70,20 @@ export class PermissionGate {
       return { behavior: "deny", reason: verdict.reason };
     }
 
-    const offerAlways = verdict.outcome === "ask";
+    // "Always allow" only for a tool the catalog knows, with plain scope values (a "*" would become a wildcard grant).
+    const offerAlways =
+      verdict.outcome === "ask" &&
+      spec !== undefined &&
+      Object.values(scope).every((v) => v !== "*");
     const answer = await this.ask(call, botName, scope, offerAlways);
     if (answer === "timeout") {
       await audit("approval timed out");
       return { behavior: "deny", reason: "approval timed out" };
     }
     await audit(verdict.reason, answer);
-    if (answer === "deny") return { behavior: "deny", reason: "denied by the user" };
+    // Only an explicit once or always allows; anything else (including a malformed answer) denies.
+    if (answer !== "once" && answer !== "always")
+      return { behavior: "deny", reason: "denied by the user" };
     if (answer === "always" && offerAlways)
       await store.grants.add({
         id: `grant-${call.botId}-${call.tool}-${clock.now()}`,
@@ -74,7 +95,7 @@ export class PermissionGate {
     return { behavior: "allow" };
   }
 
-  /** Ask the surface; a missing answer after the timeout is "timeout". */
+  /** Ask the surface; a missing answer after the timeout is "timeout", a surface failure is a deny. */
   private ask(
     call: ToolCall,
     botName: string,
@@ -87,8 +108,16 @@ export class PermissionGate {
       const cancel = clock.setTimer(this.deps.timeoutMs ?? CORE_DEFAULTS.approvalTimeoutMs, () =>
         resolve("timeout"),
       );
-      surface
-        .askApproval(call.conversationId, { botName, tool: call.tool, summary, scope, offerAlways })
+      Promise.resolve()
+        .then(() =>
+          surface.askApproval(call.conversationId, {
+            botName,
+            tool: call.tool,
+            summary,
+            scope,
+            offerAlways,
+          }),
+        )
         .then((a) => {
           cancel();
           resolve(a);

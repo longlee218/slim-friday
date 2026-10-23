@@ -124,3 +124,43 @@ test("decide: grant allows an ask; tool override beats grant; floor beats everyt
       .outcome,
   ).toBe("allow");
 });
+
+test("C1: a tool whose annotations leave the hints empty is not auto-allowed, even under autonomous", () => {
+  for (const annotations of [{}, { readOnlyHint: false }, { idempotentHint: true }])
+    expect(run({ name: "T", annotations }, "autonomous").outcome).not.toBe("allow");
+});
+
+test("C3: a per-tool 'ask' override on an irreversible call is ask_always", () => {
+  const d = decide({
+    call: call(),
+    spec: DELETE,
+    grants: [],
+    settings: { level: "balanced", tools: { T: "ask" } },
+    now: 1,
+  });
+  expect(d.outcome).toBe("ask_always");
+});
+
+test("I4: an irreversible call never matches a grant", () => {
+  const g = [grant({ scope: {} })];
+  const d = decide({
+    call: call(),
+    spec: DELETE,
+    grants: g,
+    settings: settings("balanced"),
+    now: 1,
+  });
+  expect(d.outcome).toBe("ask_always");
+});
+
+test("I4: a grant must name every scope key of the tool", () => {
+  expect(matchGrant([grant({ scope: {} })], call(), { repo: "a" }, 10)).toBeUndefined();
+  expect(matchGrant([grant({ scope: {} })], call(), {}, 10)).toBeDefined();
+});
+
+test("C2: object scope values are told apart", () => {
+  const spec: ToolSpec = { name: "T", scopeKeys: ["repo"] };
+  expect(scopeOf(call({ repo: { name: "a" } }), spec)).not.toEqual(
+    scopeOf(call({ repo: { name: "b" } }), spec),
+  );
+});

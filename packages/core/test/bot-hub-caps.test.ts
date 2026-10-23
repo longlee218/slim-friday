@@ -10,6 +10,7 @@ test("two bots that @ each other stop at maxHops with exactly one notice", async
   runtime.onTurn = (session, turn) => {
     const other = session.spec.bot.id === "writer" ? "editor" : "writer";
     session.emit({ type: "text", text: `@${other} ping ${turn.hop}` });
+    session.emit({ type: "turn_end", costUsd: 0 });
   };
   surface.deliver({ conversationId: "gc", text: "start" });
   await flush();
