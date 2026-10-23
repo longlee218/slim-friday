@@ -2,12 +2,14 @@ import { expect, test } from "bun:test";
 import { OPUS_MODEL, SONNET_MODEL } from "../src/config/model-ids";
 import { REPORT_TOOL } from "../src/mcp/orchestration/tools/ReportTool/constants";
 import { validateRole } from "../src/orchestrator/run/validate-role";
-import { SPECIALIST_BUDGET_USD } from "../src/roles/builtin/specialist-contract";
 import { validateRegistry } from "../src/roles/capability-registry";
 import { dispatchableWorkers, getRole } from "../src/roles/role-registry";
 import { toolsFor } from "../src/tools/tool-catalog";
 
 /* The six roster specialists are flat role data: same contract, no delivery, no teammate tools; subagents only for the tester (D7). */
+
+/** Budget (USD) every roster specialist preset sets. */
+const SPECIALIST_BUDGET_USD = 4;
 
 const ROSTER = ["solution-architect", "designer", "tester", "devops", "humanizer-writer", "hacker"];
 

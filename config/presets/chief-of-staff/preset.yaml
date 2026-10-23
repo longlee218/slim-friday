@@ -1,0 +1,39 @@
+name: chief-of-staff
+basePrompt: custom
+whenToUse: "Routes the owner's messages to specialist workers and reports their results."
+kind: teammate
+skills:
+  - teammate-orchestration
+  - brainstorming
+preloadSkills:
+  - teammate-orchestration
+mcpTools:
+  - MemorySave
+  - MemoryEdit
+  - MemorySearch
+  - MemoryGet
+  - MemoryExpand
+  - SaveArtifact
+  - ReadArtifact
+  - ListArtifacts
+  - SearchArtifacts
+  - Orchestrate
+  - TaskBoard
+limits:
+  maxAsk: 0
+  maxTurns: 30
+subagents:
+  parallel: 3
+  depth: 1
+sideEffects: none
+capabilities:
+  - read
+  - skills
+noSubagents: true
+permissionMode: auto
+thinking:
+  type: adaptive
+budgetUsd: 1.5
+model: sonnet
+vars:
+  skillRef: friday:teammate-orchestration

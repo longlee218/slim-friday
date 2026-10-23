@@ -1,0 +1,73 @@
+kind: worker
+dispatchable: true
+noSubagents: false
+permissionMode: auto
+limits:
+  maxAsk: 0
+  maxTurns: 60
+subagents:
+  parallel: 2
+  depth: 1
+budgetUsd: 4
+mcpTools:
+  - MemorySearch
+  - MemoryGet
+  - MemoryExpand
+  - ReadArtifact
+  - ListArtifacts
+  - SearchArtifacts
+  - Report
+  - TaskBoard
+  - browser_navigate
+  - browser_navigate_back
+  - browser_tabs
+  - browser_close
+  - browser_resize
+  - browser_wait_for
+  - browser_snapshot
+  - browser_take_screenshot
+  - browser_find
+  - browser_click
+  - browser_hover
+  - browser_drag
+  - browser_drop
+  - browser_type
+  - browser_press_key
+  - browser_fill_form
+  - browser_select_option
+  - browser_file_upload
+  - browser_handle_dialog
+  - browser_emulate_media
+  - browser_evaluate
+  - browser_run_code_unsafe
+  - browser_console_messages
+  - browser_network_requests
+  - browser_network_request
+name: tester
+whenToUse: "Higher-level tests: integration, end-to-end, regression, edge and property cases; checks a running app in a browser; runs them and reports what breaks."
+notFor: Unit tests of a change; fixing the code.
+sideEffects: location
+capabilities:
+  - read
+  - write
+  - shell
+  - skills
+skills:
+  - using-skills
+  - team-protocol
+  - worker-reporting
+  - test-driven-development
+  - verification-before-completion
+  - systematic-debugging
+  - requesting-code-review
+  - property-based-testing
+  - test-master
+preloadSkills:
+  - using-skills
+  - team-protocol
+requiredSkills:
+  - verification-before-completion
+  - test-master
+model: sonnet
+vars:
+  commitPrefixes: "test:, chore:"

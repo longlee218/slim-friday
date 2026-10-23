@@ -1,35 +1,32 @@
 import { expect, test } from "bun:test";
 import { SONNET_MODEL } from "../src/config/model-ids";
 import { validateRole } from "../src/orchestrator/run/validate-role";
-import { CHIEF_OF_STAFF_ROLE } from "../src/roles/builtin/chief-of-staff-role";
-import { DEVELOPER_ROLE } from "../src/roles/builtin/developer-role";
-import { SCOUT_ROLE } from "../src/roles/builtin/scout-role";
-import { ROLES } from "../src/roles/role-registry";
+import { getRole, ROLES } from "../src/roles/role-registry";
 import type { RoleDefinition } from "../src/roles/role-types";
 import { AGENT_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { toolsFor } from "../src/tools/tool-catalog";
 
 test("dev is a background role: one run, bypass from the first token, no plan control", () => {
-  expect(DEVELOPER_ROLE.kind).toBe("worker");
-  expect(DEVELOPER_ROLE.permissionMode).toBe("bypassPermissions");
-  expect(DEVELOPER_ROLE.streaming).toBe(true);
-  expect(DEVELOPER_ROLE.limits.maxAsk).toBe(6);
-  expect(DEVELOPER_ROLE.budgetUsd).toBe(8);
-  expect(DEVELOPER_ROLE.capabilities).toContain("ask");
-  expect(DEVELOPER_ROLE.capabilities).not.toContain("planControl" as never);
-  expect(DEVELOPER_ROLE.model).toBe(SONNET_MODEL);
-  expect(DEVELOPER_ROLE.skills).not.toContain("brainstorming"); // the teammate alone talks to the human
+  expect(getRole("developer").kind).toBe("worker");
+  expect(getRole("developer").permissionMode).toBe("bypassPermissions");
+  expect(getRole("developer").streaming).toBe(true);
+  expect(getRole("developer").limits.maxAsk).toBe(6);
+  expect(getRole("developer").budgetUsd).toBe(8);
+  expect(getRole("developer").capabilities).toContain("ask");
+  expect(getRole("developer").capabilities).not.toContain("planControl" as never);
+  expect(getRole("developer").model).toBe(SONNET_MODEL);
+  expect(getRole("developer").skills).not.toContain("brainstorming"); // the teammate alone talks to the human
 });
 
 test("the teammate is a foreground role without shell, ask, write or subagents; the scout is a read-only background worker", () => {
-  expect(CHIEF_OF_STAFF_ROLE.kind).toBe("teammate");
+  expect(getRole("chief-of-staff").kind).toBe("teammate");
   for (const c of ["write", "ask", "shell"])
-    expect(CHIEF_OF_STAFF_ROLE.capabilities).not.toContain(c as never);
-  expect(CHIEF_OF_STAFF_ROLE.noSubagents).toBe(true);
-  expect(CHIEF_OF_STAFF_ROLE.permissionMode).toBe("auto");
-  expect(SCOUT_ROLE.kind).toBe("worker");
-  expect(SCOUT_ROLE.sideEffects).toBe("none");
-  for (const c of ["write", "ask"]) expect(SCOUT_ROLE.capabilities).not.toContain(c as never);
+    expect(getRole("chief-of-staff").capabilities).not.toContain(c as never);
+  expect(getRole("chief-of-staff").noSubagents).toBe(true);
+  expect(getRole("chief-of-staff").permissionMode).toBe("auto");
+  expect(getRole("scout").kind).toBe("worker");
+  expect(getRole("scout").sideEffects).toBe("none");
+  for (const c of ["write", "ask"]) expect(getRole("scout").capabilities).not.toContain(c as never);
 });
 
 test("role data is flat: no stages, gates, handoffs or per-run timeouts in any role", () => {
@@ -39,13 +36,13 @@ test("role data is flat: no stages, gates, handoffs or per-run timeouts in any r
 });
 
 test("validateRole refuses a role without a positive budget or with a bad ask limit", () => {
-  expect(validateRole(DEVELOPER_ROLE)).toBeUndefined();
-  expect(validateRole(CHIEF_OF_STAFF_ROLE)).toBeUndefined();
-  expect(validateRole(SCOUT_ROLE)).toBeUndefined();
-  const bad = (p: Partial<RoleDefinition>) => validateRole({ ...DEVELOPER_ROLE, ...p });
+  expect(validateRole(getRole("developer"))).toBeUndefined();
+  expect(validateRole(getRole("chief-of-staff"))).toBeUndefined();
+  expect(validateRole(getRole("scout"))).toBeUndefined();
+  const bad = (p: Partial<RoleDefinition>) => validateRole({ ...getRole("developer"), ...p });
   expect(bad({ budgetUsd: 0 })).toContain("budget");
-  expect(bad({ limits: { ...DEVELOPER_ROLE.limits, maxAsk: -1 } })).toContain("ask limit");
-  expect(bad({ limits: { ...DEVELOPER_ROLE.limits, maxAsk: 1.5 } })).toContain("ask limit");
+  expect(bad({ limits: { ...getRole("developer").limits, maxAsk: -1 } })).toContain("ask limit");
+  expect(bad({ limits: { ...getRole("developer").limits, maxAsk: 1.5 } })).toContain("ask limit");
 });
 
 const SPAWNERS = new Set(["developer", "tester"]);
@@ -64,6 +61,6 @@ test("subagents: only the developer (3 parallel) and the tester (2 parallel) may
       SPAWNERS.has(r.name),
     ]);
   }
-  expect(DEVELOPER_ROLE.subagents).toEqual({ parallel: 3, depth: 1 });
+  expect(getRole("developer").subagents).toEqual({ parallel: 3, depth: 1 });
   expect(ROLES.tester!.subagents).toEqual({ parallel: 2, depth: 1 });
 });

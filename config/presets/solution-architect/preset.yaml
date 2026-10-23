@@ -1,0 +1,41 @@
+kind: worker
+dispatchable: true
+noSubagents: true
+permissionMode: auto
+limits:
+  maxAsk: 0
+  maxTurns: 60
+subagents:
+  parallel: 3
+  depth: 1
+budgetUsd: 4
+mcpTools:
+  - MemorySearch
+  - MemoryGet
+  - MemoryExpand
+  - ReadArtifact
+  - ListArtifacts
+  - SearchArtifacts
+  - Report
+  - TaskBoard
+name: solution-architect
+basePrompt: custom
+whenToUse: "Design before building: compare approaches and choose one; define components, interfaces, data and risks of a feature or system. Reads code and docs, writes no files."
+notFor: Fact lookups; screen and UI design.
+sideEffects: none
+capabilities:
+  - read
+  - web
+  - skills
+skills:
+  - using-skills
+  - team-protocol
+  - worker-reporting
+  - architecture-designer
+  - docs-seeker
+preloadSkills:
+  - using-skills
+  - team-protocol
+requiredSkills:
+  - architecture-designer
+model: sonnet

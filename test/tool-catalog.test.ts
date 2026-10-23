@@ -1,9 +1,7 @@
 import { expect, test } from "bun:test";
 import { mcpToolNamesOfRole } from "../src/mcp/tool-names-of-role";
 import { checkToolCall, guardFor } from "../src/policy/check-tool-call";
-import { CHIEF_OF_STAFF_ROLE } from "../src/roles/builtin/chief-of-staff-role";
-import { DEVELOPER_ROLE } from "../src/roles/builtin/developer-role";
-import { SCOUT_ROLE } from "../src/roles/builtin/scout-role";
+import { getRole } from "../src/roles/role-registry";
 import * as sdkNames from "../src/tools/sdk-tool-names";
 import {
   AGENT_TOOL_NAME,
@@ -41,10 +39,10 @@ import {
   toolsFor,
 } from "../src/tools/tool-catalog";
 
-const ROLES = [CHIEF_OF_STAFF_ROLE, SCOUT_ROLE, DEVELOPER_ROLE];
+const ROLES = [getRole("chief-of-staff"), getRole("scout"), getRole("developer")];
 /** The read-only worker: read + web + skills, no shell. */
-const qaRole = SCOUT_ROLE;
-const dev = DEVELOPER_ROLE;
+const qaRole = getRole("scout");
+const dev = getRole("developer");
 
 test("scout: read + web + skills; nothing that writes or runs commands; depth 1 (no subagents)", () => {
   const t = toolsFor(qaRole);
@@ -231,14 +229,14 @@ test("the scout has no write, feedback or task tools (a read-only shell only); d
 });
 
 test("the teammate gets the Skill tool (for teammate-orchestration) and the guard allows it, with no shell or write", () => {
-  const t = toolsFor(CHIEF_OF_STAFF_ROLE);
+  const t = toolsFor(getRole("chief-of-staff"));
   expect(t).toContain(SKILL_TOOL_NAME);
   for (const x of [BASH_TOOL_NAME, WRITE_TOOL_NAME, EDIT_TOOL_NAME]) expect(t).not.toContain(x);
   expect(
     checkToolCall(
       SKILL_TOOL_NAME,
       { skill: "friday:teammate-orchestration" },
-      guardFor(CHIEF_OF_STAFF_ROLE, {}),
+      guardFor(getRole("chief-of-staff"), {}),
     ).decision,
   ).toBe("allow");
 });

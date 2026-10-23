@@ -1,8 +1,10 @@
 import { expect, test } from "bun:test";
-import { METHOD_SKILL } from "../src/roles/builtin/specialist-contract";
 import { ROLES } from "../src/roles/role-registry";
 
 /** The sections of a role's contract as a run sends them. */
+/** The process skill every working role preloads. */
+const METHOD_SKILL = "using-skills";
+
 const contract = (name: string) => ROLES[name]?.promptSections().join("\n") ?? "";
 
 /** The part of the Method line every worker contract shares; no skill name in it. */

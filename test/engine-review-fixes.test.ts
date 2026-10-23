@@ -2,7 +2,6 @@ import { expect, test } from "bun:test";
 import { TASK_BUDGET_USD } from "../src/config/model-routing";
 import { runRole } from "../src/orchestrator/run/run-role";
 import { finishRun } from "../src/orchestrator/turns/turn-result";
-import { DEVELOPER_ROLE } from "../src/roles/builtin/developer-role";
 import { getRole } from "../src/roles/role-registry";
 import { insertRun } from "../src/storage/run-metrics-store";
 import { insertTurn } from "../src/storage/run-store";
@@ -156,7 +155,7 @@ test("a task that is not a resume starts at zero spent (an earlier task of the t
   env.db.query("UPDATE turns SET parent_turn_id = ? WHERE id = ?").run("t1", "t2"); // a hop, not a resume
   spend(env.db, "t1", TASK_BUDGET_USD - 0.1);
   const { seen } = await runDev(env, "t2");
-  expect(seen[0].maxBudgetUsd).toBe(DEVELOPER_ROLE.budgetUsd);
+  expect(seen[0].maxBudgetUsd).toBe(getRole("developer").budgetUsd);
 });
 
 test("a thrown run does not leave a run row 'running': the runs row carries the error", async () => {

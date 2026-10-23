@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite";
-import { CHIEF_OF_STAFF_ROLE } from "../roles/builtin/chief-of-staff-role";
+import { CHIEF_OF_STAFF } from "../roles/role-names";
 import {
   costPerDay,
   costPerTeammate,
@@ -38,7 +38,7 @@ export function teammateMetrics(db: Database, days: number, now = Date.now()): T
     decisions: teammateDecisions(db, sinceMs),
     refusals: teammateRefusals(db, sinceMs),
     envelopeBlocks: envelopeBlocks(db, sinceMs),
-    costPerDay: costPerDay(db, CHIEF_OF_STAFF_ROLE.name, sinceMs),
+    costPerDay: costPerDay(db, CHIEF_OF_STAFF, sinceMs),
     costPerTeammate: costPerTeammate(db, sinceMs),
   };
 }

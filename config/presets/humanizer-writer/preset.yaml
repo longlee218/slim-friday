@@ -1,0 +1,45 @@
+kind: worker
+dispatchable: true
+noSubagents: true
+permissionMode: auto
+limits:
+  maxAsk: 0
+  maxTurns: 60
+subagents:
+  parallel: 3
+  depth: 1
+budgetUsd: 4
+mcpTools:
+  - MemorySearch
+  - MemoryGet
+  - MemoryExpand
+  - ReadArtifact
+  - ListArtifacts
+  - SearchArtifacts
+  - Report
+  - TaskBoard
+name: humanizer-writer
+basePrompt: custom
+whenToUse: "Prose for people: docs, README, release notes, posts, emails; writes or edits documents in a natural voice from the facts in the brief and earlier results."
+notFor: Code.
+sideEffects: location
+capabilities:
+  - read
+  - write
+  - skills
+skills:
+  - using-skills
+  - team-protocol
+  - worker-reporting
+  - verification-before-completion
+  - technical-writing
+  - reviewing-technical-prose
+  - writing-changelogs
+  - recording-decisions
+preloadSkills:
+  - using-skills
+  - team-protocol
+requiredSkills:
+  - technical-writing
+  - verification-before-completion
+model: sonnet

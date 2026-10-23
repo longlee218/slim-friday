@@ -1,15 +1,12 @@
 import { expect, test } from "bun:test";
-import { CHIEF_OF_STAFF_ROLE } from "../src/roles/builtin/chief-of-staff-role";
-import {
-  askRules,
-  DEVELOPER,
-  DEVELOPER_ROLE,
-  DEVELOPER_WORK,
-} from "../src/roles/builtin/developer-role";
+import { getRole } from "../src/roles/role-registry";
+import type { RoleDefinition } from "../src/roles/role-types";
 import { buildSystemPrompt, systemPromptText } from "../src/runtime/system-prompt";
 import { ASK_USER_QUESTION_TOOL_NAME } from "../src/tools/sdk-tool-names";
 
-const rules = (role: typeof DEVELOPER_ROLE) => systemPromptText(buildSystemPrompt("", role));
+const DEVELOPER_ROLE = getRole("developer");
+const CHIEF_OF_STAFF_ROLE = getRole("chief-of-staff");
+const rules = (role: RoleDefinition) => systemPromptText(buildSystemPrompt("", role));
 
 /* The 1200-char per-section budget is replaced by a per-role ceiling on the whole contract (owner direction 2026-10-20:
    rich contracts; ceilings in test/role-contract-sections.test.ts). */
@@ -24,7 +21,6 @@ test("the skills bootstrap block is gone; skills are not described in the prompt
 });
 
 test("the ask cap is the role's limit, stated once in the ask rules", () => {
-  expect(askRules(7)).toContain(`At most 7 ${ASK_USER_QUESTION_TOOL_NAME} calls`);
   expect(rules(DEVELOPER_ROLE)).toContain(
     `At most ${DEVELOPER_ROLE.limits.maxAsk} ${ASK_USER_QUESTION_TOOL_NAME} calls per run`,
   );
@@ -71,14 +67,14 @@ test("dev: one contract, approval before changes by ask, a design request may en
   expect(at("## Mission")).toBeLessThan(at("## Environment facts"));
 });
 
-test("no tool-name literal in the dev role source", async () => {
-  const src = await Bun.file(`${import.meta.dir}/../src/roles/builtin/developer-role.ts`).text();
-  expect(src).not.toMatch(/AskUserQuestion|ExitPlanMode/);
+test("no tool-name literal in the dev prompt file (tool names come from {{tool.X}})", async () => {
+  const src = await Bun.file(`${import.meta.dir}/../config/presets/developer/prompt.md`).text();
+  expect(src).not.toMatch(/(?<!tool\.)AskUserQuestion|ExitPlanMode/);
 });
 
 test("dev contract: research path; skill use and location memory are left to the SDK and AGENTS.md", () => {
   expect(rules(DEVELOPER_ROLE)).not.toContain("description matches the step you are about to do");
   expect(rules(DEVELOPER_ROLE)).not.toMatch(/\[workflow: (full|lean)\]/);
-  expect(DEVELOPER_WORK).toContain("no defect or target named");
-  expect(DEVELOPER).toContain("## Mission");
+  expect(rules(DEVELOPER_ROLE)).toContain("no defect or target named");
+  expect(rules(DEVELOPER_ROLE)).toContain("## Mission");
 });

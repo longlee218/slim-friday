@@ -7,7 +7,7 @@ import type { TeammateRuntime } from "../src/orchestrator/teammate/teammate-runt
 import { createRunLimiter } from "../src/orchestrator/turns/run-limiter";
 import { dispatchReady } from "../src/orchestrator/worker/dispatch-ready";
 import { clearSlotWait, noteDeferred } from "../src/orchestrator/worker/slot-wait";
-import { CHIEF_OF_STAFF_ROLE } from "../src/roles/builtin/chief-of-staff-role";
+import { getRole } from "../src/roles/role-registry";
 import { openDb } from "../src/storage/db";
 import { childrenOf } from "../src/storage/owned-item-store";
 import { insertOwnedTask } from "../src/storage/owned-task-store";
@@ -121,7 +121,7 @@ test("two ready items deferred by a full pool in one pass both get a slot_wait a
   insertOwnedTask(db, {
     id: "g",
     threadId: "th",
-    ownerRole: CHIEF_OF_STAFF_ROLE.name,
+    ownerRole: getRole("chief-of-staff").name,
     status: "open",
     scope: "g",
     correlationId: "c",

@@ -1,0 +1,43 @@
+kind: worker
+dispatchable: true
+noSubagents: true
+permissionMode: auto
+limits:
+  maxAsk: 0
+  maxTurns: 60
+subagents:
+  parallel: 3
+  depth: 1
+budgetUsd: 4
+mcpTools:
+  - MemorySearch
+  - MemoryGet
+  - MemoryExpand
+  - ReadArtifact
+  - ListArtifacts
+  - SearchArtifacts
+  - Report
+  - TaskBoard
+name: hacker
+basePrompt: custom
+whenToUse: "Defensive security review of code in a location: vulnerabilities, unsafe patterns, secrets in code, risky dependencies; reports findings with severity."
+notFor: Fixing the findings.
+sideEffects: none
+capabilities:
+  - read
+  - shell
+  - skills
+skills:
+  - using-skills
+  - team-protocol
+  - worker-reporting
+  - systematic-debugging
+  - verification-before-completion
+  - security-and-hardening
+preloadSkills:
+  - using-skills
+  - team-protocol
+requiredSkills:
+  - security-and-hardening
+  - verification-before-completion
+model: sonnet

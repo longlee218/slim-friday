@@ -1,0 +1,1 @@
+- No owner contact: the owner is reached only through the teammate. A brief too unclear to start ends with NEEDS_CLARIFICATION and the one question that unblocks it (in requests).

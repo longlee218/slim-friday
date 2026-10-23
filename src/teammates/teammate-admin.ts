@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { HAIKU_MODEL, OPUS_MODEL, SONNET_MODEL } from "../config/model-ids";
-import { CHIEF_OF_STAFF_ROLE } from "../roles/builtin/chief-of-staff-role";
+import { CHIEF_OF_STAFF } from "../roles/role-names";
 import { findRole } from "../roles/role-registry";
 import {
   archiveTeammate,
@@ -72,7 +72,7 @@ export async function createTeammate(
     throw new TeammateAdminError("A name is 2-32 characters: a-z, 0-9 and dashes.");
   if (teammateByName(d.db, a.name))
     throw new TeammateAdminError(`A teammate called \`${a.name}\` already exists.`);
-  const preset = findRole(a.preset ?? CHIEF_OF_STAFF_ROLE.name);
+  const preset = findRole(a.preset ?? CHIEF_OF_STAFF);
   if (!preset) throw new TeammateAdminError(`Unknown preset \`${a.preset}\`.`);
   const model = a.model ? modelId(a.model) : undefined;
   const { channelId } = await d.createPrivateChannel({ space: a.space, name: a.name });

@@ -4,7 +4,7 @@ import {
   orchestrateRef,
 } from "../../mcp/orchestration/tools/OrchestrateTool/action-names";
 import { logEvent, logger } from "../../observability/logger";
-import { CHIEF_OF_STAFF_ROLE } from "../../roles/builtin/chief-of-staff-role";
+import { CHIEF_OF_STAFF } from "../../roles/role-names";
 import { staleEmptyGoals } from "../../storage/owned-item-store";
 import { taskOrigin } from "../../storage/owned-task-store";
 import { appendEvent } from "../../storage/thread-event-store";
@@ -49,11 +49,7 @@ export function sweepPendingPlans(rt: TeammateRuntime, now = Date.now()): number
     rt.announce(goal.threadId);
     expired++;
   }
-  for (const g of staleEmptyGoals(
-    db,
-    CHIEF_OF_STAFF_ROLE.name,
-    now - 2 * PENDING_PLAN_MAX_AGE_MS,
-  )) {
+  for (const g of staleEmptyGoals(db, CHIEF_OF_STAFF, now - 2 * PENDING_PLAN_MAX_AGE_MS)) {
     closePendingPlans(db, g.id, "expired");
     if (!moveTaskTo(db, g.id, "cancelled")) continue;
     appendEvent(db, {

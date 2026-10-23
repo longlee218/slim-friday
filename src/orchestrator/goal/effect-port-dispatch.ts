@@ -6,7 +6,7 @@ import {
 import { ORCHESTRATE_TOOL } from "../../mcp/orchestration/tools/OrchestrateTool/constants";
 import { excerpt } from "../../observability/logger";
 import { GRANT_TOOL, grantRowId } from "../../policy/load-envelope";
-import { CHIEF_OF_STAFF_ROLE } from "../../roles/builtin/chief-of-staff-role";
+import { CHIEF_OF_STAFF } from "../../roles/role-names";
 import { appendEffect } from "../../storage/effect-log-store";
 import { insertOwnedTask } from "../../storage/owned-task-store";
 import { appendEvent } from "../../storage/thread-event-store";
@@ -31,7 +31,7 @@ export function createDispatchWriter(
       insertOwnedTask(db, {
         id: goalId,
         threadId,
-        ownerRole: CHIEF_OF_STAFF_ROLE.name,
+        ownerRole: CHIEF_OF_STAFF,
         status: "open",
         scope: excerpt(x.intent, SCOPE_CHARS),
         correlationId,

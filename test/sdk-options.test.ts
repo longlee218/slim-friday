@@ -2,8 +2,6 @@ import { afterEach, expect, spyOn, test } from "bun:test";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import { SONNET_MODEL } from "../src/config/model-ids";
 import { guardFor } from "../src/policy/check-tool-call";
-import { CHIEF_OF_STAFF_ROLE } from "../src/roles/builtin/chief-of-staff-role";
-import { DEVELOPER_ROLE } from "../src/roles/builtin/developer-role";
 import { getRole } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
 import { SEND_MESSAGE_TOOL_NAME } from "../src/tools/sdk-tool-names";
@@ -135,17 +133,17 @@ test("options lock: model and limits per role, no run timeout", async () => {
   const dev = await capture("dev");
   expect(teammate.o.model).toBe(SONNET_MODEL);
   expect(dev.o.model).toBe(SONNET_MODEL);
-  expect(teammate.o.maxTurns).toBe(CHIEF_OF_STAFF_ROLE.limits.maxTurns);
-  expect(dev.o.maxTurns).toBe(DEVELOPER_ROLE.limits.maxTurns);
+  expect(teammate.o.maxTurns).toBe(getRole("chief-of-staff").limits.maxTurns);
+  expect(dev.o.maxTurns).toBe(getRole("developer").limits.maxTurns);
   // Env depth = the role's `subagents.depth`.
   expect(teammate.o.env?.CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH).toBe(
-    String(CHIEF_OF_STAFF_ROLE.subagents.depth),
+    String(getRole("chief-of-staff").subagents.depth),
   );
   expect(dev.o.env?.CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH).toBe(
-    String(DEVELOPER_ROLE.subagents.depth),
+    String(getRole("developer").subagents.depth),
   );
   // Per-role budget (teammate, dev) capped by MAX_BUDGET_USD=3.
-  expect(teammate.o.maxBudgetUsd).toBe(CHIEF_OF_STAFF_ROLE.budgetUsd);
+  expect(teammate.o.maxBudgetUsd).toBe(getRole("chief-of-staff").budgetUsd);
   expect(dev.o.maxBudgetUsd).toBe(3);
   // No run timeout: no timer is armed for the run (owner decision).
   for (const r of [teammate, dev]) expect(r.delays).toEqual([]);

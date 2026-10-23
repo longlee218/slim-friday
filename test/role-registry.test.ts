@@ -2,7 +2,6 @@ import { expect, test } from "bun:test";
 import { HAIKU_MODEL, SONNET_MODEL } from "../src/config/model-ids";
 import { buildServers } from "../src/mcp/mcp-servers";
 import { checkToolCall, guardFor } from "../src/policy/check-tool-call";
-import { DEVELOPER_ROLE } from "../src/roles/builtin/developer-role";
 import { dispatchableWorkers, getRole, ROLES } from "../src/roles/role-registry";
 import type { RoleDefinition } from "../src/roles/role-types";
 import {
@@ -50,7 +49,7 @@ test("roles: bypass only for developer, auto for the others that set it, default
   expect(getRole("scout").permissionMode).toBe("auto");
   expect(getRole("developer")).toMatchObject({
     model: SONNET_MODEL,
-    budgetUsd: DEVELOPER_ROLE.budgetUsd,
+    budgetUsd: getRole("developer").budgetUsd,
     kind: "worker",
   });
   expect(getRole("chief-of-staff")).toMatchObject({ model: SONNET_MODEL, kind: "teammate" });

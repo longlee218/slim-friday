@@ -1,0 +1,46 @@
+kind: worker
+dispatchable: true
+noSubagents: true
+permissionMode: auto
+limits:
+  maxAsk: 0
+  maxTurns: 60
+subagents:
+  parallel: 3
+  depth: 1
+budgetUsd: 4
+mcpTools:
+  - MemorySearch
+  - MemoryGet
+  - MemoryExpand
+  - ReadArtifact
+  - ListArtifacts
+  - SearchArtifacts
+  - Report
+  - TaskBoard
+name: devops
+whenToUse: "Build and infrastructure files: Dockerfile, CI workflows, scripts, config; checks them locally (build, lint, dry run). Has no credentials or deploy tool."
+notFor: Deploys; anything that needs credentials.
+sideEffects: location
+capabilities:
+  - read
+  - write
+  - shell
+  - skills
+skills:
+  - using-skills
+  - team-protocol
+  - worker-reporting
+  - verification-before-completion
+  - systematic-debugging
+  - devops-engineer
+  - kubernetes-specialist
+preloadSkills:
+  - using-skills
+  - team-protocol
+requiredSkills:
+  - verification-before-completion
+  - devops-engineer
+model: sonnet
+vars:
+  commitPrefixes: "ci:, build:, chore:"

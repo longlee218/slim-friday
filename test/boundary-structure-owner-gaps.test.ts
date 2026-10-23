@@ -10,8 +10,7 @@ import { createPlanPort } from "../src/orchestrator/goal/effect-port-plan";
 import { createPlan, rejectVersion } from "../src/orchestrator/plan/plan-lifecycle";
 import { handleApprovePlan } from "../src/orchestrator/teammate/teammate-plan-handlers";
 import { missingEffects } from "../src/orchestrator/turns/completion";
-import { CHIEF_OF_STAFF_ROLE } from "../src/roles/builtin/chief-of-staff-role";
-import { findRole } from "../src/roles/role-registry";
+import { findRole, getRole } from "../src/roles/role-registry";
 import { openDb } from "../src/storage/db";
 import { appendEffect, PLAN_ASK_TOOL } from "../src/storage/effect-log-store";
 import { childrenOf } from "../src/storage/owned-item-store";
@@ -49,14 +48,14 @@ function planGoal() {
   return { goalId: w.goalId, planId: r.plan.id };
 }
 test("table rows: the teammate has the control tools; there is no planner role", () => {
-  const teammate = CHIEF_OF_STAFF_ROLE.mcpTools ?? [];
+  const teammate = getRole("chief-of-staff").mcpTools ?? [];
   // Talk to the owner, start / steer / retry / cancel, write and revise the plan (the `Orchestrate` actions): teammate only.
   expect(teammate).toContain(ORCHESTRATE_TOOL);
   expect(findRole("planner")).toBeUndefined();
 });
 
 test("contract text: the teammate writes the plan; a PLAN goal's items change only through create_plan / revise_plan", async () => {
-  const teammate = (await CHIEF_OF_STAFF_ROLE.promptSections?.())?.join("\n") ?? "";
+  const teammate = (await getRole("chief-of-staff").promptSections?.())?.join("\n") ?? "";
   expect(teammate).toContain(
     "PLAN goals: you write the plan (create_plan, revise_plan); add or update on its items is refused",
   );

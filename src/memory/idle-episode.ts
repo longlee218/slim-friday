@@ -6,8 +6,8 @@ import {
 } from "../config/memory-caps";
 import { logEvent, logger } from "../observability/logger";
 import { errText, redactText } from "../observability/redact";
-import { CHIEF_OF_STAFF_ROLE } from "../roles/builtin/chief-of-staff-role";
 import { EPISODE_SYSTEM } from "../roles/prompts/memory-prompts";
+import { CHIEF_OF_STAFF } from "../roles/role-names";
 import { type IdleThread, idleThreads, threadFacts } from "../storage/episode-store";
 import {
   getThreadSummary,
@@ -61,7 +61,7 @@ async function summaryOf(
 ): Promise<{ text: string; reused: boolean } | "aborted" | "empty"> {
   if (t.summary !== "" && t.episodeAt >= t.lastTurnStartedAt)
     return { text: t.summary, reused: true };
-  const facts = threadFacts(d.db, t.threadId, CHIEF_OF_STAFF_ROLE.name, t.episodeAt);
+  const facts = threadFacts(d.db, t.threadId, CHIEF_OF_STAFF, t.episodeAt);
   if (facts === "") return "empty";
   // The earlier episode (when any) leads the input, so the new text keeps what it said; the newest end is kept when clipped.
   const before = t.summary ? `Earlier episode:\n${t.summary}\n\n` : "";
@@ -96,7 +96,7 @@ export async function writeIdleEpisodes(d: IdleEpisodeDeps): Promise<number> {
     // Over-fetch by the skip list, so skipped threads never use up the batch.
     const threads = idleThreads(
       d.db,
-      CHIEF_OF_STAFF_ROLE.name,
+      CHIEF_OF_STAFF,
       now - EPISODE_IDLE_MS,
       EPISODE_MAX_PER_TICK + skip.size,
     )

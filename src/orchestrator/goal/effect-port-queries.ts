@@ -1,7 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { PENDING_PLAN_MAX_AGE_MS } from "../../config/teammate-caps";
 import { clip, redactText } from "../../observability/redact";
-import { CHIEF_OF_STAFF_ROLE } from "../../roles/builtin/chief-of-staff-role";
+import { CHIEF_OF_STAFF } from "../../roles/role-names";
 import {
   childrenOf,
   getItem,
@@ -23,7 +23,7 @@ import type { TaskSnapshot } from "./effect-port";
  * yet) or a plan waiting for the owner (not older than `PENDING_PLAN_MAX_AGE_MS`). A goal whose items all ended is done even while its row still says `open`.
  */
 export function openGoalIdOf(db: Database, threadId: string, now = Date.now()): string | undefined {
-  return openGoalId(db, threadId, CHIEF_OF_STAFF_ROLE.name, now - PENDING_PLAN_MAX_AGE_MS);
+  return openGoalId(db, threadId, CHIEF_OF_STAFF, now - PENDING_PLAN_MAX_AGE_MS);
 }
 
 /**
@@ -46,7 +46,7 @@ export function pendingQuestionOf(db: Database, itemId: string): string | undefi
 export function snapshotOf(db: Database, threadId: string, taskId?: string): TaskSnapshot {
   const goalId = taskId
     ? (goalOf(db, taskId) ?? taskId)
-    : latestGoalId(db, threadId, CHIEF_OF_STAFF_ROLE.name);
+    : latestGoalId(db, threadId, CHIEF_OF_STAFF);
   if (!goalId) return { items: [] };
   const intent = taskScope(db, goalId);
   return {

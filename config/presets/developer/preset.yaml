@@ -1,0 +1,69 @@
+name: developer
+whenToUse: "Implement, fix or refactor code in a location, with unit tests of its own change; installs, commits and delivers (merge, PR or keep) after the owner chose."
+notFor: Choosing a design or writing a plan; integration or end-to-end tests.
+kind: worker
+dispatchable: true
+mcpTools:
+  - MemorySearch
+  - MemoryGet
+  - MemoryExpand
+  - ReadArtifact
+  - ListArtifacts
+  - SearchArtifacts
+  - Report
+  - TaskBoard
+  - DeletePaths
+  - GitPush
+  - CreatePullRequest
+  - MergeBranch
+skills:
+  - using-skills
+  - team-protocol
+  - worker-reporting
+  - dispatching-parallel-agents
+  - executing-plans
+  - finishing-a-development-branch
+  - receiving-code-review
+  - requesting-code-review
+  - subagent-driven-development
+  - systematic-debugging
+  - test-driven-development
+  - using-git-worktrees
+  - verification-before-completion
+  - frontend-ui-engineering
+  - frontend-design
+  - vercel-react-best-practices
+  - supabase-postgres-best-practices
+  - api-and-interface-design
+  - performance-optimization
+  - nodejs-backend-patterns
+preloadSkills:
+  - using-skills
+  - team-protocol
+requiredSkills:
+  - executing-plans
+  - test-driven-development
+  - verification-before-completion
+  - requesting-code-review
+  - finishing-a-development-branch
+limits:
+  maxAsk: 6
+  maxTurns: 150
+subagents:
+  parallel: 3
+  depth: 1
+sideEffects: location
+capabilities:
+  - read
+  - write
+  - shell
+  - skills
+  - tasks
+  - mcp
+  - review
+  - feedback
+  - ask
+permissionMode: bypassPermissions
+streaming: true
+budgetUsd: 8
+model: sonnet

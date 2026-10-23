@@ -8,7 +8,7 @@ import {
   taskBoardRef,
 } from "../../mcp/orchestration/tools/TaskBoardTool/action-names";
 import { excerpt } from "../../observability/logger";
-import { CHIEF_OF_STAFF_ROLE } from "../../roles/builtin/chief-of-staff-role";
+import { CHIEF_OF_STAFF } from "../../roles/role-names";
 import { planAskSince } from "../../storage/effect-log-store";
 import {
   insertOwnedTask,
@@ -73,7 +73,7 @@ export function createPlanPort(
             insertOwnedTask(db, {
               id: goalId,
               threadId,
-              ownerRole: CHIEF_OF_STAFF_ROLE.name,
+              ownerRole: CHIEF_OF_STAFF,
               status: "open",
               scope: excerpt(i.objective, SCOPE_CHARS),
               correlationId: corr,

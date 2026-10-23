@@ -2,7 +2,6 @@ import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { STALE_AFTER_MS } from "../src/config/resilience-caps";
-import { NO_SHELL_WRITER_FACT } from "../src/roles/builtin/worker-contract";
 import { ROLES } from "../src/roles/role-registry";
 
 /* Phase 2b: every worker contract is a full working guide (template sections, facts from role data), the shared worker
@@ -10,6 +9,12 @@ import { ROLES } from "../src/roles/role-registry";
    rounded up to 100; replaces the old 1200-char per-section budget). */
 
 /** The preloaded team skill: the run facts every task worker gets. */
+/** The shared no-shell fact (a partial file). */
+const NO_SHELL_WRITER_FACT = readFileSync(
+  `${import.meta.dir}/../config/presets/_partials/no-shell-writer-fact.md`,
+  "utf8",
+).trim();
+
 const TEAM_SKILL_TEXT = readFileSync(
   join(import.meta.dir, "..", ".agents", "skills", "team-protocol", "SKILL.md"),
   "utf8",
