@@ -16,6 +16,7 @@ export type EventKind =
   | "items_added" // code added verify-N / fix-N to a PLAN goal (passive news, read with the next announce, never a wake-up; payload.added = the keys)
   | "retry" // the teammate re-queued a held item (the retry tool); payload.note, payload.by = "teammate"
   | "recovered_after_restart"
+  | "teammate_message" // a peer message from another teammate (payload: from, intent, id `P42`, hop, text); read as DATA
   | "teammate_decision"; // a teammate tool call with no natural kind (reads, forward); payload.by = "teammate"
 
 /**

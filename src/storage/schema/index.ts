@@ -6,6 +6,7 @@ export * from "./events";
 export * from "./memory";
 export * from "./messages";
 export * from "./metrics";
+export * from "./peer-messages";
 export * from "./plans";
 export * from "./sessions";
 export * from "./tasks";

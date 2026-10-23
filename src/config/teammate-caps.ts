@@ -68,3 +68,12 @@ export const DUPLICATE_MAX_MATCHES = 3;
 
 /** Max chars of an item `subject` (the short label shown in lists, digests and plans; `brief` is the description). */
 export const SUBJECT_MAX_CHARS = 80;
+
+/** Most characters of one peer message (`MessageTeammate`); longer is refused `TOO_LONG`. */
+export const PEER_MESSAGE_MAX_CHARS = 4000;
+
+/** Most peer messages ONE teammate may send per hour (`RATE_LIMIT`): bounds a ping-pong that the hop limit alone would allow. */
+export const PEER_SENDS_PER_HOUR = 20;
+
+/** The same sender, target and text inside this window (ms) is a repeat (`REPEAT`). */
+export const PEER_REPEAT_WINDOW_MS = 600_000;
