@@ -48,7 +48,7 @@ test("a run with a scratch dir gets the pinned stdio server: headless, isolated,
 
 test("no scratch dir (not a dispatched worker) or a role without the tools: the server is not connected", () => {
   expect(buildServers(ROLES.tester as RoleDefinition, {})[PLAYWRIGHT_MCP_SERVER]).toBeUndefined();
-  for (const name of ["lead", "scout", "developer"])
+  for (const name of ["chief-of-staff", "scout", "developer"])
     expect(
       buildServers(ROLES[name] as RoleDefinition, {}, { scratchDir: SCRATCH })[
         PLAYWRIGHT_MCP_SERVER

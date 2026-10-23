@@ -38,10 +38,10 @@ export interface FlowResult
   location?: string;
   /** Save the session although the outcome is not success/limit (a run stopped to await the owner). */
   keepSession?: boolean;
-  /** Do not save this session as the thread's (a worker run: a later lead message must not resume it). */
+  /** Do not save this session as the thread's (a worker run: a later teammate message must not resume it). */
   skipThreadSession?: true;
-  /** The session is the lead's (stored with `kind='lead'` and the model): set by the lead runner only. */
-  sessionKind?: "lead";
+  /** The session is the teammate's (stored with `kind='teammate'` and the model): set by the teammate runner only. */
+  sessionKind?: "teammate";
   /** Model that answered (stored with the session). */
   model?: string;
 }
@@ -95,8 +95,8 @@ export function finishRun(
   }
   finishTurn(db, ids.turnId, TURN_STATUS[res.outcome] ?? "failed");
   if (res.outcome === "max_budget") return budgetHitReply(res, language);
-  // A lead run may answer with tool calls only: say nothing then.
-  if (res.sessionKind === "lead" && res.outcome === "success" && !res.text.trim()) return "";
+  // A teammate run may answer with tool calls only: say nothing then.
+  if (res.sessionKind === "teammate" && res.outcome === "success" && !res.text.trim()) return "";
   // Unknown failure text may be an SDK exception: log it, never show it.
   const unknownError = res.outcome === "error" && !res.refusal;
   if (unknownError) logEvent(log, "run.failed", { reason: "error", detail: redactText(res.text) });

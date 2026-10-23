@@ -7,8 +7,8 @@ import {
   ITEM_MAX_AGE_MS,
   MAX_ESCALATIONS_PER_TICK,
 } from "../src/config/resilience-caps";
-import type { LeadRuntime } from "../src/orchestrator/lead/lead-runtime";
 import { registerRun } from "../src/orchestrator/run/live-runs";
+import type { TeammateRuntime } from "../src/orchestrator/teammate/teammate-runtime";
 import { createCheckIn } from "../src/orchestrator/worker/check-in";
 import { setProgress } from "../src/orchestrator/worker/run-activity";
 import { openDb } from "../src/storage/db";
@@ -54,7 +54,7 @@ function rtOf(language: "vi" | "en" = "en") {
             },
           }
         : undefined,
-  } as unknown as LeadRuntime;
+  } as unknown as TeammateRuntime;
   return { rt, posts, woken, calls };
 }
 
@@ -64,7 +64,7 @@ function setup(status = "running", scope = "Ship the thing") {
   insertOwnedTask(db, {
     id: "g",
     threadId: "th",
-    ownerRole: "lead",
+    ownerRole: "chief-of-staff",
     status: "open",
     scope,
     correlationId: "c",
@@ -223,7 +223,7 @@ test("escalation: a retry event after the hold, or a newer dispatch, is not esca
   });
   const { rt, woken } = rtOf();
   await createCheckIn()(rt, T0 + 2 * HOLD_ESCALATE_MS);
-  expect(woken).toEqual([]); // the lead already decided
+  expect(woken).toEqual([]); // the teammate already decided
 });
 
 /** Hold `it` (blocked + FAILED) with a failure event at `at`. */
@@ -275,7 +275,7 @@ test("digest: two open goals digest the newest; an old completed goal is ignored
   insertOwnedTask(db, {
     id: "g2",
     threadId: "th",
-    ownerRole: "lead",
+    ownerRole: "chief-of-staff",
     status: "open",
     scope: "Newer goal",
     correlationId: "c",

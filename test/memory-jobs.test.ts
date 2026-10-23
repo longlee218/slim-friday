@@ -109,7 +109,7 @@ test("tick writes idle episodes and prunes expired ones only when the prune inte
   });
   env.db
     .query(
-      "INSERT INTO turns (id, thread_id, source, location, status, started_at, ended_at, brief, role, kind) VALUES ('u1', 'th1', 'discord', '*', 'done', ?, ?, 'work', 'lead', 'single')",
+      "INSERT INTO turns (id, thread_id, source, location, status, started_at, ended_at, brief, role, kind) VALUES ('u1', 'th1', 'discord', '*', 'done', ?, ?, 'work', 'chief-of-staff', 'single')",
     )
     .run(clock - EPISODE_IDLE_MS - 2000, clock - EPISODE_IDLE_MS - 1000);
   await jobs.tick();

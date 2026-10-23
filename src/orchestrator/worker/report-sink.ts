@@ -1,4 +1,4 @@
-import type { ReportInput } from "../lead/lead-schemas";
+import type { ReportInput } from "../teammate/teammate-schemas";
 import type { ReportFile } from "./report-files";
 import type { ReportImage } from "./report-images";
 
@@ -9,6 +9,6 @@ export interface ReportSink {
   files?: ReportFile[];
   /** Screenshots of the report, checked (inside scratch, image bytes, size); the engine posts them once when the run ends. */
   images?: ReportImage[];
-  /** Set by `Report blocker`: why the run stopped and what it needs. The end event carries it and the lead is woken at once. */
+  /** Set by `Report blocker`: why the run stopped and what it needs. The end event carries it and the teammate is woken at once. */
   blocker?: { reason: string; needs: string; messageId?: string };
 }

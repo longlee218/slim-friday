@@ -22,6 +22,6 @@ const make = (home: string, file: string, template: string): MemoryTarget => ({
 export const rootTarget = (home: string): MemoryTarget =>
   make(home, workspacePaths(home).memory, ROOT_MEMORY);
 
-/** `workspaces/<ws>/channels/<channel>/MEMORY.md`: the agent's memory, written by the lead. */
+/** `workspaces/<ws>/channels/<channel>/MEMORY.md`: the agent's memory, written by the teammate. */
 export const channelTarget = (home: string, ws: string, channel: string): MemoryTarget =>
   make(home, channelMemoryFile(home, ws, channel), channelMemoryTemplate(channel));

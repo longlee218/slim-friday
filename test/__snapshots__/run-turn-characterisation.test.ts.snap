@@ -1,6 +1,6 @@
 // Bun Snapshot v1, https://bun.sh/docs/test/snapshots
 
-exports[`lead run ends ok: one done lead turn, one success run, session kept 1`] = `
+exports[`teammate run ends ok: one done teammate turn, one success run, session kept 1`] = `
 {
   "events": [
     {
@@ -19,7 +19,7 @@ exports[`lead run ends ok: one done lead turn, one success run, session kept 1`]
       "hop": 0,
       "kind": "single",
       "location": "*",
-      "role": "lead",
+      "role": "chief-of-staff",
       "sess": 1,
       "source": "discord",
       "status": "done",
@@ -28,7 +28,7 @@ exports[`lead run ends ok: one done lead turn, one success run, session kept 1`]
 }
 `;
 
-exports[`lead run errors: its turn row is closed, the owner gets the fixed notice 1`] = `
+exports[`teammate run errors: its turn row is closed, the owner gets the fixed notice 1`] = `
 {
   "events": [
     {
@@ -47,7 +47,7 @@ exports[`lead run errors: its turn row is closed, the owner gets the fixed notic
       "hop": 0,
       "kind": "single",
       "location": "*",
-      "role": "lead",
+      "role": "chief-of-staff",
       "sess": 1,
       "source": "discord",
       "status": "failed",
@@ -86,7 +86,7 @@ exports[`worker run ends ok: worker turn done + task completed + end event 1`] =
   "tasks": [
     {
       "kind": null,
-      "owner": "lead",
+      "owner": "chief-of-staff",
       "status": "completed",
     },
     {
@@ -100,7 +100,7 @@ exports[`worker run ends ok: worker turn done + task completed + end event 1`] =
       "hop": 0,
       "kind": "single",
       "location": "*",
-      "role": "lead",
+      "role": "chief-of-staff",
       "sess": 1,
       "source": "discord",
       "status": "done",
@@ -118,7 +118,7 @@ exports[`worker run ends ok: worker turn done + task completed + end event 1`] =
       "hop": 0,
       "kind": "single",
       "location": "*",
-      "role": "lead",
+      "role": "chief-of-staff",
       "sess": 1,
       "source": "discord",
       "status": "done",
@@ -150,7 +150,7 @@ exports[`worker aborted by /stop: its query sees the abort, rows closed, registr
   "tasks": [
     {
       "kind": null,
-      "owner": "lead",
+      "owner": "chief-of-staff",
       "status": "cancelled",
     },
     {
@@ -164,7 +164,7 @@ exports[`worker aborted by /stop: its query sees the abort, rows closed, registr
       "hop": 0,
       "kind": "single",
       "location": "*",
-      "role": "lead",
+      "role": "chief-of-staff",
       "sess": 1,
       "source": "discord",
       "status": "done",

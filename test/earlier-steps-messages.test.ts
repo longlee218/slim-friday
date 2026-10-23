@@ -2,10 +2,10 @@ import type { Database } from "bun:sqlite";
 import { afterEach, expect, test } from "bun:test";
 import { DEPENDENCY_RESULT_PUSH_CHARS } from "../src/config/message-caps";
 import { createDbEffectPort } from "../src/orchestrator/goal/effect-port-db";
-import { handleDispatch } from "../src/orchestrator/lead/lead-handlers";
 import { earlierSteps } from "../src/orchestrator/messages/earlier-steps";
 import { messageRef } from "../src/orchestrator/messages/message-ref";
 import { postItemMessage } from "../src/orchestrator/messages/task-messages";
+import { handleDispatch } from "../src/orchestrator/teammate/teammate-handlers";
 import { openDb } from "../src/storage/db";
 import { getItem } from "../src/storage/owned-item-store";
 import { linkTurn } from "../src/storage/owned-task-store";
@@ -37,7 +37,7 @@ async function setup() {
     dependsOn,
   });
   const d = (await handleDispatch(
-    { port, threadId: "th", leadTurnId: "lt", inputId: "in", run: { dispatched: 0 } },
+    { port, threadId: "th", teammateTurnId: "lt", inputId: "in", run: { dispatched: 0 } },
     {
       strategy: "DELEGATE",
       small: true,

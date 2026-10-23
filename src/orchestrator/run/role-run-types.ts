@@ -26,7 +26,7 @@ export interface RoleRunnerDeps {
   stopping?: () => boolean;
   /** Where streaming runs register their input so the owner can steer them. Omitted = string prompts, no steer. */
   steer?: SteerRegistry;
-  /** Renames the thread for `Orchestrate set_title` (lead only: only the lead lists the tool in its `mcpTools`). Omitted = the tool is not offered. */
+  /** Renames the thread for `Orchestrate set_title` (teammate only: only the teammate lists the tool in its `mcpTools`). Omitted = the tool is not offered. */
   threadTitle?: ThreadTitlePort;
   /** Background memory jobs: a foreground run's compaction schedules its flush here. Omitted = no flush (tests, headless). */
   memoryJobs?: MemoryJobs;
@@ -38,8 +38,8 @@ export interface DispatchDeps extends RoleRunnerDeps {
   stopping: () => boolean;
   /** Worker pool: a detached task run takes its own slot from it. */
   limiter?: RunLimiter;
-  /** Lead pool: a lead run takes its own slot from it (never a worker slot). */
-  leadPool?: RunLimiter;
+  /** Teammate pool: a teammate run takes its own slot from it (never a worker slot). */
+  teammatePool?: RunLimiter;
 }
 
 /** One role run: a fresh message, a dispatched task, or the continuation of one (`resume`). */
@@ -59,7 +59,7 @@ export interface RoleRunInput {
   role: string;
   /** Workspace the run belongs to; every location lookup of the flow stays inside it. Absent = a control-channel run (no workspace, no location, no memory). */
   workspace?: string;
-  /** Builds the app ctx parts of the MCP tools (lead, report sink, plan, effects, admin) on every query() call; the role's `mcpTools` picks the tools. */
+  /** Builds the app ctx parts of the MCP tools (teammate, report sink, plan, effects, admin) on every query() call; the role's `mcpTools` picks the tools. */
   appCtx?: AppCtxFactory;
   /** Channel (yaml name) the run started in: persona, memory and `MemorySave` scope `channel`. */
   channel?: string;
@@ -67,7 +67,7 @@ export interface RoleRunInput {
   channelMode?: "task" | "chat";
   /** Discord channel id the run started in (the thread's parent): stamped on thread rows `Orchestrate set_title` creates. */
   channelId?: string;
-  /** Turn and budget limits that replace the role's own for this run (the lead's owner-message run). */
+  /** Turn and budget limits that replace the role's own for this run (the teammate's owner-message run). */
   limitsOverride?: { maxTurns: number; budgetUsd: number };
   /** Locations the run may use. */
   locations: Location[];
@@ -81,7 +81,7 @@ export interface RoleRunInput {
   existing?: SessionRow | null;
   /** Task ledger of the thread (idle thread only); empty = none. */
   ledger?: string;
-  /** The lead's TEAM.md (roster, locations, how to delegate): placed after AGENTS.md in its persona block. */
+  /** The teammate's TEAM.md (roster, locations, how to delegate): placed after AGENTS.md in its persona block. */
   team?: string;
   /** Envelope of a dispatched worker: its shell runs in the OS sandbox and every tool call is checked against it. Omitted = no envelope. */
   envelope?: DispatchEnvelope;

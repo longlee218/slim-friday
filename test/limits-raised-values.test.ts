@@ -1,16 +1,16 @@
 import { expect, test } from "bun:test";
 import { z } from "zod";
-import { CHAIN_CAP, DELEGATE_MAX, PLAN_MAX_ITEMS } from "../src/config/lead-caps";
 import type { Route } from "../src/config/model-routing";
 import { TASK_BUDGET_USD } from "../src/config/model-routing";
+import { CHAIN_CAP, DELEGATE_MAX, PLAN_MAX_ITEMS } from "../src/config/teammate-caps";
 import { goalRoute } from "../src/orchestrator/budget/task-budget";
-import { BRIEF_MAX_CHARS, MAX_ASSIGNMENTS } from "../src/orchestrator/lead/lead-limits";
 import { buildEnvelope, toPlanItem } from "../src/orchestrator/plan/plan-doc";
 import { renderPlan, renderPlanStem } from "../src/orchestrator/plan/plan-render";
 import { CREATE_PLAN_SHAPE, PROPOSE_REVISION_SHAPE } from "../src/orchestrator/plan/plan-schemas";
 import type { PlanDoc } from "../src/orchestrator/plan/plan-types";
 import { validatePlan } from "../src/orchestrator/plan/validate-plan";
 import { answerOutput } from "../src/orchestrator/run/answer-output";
+import { BRIEF_MAX_CHARS, MAX_ASSIGNMENTS } from "../src/orchestrator/teammate/teammate-limits";
 import { buildChoicePrompt, SUMMARY_MAX } from "../src/providers/discord/approval/approval-text";
 import { ROLES } from "../src/roles/role-registry";
 import type { RunAgentResult } from "../src/runtime/run-agent";
@@ -49,7 +49,7 @@ test("goalRoute: capUsd is what the goal has left, over every item's runs", () =
   insertOwnedTask(db, {
     id: "g",
     threadId: "th",
-    ownerRole: "lead",
+    ownerRole: "chief-of-staff",
     status: "running",
     scope: "g",
     correlationId: "c",

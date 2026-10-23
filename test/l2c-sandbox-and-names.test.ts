@@ -75,7 +75,7 @@ test("sandbox: a worker run passes sandbox options to query (writes in its dirs 
   expect(fs.denyRead).toContain(join(homedir(), ".ssh")); // the owner's credential dirs are unreadable too
 });
 
-test("sandbox: no envelope (lead, interactive roles) = no sandbox option", () => {
+test("sandbox: no envelope (teammate, interactive roles) = no sandbox option", () => {
   expect(workerSandbox({ ...ctx, envelope: undefined })).toBeUndefined();
   expect(workerSandbox(undefined)).toBeUndefined();
 });

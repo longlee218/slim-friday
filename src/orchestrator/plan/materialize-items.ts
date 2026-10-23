@@ -51,7 +51,7 @@ export interface Applied {
  * - `cancelKeys`: those items are cancelled (a running one is aborted after the commit by the caller via `abort`);
  * - `releaseBlocked` (first approval): items that reported NEEDS_PLANNING are cancelled, the plan replaces them. A plan
  *   item that waited for a released item stops waiting for it (validation refuses that; this is a safety net); any other
- *   item that waited for it is cancelled too. One `plan_revised` event tells the lead when either happened.
+ *   item that waited for it is cancelled too. One `plan_revised` event tells the teammate when either happened.
  */
 export function materialize(
   db: Database,
@@ -79,7 +79,7 @@ export function materialize(
   );
   const gone = new Set(released.map((i) => i.itemKey));
   // Plan items that stopped waiting for a released item. Validation refuses such a dependency, so this is a safety net
-  // (the item was running when the plan was stored, then reported NEEDS_PLANNING): it is told to the lead.
+  // (the item was running when the plan was stored, then reported NEEDS_PLANNING): it is told to the teammate.
   const repointed: string[] = [];
   for (const planned of topoOrder(o.doc.items)) {
     const it = { ...planned, dependsOn: planned.dependsOn.filter((k) => !gone.has(k)) };
@@ -115,7 +115,7 @@ export function materialize(
           strategy: "PLAN",
           planVersion: o.version,
           plan: true, // owner-approved: not counted in the chain cap (see goalCaps)
-          by: "lead",
+          by: "teammate",
         },
       });
       out.created.push(it.key);
@@ -158,7 +158,7 @@ export function materialize(
   // Told only when something moved: waiting items were cancelled, or plan items were re-pointed.
   if (orphansCancelled || repointed.length)
     recordRevision(db, o.goalId, o.planId, {
-      from: o.version - 1, // lead news only: the owner is not told of this one
+      from: o.version - 1, // teammate news only: the owner is not told of this one
       version: o.version,
       added: out.created,
       cancelled: out.cancelled,

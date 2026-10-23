@@ -16,8 +16,8 @@ import {
   stubGateway,
   TEST_CHANNEL,
 } from "./helpers";
-import { devLeadQuery, noticeSink, workersDone } from "./lead-harness";
 import { isWorkerRun } from "./mcp-run-probe";
+import { devTeammateQuery, noticeSink, workersDone } from "./teammate-harness";
 
 /** Env with one workspace `real` whose location/ is a real git clone (a managed clone). */
 async function setup(meta: Record<string, unknown> = {}) {
@@ -38,7 +38,7 @@ async function setup(meta: Record<string, unknown> = {}) {
 }
 
 /**
- * Fake SDK: a worker call (it holds Report result) writes and commits b.txt in its cwd and reports; a lead call
+ * Fake SDK: a worker call (it holds Report result) writes and commits b.txt in its cwd and reports; a teammate call
  * (the announce after the worker ended) just answers. `seen` records the worker calls only.
  */
 function fakeSdk(seen: any[], hold?: Promise<void>) {
@@ -77,8 +77,8 @@ function build(env: ReturnType<typeof makeEnv>, queryFn: unknown) {
     db: env.db,
     config: env.config,
     approvals: stubGateway(),
-    queryFn: devLeadQuery(queryFn),
-    leadTiming: { debounceMs: 10, announceWindowMs: 20 },
+    queryFn: devTeammateQuery(queryFn),
+    teammateTiming: { debounceMs: 10, announceWindowMs: 20 },
   });
   return async (text: string, extra: object = {}) => {
     const sink = noticeSink();
@@ -92,7 +92,7 @@ function build(env: ReturnType<typeof makeEnv>, queryFn: unknown) {
       notify: sink.notify,
       ...extra,
     });
-    return out ?? sink.first(); // the lead queue answers, with the start notice
+    return out ?? sink.first(); // the teammate queue answers, with the start notice
   };
 }
 

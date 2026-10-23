@@ -13,7 +13,7 @@ export interface PostMessage {
   threadId: string;
   goalId: string;
   taskId: string;
-  /** `lead`, a role name, `system` or `owner`. */
+  /** `teammate`, a role name, `system` or `owner`. */
   author: string;
   kind: MessageKind;
   /** Full text; redacted here, never cut. */

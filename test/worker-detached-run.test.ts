@@ -9,7 +9,7 @@ import { insertTurn } from "../src/storage/run-store";
 import { listUndelivered } from "../src/storage/thread-event-store";
 import { loadWorkspaces } from "../src/workspaces/workspace-registry";
 import { BRIEF, makeEnv, resultMsg, stubGateway } from "./helpers";
-import { sleep, until } from "./lead-harness";
+import { sleep, until } from "./teammate-harness";
 
 /* Detached worker run: it goes on without holding the thread, ends cleanly and frees its slot and registry entry. */
 

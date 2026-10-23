@@ -1,23 +1,23 @@
 import { expect, test } from "bun:test";
-import { leadHarness, until } from "./lead-harness";
+import { teammateHarness, until } from "./teammate-harness";
 
 /* Acceptance index (brainstorm 5.13 / 10). Most checks live in a focused test file; this file holds the two that needed an
    end-to-end run of their own.
-   1 DIRECT without a plan ............ lead-flow.test.ts
+   1 DIRECT without a plan ............ teammate-flow.test.ts
    2 DELEGATE items in parallel ........ dispatch-parallel.test.ts
    3 PLAN, one approval ................ plan-strategy-flow.test.ts, todo-app-scenario.test.ts
    4 worker NEEDS_PLANNING -> Orchestrate create_plan  (below)
-   5 dispatch to the lead refused  plan-audit-gaps.test.ts, dispatch-policy.test.ts
-   6 cycle refused ..................... lead-flow.test.ts, dispatch-policy.test.ts
+   5 dispatch to the teammate refused  plan-audit-gaps.test.ts, dispatch-policy.test.ts
+   6 cycle refused ..................... teammate-flow.test.ts, dispatch-policy.test.ts
    7 role / location outside the envelope  validate-plan.test.ts, dispatch-policy.test.ts
-   8 restart resume mid-plan ........... recover-in-flight.test.ts, lead-boot-wake.test.ts
+   8 restart resume mid-plan ........... recover-in-flight.test.ts, teammate-boot-wake.test.ts
    9 plan revision while running ....... plan-lifecycle.test.ts
    10 cancel propagation (running items)  (below) */
 
-test("a worker that reports NEEDS_PLANNING wakes the lead, which writes a plan (create_plan) in the open goal", async () => {
+test("a worker that reports NEEDS_PLANNING wakes the teammate, which writes a plan (create_plan) in the open goal", async () => {
   const asked: unknown[] = [];
   let goalId = "";
-  const h = leadHarness(async (c) => {
+  const h = teammateHarness(async (c) => {
     if (c.kind === "worker") {
       await c.report("result", {
         title: "T",
@@ -86,7 +86,7 @@ test("Orchestrate cancel of a goal with two running items cancels both, aborts t
   const aborted: string[] = [];
   let goalId = "";
   const running = new Set<string>();
-  const h = leadHarness(async (c) => {
+  const h = teammateHarness(async (c) => {
     if (c.kind === "worker") {
       const key = /do (\w+)/.exec(c.prompt)?.[1] as string;
       running.add(key);

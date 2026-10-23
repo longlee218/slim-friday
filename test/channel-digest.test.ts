@@ -16,7 +16,7 @@ import {
   type ThreadRow,
 } from "../src/storage/thread-store";
 import { addLocation, CHANNEL_2, makeEnv, TEST_CHANNEL } from "./helpers";
-import { type Call, leadHarness, until } from "./lead-harness";
+import { type Call, teammateHarness, until } from "./teammate-harness";
 
 /** A titled thread row written through the store (the way Orchestrate set_title does). */
 const titled = (
@@ -91,15 +91,15 @@ test("searchThreads: every keyword, case-insensitive (also non-ASCII, NFC), lite
   expect(searchThreads(db, "main", ["c1"], ["many"], 10)).toHaveLength(10);
 });
 
-/** The lead harness (real handler + fake `query`); the fake records each lead prompt and resume id. */
+/** The teammate harness (real handler + fake `query`); the fake records each teammate prompt and resume id. */
 function runHarness() {
-  const h = leadHarness(() => "answer");
+  const h = teammateHarness(() => "answer");
   const calls = h.calls;
   const send = async (threadId: string, text: string) => {
-    const n = h.ofKind("lead").length;
+    const n = h.ofKind("teammate").length;
     await h.send(text, threadId);
-    await until(() => h.ofKind("lead").length > n);
-    return h.ofKind("lead")[n] as Call;
+    await until(() => h.ofKind("teammate").length > n);
+    return h.ofKind("teammate")[n] as Call;
   };
   return { env: h.env, calls, send };
 }

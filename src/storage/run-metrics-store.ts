@@ -18,7 +18,7 @@ export interface RunRecord {
 
 /**
  * USD of this run alone. The SDK reports `total_cost_usd` of the whole resumed session (it climbs 0.08, 0.12, 0.15 ...
- * over a lead's runs), so the run's own cost is the total minus what the earlier runs of the same session recorded.
+ * over a teammate's runs), so the run's own cost is the total minus what the earlier runs of the same session recorded.
  * A total below that sum (a new session under the same id) is the run's own cost.
  */
 export function ownCostOfRun(db: Database, turnId: string, totalUsd: number): number {

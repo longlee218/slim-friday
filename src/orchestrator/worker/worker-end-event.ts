@@ -76,7 +76,7 @@ export function emitEndEvent(
           ...(blocker.messageId && { messageId: blocker.messageId }),
         },
       }),
-      // Screenshots of the report, posted to the thread by code when the run ended: the lead need not (and cannot) send them.
+      // Screenshots of the report, posted to the thread by code when the run ended: the teammate need not (and cannot) send them.
       ...(imageCount > 0 && { screenshotsPosted: imageCount }),
       ...(crashError && { error: clip(redactText(crashError), STEP_CHARS) }),
       ...(report && { summary: report.summary, requests: report.requests }),

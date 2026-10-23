@@ -6,7 +6,7 @@ import { cancelStartEvents } from "../../storage/thread-event-store";
 import { closePendingPlans } from "../../storage/work-plan-store";
 import { moveTaskTo } from "../../tasks/task-resolver";
 import { openGoalIdOf } from "../goal/effect-port-queries";
-import type { LeadQueue } from "../lead/lead-queue";
+import type { TeammateQueue } from "../teammate/teammate-queue";
 import { settleGoal } from "../worker/goal-settle";
 import { abortThreadRuns } from "./live-runs";
 
@@ -14,17 +14,17 @@ import { abortThreadRuns } from "./live-runs";
 const log = logger.child({ module: "stop-thread-tree" });
 
 /**
- * `/stop` of a whole thread: drop the queued lead inputs, abort the lead run and every worker run of the thread, move the
+ * `/stop` of a whole thread: drop the queued teammate inputs, abort the teammate run and every worker run of the thread, move the
  * live tasks to `cancelled` (CAS: a task that already ended keeps its status) and close the goal's pending plan versions
  * (`draft` / `valid`) and the undelivered `start` events as cancelled. Never throws. Returns the aborted task ids.
  */
 export function stopThreadTree(
   db: Database,
   threadId: string,
-  leadQueue?: Pick<LeadQueue, "stop">,
+  teammateQueue?: Pick<TeammateQueue, "stop">,
 ): string[] {
-  leadQueue?.stop(threadId);
-  const runs = abortThreadRuns(threadId); // lead + workers
+  teammateQueue?.stop(threadId);
+  const runs = abortThreadRuns(threadId); // teammate + workers
   const aborted = runs.flatMap((h) => (h.taskId ? [h.taskId] : []));
   tryLog(log, "stop tree rows failed", () => {
     // `moveTaskTo` is a CAS and refuses a move out of a terminal state: an ended task keeps its status.

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { createReportTool } from "../src/mcp/orchestration/tools/ReportTool/report-tool";
-import { PROGRESS_NOTE_MAX_CHARS } from "../src/orchestrator/lead/lead-limits";
+import { PROGRESS_NOTE_MAX_CHARS } from "../src/orchestrator/teammate/teammate-limits";
 import type { ReportSink } from "../src/orchestrator/worker/report-sink";
 
 /* `Report` input leniency: a bare-string request is a question; a long progress note is cut, not refused. */

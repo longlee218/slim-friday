@@ -102,9 +102,9 @@ test("sessions: model + kind stored; a new row after a roll takes the thread's c
     location: "r",
     cwd: "/r",
     model: "m",
-    kind: "lead",
+    kind: "teammate",
   });
-  expect(getSession(db, "th")).toMatchObject({ model: "m", kind: "lead", generation: 0 });
+  expect(getSession(db, "th")).toMatchObject({ model: "m", kind: "teammate", generation: 0 });
   db.query("DELETE FROM sessions").run();
   bumpCycle(db, "th", "ws");
   setSession(db, { threadId: "th", sessionId: "s2", location: "r", cwd: "/r" });
@@ -119,10 +119,10 @@ test("sessions: an update without kind / model keeps the stored ones", () => {
     location: "r",
     cwd: "/r",
     model: "m",
-    kind: "lead",
+    kind: "teammate",
   });
   setSession(db, { threadId: "th", sessionId: "s2", location: "r", cwd: "/r" });
-  expect(getSession(db, "th")).toMatchObject({ session_id: "s2", model: "m", kind: "lead" });
+  expect(getSession(db, "th")).toMatchObject({ session_id: "s2", model: "m", kind: "teammate" });
 });
 
 test("owned items: an item key is unique within its goal, free across goals and for goals", () => {

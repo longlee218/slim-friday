@@ -18,7 +18,7 @@ import { FULL_CTX } from "./mcp-ctx-fixture";
 const BARE: RoleDefinition = {
   name: "bare",
   whenToUse: "bare",
-  kind: "lead",
+  kind: "teammate",
   limits: { maxAsk: 0, maxTurns: 20 },
   subagents: { parallel: 3, depth: 1 },
   sideEffects: "none",
@@ -28,15 +28,15 @@ const BARE: RoleDefinition = {
   promptSections: () => [],
 };
 
-test("registry: developer, the roster specialists, the control role, the lead, the scout and the researcher; unknown role fails", () => {
+test("registry: developer, the roster specialists, the control role, the teammate, the scout and the researcher; unknown role fails", () => {
   expect(Object.keys(ROLES).sort()).toEqual([
+    "chief-of-staff",
     "designer",
     "developer",
     "devops",
     "discord-manager",
     "hacker",
     "humanizer-writer",
-    "lead",
     "researcher",
     "scout",
     "solution-architect",
@@ -47,14 +47,14 @@ test("registry: developer, the roster specialists, the control role, the lead, t
 
 test("roles: bypass only for developer, auto for the others that set it, default tier and budget per role", () => {
   expect(getRole("developer").permissionMode).toBe("bypassPermissions");
-  expect(getRole("lead").permissionMode).toBe("auto");
+  expect(getRole("chief-of-staff").permissionMode).toBe("auto");
   expect(getRole("scout").permissionMode).toBe("auto");
   expect(getRole("developer")).toMatchObject({
     model: SONNET_MODEL,
     budgetUsd: DEVELOPER_ROLE.budgetUsd,
     kind: "worker",
   });
-  expect(getRole("lead")).toMatchObject({ model: SONNET_MODEL, kind: "lead" });
+  expect(getRole("chief-of-staff")).toMatchObject({ model: SONNET_MODEL, kind: "teammate" });
 });
 
 test("whenToUse: every dispatchable role has one, all different", () => {
@@ -74,7 +74,7 @@ test("whenToUse: every dispatchable role has one, all different", () => {
   expect(new Set(roles.map((r) => r.whenToUse)).size).toBe(roles.length);
 });
 
-test("notFor: every dispatchable role has one (the Not for column of the lead's TEAM table)", () => {
+test("notFor: every dispatchable role has one (the Not for column of the teammate's TEAM table)", () => {
   for (const r of dispatchableWorkers()) expect(r.notFor?.length ?? 0).toBeGreaterThan(3);
 });
 

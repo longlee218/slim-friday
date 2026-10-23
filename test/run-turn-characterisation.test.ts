@@ -5,9 +5,9 @@ import { stopThreadTree } from "../src/orchestrator/run/stop-thread-tree";
 import { insertTurn } from "../src/storage/run-store";
 import { loadWorkspaces } from "../src/workspaces/workspace-registry";
 import { BRIEF, makeEnv, resultMsg, stubGateway } from "./helpers";
-import { type Call, leadHarness, sleep, until, workersDone } from "./lead-harness";
+import { type Call, sleep, teammateHarness, until, workersDone } from "./teammate-harness";
 
-/* Characterisation of the run lifecycle (begin turn -> run -> close / fail turn, registry, events): the DB rows a lead
+/* Characterisation of the run lifecycle (begin turn -> run -> close / fail turn, registry, events): the DB rows a teammate
    run and a worker run leave. Pinned before `runTurn` merged the sequences; they must not change. */
 
 /** What a run leaves in the db, ids and times left out: turn rows, run rows, task statuses, event kinds (in order). */
@@ -37,16 +37,16 @@ const dispatchOne = (c: Call) =>
     assignments: [{ key: "a", subject: "task", role: "scout", brief: "do a", dependsOn: [] }],
   });
 
-test("lead run ends ok: one done lead turn, one success run, session kept", async () => {
-  const h = leadHarness(async () => "hello");
+test("teammate run ends ok: one done teammate turn, one success run, session kept", async () => {
+  const h = teammateHarness(async () => "hello");
   await h.send("hi");
   await until(() => h.posts.length > 0);
   expect(liveRunsOf("t1")).toHaveLength(0);
   expect(snap(h.env.db)).toMatchSnapshot();
 });
 
-test("lead run errors: its turn row is closed, the owner gets the fixed notice", async () => {
-  const h = leadHarness(async () => {
+test("teammate run errors: its turn row is closed, the owner gets the fixed notice", async () => {
+  const h = teammateHarness(async () => {
     throw new Error("model down");
   });
   await h.send("hi");
@@ -57,7 +57,7 @@ test("lead run errors: its turn row is closed, the owner gets the fixed notice",
 });
 
 test("worker run ends ok: worker turn done + task completed + end event", async () => {
-  const h = leadHarness(async (c) => {
+  const h = teammateHarness(async (c) => {
     if (c.kind === "worker") {
       await c.report("result", { title: "T", status: "COMPLETED", summary: "ok" });
       return "done";
@@ -77,7 +77,7 @@ test("worker run ends ok: worker turn done + task completed + end event", async 
 
 test("worker aborted by /stop: its query sees the abort, rows closed, registry empty", async () => {
   let saw = false;
-  const h = leadHarness(async (c) => {
+  const h = teammateHarness(async (c) => {
     if (c.kind === "worker") {
       const signal = c.options.abortController.signal as AbortSignal;
       await new Promise<void>((res) => {

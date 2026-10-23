@@ -1,6 +1,6 @@
 import { ORCHESTRATE_TOOL } from "./constants";
 
-/* Action names of the lead's `Orchestrate` tool (kept out of `constants.ts`, see the `Plan` tool's `action-names.ts`). */
+/* Action names of the teammate's `Orchestrate` tool (kept out of `constants.ts`, see the `Plan` tool's `action-names.ts`). */
 
 /** Start a goal with one worker (DIRECT) or a few chained workers (DELEGATE). */
 export const ORCHESTRATE_ACTION_DISPATCH = "dispatch";
@@ -10,7 +10,7 @@ export const ORCHESTRATE_ACTION_ADD = "add";
 export const ORCHESTRATE_ACTION_UPDATE = "update";
 /** Send owner text to a running worker (or answer its pending question). */
 export const ORCHESTRATE_ACTION_STEER = "steer";
-/** Re-queue a held (failed) task: it resumes its session with the lead's note. */
+/** Re-queue a held (failed) task: it resumes its session with the teammate's note. */
 export const ORCHESTRATE_ACTION_RETRY = "retry";
 /** Cancel a task (its dependents too) and abort its run. */
 export const ORCHESTRATE_ACTION_CANCEL = "cancel";
@@ -18,7 +18,7 @@ export const ORCHESTRATE_ACTION_CANCEL = "cancel";
 export const ORCHESTRATE_ACTION_FORWARD = "forward";
 /** Ask the owner a question (yes/no, select or text); the answer comes back as the result. */
 export const ORCHESTRATE_ACTION_ASK_OWNER = "ask_owner";
-/** Store a plan the lead wrote (a new goal, or a re-plan inside the open one); the owner approves it with approve_plan. */
+/** Store a plan the teammate wrote (a new goal, or a re-plan inside the open one); the owner approves it with approve_plan. */
 export const ORCHESTRATE_ACTION_CREATE_PLAN = "create_plan";
 /** A new version of a plan from add / cancel / modify edits. */
 export const ORCHESTRATE_ACTION_REVISE_PLAN = "revise_plan";
@@ -32,5 +32,5 @@ export const ORCHESTRATE_ACTION_REGISTER_LOCATION = "register_location";
 /** How prose and refusal messages name a call: `Orchestrate retry`. */
 export const orchestrateRef = (action: string): string => `${ORCHESTRATE_TOOL} ${action}`;
 
-/** Audit name of a lead call (`effect_log.tool`, `metrics:lead`): tool and action in one column, `Orchestrate.retry`. */
+/** Audit name of a teammate call (`effect_log.tool`, `metrics:teammate`): tool and action in one column, `Orchestrate.retry`. */
 export const orchestrateAudit = (action: string): string => `${ORCHESTRATE_TOOL}.${action}`;

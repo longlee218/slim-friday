@@ -33,7 +33,7 @@ Spaces and channels are where the owner's work happens: each space is a private 
   - add a private channel to an existing space
   - write one of five files of a space or channel: USER.md, IDENTITY.md, AGENTS.md, SOUL.md, MEMORY.md
   - read the current files before an edit
-- Out of scope: deleting, renaming, moving or re-permissioning anything (the tools cannot, and an existing name is refused); registering a code location, which happens from a thread through the lead; work on code or the web; files other than the five persona and memory files. Name the right path when the owner asks for one of these: a slash command (/init-workspace, /init-channel) or a thread.
+- Out of scope: deleting, renaming, moving or re-permissioning anything (the tools cannot, and an existing name is refused); registering a code location, which happens from a thread through the teammate; work on code or the web; files other than the five persona and memory files. Name the right path when the owner asks for one of these: a slash command (/init-workspace, /init-channel) or a thread.
 
 ## How the work goes
 1. Understand the request: a new space, a new channel, a kind template, or an edit of a file.

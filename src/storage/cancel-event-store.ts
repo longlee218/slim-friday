@@ -1,8 +1,8 @@
 import type { Database } from "bun:sqlite";
 
-/* Read side of the `cancel` thread events: which items a lead or owner cancel stopped (used to settle a goal). */
+/* Read side of the `cancel` thread events: which items a teammate or owner cancel stopped (used to settle a goal). */
 
-/** Ids of the goal's items a lead/owner `cancel` event cancelled (the cancelled item and its cascade). */
+/** Ids of the goal's items a teammate/owner `cancel` event cancelled (the cancelled item and its cascade). */
 export function cancelledByCancelEvents(db: Database, goalId: string): Set<string> {
   const rows = db
     .query<{ itemId: string | null; payload: string }, [string]>(

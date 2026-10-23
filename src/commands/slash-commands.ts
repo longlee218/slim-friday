@@ -2,7 +2,7 @@
  * The owner commands are slash commands only. A slash interaction reaches the handler as the text `/name arg`
  * (built by `slashText` in slash-definitions.ts) and `parseSlash` is the ONE place that reads it back; every
  * command parser (message, admin, find) starts from its result. No plain-text command exists: a message
- * such as "stop" is an ordinary message for the lead.
+ * such as "stop" is an ordinary message for the teammate.
  *
  *   /stop, /status, /purge   no argument (app code answers, no model)
  *   /limits [role]           every limit of the code (owner only, private reply, no model)

@@ -6,7 +6,7 @@ import {
 import { SET_TITLE_MAX_CALLS_PER_RUN } from "../../mcp/orchestration/tools/OrchestrateTool/constants";
 import { getThread } from "../../storage/thread-store";
 
-/** The user-turn line that asks the lead to title a thread that still carries the bot's placeholder name. */
+/** The user-turn line that asks the teammate to title a thread that still carries the bot's placeholder name. */
 const THREAD_TITLE_NOTE = `This thread has no title yet: call ${orchestrateRef(ORCHESTRATE_ACTION_SET_TITLE)} to name it (title and digest; at most ${SET_TITLE_MAX_CALLS_PER_RUN} calls per run).`;
 
 /**

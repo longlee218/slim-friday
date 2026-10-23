@@ -3,10 +3,11 @@ import { registryError } from "../src/lifecycle/registry-check";
 import { validateRegistry } from "../src/roles/capability-registry";
 import { ROLES } from "../src/roles/role-registry";
 
-test("the real registry passes and holds lead, scout, dev and discord-manager", () => {
+test("the real registry passes and holds teammate, scout, dev and discord-manager", () => {
   expect(() => validateRegistry()).not.toThrow();
   expect(registryError()).toBeUndefined();
-  for (const n of ["lead", "scout", "developer", "discord-manager"]) expect(ROLES[n]).toBeDefined();
+  for (const n of ["chief-of-staff", "scout", "developer", "discord-manager"])
+    expect(ROLES[n]).toBeDefined();
 });
 
 test("a bad role definition makes validateRegistry throw and registryError report it", () => {

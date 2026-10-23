@@ -1,16 +1,16 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { ANNOUNCE_REARM_MAX_MS } from "../src/config/lead-caps";
 import { ZOMBIE_CLAIM_NOTICE_MS } from "../src/config/resilience-caps";
+import { ANNOUNCE_REARM_MAX_MS } from "../src/config/teammate-caps";
 import { renderUserNotice } from "../src/ingress/user-copy";
 import { goalBudgetCanGrow } from "../src/orchestrator/budget/task-budget";
 import { createRetryPort } from "../src/orchestrator/goal/effect-port-retry";
-import { announceRearmDelay } from "../src/orchestrator/lead/lead-events";
 import {
   claimZombieLocation,
   clearZombieClaims,
   zombieClaims,
 } from "../src/orchestrator/run/zombie-claims";
+import { announceRearmDelay } from "../src/orchestrator/teammate/teammate-events";
 import { settleGoal } from "../src/orchestrator/worker/goal-settle";
 import { hasPendingAnswer } from "../src/orchestrator/worker/resume-prompt";
 import { resumeWaiting } from "../src/orchestrator/worker/resume-waiting";
@@ -24,8 +24,8 @@ import { linkTurn } from "../src/storage/owned-task-store";
 import { insertTurn } from "../src/storage/run-store";
 import { moveTaskTo } from "../src/tasks/task-resolver";
 import { TEST_CHANNEL } from "./helpers";
-import { type Call, leadHarness, until, workersDone } from "./lead-harness";
 import { approvedPlan, item as planItem } from "./plan-fixture";
+import { type Call, teammateHarness, until, workersDone } from "./teammate-harness";
 
 /* Fixes of the Phase 1 final review (findings 1-8, F4 / F5 leftovers). */
 
@@ -36,7 +36,7 @@ const itemIdOf = (db: any): string =>
   (db.query("SELECT id FROM owned_tasks WHERE parent_id IS NOT NULL").get() as { id: string }).id;
 
 /** An owner message that is a Discord reply to `replyTo`. */
-const reply = (h: ReturnType<typeof leadHarness>, replyTo: string, text: string, id: string) =>
+const reply = (h: ReturnType<typeof teammateHarness>, replyTo: string, text: string, id: string) =>
   h.handle({
     source: "discord",
     userId: "owner",
@@ -50,10 +50,13 @@ const reply = (h: ReturnType<typeof leadHarness>, replyTo: string, text: string,
   });
 
 /**
- * Lead + developer script: a worker run ends with no report (item waiting_user) until its prompt carries `finishOn`,
- * then it completes. The first owner message dispatches the one item; `onLead` plays every other lead run.
+ * Teammate + developer script: a worker run ends with no report (item waiting_user) until its prompt carries `finishOn`,
+ * then it completes. The first owner message dispatches the one item; `onTeammate` plays every other teammate run.
  */
-function waitingScript(finishOn: string, onLead: (c: Call, item: string) => Promise<void> | void) {
+function waitingScript(
+  finishOn: string,
+  onTeammate: (c: Call, item: string) => Promise<void> | void,
+) {
   let itemId = "";
   return (c: Call) => {
     if (c.kind === "worker") {
@@ -78,12 +81,12 @@ function waitingScript(finishOn: string, onLead: (c: Call, item: string) => Prom
           itemId = r.itemIds[0];
           return "started";
         });
-    return Promise.resolve(onLead(c, itemId)).then(() => "ok");
+    return Promise.resolve(onTeammate(c, itemId)).then(() => "ok");
   };
 }
 
 test("#1: owner answers never trip the dispatch breaker (3 answers, the item still completes)", async () => {
-  const h = leadHarness(waitingScript("ans3", () => {}));
+  const h = teammateHarness(waitingScript("ans3", () => {}));
   await h.send("style it");
   await workersDone(h.env.db);
   const id = itemIdOf(h.env.db);
@@ -99,8 +102,8 @@ test("#1: owner answers never trip the dispatch breaker (3 answers, the item sti
   expect(getItem(h.env.db, id)?.dispatchCount).toBe(1); // only the first start counted
 }, 30_000);
 
-test("#2: a reply to an old question message is a plain message for the lead once the item resumed", async () => {
-  const h = leadHarness(waitingScript("ans2", () => {}));
+test("#2: a reply to an old question message is a plain message for the teammate once the item resumed", async () => {
+  const h = teammateHarness(waitingScript("ans2", () => {}));
   await h.send("style it");
   await workersDone(h.env.db);
   const id = itemIdOf(h.env.db);
@@ -110,18 +113,18 @@ test("#2: a reply to an old question message is a plain message for the lead onc
   await until(() => h.ofKind("worker").length === 2, 8000);
   await until(() => getItem(h.env.db, id)?.status === "waiting_user", 8000); // asks again (newer question)
   expect(itemOfQuestionMessage(h.env.db, "q-old", "t1")).toBeUndefined(); // the link died with the answer
-  const before = h.ofKind("lead").length;
+  const before = h.ofKind("teammate").length;
   await reply(h, "q-old", "this is for the old question", "m2");
-  await until(() => h.ofKind("lead").length > before, 8000);
+  await until(() => h.ofKind("teammate").length > before, 8000);
   expect(h.ofKind("worker")).toHaveLength(2); // the item was NOT resumed by the stale reply
   expect(getItem(h.env.db, id)?.status).toBe("waiting_user");
-  expect(h.ofKind("lead").some((c) => c.prompt.includes("this is for the old question"))).toBe(
+  expect(h.ofKind("teammate").some((c) => c.prompt.includes("this is for the old question"))).toBe(
     true,
   );
 }, 30_000);
 
 test("#2/#8: question links are removed when their item settles (completed or cancelled)", async () => {
-  const h = leadHarness(waitingScript("ans1", () => {}));
+  const h = teammateHarness(waitingScript("ans1", () => {}));
   await h.send("style it");
   await workersDone(h.env.db);
   const id = itemIdOf(h.env.db);
@@ -145,7 +148,7 @@ test("#3 + onMessage link: a reply while Orchestrate ask_owner waits answers the
   const cancelled: string[] = [];
   let asked: any;
   let askResult: any;
-  const h = leadHarness(
+  const h = teammateHarness(
     waitingScript("blue", async (c, id) => {
       if (c.prompt.includes("<events>") && id && !asked) {
         asked = true;
@@ -177,12 +180,12 @@ test("#3 + onMessage link: a reply while Orchestrate ask_owner waits answers the
   await reply(h, "q-msg", ANSWER, "m-ans");
   await until(() => askResult !== undefined, 8000);
   expect(cancelled).toHaveLength(1); // the buttons of that ask are gone
-  expect(askResult).toMatchObject({ ok: true, answer: ANSWER }); // the lead run is released with the answer
+  expect(askResult).toMatchObject({ ok: true, answer: ANSWER }); // the teammate run is released with the answer
   await until(() => getItem(h.env.db, id)?.status === "completed", 8000);
 }, 30_000);
 
 test("#8: a reply that resumed a task is confirmed to the owner, and the answer is labelled as the owner's", async () => {
-  const h = leadHarness(waitingScript("blue", () => {}));
+  const h = teammateHarness(waitingScript("blue", () => {}));
   await h.send("style it");
   await workersDone(h.env.db);
   const id = itemIdOf(h.env.db);
@@ -198,7 +201,7 @@ test("#8: a reply that resumed a task is confirmed to the owner, and the answer 
 
 test("#8: a reply in a chat-mode channel (thread id = channel id) takes the same path", async () => {
   // A chat-mode channel is its own thread: `threadId` is the channel id, the link and the reply carry it.
-  const h = leadHarness(waitingScript("blue", () => {}));
+  const h = teammateHarness(waitingScript("blue", () => {}));
   await h.send("style it", "chat-chan");
   await workersDone(h.env.db);
   const id = itemIdOf(h.env.db);
@@ -273,7 +276,7 @@ test("#4: a zombie location is an input of the scheduler: another writer still s
   expect(picks.map((p) => p.id)).toEqual(["2"]); // a one-slot cap is not spent on the blocked item
 });
 
-test("#4: a stuck zombie claim gives the lead one notice and stays claimed", () => {
+test("#4: a stuck zombie claim gives the teammate one notice and stays claimed", () => {
   clearZombieClaims();
   const g = approvedPlan([planItem("a")], { budget: 4 });
   const itemId = (g.db.query("SELECT id FROM owned_tasks WHERE item_key = 'a'").get() as any).id;
@@ -303,8 +306,8 @@ test("#5: a goal without an approved plan cannot grow its budget; a plan goal be
   p.db.close();
 });
 
-test("#5: a budget_hit on a DELEGATE goal says the budget cannot grow; the lead prompt does not promise a retry", async () => {
-  const h = leadHarness(async (c) => {
+test("#5: a budget_hit on a DELEGATE goal says the budget cannot grow; the teammate prompt does not promise a retry", async () => {
+  const h = teammateHarness(async (c) => {
     if (c.kind === "worker") {
       await c.report("result", { title: "T", status: "COMPLETED", summary: "done" });
       return { text: "ok", cost: 20 }; // over the $15 DELEGATE budget
@@ -335,9 +338,9 @@ test("#5: a budget_hit on a DELEGATE goal says the budget cannot grow; the lead 
   expect(p.error).toContain("cannot grow");
   const md = buildTeamMd();
   expect(md).not.toContain("works once the goal budget allows");
-  // The budget_hit playbook moved from TEAM.md to the lead-orchestration skill.
+  // The budget_hit playbook moved from TEAM.md to the teammate-orchestration skill.
   expect(md).not.toContain("budget_hit:");
-  expect(readFileSync(".agents/skills/lead-orchestration/SKILL.md", "utf8")).toContain(
+  expect(readFileSync(".agents/skills/teammate-orchestration/SKILL.md", "utf8")).toContain(
     "budget_hit `canGrow:false`",
   );
 }, 25_000);
@@ -365,7 +368,7 @@ test("#6: every Orchestrate retry writes its own retry event, and the newest not
 
 test("#7: Orchestrate steer on a held item says so (use Orchestrate retry), it never says ended", async () => {
   let r: any;
-  const h = leadHarness(
+  const h = teammateHarness(
     waitingScript("never", async (c, id) => {
       if (c.prompt.includes("<events>") && id && !r) {
         // The age limit held the waiting item: blocked + FAILED.

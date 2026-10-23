@@ -6,8 +6,8 @@ import { appendEffect } from "../src/storage/effect-log-store";
 import { getItem } from "../src/storage/owned-item-store";
 import { recordBotThread } from "../src/storage/thread-store";
 import { makeEnv, TEST_CHANNEL } from "./helpers";
-import { type Call, leadHarness, until } from "./lead-harness";
 import { isWorkerRun } from "./mcp-run-probe";
+import { type Call, teammateHarness, until } from "./teammate-harness";
 
 /* Crash-resume scenario: a developer worker records its session and one effect row, then the process "crashes" (the handler is
    dropped without a drain, the run hangs forever). Boot recovery + a new handler + wake must resume the SAME session with
@@ -18,7 +18,7 @@ const EFFECT_TOOL = "GitPush";
 
 /** Sessions: a resumed run keeps its session, a fresh run gets a new one (`worker-<iter>` for the worker's first run). */
 const sessionOf = (iter: number) => (options: any, n: number) =>
-  options?.resume ?? (isWorkerRun(options) ? `worker-${iter}` : `lead-${iter}-${n}`);
+  options?.resume ?? (isWorkerRun(options) ? `worker-${iter}` : `teammate-${iter}-${n}`);
 
 /** One crash scenario: `crashes` crashes of the worker, then a final handler that lets it finish. */
 async function crashScenario(iter: number, crashes: number) {
@@ -32,13 +32,13 @@ async function crashScenario(iter: number, crashes: number) {
       } | null
     )?.id;
   const workerCalls: Call[] = [];
-  const harnesses: ReturnType<typeof leadHarness>[] = [];
+  const harnesses: ReturnType<typeof teammateHarness>[] = [];
   let hung = 0;
   /** Releases of the hung (crashed) runs: at the end they settle, so no dead run stays in the global live-run registry. */
   const release: (() => void)[] = [];
   /** A handler over the shared db: its worker hangs (crash) or finishes. */
   const phase = (hang: boolean) => {
-    const h = leadHarness(
+    const h = teammateHarness(
       async (c) => {
         if (c.kind === "worker") {
           workerCalls.push(c);
@@ -85,7 +85,7 @@ async function crashScenario(iter: number, crashes: number) {
   };
   let h = phase(crashes > 0);
   await h.send("do it", thread);
-  await until(() => h.posts.length > 0, 8000); // the lead's start reply
+  await until(() => h.posts.length > 0, 8000); // the teammate's start reply
   if (crashes > 0) await until(() => hung === 1, 8000);
   for (let c = 1; c <= crashes; c++) {
     const report = recoverInFlight(env.db); // boot after the crash
@@ -120,7 +120,7 @@ test("crash x10: every item resumes its own session with the resume prompt + eff
     expect(resumed.options.resume).toBe(`worker-${i}`); // the first run's session
     expect(resumed.prompt).toContain(RESUME_PROMPT);
     expect(resumed.prompt).toContain(`- ${EFFECT_TOOL} repo main: pushed`);
-    // No owner prompt but the lead's own start reply, no duplicate effect row.
+    // No owner prompt but the teammate's own start reply, no duplicate effect row.
     expect(s.posts).toEqual(["On it."]);
     expect(
       (
@@ -136,7 +136,7 @@ test("crash x10: every item resumes its own session with the resume prompt + eff
   expect(finished).toBe(10);
 }, 120_000);
 
-test("two crashes in a row still resume; the third crash holds the item (cap 2) for the lead", async () => {
+test("two crashes in a row still resume; the third crash holds the item (cap 2) for the teammate", async () => {
   const two = await crashScenario(100, 2);
   expect(two.item()).toMatchObject({ status: "completed", attempt: 2 });
   expect(two.workerCalls).toHaveLength(3);

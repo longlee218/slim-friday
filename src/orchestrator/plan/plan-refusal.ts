@@ -13,7 +13,7 @@ import {
 import { spentOf } from "../budget/task-budget";
 import type { PlanCtx, PlanError } from "./plan-types";
 
-/* Refusals and goal-key facts shared by the plan lifecycle, revision and the lead tools. */
+/* Refusals and goal-key facts shared by the plan lifecycle, revision and the teammate tools. */
 
 /** Registry and goal facts the validator reads; `existingKeys` and `revisions` are computed here. */
 export type PlanEnv = Pick<PlanCtx, "workerRoles" | "locations">;

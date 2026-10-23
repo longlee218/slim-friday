@@ -24,7 +24,7 @@ afterEach(() => {
 });
 
 /** A live worker run over a real owned task row. */
-function live(id: string, kind: "worker" | "lead" = "worker") {
+function live(id: string, kind: "worker" | "teammate" = "worker") {
   db ??= openDb(":memory:");
   insertOwnedTask(db, {
     id,
@@ -44,7 +44,7 @@ function live(id: string, kind: "worker" | "lead" = "worker") {
           role: "developer",
           ac: new AbortController(),
         })
-      : registerRun({ kind, threadId: "th1", role: "lead", ac: new AbortController() });
+      : registerRun({ kind, threadId: "th1", role: "chief-of-staff", ac: new AbortController() });
   settles.push(settle);
 }
 
@@ -84,13 +84,13 @@ test("setWaiting flips the flag; leaving the wait counts as activity", () => {
   expect(progressOf("ra-3")?.idleSeconds).toBe(0);
 });
 
-test("a run that is not live, or is the lead's, is ignored (no throw)", () => {
-  live("ra-4", "lead");
+test("a run that is not live, or is the teammate's, is ignored (no throw)", () => {
+  live("ra-4", "teammate");
   touch(db, "ghost");
   setProgress(db, "ghost", { percent: 1, note: "n" });
   setWaiting(db, "ghost", true);
   expect(progressOf("ghost")).toBeUndefined();
-  expect(progressOf("lead:th1")).toBeUndefined();
+  expect(progressOf("teammate:th1")).toBeUndefined();
 });
 
 test("waits are a counter: two parallel confirms, the first closes, the run is still skipped by the watchdog", async () => {

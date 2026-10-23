@@ -9,7 +9,7 @@ import { buildRoleSkills } from "../src/runtime/skills-plugin/role-skills";
 /*
  * Leak check: a run sees only the skills its role lists (`RoleDefinition.skills`). The plugin dirs hold only those
  * skill folders and the `skills` option names only those qualified names, so the Skill tool refuses any other
- * (real-SDK canary: scripts/probe-skill-activation.ts --role lead asked to call a worker skill -> error result).
+ * (real-SDK canary: scripts/probe-skill-activation.ts --role teammate asked to call a worker skill -> error result).
  */
 const home = mkdtempSync(join(tmpdir(), "noleak-"));
 afterAll(() => removeTree(home));
@@ -26,12 +26,15 @@ test("every role gets exactly its listed skills: option names and plugin folders
   }
 });
 
-test("the lead holds its method skill and brainstorming, and no worker skill is in its plugins", () => {
-  const sk = buildRoleSkills(ROLES.lead!, undefined, home);
-  expect([...sk.skills].sort()).toEqual(["friday:lead-orchestration", "superpowers:brainstorming"]);
+test("the teammate holds its method skill and brainstorming, and no worker skill is in its plugins", () => {
+  const sk = buildRoleSkills(ROLES["chief-of-staff"]!, undefined, home);
+  expect([...sk.skills].sort()).toEqual([
+    "friday:teammate-orchestration",
+    "superpowers:brainstorming",
+  ]);
   expect(sk.dirs.flatMap((d) => readdirSync(join(d, "skills"))).sort()).toEqual([
     "brainstorming",
-    "lead-orchestration",
+    "teammate-orchestration",
   ]);
   sk.cleanup();
 });

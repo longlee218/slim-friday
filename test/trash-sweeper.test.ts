@@ -73,7 +73,7 @@ test("/purge empties the trash of THIS thread's goals only, after a yes", async 
     insertOwnedTask(db, {
       id,
       threadId,
-      ownerRole: "lead",
+      ownerRole: "chief-of-staff",
       status: "open",
       scope: "s",
       correlationId: id,

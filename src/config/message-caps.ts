@@ -1,5 +1,5 @@
 /* Caps of the task message exchange: what a run gets pushed in its prompt and what `TaskBoard` pages return.
-   Plain constants: no env, no behaviour. The brief cap is `BRIEF_MAX_CHARS` in `orchestrator/lead/lead-limits.ts`. */
+   Plain constants: no env, no behaviour. The brief cap is `BRIEF_MAX_CHARS` in `orchestrator/teammate/teammate-limits.ts`. */
 
 /** `TaskBoard messages` / `read`: chars of one page. */
 export const TASK_BOARD_PAGE_CHARS = 8000;

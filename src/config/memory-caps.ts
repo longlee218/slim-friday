@@ -20,7 +20,7 @@ export const JOURNAL_RETENTION_DAYS = 30;
 /** Episodes (`thread_summaries` rows) not updated for this many days are deleted with their index rows. */
 export const EPISODE_TTL_DAYS = 90;
 
-/** A thread whose newest lead turn ended this long ago (ms) is idle: it gets an episode. */
+/** A thread whose newest teammate turn ended this long ago (ms) is idle: it gets an episode. */
 export const EPISODE_IDLE_MS = 7_200_000;
 
 /** Most idle episodes one memory tick writes (the rest wait for the next tick). */
@@ -84,7 +84,7 @@ export const EDIT_BACKUP_KEEP = 20;
  */
 export const DREAM_MAX_DROP_SHARE = 0.5;
 
-/** Most episode abstracts the lead's per-turn prompt carries (the best FTS matches of the channel). */
+/** Most episode abstracts the teammate's per-turn prompt carries (the best FTS matches of the channel). */
 export const INJECT_MAX_HITS = 3;
 
 /** Chars of the whole "related earlier threads" block, heading included (lines that do not fit are dropped). */

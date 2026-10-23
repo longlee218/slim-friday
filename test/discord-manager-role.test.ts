@@ -47,7 +47,7 @@ test("role data: control kind, cheap, read + skills + ask only, own limits", () 
     expect(tools).not.toContain(t);
 });
 
-test("the role is never dispatchable by the lead", () => {
+test("the role is never dispatchable by the teammate", () => {
   expect(dispatchableWorkers().map((r) => r.name)).not.toContain(NAME);
   // The registry still knows it (the control runner finds it by `kind`).
   expect(getRole(NAME)).toBe(DISCORD_MANAGER_ROLE);
@@ -62,9 +62,10 @@ test("the guard allows exactly the role's app tools; other roles and unknown too
   expect(
     checkToolCall(mcpToolName(DISCORD_ADMIN_MCP_SERVER, "DeleteChannel"), {}, guard).decision,
   ).toBe("deny");
-  const lead = guardFor(getRole("lead"), {});
+  const teammate = guardFor(getRole("chief-of-staff"), {});
   expect(
-    checkToolCall(mcpToolName(DISCORD_ADMIN_MCP_SERVER, WRITE_SPACE_FILE_TOOL), {}, lead).decision,
+    checkToolCall(mcpToolName(DISCORD_ADMIN_MCP_SERVER, WRITE_SPACE_FILE_TOOL), {}, teammate)
+      .decision,
   ).toBe("deny");
 });
 
@@ -77,9 +78,9 @@ test("the admin server is built only when the run has the admin ctx and the role
     ].sort(),
   });
   expect(Object.keys(buildServers(DISCORD_MANAGER_ROLE, {}))).toEqual([]);
-  expect(Object.keys(buildServers(getRole("lead"), { admin: FULL_CTX.admin }))).not.toContain(
-    DISCORD_ADMIN_MCP_SERVER,
-  );
+  expect(
+    Object.keys(buildServers(getRole("chief-of-staff"), { admin: FULL_CTX.admin })),
+  ).not.toContain(DISCORD_ADMIN_MCP_SERVER);
 });
 
 test("its skill ships with the app, loads without a workspace, and no other role gets it", () => {
@@ -95,7 +96,7 @@ test("its skill ships with the app, loads without a workspace, and no other role
   } finally {
     mine.cleanup();
   }
-  for (const other of ["lead", "developer"]) {
+  for (const other of ["chief-of-staff", "developer"]) {
     const s = buildRoleSkills(getRole(other), undefined, env.home);
     expect(s.skills.some((n) => n.includes("discord-server-manager"))).toBe(false);
     s.cleanup();
@@ -205,7 +206,7 @@ test("CreateSpaceOrChannel asks the owner first; a no, a timeout (false) or an e
 test("a role that may cause external side effects is never re-run automatically", () => {
   expect(mayHaveWritten(DISCORD_MANAGER_ROLE)).toBe(true); // no write capability, sideEffects external
   expect(mayHaveWritten(getRole("developer"))).toBe(true);
-  expect(mayHaveWritten(getRole("lead"))).toBe(false);
+  expect(mayHaveWritten(getRole("chief-of-staff"))).toBe(false);
 });
 
 test("the registry validates", () => {

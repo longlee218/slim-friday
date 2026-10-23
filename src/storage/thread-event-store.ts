@@ -100,7 +100,7 @@ export function listUndelivered(db: Database, threadId: string): ThreadEvent[] {
 
 /**
  * `/stop`: the thread's undelivered `start` events (work that never began) are closed as delivered and marked
- * `cancelled` (in `claimed_by`), so no lead run picks them up later. A row claimed by a live consumer (its turn is
+ * `cancelled` (in `claimed_by`), so no teammate run picks them up later. A row claimed by a live consumer (its turn is
  * `running` / `waiting_approval`) is left alone; unclaimed and stale claims are closed. Returns how many were closed.
  */
 export function cancelStartEvents(db: Database, threadId: string): number {
@@ -114,7 +114,7 @@ export function cancelStartEvents(db: Database, threadId: string): number {
     .run(Date.now(), threadId).changes;
 }
 
-/** Close events by id as delivered (the lead run that read them ended; a record needs no reader). Returns how many rows changed. */
+/** Close events by id as delivered (the teammate run that read them ended; a record needs no reader). Returns how many rows changed. */
 export function markDeliveredIds(db: Database, ids: string[]): number {
   if (!ids.length) return 0;
   const now = Date.now();

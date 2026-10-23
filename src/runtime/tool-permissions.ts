@@ -43,7 +43,7 @@ export interface ToolPermissionInput {
    */
   bypassMode?: ModeActive;
   /**
-   * Lead-dispatched worker: its AskUserQuestion goes to this relay (a `question` event for the lead) instead of the
+   * Teammate-dispatched worker: its AskUserQuestion goes to this relay (a `question` event for the teammate) instead of the
    * owner's buttons. Resolves with the answers by question text, or undefined when nobody answered (then the run stops).
    */
   askRelay?: (questions: AskQuestion[]) => Promise<Record<string, string> | undefined>;

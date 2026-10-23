@@ -23,8 +23,8 @@ export function openReadOnly(): Database {
 /** Runs started before the own-cost fix (commit 2e1a8fb) store the SDK session total, not the run's own cost. */
 const OWN_COST_SINCE_MS = Date.parse("2026-10-22T18:31:16+07:00");
 
-/** True while the db still holds runs from before the own-cost fix, so lead cost sums read high (they age out with the db retention). */
-export function leadCostIsCumulative(db: Database): boolean {
+/** True while the db still holds runs from before the own-cost fix, so teammate cost sums read high (they age out with the db retention). */
+export function teammateCostIsCumulative(db: Database): boolean {
   return (
     db
       .query("SELECT 1 FROM runs r JOIN turns t ON t.id = r.turn_id WHERE t.started_at < ? LIMIT 1")

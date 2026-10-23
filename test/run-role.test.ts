@@ -15,8 +15,8 @@ import {
   stubGateway,
   TEST_CHANNEL,
 } from "./helpers";
-import { devLeadQuery, noticeSink, workersDone } from "./lead-harness";
 import { toolOf } from "./mcp-run-probe";
+import { devTeammateQuery, noticeSink, workersDone } from "./teammate-harness";
 
 /** Env with one workspace whose location `real` is a real git clone (a managed clone). */
 async function setup() {
@@ -31,7 +31,7 @@ async function setup() {
 
 /**
  * The dev worker edits, commits and ends with the report; or ends on `result` (budget, error).
- * No plan approval here: a worker's ask is relayed to the lead (covered by lead-flow).
+ * No plan approval here: a worker's ask is relayed to the teammate (covered by teammate-flow).
  */
 const fakeSdk = (result?: Record<string, unknown>) => (a: any) => {
   const o = a.options;
@@ -79,8 +79,8 @@ const handler = (env: Awaited<ReturnType<typeof setup>>, result?: Record<string,
     db: env.db,
     config: env.config,
     approvals: stubGateway(),
-    queryFn: devLeadQuery(fakeSdk(result)),
-    leadTiming: { debounceMs: 10, announceWindowMs: 20 },
+    queryFn: devTeammateQuery(fakeSdk(result)),
+    teammateTiming: { debounceMs: 10, announceWindowMs: 20 },
   });
 
 /** Send one message and wait until its detached worker settled (the worker's text is never returned). */
@@ -91,13 +91,15 @@ const send = async (
 ) => {
   const sink = noticeSink();
   const out = await h({ ...msg(text), notify: sink.notify });
-  const reply = out ?? (await sink.first()); // the lead queue answers
+  const reply = out ?? (await sink.first()); // the teammate queue answers
   await workersDone(env.db);
   return reply;
 };
 
 const codeTask = (env: Awaited<ReturnType<typeof setup>>) =>
-  env.db.query<any, []>("SELECT * FROM turns WHERE role != 'lead' ORDER BY started_at").all();
+  env.db
+    .query<any, []>("SELECT * FROM turns WHERE role != 'chief-of-staff' ORDER BY started_at")
+    .all();
 
 const runsOf = (env: Awaited<ReturnType<typeof setup>>, turnId: string) =>
   env.db.query<any, [string]>("SELECT * FROM runs WHERE turn_id = ?").all(turnId);
@@ -121,7 +123,7 @@ test("one dev run: ONE runs row with model and cost; the worker's text is not re
   expect(runs[0].cost_usd).toBeCloseTo(0.25);
   // The dev session is the turn row's, never the thread's.
   expect(
-    env.db.query("SELECT session_id FROM sessions WHERE COALESCE(kind, '') != 'lead'").get(),
+    env.db.query("SELECT session_id FROM sessions WHERE COALESCE(kind, '') != 'teammate'").get(),
   ).toBeNull();
   expect(t.session_id).toBe("sess-dev");
   // The typed result of the owned task settles it; no `location:` line is parsed out of the report any more.
@@ -144,7 +146,7 @@ test("dev on its budget: the run row keeps the cost and outcome, the task is not
   expect(runsOf(env, t.id)[0].cost_usd).toBeCloseTo(3.2);
   expect(t.status).not.toBe("done");
   expect(
-    env.db.query("SELECT session_id FROM sessions WHERE COALESCE(kind, '') != 'lead'").get(),
+    env.db.query("SELECT session_id FROM sessions WHERE COALESCE(kind, '') != 'teammate'").get(),
   ).toBeNull();
 });
 

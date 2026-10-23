@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import { leadHarness, until } from "./lead-harness";
+import { teammateHarness, until } from "./teammate-harness";
 
-/* TODO-app scenario with a fake query: owner -> Orchestrate create_plan -> the lead writes a DAG over the ROSTER roles -> one approval ->
+/* TODO-app scenario with a fake query: owner -> Orchestrate create_plan -> the teammate writes a DAG over the ROSTER roles -> one approval ->
    architect -> (designer, scaffold) -> build -> (tester || hacker, parallel) -> writer. A second run: the tester fails. */
 
 const step = (key: string, role: string, dependsOn: string[] = [], risk = "R1") => ({
@@ -23,14 +23,14 @@ const ITEMS = [
   step("docs", "humanizer-writer", ["test", "audit"]),
 ];
 
-/** Harness whose lead stores ITEMS, and whose workers run `worker(key)`; the lead approves the plan and ends with `final`. */
+/** Harness whose teammate stores ITEMS, and whose workers run `worker(key)`; the teammate approves the plan and ends with `final`. */
 function scenario(worker: (key: string) => Promise<"COMPLETED" | "FAILED">, final: RegExp) {
-  return leadHarness(
+  return teammateHarness(
     async (c) => {
       if (c.kind === "worker") {
         // The code-appended items have no `do <key>` brief: "Verify the goal: ..." and "Fix the goal: ...".
         const key =
-          /\[brief\] lead: do (\w+)/.exec(c.prompt)?.[1] ??
+          /\[brief\] teammate: do (\w+)/.exec(c.prompt)?.[1] ??
           (c.prompt.includes("Acceptance criteria:") ? "verify" : "fix");
         const status = await worker(key);
         await c.report("result", { title: "T", status, summary: `${key} ${status}` });
@@ -87,7 +87,7 @@ test("the roster runs a DAG: tester and hacker overlap, everything else follows 
   ]);
 });
 
-test("a failing tester is held: its dependent `docs` waits, the hacker's result stays, the goal stays open, the lead is told", async () => {
+test("a failing tester is held: its dependent `docs` waits, the hacker's result stays, the goal stays open, the teammate is told", async () => {
   const h = scenario(async (key) => (key === "test" ? "FAILED" : "COMPLETED"), /FAILED|failure/);
   await h.send("build a todo app");
   await until(() => h.posts.includes("Final report."), 20000);
@@ -101,7 +101,7 @@ test("a failing tester is held: its dependent `docs` waits, the hacker's result 
     audit: "completed",
     build: "completed",
   });
-  // Held, not decided: the goal is still open until the lead retries or cancels.
+  // Held, not decided: the goal is still open until the teammate retries or cancels.
   expect(
     (h.env.db.query("SELECT status FROM owned_tasks WHERE parent_id IS NULL").get() as any)?.status,
   ).toBe("open");

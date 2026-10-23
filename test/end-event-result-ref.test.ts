@@ -20,7 +20,7 @@ function setup() {
   insertOwnedTask(db, {
     id: "g",
     threadId: "th",
-    ownerRole: "lead",
+    ownerRole: "chief-of-staff",
     status: "open",
     scope: "g",
     correlationId: "c",

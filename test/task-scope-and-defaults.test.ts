@@ -1,8 +1,8 @@
 import type { Database } from "bun:sqlite";
 import { afterEach, expect, test } from "bun:test";
 import { createDbEffectPort } from "../src/orchestrator/goal/effect-port-db";
-import { handleDispatch } from "../src/orchestrator/lead/lead-handlers";
-import { handleAdd } from "../src/orchestrator/lead/lead-task-handlers";
+import { handleDispatch } from "../src/orchestrator/teammate/teammate-handlers";
+import { handleAdd } from "../src/orchestrator/teammate/teammate-task-handlers";
 import { openDb } from "../src/storage/db";
 import { getItem } from "../src/storage/owned-item-store";
 import { insertOwnedTask } from "../src/storage/owned-task-store";
@@ -18,8 +18,8 @@ afterEach(() => {
   db = undefined as never;
 });
 
-/** A lead port on `threadId` over the shared db; each call gets its own lead ctx. */
-function leadPort(threadId: string) {
+/** A teammate port on `threadId` over the shared db; each call gets its own teammate ctx. */
+function teammatePort(threadId: string) {
   const port = createDbEffectPort({
     db,
     threadId,
@@ -34,7 +34,7 @@ function leadPort(threadId: string) {
   return () => ({
     port,
     threadId,
-    leadTurnId: `lt${++n}`,
+    teammateTurnId: `lt${++n}`,
     inputId: `in-${threadId}-${n}`,
     run: { dispatched: 0 },
   });
@@ -52,8 +52,8 @@ const dispatchSame = (ctx: () => any) =>
 
 test("rule 3 scope: similar open work of ANOTHER thread is not a duplicate", async () => {
   db = openDb(":memory:");
-  const a = leadPort("th-a");
-  const b = leadPort("th-b");
+  const a = teammatePort("th-a");
+  const b = teammatePort("th-b");
   expect(await dispatchSame(a)).toMatchObject({ ok: true });
   expect(await dispatchSame(b)).toMatchObject({ ok: true });
 });
@@ -87,7 +87,7 @@ test("rule 3 scope: create_plan does not flag the plan goal's own earlier items"
 
 test("rule 4 default: an add without priority stores 0 (normal)", async () => {
   db = openDb(":memory:");
-  const ctx = leadPort("th-d");
+  const ctx = teammatePort("th-d");
   await handleDispatch(ctx(), {
     strategy: "DIRECT",
     small: true,

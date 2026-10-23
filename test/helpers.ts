@@ -194,7 +194,7 @@ export function readLogLines(base: string): Record<string, unknown>[] {
 export const BRIEF =
   "Add b.txt containing two. Findings: a.txt:1 holds one. Acceptance: file exists.";
 
-/** `BRIEF` as the owner would type it to open a dev task (a fake lead dispatches it to the developer). */
+/** `BRIEF` as the owner would type it to open a dev task (a fake teammate dispatches it to the developer). */
 export const DEV_REQUEST = BRIEF;
 
 /** Channel mapped to `w2` (w1 owns TEST_CHANNEL). */

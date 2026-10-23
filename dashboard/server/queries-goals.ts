@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite";
-import { leadTurnsInWindow, TURN_SELECT, type TurnRow } from "./turn-rows";
+import { teammateTurnsInWindow, TURN_SELECT, type TurnRow } from "./turn-rows";
 
 /** Goal = an `owned_tasks` row with no parent; its items are the rows whose `parent_id` is the goal. */
 interface GoalRow {
@@ -38,25 +38,25 @@ const GOAL_SELECT = `
   FROM owned_tasks g LEFT JOIN threads th ON th.thread_id = g.thread_id
   WHERE g.parent_id IS NULL`;
 
-/** Open goals end "now" so their lead window keeps growing. */
+/** Open goals end "now" so their teammate window keeps growing. */
 function windowEnd(g: GoalRow): number {
   return g.status === "open" ? Date.now() : g.end_at;
 }
 
-/** Sum of a lead window's run costs. */
-function leadCost(db: Database, g: GoalRow): number {
-  return leadTurnsInWindow(db, g.thread_id, g.created_at, windowEnd(g)).reduce(
+/** Sum of a teammate window's run costs. */
+function teammateCost(db: Database, g: GoalRow): number {
+  return teammateTurnsInWindow(db, g.thread_id, g.created_at, windowEnd(g)).reduce(
     (s, t) => s + (t.cost_usd ?? 0),
     0,
   );
 }
 
-/** Goals created since `since`, newest first, with item counts and cost split worker / lead. */
+/** Goals created since `since`, newest first, with item counts and cost split worker / teammate. */
 export function listGoals(db: Database, since: number) {
   const rows = db
     .query<GoalRow, [number]>(`${GOAL_SELECT} AND g.created_at >= ? ORDER BY g.created_at DESC`)
     .all(since);
-  return rows.map((g) => ({ ...g, lead_cost: leadCost(db, g) }));
+  return rows.map((g) => ({ ...g, teammate_cost: teammateCost(db, g) }));
 }
 
 /** Everything one goal screen needs: goal, plans, items, every run on a time axis, events, effects. */
@@ -76,7 +76,7 @@ export function goalDetail(db: Database, id: string) {
       `${TURN_SELECT} WHERE o.parent_id = ? ORDER BY t.started_at`,
     )
     .all(id);
-  const leadTurns = leadTurnsInWindow(db, goal.thread_id, goal.created_at, end);
+  const teammateTurns = teammateTurnsInWindow(db, goal.thread_id, goal.created_at, end);
   const plans = db
     .query(
       `SELECT id, version, status, strategy, objective, budget_usd, reason, created_at, approved_at
@@ -98,6 +98,6 @@ export function goalDetail(db: Database, id: string) {
        WHERE goal_id = ? ORDER BY created_at`,
     )
     .all(id);
-  const lead_cost = leadTurns.reduce((s, t) => s + (t.cost_usd ?? 0), 0);
-  return { goal: { ...goal, lead_cost }, items, turns: [...leadTurns, ...workerTurns], plans, events, effects };
+  const teammate_cost = teammateTurns.reduce((s, t) => s + (t.cost_usd ?? 0), 0);
+  return { goal: { ...goal, teammate_cost }, items, turns: [...teammateTurns, ...workerTurns], plans, events, effects };
 }

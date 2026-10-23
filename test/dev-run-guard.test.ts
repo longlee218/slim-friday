@@ -12,7 +12,7 @@ import { MEMORY_SAVE_TOOL } from "../src/mcp/memory/tools/MemorySaveTool/constan
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { setupWorkflow } from "./code-flow-fixture";
 import { resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
-import { devLeadQuery, workersDone } from "./lead-harness";
+import { devTeammateQuery, workersDone } from "./teammate-harness";
 
 // Dev run options (Rev 15 phases 3 and 5): the run works in the location's own checkout (no clone), with the guard
 // scope of the spec, no git or GitHub MCP, the owner's env passed through, and the one worktree line.
@@ -33,8 +33,8 @@ async function runExec() {
     db: env.db,
     config: env.config,
     approvals: stubGateway(),
-    leadTiming: { debounceMs: 10, announceWindowMs: 20 },
-    queryFn: devLeadQuery((a: any) => {
+    teammateTiming: { debounceMs: 10, announceWindowMs: 20 },
+    queryFn: devTeammateQuery((a: any) => {
       seen.push(a.options);
       return (async function* () {
         yield resultMsg({ result: "done\n\nlocation: real" });
@@ -113,7 +113,7 @@ test("dev prompt: no worktree line; delivery waits for the owner's choice", asyn
   expect(exec.systemPrompt.append).toContain("merge, push or PR only after the owner chose it");
 });
 
-test("wiring: the developer run's real memory server is read-only (owner rule: only the lead saves)", async () => {
+test("wiring: the developer run's real memory server is read-only (owner rule: only the teammate saves)", async () => {
   const { exec } = await runExec();
   // Test-only: `_registeredTools` is an undocumented MCP SDK internal (no public list call on the instance).
   const held = Object.keys(exec.mcpServers[MEMORY_MCP_SERVER].instance._registeredTools);

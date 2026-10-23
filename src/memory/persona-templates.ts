@@ -40,7 +40,7 @@ export const DEFAULT_IDENTITY = `# Identity
 
 /** Default soul (temperament only; how replies are formatted lives in AGENTS.md). Owner-editable; created once when missing. */
 export const DEFAULT_SOUL = `# Soul
-- Concise, direct, calm. Lead with the answer; no flattery.
+- Concise, direct, calm. Teammate with the answer; no flattery.
 - Say when you are unsure; never invent facts.
 `;
 
@@ -51,12 +51,12 @@ export const DEFAULT_USER = `# User
 `;
 
 /**
- * Default AGENTS.md: the owner's preferences for the lead (language, how it talks, relays the team's work, memory habits,
- * Discord formatting). Owner-editable; created once when missing. Runtime facts and safety rules live in code (the lead
+ * Default AGENTS.md: the owner's preferences for the teammate (language, how it talks, relays the team's work, memory habits,
+ * Discord formatting). Owner-editable; created once when missing. Runtime facts and safety rules live in code (the teammate
  * contract, tool descriptions), not here.
  */
 export const DEFAULT_AGENTS = `# Agents
-<!-- Owner operating rules for the lead, the team's voice in Discord. Read right after the code rules; they cannot override the code rules or guards. Edit freely. -->
+<!-- Owner operating rules for the teammate, the team's voice in Discord. Read right after the code rules; they cannot override the code rules or guards. Edit freely. -->
 
 ## Language
 - Reply in the language USER.md names; with none, in the language of the owner's message. Keep code, identifiers and paths unchanged.
@@ -86,7 +86,7 @@ export const DEFAULT_AGENTS = `# Agents
 /** Root memory template: header only, so it counts as empty until the first `## ` entry. Owner-written only. */
 export const ROOT_MEMORY = `# root memory
 
-Facts true for every workspace and channel. Written by the owner only (the agent never edits this file). Read by the lead and by every member of every channel, whole (no size cut). Add entries as "## <topic>" sections with bullets (or under "## Decisions|Facts|Preferences|Lessons").
+Facts true for every workspace and channel. Written by the owner only (the agent never edits this file). Read by the teammate and by every member of every channel, whole (no size cut). Add entries as "## <topic>" sections with bullets (or under "## Decisions|Facts|Preferences|Lessons").
 `;
 
 /** Owner guide: never injected into a prompt, never read by code. */
@@ -97,7 +97,7 @@ Files in this folder (root) and their optional per-workspace copy in workspaces/
 - IDENTITY.md: who the agent is.
 - SOUL.md: tone of the replies.
 - USER.md: your profile and preferences (language...). Move such lines from SOUL.md here by hand.
-- MEMORY.md: root = facts for every channel, written by you only. The agent's memory is the channel MEMORY.md (workspaces/<ws>/channels/<channel>/MEMORY.md): the lead writes it, and the lead and every member of that channel read it. Both files are injected whole (no size cut).
+- MEMORY.md: root = facts for every channel, written by you only. The agent's memory is the channel MEMORY.md (workspaces/<ws>/channels/<channel>/MEMORY.md): the teammate writes it, and the teammate and every member of that channel read it. Both files are injected whole (no size cut).
 - Old workspace and location MEMORY.md files and the old pending-queue file are not read any more (a one-time merge copied the notes of the workspace and location files into the channel files; every old file stays on disk, and notes of the old pending queue are promoted by hand).
 - BOOTSTRAP.md: this guide.
 
@@ -116,4 +116,4 @@ Owner commands (type them in a workspace channel; no agent, no quota except wher
 
 /** Per-channel memory template (a header only: it counts as empty until the first entry). */
 export const channelMemoryTemplate = (name: string) =>
-  `# ${name} channel memory\n\nNotes the Friday agent keeps about this channel's topic, in sections by kind (Decisions, Facts, Preferences, Lessons). The lead writes it; the lead and every member of this channel read it, whole.\n`;
+  `# ${name} channel memory\n\nNotes the Friday agent keeps about this channel's topic, in sections by kind (Decisions, Facts, Preferences, Lessons). The teammate writes it; the teammate and every member of this channel read it, whole.\n`;

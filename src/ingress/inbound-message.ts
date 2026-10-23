@@ -25,7 +25,7 @@ export interface InboundMessage {
   messageId?: string;
   /** Id of the message this one is a Discord reply to; a reply to a task's question message answers that task. */
   replyToMessageId?: string;
-  /** The last messages of the thread before this one (owner and bot, redacted, clipped), oldest first; for the lead. Absent = none. */
+  /** The last messages of the thread before this one (owner and bot, redacted, clipped), oldest first; for the teammate. Absent = none. */
   recent?: RecentMessage[];
   /** Marks the first visible response as posted (settles the 👀 receipt, stops typing): called after a successful question post. */
   visible?: () => Promise<void>;

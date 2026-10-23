@@ -1,6 +1,6 @@
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
-/** Messages between the lead and a worker, attached to a task (append-only; read scope = the thread). */
+/** Messages between the teammate and a worker, attached to a task (append-only; read scope = the thread). */
 export const task_messages = sqliteTable(
   "task_messages",
   {
@@ -12,7 +12,7 @@ export const task_messages = sqliteTable(
     goal_id: text().notNull(),
     /** Item the message belongs to. */
     task_id: text().notNull(),
-    /** Who wrote it: `lead`, a role name, `system` (code) or `owner` (an owner reply the lead relayed). */
+    /** Who wrote it: `teammate`, a role name, `system` (code) or `owner` (an owner reply the teammate relayed). */
     author: text().notNull(),
     /** `brief`, `steer`, `question`, `answer`, `note`, `progress`, `blocker` or `result`. */
     kind: text().notNull(),

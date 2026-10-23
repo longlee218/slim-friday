@@ -25,7 +25,7 @@ function fakeGateway(approved = true) {
 }
 
 /**
- * Run one dev message (a fake lead dispatches it to a dev worker); capture the SDK options of its run.
+ * Run one dev message (a fake teammate dispatches it to a dev worker); capture the SDK options of its run.
  * `gw` answers the owner-decided tools of the run.
  */
 async function runCodeTask(gw?: ApprovalGateway) {
@@ -69,9 +69,9 @@ test("code task (a dispatched worker) runs in default mode, never bypass, in the
   expect(opts.canUseTool).toBeFunction();
   expect(opts.systemPrompt.append).toContain("The brief is the approved plan");
   // The run keeps its session on the task row, never in the thread's session table.
-  expect(env.db.query("SELECT cwd FROM sessions WHERE COALESCE(kind, '') != 'lead'").all()).toEqual(
-    [],
-  );
+  expect(
+    env.db.query("SELECT cwd FROM sessions WHERE COALESCE(kind, '') != 'teammate'").all(),
+  ).toEqual([]);
   expect(
     env.db.query("SELECT counts_toward_cap FROM turns WHERE role = 'developer'").all(),
   ).toEqual([{ counts_toward_cap: 1 }]);

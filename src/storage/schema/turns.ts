@@ -1,6 +1,6 @@
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
-/** One run of a role in a thread (a lead call or a detached worker task). */
+/** One run of a role in a thread (a teammate call or a detached worker task). */
 export const turns = sqliteTable(
   "turns",
   {

@@ -11,7 +11,7 @@ export const enLimits = {
   "limits.subagents": "**Allowed subagents**",
   "limits.other": "**Other**",
   "limits.live": "**Right now**",
-  "limits.leadPool": "- Lead pool: {used}/{cap} in use, {waiting} threads waiting",
+  "limits.teammatePool": "- Teammate pool: {used}/{cap} in use, {waiting} threads waiting",
   "limits.workerSlots": "- Worker slots: {used}/{cap} in use",
   "limits.readyWaiting": "- Items ready and waiting for a slot: {count}",
   "limits.threadRunning": "- <#{threadId}>: {count} running",

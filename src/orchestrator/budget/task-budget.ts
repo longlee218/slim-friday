@@ -33,7 +33,7 @@ export function goalBudgetOf(db: Database, goalId: string): number {
 export const goalBudgetCanGrow = (db: Database, goalId: string): boolean =>
   newestApprovedVersion(db, goalId) != null && goalBudgetOf(db, goalId) < PLAN_GOAL_BUDGET_MAX_USD;
 
-/** Why an item was held for budget: the lead reads it in the `budget_hit` event, so it names the way out. */
+/** Why an item was held for budget: the teammate reads it in the `budget_hit` event, so it names the way out. */
 export const budgetReason = (db: Database, goalId: string): string =>
   `goal budget $${goalBudgetOf(db, goalId)} used` +
   (goalBudgetCanGrow(db, goalId)

@@ -42,7 +42,7 @@ function go(
   return runAgent({
     prompt: "q",
     turnId: "T",
-    role: getRole("lead"),
+    role: getRole("chief-of-staff"),
     cwd: env.home,
     config: env.config,
     db: env.db,
@@ -107,7 +107,7 @@ describe("run-agent stream handling", () => {
     );
   });
 
-  test("sdk options: lead tools (read only, no shell or write), project settings, abort controller", async () => {
+  test("sdk options: teammate tools (read only, no shell or write), project settings, abort controller", async () => {
     const env = makeEnv();
     let seen: any;
     await go(env, ((a: any) => {
@@ -120,9 +120,9 @@ describe("run-agent stream handling", () => {
       GREP_TOOL_NAME,
       LSP_TOOL_NAME,
       SKILL_TOOL_NAME,
-    ]); // read only + Skill (lead-orchestration), no shell
+    ]); // read only + Skill (teammate-orchestration), no shell
     expect("agents" in seen).toBe(false); // no app-defined subagents
-    expect(Object.keys(seen.mcpServers)).not.toContain("git"); // the lead has no git groups
+    expect(Object.keys(seen.mcpServers)).not.toContain("git"); // the teammate has no git groups
     expect(seen.mcpServers.github).toBeUndefined();
     expect(seen.allowedTools).toBeUndefined();
     expect(seen.settingSources).toEqual([]);
@@ -265,7 +265,7 @@ describe("run supervisor observation (onControlEvent)", () => {
     await runAgent({
       prompt: "q",
       turnId: "T",
-      role: getRole("lead"),
+      role: getRole("chief-of-staff"),
       cwd: env.home,
       config: env.config,
       db: env.db,

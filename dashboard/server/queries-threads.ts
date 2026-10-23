@@ -20,7 +20,7 @@ export function listThreads(db: Database, since: number) {
 
 /**
  * A thread as one ordered stream: every event and every run start, so a replay reads
- * "owner said X -> lead ran -> dispatched Y -> Y reported" top to bottom.
+ * "owner said X -> teammate ran -> dispatched Y -> Y reported" top to bottom.
  */
 export function threadReplay(db: Database, threadId: string) {
   const thread = db

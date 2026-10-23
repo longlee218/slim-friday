@@ -121,7 +121,7 @@ export function saveNote(ctx: MemoryToolContext, a: MemorySaveArgs, now: Date): 
   }
   const res = save();
   if (typeof res === "object") {
-    // A near-duplicate is not written: name it so the lead can change it with MemoryEdit (not an error, nothing failed).
+    // A near-duplicate is not written: name it so the teammate can change it with MemoryEdit (not an error, nothing failed).
     const id = makeId(prefix, res.similar.token, res.similar.n, res.similar.hash);
     return {
       text: `not saved: a similar note already exists (id ${id}). Read it with MemoryGet; change it with MemoryEdit replace, skip, or repeat with confirmNew: true if this is a different fact.`,

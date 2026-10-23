@@ -7,8 +7,8 @@ import { appendEvent, holdCount, markStartDelivered } from "../../storage/thread
 import { moveTaskTo } from "../../tasks/task-resolver";
 import { budgetReason, goalBudgetCanGrow, goalOverBudget } from "../budget/task-budget";
 import { openGoalIdOf } from "../goal/effect-port-queries";
-import type { LeadRuntime } from "../lead/lead-runtime";
 import { zombieClaims } from "../run/zombie-claims";
+import type { TeammateRuntime } from "../teammate/teammate-runtime";
 import { cancelDeadWaiters, cancelDependents, settleGoal } from "./goal-settle";
 import { clearHold, waitMs } from "./resume-backoff";
 import { hasPendingAnswer } from "./resume-prompt";
@@ -28,11 +28,11 @@ const again = new Set<string>();
 
 /**
  * Stop an item the engine will not start. The breaker (`failure`) fails it for good: the work order closes, dependents are
- * cancelled. A budget hit (`budget_hit`) only HOLDS it (`blocked`, FAILED): dependents wait and the lead retries it once the
- * budget allows, or cancels it. The lead is told either way.
+ * cancelled. A budget hit (`budget_hit`) only HOLDS it (`blocked`, FAILED): dependents wait and the teammate retries it once the
+ * budget allows, or cancels it. The teammate is told either way.
  */
 function failItem(
-  rt: LeadRuntime,
+  rt: TeammateRuntime,
   threadId: string,
   it: ItemRow,
   kind: "failure" | "budget_hit",
@@ -54,7 +54,7 @@ function failItem(
     payload: {
       key: it.itemKey,
       error: reason,
-      // A budget hold tells the lead whether the budget can still rise (a retry is pointless when it cannot).
+      // A budget hold tells the teammate whether the budget can still rise (a retry is pointless when it cannot).
       ...(hold && { cause: "budget", canGrow: goalBudgetCanGrow(db, it.parentId ?? it.id) }),
     },
   });
@@ -62,7 +62,7 @@ function failItem(
 }
 
 /** Retry the thread's pass once after `ms` (default `WORKER_SLOT_RETRY_MS`; one timer per thread; it never keeps the process alive). */
-function deferRetry(rt: LeadRuntime, threadId: string, ms = WORKER_SLOT_RETRY_MS): void {
+function deferRetry(rt: TeammateRuntime, threadId: string, ms = WORKER_SLOT_RETRY_MS): void {
   if (deferred.has(threadId)) return;
   const t = setTimeout(() => {
     deferred.delete(threadId);
@@ -73,7 +73,7 @@ function deferRetry(rt: LeadRuntime, threadId: string, ms = WORKER_SLOT_RETRY_MS
 }
 
 /** A worker ended and freed a run slot: every thread that was deferred retries now. */
-function wakeDeferred(rt: LeadRuntime): void {
+function wakeDeferred(rt: TeammateRuntime): void {
   for (const [threadId, t] of [...deferred]) {
     clearTimeout(t);
     deferred.delete(threadId);
@@ -91,14 +91,14 @@ const roleCaps = (name: string | null): RoleCaps => {
  * One pass: promote waiting items, fail the ones the engine will not start (breaker, budget), start the items the scheduler
  * picks (independent items run in parallel), settle the goal when all ended.
  */
-async function pass(rt: LeadRuntime, threadId: string): Promise<void> {
+async function pass(rt: TeammateRuntime, threadId: string): Promise<void> {
   const { db } = rt.deps;
   const ctx = rt.ctxOf(threadId);
   const goalId = openGoalIdOf(db, threadId);
   if (!ctx || !goalId) return;
   if (rt.deps.stopping()) return; // shutdown: an item resumed by the abort starts at the next boot, not now
   for (;;) {
-    // A pending item whose dependency ended without a result can never start: cancel it (the lead is told).
+    // A pending item whose dependency ended without a result can never start: cancel it (the teammate is told).
     if (cancelDeadWaiters(db, goalId).length) rt.announce(threadId);
     let items = childrenOf(db, goalId);
     // A pending item whose dependencies all completed is ready.
@@ -118,7 +118,7 @@ async function pass(rt: LeadRuntime, threadId: string): Promise<void> {
     // Refused items first (a failed one cancels its dependents, so the list is read again).
     const overBudget = goalOverBudget(db, goalId);
     // The breaker stops a re-dispatch loop, never an automatic resume (`attempt > 0`): a transient failure at the third
-    // dispatch still gets its capped resumes and then a hold for the lead, not a terminal failure.
+    // dispatch still gets its capped resumes and then a hold for the teammate, not a terminal failure.
     // An item resuming on an answer to its own question is no loop either (its start is not counted).
     const tripped = (i: ItemRow) =>
       i.attempt === 0 && i.dispatchCount >= MAX_DISPATCHES_PER_ITEM && !hasPendingAnswer(db, i.id);
@@ -157,7 +157,7 @@ async function pass(rt: LeadRuntime, threadId: string): Promise<void> {
       });
       if (started) clearSlotWait(next.id);
       else {
-        // Worker pool full: the item stays ready and is retried on the next worker end or after a short wait; the lead hears of it after 60 s.
+        // Worker pool full: the item stays ready and is retried on the next worker end or after a short wait; the teammate hears of it after 60 s.
         logEvent(log, "dispatch.deferred", { itemId: next.id, reason: "run_limit" }, "warn");
         // Every pick the pool keeps waiting (not only the head) starts its 60 s clock; an item in resume backoff is not a slot wait.
         for (const waiting of picks.slice(at))
@@ -171,10 +171,10 @@ async function pass(rt: LeadRuntime, threadId: string): Promise<void> {
 }
 
 /**
- * Start the work the lead queued: the ready items of the thread's open goal that the caps allow (see scheduler.ts), in order.
- * Called after a lead run and after each worker ends. Calls that overlap on one thread run one pass after another.
+ * Start the work the teammate queued: the ready items of the thread's open goal that the caps allow (see scheduler.ts), in order.
+ * Called after a teammate run and after each worker ends. Calls that overlap on one thread run one pass after another.
  */
-export async function dispatchReady(rt: LeadRuntime, threadId: string): Promise<void> {
+export async function dispatchReady(rt: TeammateRuntime, threadId: string): Promise<void> {
   if (passing.has(threadId)) {
     again.add(threadId);
     return;

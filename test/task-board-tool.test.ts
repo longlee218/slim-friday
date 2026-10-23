@@ -3,9 +3,9 @@ import { afterEach, beforeEach, expect, test } from "bun:test";
 import { TASK_BOARD_PAGE_CHARS } from "../src/config/message-caps";
 import { createTaskBoardTool } from "../src/mcp/orchestration/tools/TaskBoardTool/task-board-tool";
 import { createDbEffectPort } from "../src/orchestrator/goal/effect-port-db";
-import { handleDispatch } from "../src/orchestrator/lead/lead-handlers";
 import { messageRef } from "../src/orchestrator/messages/message-ref";
 import { postTaskMessage } from "../src/orchestrator/messages/task-messages";
+import { handleDispatch } from "../src/orchestrator/teammate/teammate-handlers";
 import { openDb } from "../src/storage/db";
 
 /* TaskBoard: a read-only action tool scoped to the run's thread (from the ctx, never from params). */
@@ -29,7 +29,13 @@ async function seed(threadId: string, key: string, brief: string, supersedes?: s
     },
   });
   const d = (await handleDispatch(
-    { port, threadId, leadTurnId: "lt", inputId: `in-${threadId}-${key}`, run: { dispatched: 0 } },
+    {
+      port,
+      threadId,
+      teammateTurnId: "lt",
+      inputId: `in-${threadId}-${key}`,
+      run: { dispatched: 0 },
+    },
     {
       strategy: "DELEGATE",
       confirmNew: true,

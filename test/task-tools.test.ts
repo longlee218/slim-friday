@@ -1,13 +1,13 @@
 import type { Database } from "bun:sqlite";
 import { afterEach, expect, test } from "bun:test";
 import { rmSync } from "node:fs";
-import { CHAIN_CAP, DELEGATE_MAX } from "../src/config/lead-caps";
+import { CHAIN_CAP, DELEGATE_MAX } from "../src/config/teammate-caps";
 import { createDbEffectPort } from "../src/orchestrator/goal/effect-port-db";
-import { handleDispatch } from "../src/orchestrator/lead/lead-handlers";
-import { handleCreatePlan } from "../src/orchestrator/lead/lead-plan-handlers";
-import { handleAdd, handleUpdate } from "../src/orchestrator/lead/lead-task-handlers";
 import { boardGet, boardSearch } from "../src/orchestrator/messages/task-board-reads";
 import { postItemMessage } from "../src/orchestrator/messages/task-messages";
+import { handleDispatch } from "../src/orchestrator/teammate/teammate-handlers";
+import { handleCreatePlan } from "../src/orchestrator/teammate/teammate-plan-handlers";
+import { handleAdd, handleUpdate } from "../src/orchestrator/teammate/teammate-task-handlers";
 import { openDb } from "../src/storage/db";
 import { getItem, setTaskResult } from "../src/storage/owned-item-store";
 import { insertOwnedTask } from "../src/storage/owned-task-store";
@@ -15,7 +15,7 @@ import { appendEvent } from "../src/storage/thread-event-store";
 import { moveTaskTo } from "../src/tasks/task-resolver";
 import { item, spend, TH } from "./plan-fixture";
 
-/* Phase 4 step 2A: the lead's add / update, the board get / search, the duplicate check (rule 3) on dispatch, add and Plan create. */
+/* Phase 4 step 2A: the teammate's add / update, the board get / search, the duplicate check (rule 3) on dispatch, add and Plan create. */
 
 let db: Database;
 const dirs: string[] = [];
@@ -42,7 +42,7 @@ function setup(threadId = TH) {
   const ctx = () => ({
     port,
     threadId,
-    leadTurnId: `lt${++n}`,
+    teammateTurnId: `lt${++n}`,
     inputId: `in${threadId}${n}`,
     run: { dispatched: 0 },
   });
@@ -75,8 +75,8 @@ const addArgs = (key: string, over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-/** A lead-owned goal with the item `main`; returns the ids. */
-async function leadGoal(over: Record<string, unknown> = {}) {
+/** A teammate-owned goal with the item `main`; returns the ids. */
+async function teammateGoal(over: Record<string, unknown> = {}) {
   const s = setup();
   const d = (await handleDispatch(s.ctx(), dispatch(over))) as unknown as {
     goalId: string;
@@ -87,12 +87,12 @@ async function leadGoal(over: Record<string, unknown> = {}) {
 const WORDS = ["alpha", "bravo", "charlie", "delta", "echo", "foxtrot", "golf"];
 
 test("dispatch stores subject and priority on the items", async () => {
-  const { mainId } = await leadGoal({ assignments: [asg("main", { priority: 100 })] });
+  const { mainId } = await teammateGoal({ assignments: [asg("main", { priority: 100 })] });
   expect(getItem(db, mainId)).toMatchObject({ subject: "main", priority: 100 });
 });
 
-test("add: a task joins the open lead goal and starts ready; with a pending dependency it waits", async () => {
-  const { ctx, goalId } = await leadGoal();
+test("add: a task joins the open teammate goal and starts ready; with a pending dependency it waits", async () => {
+  const { ctx, goalId } = await teammateGoal();
   expect(await handleAdd(ctx(), addArgs("docs"))).toMatchObject({
     ok: true,
     goalId,
@@ -120,8 +120,8 @@ test("add: a task joins the open lead goal and starts ready; with a pending depe
 });
 
 test("add: refused on a plan-owned goal (NOT_STRUCTURE_OWNER); a closed goal is GOAL_NOT_OPEN", async () => {
-  const { ctx, goalId } = await leadGoal();
-  // The lead goal is cancelled by a plan goal replacing it? No: a plan goal is opened apart, the lead goal closes first.
+  const { ctx, goalId } = await teammateGoal();
+  // The teammate goal is cancelled by a plan goal replacing it? No: a plan goal is opened apart, the teammate goal closes first.
   moveTaskTo(db, goalId, "cancelled");
   expect(
     await handleCreatePlan(
@@ -145,7 +145,7 @@ test("add: refused on a plan-owned goal (NOT_STRUCTURE_OWNER); a closed goal is 
 });
 
 test("add: dependency, key, role and location rules; a dead dependency is refused", async () => {
-  const { ctx, mainId } = await leadGoal();
+  const { ctx, mainId } = await teammateGoal();
   expect(await handleAdd(ctx(), addArgs("x1", { dependsOn: ["ghost"] }))).toMatchObject({
     code: "UNKNOWN_DEP",
   });
@@ -155,7 +155,7 @@ test("add: dependency, key, role and location rules; a dead dependency is refuse
     code: "DUPLICATE_KEY",
   });
   expect(await handleAdd(ctx(), addArgs("verify-3"))).toMatchObject({ code: "RESERVED_KEY" });
-  expect(await handleAdd(ctx(), addArgs("x2", { role: "lead" }))).toMatchObject({
+  expect(await handleAdd(ctx(), addArgs("x2", { role: "chief-of-staff" }))).toMatchObject({
     code: "NOT_WORKER",
   });
   expect(await handleAdd(ctx(), addArgs("x3", { location: "nowhere" }))).toMatchObject({
@@ -169,8 +169,8 @@ test("add: dependency, key, role and location rules; a dead dependency is refuse
   });
 });
 
-test("add: a full lead goal needs a plan; a goal over budget takes no new task", async () => {
-  const { ctx, mainId } = await leadGoal();
+test("add: a full teammate goal needs a plan; a goal over budget takes no new task", async () => {
+  const { ctx, mainId } = await teammateGoal();
   for (const w of WORDS.slice(0, DELEGATE_MAX - 1))
     expect(await handleAdd(ctx(), addArgs(w))).toMatchObject({ ok: true });
   expect(await handleAdd(ctx(), addArgs("hotel"))).toMatchObject({ code: "NEEDS_PLAN" });
@@ -179,20 +179,20 @@ test("add: a full lead goal needs a plan; a goal over budget takes no new task",
 });
 
 test("add: over budget is refused", async () => {
-  const { ctx, mainId } = await leadGoal();
+  const { ctx, mainId } = await teammateGoal();
   spend(db, mainId, 1000);
   expect(await handleAdd(ctx(), addArgs("docs"))).toMatchObject({ code: "OVER_BUDGET" });
 });
 
 test("add: chain cap counts the start events since the owner's message", async () => {
-  const { ctx } = await leadGoal();
+  const { ctx } = await teammateGoal();
   for (let i = 0; i < CHAIN_CAP; i++)
     appendEvent(db, { id: `s${i}`, threadId: TH, kind: "start", payload: {} });
   expect(await handleAdd(ctx(), addArgs("docs"))).toMatchObject({ code: "CHAIN_CAP" });
 });
 
 test("update: a not-started task changes; dependsOn moves it between pending and ready", async () => {
-  const { ctx } = await leadGoal();
+  const { ctx } = await teammateGoal();
   const docs = (await handleAdd(ctx(), addArgs("docs"))) as unknown as { itemId: string };
   const rep = (await handleAdd(ctx(), addArgs("report", { dependsOn: ["docs"] }))) as unknown as {
     itemId: string;
@@ -225,15 +225,15 @@ test("update: a not-started task changes; dependsOn moves it between pending and
     code: "UNKNOWN_DEP",
   });
   expect(await handleUpdate(ctx(), { taskId: docs.itemId })).toMatchObject({ code: "NO_CHANGE" });
-  expect(await handleUpdate(ctx(), { taskId: docs.itemId, role: "lead" })).toMatchObject({
+  expect(await handleUpdate(ctx(), { taskId: docs.itemId, role: "chief-of-staff" })).toMatchObject({
     code: "NOT_WORKER",
   });
 });
 
-test("update 10 -> 0 -> 10 inside one lead run applies each time (no replay of a stored result)", async () => {
-  const { ctx } = await leadGoal();
+test("update 10 -> 0 -> 10 inside one teammate run applies each time (no replay of a stored result)", async () => {
+  const { ctx } = await teammateGoal();
   const t = (await handleAdd(ctx(), addArgs("flip"))) as unknown as { itemId: string };
-  const run = ctx(); // ONE lead run: the same input id for all three calls
+  const run = ctx(); // ONE teammate run: the same input id for all three calls
   for (const priority of [10, 0, 10] as const) {
     expect(await handleUpdate(run, { taskId: t.itemId, priority })).toMatchObject({ ok: true });
     expect(getItem(db, t.itemId)?.priority).toBe(priority);
@@ -241,7 +241,7 @@ test("update 10 -> 0 -> 10 inside one lead run applies each time (no replay of a
 });
 
 test("update: running and ended tasks are refused (ITEM_STARTED); a goal id and a foreign task are BAD_TASK", async () => {
-  const { ctx, goalId, mainId } = await leadGoal();
+  const { ctx, goalId, mainId } = await teammateGoal();
   expect(await handleAdd(ctx(), addArgs("docs"))).toMatchObject({ ok: true });
   moveTaskTo(db, mainId, "running");
   expect(await handleUpdate(ctx(), { taskId: mainId, subject: "new" })).toMatchObject({
@@ -261,7 +261,7 @@ test("update: running and ended tasks are refused (ITEM_STARTED); a goal id and 
 });
 
 test("update: refused on a plan-owned goal (NOT_STRUCTURE_OWNER)", async () => {
-  const { ctx, goalId } = await leadGoal();
+  const { ctx, goalId } = await teammateGoal();
   moveTaskTo(db, goalId, "cancelled");
   const made = (await handleCreatePlan(
     ctx(),
@@ -286,7 +286,7 @@ test("update: refused on a plan-owned goal (NOT_STRUCTURE_OWNER)", async () => {
 });
 
 test("get: an item in full (fields, full result text, last events), a goal with its items; another thread is BAD_TASK", async () => {
-  const { goalId, mainId } = await leadGoal();
+  const { goalId, mainId } = await teammateGoal();
   const long = `# Result\n${"line of the result ".repeat(100)}`; // well above the 600-char excerpt
   setTaskResult(db, mainId, { excerpt: "short excerpt", kind: "COMPLETED" });
   const msgId = postItemMessage(db, mainId, "developer", "result", long) as number; // the full text is the result message
@@ -313,14 +313,14 @@ test("get: an item in full (fields, full result text, last events), a goal with 
   expect(got.resultMessage).toBe(`M${msgId}`);
   expect(got.events.map((e: { kind: string }) => e.kind)).toContain("result");
   const goal = boardGet(db, TH, goalId) as Record<string, any>;
-  expect(goal).toMatchObject({ ok: true, kind: "goal", structureOwner: "lead" });
+  expect(goal).toMatchObject({ ok: true, kind: "goal", structureOwner: "teammate" });
   expect(goal.items[0]).toMatchObject({ key: "main", subject: "main" });
   setup("th-other");
   expect(boardGet(db, "th-other", mainId)).toMatchObject({ code: "BAD_TASK" });
 });
 
 test("search: finds this thread's tasks by words, best first; another thread's tasks stay out", async () => {
-  const { ctx } = await leadGoal();
+  const { ctx } = await teammateGoal();
   await handleAdd(
     ctx(),
     addArgs("docs", { subject: "Update readme docs", brief: "rewrite the readme" }),
@@ -341,7 +341,7 @@ test("search: finds this thread's tasks by words, best first; another thread's t
 });
 
 test("duplicate check: dispatch and add refuse a similar open task with the matches; confirmNew passes", async () => {
-  const { ctx, goalId } = await leadGoal({
+  const { ctx, goalId } = await teammateGoal({
     assignments: [
       asg("main", { subject: "Fix the login bug", brief: "Fix the login bug in the auth module" }),
     ],
@@ -438,7 +438,7 @@ const planArgs = (
 
 test("duplicate check: create_plan compares against OTHER goals only, never its own goal's earlier work", async () => {
   const s = setup();
-  // Goal A (lead): similar open work. Goal B (plan): a plan that repeats it.
+  // Goal A (teammate): similar open work. Goal B (plan): a plan that repeats it.
   await handleDispatch(
     s.ctx(),
     dispatch({

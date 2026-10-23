@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { DB_PATH, leadCostIsCumulative, openReadOnly } from "./db";
+import { DB_PATH, teammateCostIsCumulative, openReadOnly } from "./db";
 import { costSummary } from "./queries-cost";
 import { goalDetail, listGoals } from "./queries-goals";
 import { liveRuns } from "./queries-live";
@@ -29,7 +29,7 @@ function json(data: unknown): Response {
 
 /** GET routes: path pattern -> handler. Every handler only reads. */
 const routes: [RegExp, (m: RegExpMatchArray, url: URL) => unknown][] = [
-  [/^\/api\/meta$/, () => ({ db: DB_PATH, leadCostCumulative: leadCostIsCumulative(db), now: Date.now() })],
+  [/^\/api\/meta$/, () => ({ db: DB_PATH, teammateCostCumulative: teammateCostIsCumulative(db), now: Date.now() })],
   [/^\/api\/live$/, () => liveRuns(db)],
   [/^\/api\/goals$/, (_m, url) => listGoals(db, since(url))],
   [/^\/api\/goals\/([\w-]+)$/, (m) => goalDetail(db, m[1]!)],

@@ -14,7 +14,7 @@ const SIG = { signal: new AbortController().signal };
 const cfg = (hasRealAuth: boolean) => ({ hasRealAuth }) as AgentConfig;
 
 test("resolver: auto only with a real login; otherwise fail closed to default", () => {
-  const qa = getRole("lead");
+  const qa = getRole("chief-of-staff");
   expect(resolvePermissionMode(qa, cfg(true))).toBe("auto");
   expect(resolvePermissionMode(qa, cfg(false))).toBe("default");
 });
@@ -29,7 +29,7 @@ async function pre(
   autoMode: boolean,
   tool: string,
   input: Record<string, unknown>,
-  guard = guardFor(getRole("lead"), { readPaths: ["/ws/location"] }),
+  guard = guardFor(getRole("chief-of-staff"), { readPaths: ["/ws/location"] }),
 ) {
   const perms = buildToolPermissions({
     turnId: "t",
@@ -72,7 +72,7 @@ test("auto mode: canUseTool (classifier undecided) still asks the owner via the 
   const perms = buildToolPermissions({
     turnId: "t",
     threadId: "th",
-    guard: guardFor(getRole("lead"), { readPaths: ["/ws/location"] }),
+    guard: guardFor(getRole("chief-of-staff"), { readPaths: ["/ws/location"] }),
     autoMode: { active: true },
     gateway: {
       request: async (r: { tool: string }) => (asked.push(r.tool), { approved: true }),
@@ -132,7 +132,7 @@ test("watch: after a fallback the hook forces ask and logs ask, not auto", async
   const perms = buildToolPermissions({
     turnId: "t",
     threadId: "th",
-    guard: guardFor(getRole("lead"), { readPaths: ["/ws/location"] }),
+    guard: guardFor(getRole("chief-of-staff"), { readPaths: ["/ws/location"] }),
     autoMode: state,
   });
   const out: any = await perms.hooks[0]!.hooks[0]!(
@@ -205,8 +205,8 @@ async function execRun(actual: string) {
     db: env.db,
     abortController: new AbortController(),
     queryFn: queryFn as never,
-    role: getRole("lead"),
-    guard: guardFor(getRole("lead"), { readPaths: [env.location] }),
+    role: getRole("chief-of-staff"),
+    guard: guardFor(getRole("chief-of-staff"), { readPaths: [env.location] }),
     code: { threadId: "th" },
   });
   return out;

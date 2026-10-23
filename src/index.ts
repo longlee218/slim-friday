@@ -1,6 +1,6 @@
 import { type Client, Events } from "discord.js";
 import pkg from "../package.json";
-import { LEAD_POOL_MAX, LEAD_WAITING_MAX, WORKER_POOL_MAX } from "./config/run-caps";
+import { TEAMMATE_POOL_MAX, TEAMMATE_WAITING_MAX, WORKER_POOL_MAX } from "./config/run-caps";
 import { workspacePaths } from "./config/workspace-paths";
 import { threadLanguage } from "./ingress/thread-language";
 import { createThreadsPort } from "./ingress/threads-port";
@@ -91,16 +91,16 @@ async function main(): Promise<void> {
   // Non-command owner text of #ops-control runs the control-channel role (no workspace); built here so orchestrator never imports discord-setup.
   const control = createControlRoleRun({ db, config, approvals });
   const limiter = createRunLimiter(WORKER_POOL_MAX);
-  const leadPool = createRunLimiter(LEAD_POOL_MAX, LEAD_WAITING_MAX);
+  const teammatePool = createRunLimiter(TEAMMATE_POOL_MAX, TEAMMATE_WAITING_MAX);
   const handleMessage = createTurnHandler({
     db,
     config,
     approvals,
     limiter,
-    leadPool,
+    teammatePool,
     control, // shutdown hooks of the control runner
     threadTitle: createThreadTitlePort(() => botClient),
-    // The lead's boot wake has no owner message to answer through: post into the thread by id.
+    // The teammate's boot wake has no owner message to answer through: post into the thread by id.
     post: async (threadId, text) => {
       const channel = await botClient?.channels.fetch(threadId);
       if (channel?.isSendable()) await sendReply(channel, text, threadLanguage(db, threadId));
@@ -111,7 +111,7 @@ async function main(): Promise<void> {
     config,
     Object.assign(handleMessage, {
       control,
-      limits: createLimitsView(db, limiter, leadPool),
+      limits: createLimitsView(db, limiter, teammatePool),
       plan: createPlanLookup({ db, home: config.agentHome, viewer: config.viewer }),
     }), // the bot reads `control` (#ops-control text), `limits` (/limits) and `plan` (/plan)
     (i) => approvals.handleInteraction(i),
@@ -123,7 +123,7 @@ async function main(): Promise<void> {
   // One #ops-log line per start / shutdown / uncaught error; no-op without ops.log in discord.yaml.
   const opsLog = createOpsLog(() => botClient, setup.ops.log);
   client.once(Events.ClientReady, () => {
-    handleMessage.wake(recovery); // threads with undelivered work wake their lead
+    handleMessage.wake(recovery); // threads with undelivered work wake their teammate
     warnIfBotAdministrator(client, config.discordGuildId);
     void syncChannelTopics(client, config.agentHome, opsIds(setup)); // never blocks the start
     void opsLog.post("start", `pid=${process.pid} v${pkg.version}`);

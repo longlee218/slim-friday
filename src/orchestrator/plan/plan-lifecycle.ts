@@ -37,7 +37,7 @@ import { validatePlan } from "./validate-plan";
 
 /**
  * Store a new plan for a goal after validation: version 1, or the next version of the goal's plan when every earlier
- * version was rejected (the owner turned it down or it expired: the lead re-plans inside the goal). A goal whose plan is
+ * version was rejected (the owner turned it down or it expired: the teammate re-plans inside the goal). A goal whose plan is
  * valid or approved is refused: revise it.
  */
 export function createPlan(
@@ -45,7 +45,7 @@ export function createPlan(
   a: {
     goalId: string;
     objective: string;
-    /** Spec and plan text (markdown); the lead tool requires both, an empty one means none. */
+    /** Spec and plan text (markdown); the teammate tool requires both, an empty one means none. */
     spec?: string;
     plan?: string;
     items: ItemInput[];
@@ -65,7 +65,7 @@ export function createPlan(
       `This goal has a plan: call ${orchestrateRef(ORCHESTRATE_ACTION_REVISE_PLAN)}.`,
     );
   const items = a.items.map(toPlanItem);
-  // The budget is computed by code from the items' role ceilings (the lead never sets it).
+  // The budget is computed by code from the items' role ceilings (the teammate never sets it).
   const budgetUsd = planBudgetUsd({
     items,
     verifies: a.acceptanceCriteria.length > 0,
@@ -168,7 +168,7 @@ export function approveVersion(
   return { ok: true, created: out.created, modified: out.modified, cancelled: out.cancelled };
 }
 
-/** Reject a `valid` version. The owner turned down the plan, not the goal: it stays open so the lead can re-plan in it (until it is old, see plan-expiry). */
+/** Reject a `valid` version. The owner turned down the plan, not the goal: it stays open so the teammate can re-plan in it (until it is old, see plan-expiry). */
 export function rejectVersion(
   db: Database,
   planId: string,

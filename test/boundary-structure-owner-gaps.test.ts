@@ -7,10 +7,10 @@ import {
 import { ORCHESTRATE_TOOL } from "../src/mcp/orchestration/tools/OrchestrateTool/constants";
 import { createDbEffectPort } from "../src/orchestrator/goal/effect-port-db";
 import { createPlanPort } from "../src/orchestrator/goal/effect-port-plan";
-import { handleApprovePlan } from "../src/orchestrator/lead/lead-plan-handlers";
 import { createPlan, rejectVersion } from "../src/orchestrator/plan/plan-lifecycle";
+import { handleApprovePlan } from "../src/orchestrator/teammate/teammate-plan-handlers";
 import { missingEffects } from "../src/orchestrator/turns/completion";
-import { LEAD_ROLE } from "../src/roles/builtin/lead-role";
+import { CHIEF_OF_STAFF_ROLE } from "../src/roles/builtin/chief-of-staff-role";
 import { findRole } from "../src/roles/role-registry";
 import { openDb } from "../src/storage/db";
 import { appendEffect, PLAN_ASK_TOOL } from "../src/storage/effect-log-store";
@@ -48,22 +48,22 @@ function planGoal() {
   if (!r.ok) throw new Error(r.message);
   return { goalId: w.goalId, planId: r.plan.id };
 }
-test("table rows: the lead has the control tools; there is no planner role", () => {
-  const lead = LEAD_ROLE.mcpTools ?? [];
-  // Talk to the owner, start / steer / retry / cancel, write and revise the plan (the `Orchestrate` actions): lead only.
-  expect(lead).toContain(ORCHESTRATE_TOOL);
+test("table rows: the teammate has the control tools; there is no planner role", () => {
+  const teammate = CHIEF_OF_STAFF_ROLE.mcpTools ?? [];
+  // Talk to the owner, start / steer / retry / cancel, write and revise the plan (the `Orchestrate` actions): teammate only.
+  expect(teammate).toContain(ORCHESTRATE_TOOL);
   expect(findRole("planner")).toBeUndefined();
 });
 
-test("contract text: the lead writes the plan; a PLAN goal's items change only through create_plan / revise_plan", async () => {
-  const lead = (await LEAD_ROLE.promptSections?.())?.join("\n") ?? "";
-  expect(lead).toContain(
+test("contract text: the teammate writes the plan; a PLAN goal's items change only through create_plan / revise_plan", async () => {
+  const teammate = (await CHIEF_OF_STAFF_ROLE.promptSections?.())?.join("\n") ?? "";
+  expect(teammate).toContain(
     "PLAN goals: you write the plan (create_plan, revise_plan); add or update on its items is refused",
   );
-  expect(lead).toContain("code adds verify and fix items");
+  expect(teammate).toContain("code adds verify and fix items");
 });
 
-test("ALREADY_ASKED tells the lead one next step per outcome", async () => {
+test("ALREADY_ASKED tells the teammate one next step per outcome", async () => {
   const g = planGoal();
   const port = createDbEffectPort({
     db,
@@ -75,10 +75,10 @@ test("ALREADY_ASKED tells the lead one next step per outcome", async () => {
       post: async () => {},
     },
   });
-  const ctx = { port, threadId: TH, leadTurnId: "lt", inputId: "in", run: { dispatched: 0 } };
+  const ctx = { port, threadId: TH, teammateTurnId: "lt", inputId: "in", run: { dispatched: 0 } };
   const ask = (n: number) =>
     handleApprovePlan(
-      { ...ctx, leadTurnId: `lt${n}`, inputId: `in${n}` },
+      { ...ctx, teammateTurnId: `lt${n}`, inputId: `in${n}` },
       { planId: g.planId, version: 1 },
     );
   await ask(1);

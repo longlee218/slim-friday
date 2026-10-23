@@ -1,6 +1,6 @@
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
-/** Durable event queue of a thread: the lead is woken by undelivered rows. */
+/** Durable event queue of a thread: the teammate is woken by undelivered rows. */
 export const thread_events = sqliteTable(
   "thread_events",
   {

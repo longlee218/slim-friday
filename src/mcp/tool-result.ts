@@ -2,7 +2,7 @@ import { logger } from "../observability/logger";
 import { errText } from "../observability/redact";
 import type { Reply } from "../orchestrator/reply";
 
-const log = logger.child({ module: "lead-tool" });
+const log = logger.child({ module: "teammate-tool" });
 
 /** Tool result with one text block; `isError` marks a refused or failed call. */
 export const textResult = (text: string, isError = false) => ({
@@ -21,7 +21,7 @@ export async function runTool(tool: string, fn: () => Promise<Reply>) {
   try {
     return toToolResult(await fn());
   } catch (err) {
-    log.warn({ tool, err: errText(err) }, "lead tool failed");
+    log.warn({ tool, err: errText(err) }, "teammate tool failed");
     return toToolResult({ ok: false, code: "INTERNAL", message: "The tool failed (see logs)." });
   }
 }

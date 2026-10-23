@@ -2,9 +2,9 @@ import { expect, test } from "bun:test";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { createRunLimiter } from "../src/orchestrator/turns/run-limiter";
 import { makeEnv, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
-import { devLeadQuery, noticeSink, until, workersDone } from "./lead-harness";
+import { devTeammateQuery, noticeSink, until, workersDone } from "./teammate-harness";
 
-/** A message the fake lead dispatches to a detached dev worker (the lead posts the start notice, never the worker's text). */
+/** A message the fake teammate dispatches to a detached dev worker (the teammate posts the start notice, never the worker's text). */
 const task = (text: string, threadId = "th1") => ({
   source: "test",
   language: "en" as const,
@@ -22,8 +22,8 @@ const devHandler = (env: ReturnType<typeof makeEnv>, queryFn: unknown) =>
     config: env.config,
     approvals: stubGateway(),
     limiter: createRunLimiter(10),
-    queryFn: devLeadQuery(queryFn),
-    leadTiming: { debounceMs: 10, announceWindowMs: 20 },
+    queryFn: devTeammateQuery(queryFn),
+    teammateTiming: { debounceMs: 10, announceWindowMs: 20 },
   });
 const turnStatus = (env: ReturnType<typeof makeEnv>) =>
   env.db.query<{ status: string }, []>("SELECT status FROM turns WHERE role = 'developer'").get()
@@ -97,7 +97,7 @@ test("M4: a success outcome finishes the worker turn; an error fails the turn an
     bad.db
       .query<{ status: string }, []>("SELECT status FROM owned_tasks WHERE status != 'open'")
       .get()?.status,
-  ).toBe("blocked"); // held (result FAILED): the lead is told and retries or cancels
+  ).toBe("blocked"); // held (result FAILED): the teammate is told and retries or cancels
 });
 
 test("M2: finishTurn failure in the catch path does not throw", async () => {

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { CHAIN_CAP, DELEGATE_MAX } from "../src/config/lead-caps";
+import { CHAIN_CAP, DELEGATE_MAX } from "../src/config/teammate-caps";
 import type { Caps, GoalState, PolicyEnv } from "../src/orchestrator/strategy/caps";
 import {
   type Assignment,
@@ -82,7 +82,7 @@ test("every refusal code and the accepted shapes", () => {
     [
       "unknown role",
       "NOT_WORKER",
-      direct({ assignments: [a("main", [], { role: "lead" })] }),
+      direct({ assignments: [a("main", [], { role: "chief-of-staff" })] }),
       {},
       IDLE,
     ],

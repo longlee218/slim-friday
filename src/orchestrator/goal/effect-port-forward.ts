@@ -16,7 +16,7 @@ import type { Post } from "./effect-port";
    Workers cannot save artifacts; this is the one place a task's deliverables become artifacts, made again never:
    a second forward finds the rows it made (same task, title and content) and posts them. */
 
-/** What a forward posts, and what it could not (`FILE_GONE` and other per-file notes for the lead's reply). */
+/** What a forward posts, and what it could not (`FILE_GONE` and other per-file notes for the teammate's reply). */
 export interface ForwardPlan {
   posts: Post[];
   notes: string[];

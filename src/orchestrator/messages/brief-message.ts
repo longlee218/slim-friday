@@ -12,7 +12,7 @@ import { lastMessageOf } from "../../storage/task-message-store";
 import { newestApprovedVersion } from "../../storage/work-plan-store";
 import { docOfRow } from "../plan/plan-doc";
 import { planSection } from "../plan/plan-section";
-import { AUTHOR_LEAD } from "./message-kinds";
+import { AUTHOR_TEAMMATE } from "./message-kinds";
 import { postItemMessage } from "./task-messages";
 
 /**
@@ -45,5 +45,5 @@ export function ensureBriefMessage(db: Database, item: ItemRow): number | undefi
   if (!text) return undefined;
   // The stored text is redacted: compare in that form so a brief with a secret is not re-written at every start.
   if (lastMessageOf(db, item.id, "brief")?.text === redactText(text)) return undefined;
-  return postItemMessage(db, item.id, AUTHOR_LEAD, "brief", text);
+  return postItemMessage(db, item.id, AUTHOR_TEAMMATE, "brief", text);
 }

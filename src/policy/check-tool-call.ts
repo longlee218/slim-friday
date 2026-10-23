@@ -125,7 +125,7 @@ function checkBase(
   input: Record<string, unknown>,
   ctx: GuardrailContext,
 ): Decision {
-  // Depth 1: a lead or worker spawns no subagent of its own (second lock behind `tools`).
+  // Depth 1: a teammate or worker spawns no subagent of its own (second lock behind `tools`).
   if (ctx.subagents === false && SUBAGENT_TOOLS.has(toolName))
     return { decision: "deny", reason: "no subagents in this role" };
   if (WRITE_TOOLS.has(toolName)) return checkFileWrite(toolName, input, ctx.writePaths ?? [], ctx);

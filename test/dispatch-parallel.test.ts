@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { leadHarness, until } from "./lead-harness";
+import { teammateHarness, until } from "./teammate-harness";
 
 /* Scheduler wired into dispatchReady (fake query): independent items run in parallel, a dependent one waits for both. */
 
@@ -16,7 +16,7 @@ test("two independent items run at the same time, a dependent one starts only af
   let peak = 0;
   const started: string[] = [];
   const release: (() => void)[] = [];
-  const h = leadHarness(async (c) => {
+  const h = teammateHarness(async (c) => {
     if (c.kind === "worker") {
       const key = /do (\w+)/.exec(c.prompt)?.[1] as string;
       started.push(key);

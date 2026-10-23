@@ -1,6 +1,6 @@
 import { existsSync, lstatSync, statSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
-import { PROJECT_NAME_MAX_CHARS } from "../orchestrator/lead/lead-limits";
+import { PROJECT_NAME_MAX_CHARS } from "../orchestrator/teammate/teammate-limits";
 import { channelOf } from "./task-workspace";
 import type { Workspace } from "./workspace-registry";
 

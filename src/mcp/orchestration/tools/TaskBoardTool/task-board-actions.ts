@@ -1,11 +1,11 @@
 import { z } from "zod";
-import { SEARCH_QUERY_MAX_CHARS } from "../../../../orchestrator/lead/lead-limits";
 import { boardMessages, boardRead } from "../../../../orchestrator/messages/task-board-messages";
 import {
   boardGet,
   boardList,
   boardSearch,
 } from "../../../../orchestrator/messages/task-board-reads";
+import { SEARCH_QUERY_MAX_CHARS } from "../../../../orchestrator/teammate/teammate-limits";
 import { defineAction } from "../../../action-tool/action-types";
 import {
   TASK_BOARD_ACTION_GET,

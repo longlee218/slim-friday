@@ -87,7 +87,7 @@ export async function deletePaths(
         DELETE_PATHS_TOOL,
         scope,
         "OVER_BOUNDS",
-        `Not allowed: ${verdict.reason}. Narrow the list or ask the lead for an amendment.`,
+        `Not allowed: ${verdict.reason}. Narrow the list or ask the teammate for an amendment.`,
         ownerAsked ? "refused" : "denied",
       );
     ownerAsked = true;

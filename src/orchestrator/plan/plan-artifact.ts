@@ -32,7 +32,7 @@ export interface PlanViewDeps {
   viewer?: ViewerConfig | undefined;
 }
 
-/** One stored version as `/plan`, the digest and the lead read it. */
+/** One stored version as `/plan`, the digest and the teammate read it. */
 export interface PlanVersionInfo {
   version: number;
   status: PlanStatus;

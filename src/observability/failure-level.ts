@@ -6,7 +6,7 @@ import { MCP_PREFIX } from "../mcp/mcp-tool-names";
  */
 const EXPECTED_REFUSALS = ["ENDED", "UNCLEAR", "TIMEOUT", "GOAL_NOT_OPEN"];
 
-/** Log level of a refused lead tool call (`lead.decision`): a real refusal is a warning, an expected one stays info. */
+/** Log level of a refused teammate tool call (`teammate.decision`): a real refusal is a warning, an expected one stays info. */
 export function refusalLevel(ok: boolean, code?: string): "info" | "warn" {
   return ok || (code && EXPECTED_REFUSALS.includes(code)) ? "info" : "warn";
 }

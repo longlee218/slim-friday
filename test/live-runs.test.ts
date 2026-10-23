@@ -25,9 +25,9 @@ const worker = (taskId: string, threadId: string) => {
   });
   return { ac, settle };
 };
-const lead = (threadId: string) => {
+const teammate = (threadId: string) => {
   const ac = new AbortController();
-  return { ac, settle: registerRun({ kind: "lead", threadId, role: "lead", ac }) };
+  return { ac, settle: registerRun({ kind: "teammate", threadId, role: "chief-of-staff", ac }) };
 };
 
 test("register / settle: the run is listed while it runs; settle is idempotent and resolves its promise", async () => {
@@ -42,22 +42,22 @@ test("register / settle: the run is listed while it runs; settle is idempotent a
   expect(liveRunsOf("th-1")).toEqual([]);
 });
 
-test("a thread keeps several runs; liveRunOf = lead run first, else the newest worker run", () => {
+test("a thread keeps several runs; liveRunOf = teammate run first, else the newest worker run", () => {
   const a = worker("tr-b1", "th-2");
   const b = worker("tr-b2", "th-2");
   const other = worker("tr-b3", "th-3");
   expect(liveRunsOf("th-2").map((h) => h.taskId)).toEqual(["tr-b1", "tr-b2"]);
   expect(liveRunOf("th-2")).toBe(b.ac); // newest worker run
-  const fg = lead("th-2");
-  expect(liveRunOf("th-2")).toBe(fg.ac); // lead wins
+  const fg = teammate("th-2");
+  expect(liveRunOf("th-2")).toBe(fg.ac); // teammate wins
   expect(liveRunOf("th-none")).toBeUndefined();
   for (const r of [a, b, other, fg]) r.settle();
 });
 
-test("abortThreadRuns aborts only that thread's runs (lead included); abortAllRuns aborts all", () => {
+test("abortThreadRuns aborts only that thread's runs (teammate included); abortAllRuns aborts all", () => {
   const a = worker("tr-c1", "th-4");
   const b = worker("tr-c2", "th-4");
-  const l = lead("th-4");
+  const l = teammate("th-4");
   const c = worker("tr-c3", "th-5");
   expect(abortThreadRuns("th-4")).toHaveLength(3);
   expect([a, b, l, c].map((r) => r.ac.signal.aborted)).toEqual([true, true, true, false]);

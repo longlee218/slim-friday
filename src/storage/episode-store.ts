@@ -3,7 +3,7 @@ import type { Database } from "bun:sqlite";
 /* Queries of the episodic memory layer (`thread_summaries` rows, one per thread): which threads are idle and need an
    episode, the facts an idle episode is written from, and which episodes expired. SQL lives here only. */
 
-/** A thread that went idle with lead work not yet covered by its episode. */
+/** A thread that went idle with teammate work not yet covered by its episode. */
 export interface IdleThread {
   threadId: string;
   /** Discord channel id: the thread's parent (`threads` row) or the channel itself in chat mode (no `threads` row). */
@@ -12,19 +12,19 @@ export interface IdleThread {
   summary: string;
   /** `updated_at` of the existing episode, 0 when none. */
   episodeAt: number;
-  /** `started_at` of the newest successful lead turn (a compaction inside that turn is not older than it). */
+  /** `started_at` of the newest successful teammate turn (a compaction inside that turn is not older than it). */
   lastTurnStartedAt: number;
 }
 
 /**
- * Threads whose newest SUCCESSFUL lead turn ended at or before `idleBefore` (epoch ms), with no turn of any role still
- * running or waiting for approval, and a lead turn that ended after the episode's `updated_at` (or no episode yet).
+ * Threads whose newest SUCCESSFUL teammate turn ended at or before `idleBefore` (epoch ms), with no turn of any role still
+ * running or waiting for approval, and a teammate turn that ended after the episode's `updated_at` (or no episode yet).
  * Oldest first, at most `limit`. Writing an episode moves `updated_at` past the turn, so a thread is listed once per
  * burst of activity.
  */
 export function idleThreads(
   db: Database,
-  leadRole: string,
+  chiefOfStaffRole: string,
   idleBefore: number,
   limit: number,
 ): IdleThread[] {
@@ -49,7 +49,7 @@ export function idleThreads(
                          AND r.status IN ('running', 'waiting_approval'))
        ORDER BY l.ended LIMIT ?`,
     )
-    .all(leadRole, idleBefore, limit)
+    .all(chiefOfStaffRole, idleBefore, limit)
     .map((r) => ({
       threadId: r.thread_id,
       channelId: r.channel_id ?? r.thread_id,
@@ -60,14 +60,14 @@ export function idleThreads(
 }
 
 /**
- * Facts of one thread since `since` (epoch ms), oldest first, from the db only: the title, the owner messages the lead
- * got (`turns.brief` of lead turns) and the items worked (`subject`, status, result excerpt). Text is already
+ * Facts of one thread since `since` (epoch ms), oldest first, from the db only: the title, the owner messages the teammate
+ * got (`turns.brief` of teammate turns) and the items worked (`subject`, status, result excerpt). Text is already
  * redacted at storage. Empty string when there is nothing.
  */
 export function threadFacts(
   db: Database,
   threadId: string,
-  leadRole: string,
+  chiefOfStaffRole: string,
   since: number,
 ): string {
   const title = db
@@ -78,7 +78,7 @@ export function threadFacts(
       `SELECT brief FROM turns WHERE thread_id = ? AND role = ? AND brief IS NOT NULL AND brief <> ''
          AND started_at > ? ORDER BY started_at`,
     )
-    .all(threadId, leadRole, since);
+    .all(threadId, chiefOfStaffRole, since);
   const items = db
     .query<
       { subject: string | null; status: string; result_excerpt: string | null },

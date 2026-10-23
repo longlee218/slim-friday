@@ -38,8 +38,8 @@ function setup(live: string = PH) {
     threadId: "t1",
     threadTitle: port,
   } as MemoryToolContext;
-  // Only `set_title` is called, so the lead ctx is never read.
-  const tool = createOrchestrateTool({ lead: {} as never, memory: ctx, titleCalls: { n: 0 } });
+  // Only `set_title` is called, so the teammate ctx is never read.
+  const tool = createOrchestrateTool({ teammate: {} as never, memory: ctx, titleCalls: { n: 0 } });
   const call = async (title: string, digest: string) => {
     const r = await tool.handler({ action: "set_title", params: { title, digest } } as never, {});
     const reply = JSON.parse((r.content[0] as { text: string }).text);
@@ -112,13 +112,13 @@ test("call cap: the call after the limit is refused and stores nothing", async (
 test("offered as an Orchestrate action only with ctx.threadTitle; a developer never gets the tool", () => {
   const s = setup();
   const names = (role: string, c: MemoryToolContext) =>
-    toolsByServer(buildServers(getRole(role), { memory: c, lead: {} as never }))[
+    toolsByServer(buildServers(getRole(role), { memory: c, teammate: {} as never }))[
       ORCHESTRATION_MCP_SERVER
     ] ?? [];
-  expect(names("lead", s.ctx)).toContain(ORCHESTRATE_TOOL);
+  expect(names("chief-of-staff", s.ctx)).toContain(ORCHESTRATE_TOOL);
   expect(names("developer", s.ctx)).not.toContain(ORCHESTRATE_TOOL);
   const listed = (c: MemoryToolContext) =>
-    createOrchestrateTool({ lead: {} as never, memory: c, titleCalls: { n: 0 } }).description;
+    createOrchestrateTool({ teammate: {} as never, memory: c, titleCalls: { n: 0 } }).description;
   expect(listed(s.ctx)).toContain("set_title");
   expect(listed({ ...s.ctx, threadTitle: undefined })).not.toContain("set_title");
 });

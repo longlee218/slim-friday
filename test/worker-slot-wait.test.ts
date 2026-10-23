@@ -2,19 +2,19 @@ import type { Database } from "bun:sqlite";
 import { afterEach, expect, setSystemTime, test } from "bun:test";
 import { WORKER_SLOT_NOTICE_MS } from "../src/config/run-caps";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
-import { pendingNews } from "../src/orchestrator/lead/lead-events";
-import type { LeadRuntime } from "../src/orchestrator/lead/lead-runtime";
+import { pendingNews } from "../src/orchestrator/teammate/teammate-events";
+import type { TeammateRuntime } from "../src/orchestrator/teammate/teammate-runtime";
 import { createRunLimiter } from "../src/orchestrator/turns/run-limiter";
 import { dispatchReady } from "../src/orchestrator/worker/dispatch-ready";
 import { clearSlotWait, noteDeferred } from "../src/orchestrator/worker/slot-wait";
-import { LEAD_ROLE } from "../src/roles/builtin/lead-role";
+import { CHIEF_OF_STAFF_ROLE } from "../src/roles/builtin/chief-of-staff-role";
 import { openDb } from "../src/storage/db";
 import { childrenOf } from "../src/storage/owned-item-store";
 import { insertOwnedTask } from "../src/storage/owned-task-store";
 import { makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
-import { devLeadQuery, until } from "./lead-harness";
+import { devTeammateQuery, until } from "./teammate-harness";
 
-/* Slot wait: a ready item the full worker pool defers is shown to the lead once after 60 s. */
+/* Slot wait: a ready item the full worker pool defers is shown to the teammate once after 60 s. */
 
 let db: Database | undefined;
 afterEach(() => {
@@ -23,12 +23,12 @@ afterEach(() => {
   db = undefined;
 });
 
-test("noteDeferred: nothing before 60 s, ONE slot_wait event + one wake after it (also when repeated), news for the lead", () => {
+test("noteDeferred: nothing before 60 s, ONE slot_wait event + one wake after it (also when repeated), news for the teammate", () => {
   db = openDb(":memory:");
   insertOwnedTask(db, {
     id: "g",
     threadId: "th",
-    ownerRole: "lead",
+    ownerRole: "chief-of-staff",
     status: "open",
     scope: "g",
     correlationId: "c",
@@ -48,7 +48,7 @@ test("noteDeferred: nothing before 60 s, ONE slot_wait event + one wake after it
   const rt = {
     deps: { db },
     announce: (t: string) => void woken.push(t),
-  } as unknown as LeadRuntime;
+  } as unknown as TeammateRuntime;
   const t0 = 5_000_000;
   noteDeferred(rt, "th", item, t0);
   noteDeferred(rt, "th", item, t0 + WORKER_SLOT_NOTICE_MS - 1);
@@ -69,7 +69,7 @@ test("noteDeferred: nothing before 60 s, ONE slot_wait event + one wake after it
   expect(pendingNews(db, "th")).toHaveLength(1);
 });
 
-test("full worker pool: the item stays ready and the lead hears one slot_wait after 60 s (clock shifted, real dispatch pass)", async () => {
+test("full worker pool: the item stays ready and the teammate hears one slot_wait after 60 s (clock shifted, real dispatch pass)", async () => {
   const env = makeEnv();
   db = env.db;
   const limiter = createRunLimiter(1);
@@ -81,9 +81,9 @@ test("full worker pool: the item stays ready and the lead hears one slot_wait af
   const handle = createTurnHandler({
     db: env.db,
     config: env.config,
-    queryFn: devLeadQuery(queryFn),
+    queryFn: devTeammateQuery(queryFn),
     limiter,
-    leadTiming: { debounceMs: 5, announceWindowMs: 20 },
+    teammateTiming: { debounceMs: 5, announceWindowMs: 20 },
   });
   await handle({
     source: "test",
@@ -121,7 +121,7 @@ test("two ready items deferred by a full pool in one pass both get a slot_wait a
   insertOwnedTask(db, {
     id: "g",
     threadId: "th",
-    ownerRole: LEAD_ROLE.name,
+    ownerRole: CHIEF_OF_STAFF_ROLE.name,
     status: "open",
     scope: "g",
     correlationId: "c",
@@ -141,7 +141,7 @@ test("two ready items deferred by a full pool in one pass both get a slot_wait a
     deps: { db, stopping: () => false, limiter: createRunLimiter(1) },
     ctxOf: () => ({}),
     announce: () => {},
-  } as unknown as LeadRuntime;
+  } as unknown as TeammateRuntime;
   rt.deps.limiter!.tryAcquire(); // the only worker slot is busy
   await dispatchReady(rt, "th");
   expect(pendingNews(db, "th")).toHaveLength(0);

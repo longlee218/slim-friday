@@ -11,7 +11,7 @@ export interface DigestItem {
   subject?: string;
   role: string;
   status: string;
-  /** True for a held item (blocked after a failure): it waits for the lead's decision. */
+  /** True for a held item (blocked after a failure): it waits for the teammate's decision. */
   held: boolean;
   percent?: number;
   note?: string;

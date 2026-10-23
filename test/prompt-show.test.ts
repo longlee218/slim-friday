@@ -14,8 +14,8 @@ const home = makeDefaultHome();
 const show = (roles: string[], tools = false) =>
   renderPromptShow({ roles, agentHome: home, tools, skills: true, ctx: FULL_CTX });
 
-test("lead and scout show every layer header and a totals table", () => {
-  const md = show(["lead", "scout"], true);
+test("teammate and scout show every layer header and a totals table", () => {
+  const md = show(["chief-of-staff", "scout"], true);
   for (const h of [
     "### role contract (promptSections)",
     "### COMMON safety",
@@ -40,8 +40,8 @@ test("--all covers every role", () => {
   for (const r of PREVIEW_ROLES) expect(md).toContain(`\n# ${r}\n`);
 });
 
-test("the lead's system prompt length equals what a run assembles", () => {
-  const role = getRole("lead");
+test("the teammate's system prompt length equals what a run assembles", () => {
+  const role = getRole("chief-of-staff");
   // The run path: runExtraContext blocks joined into buildSystemPrompt (sdk-options.ts), same inputs as the preview.
   const blocks = runExtraContext({
     config: { agentHome: home } as AgentConfig,
@@ -54,7 +54,7 @@ test("the lead's system prompt length equals what a run assembles", () => {
     role,
   });
   const runtime = systemPromptText(buildSystemPrompt(blocks.filter(Boolean).join("\n\n"), role));
-  const md = show(["lead"]);
+  const md = show(["chief-of-staff"]);
   expect(md).toContain(`| system prompt (layers + separators) | ${runtime.length} |`);
   expect(md).toContain(runtime.slice(0, 80));
 });

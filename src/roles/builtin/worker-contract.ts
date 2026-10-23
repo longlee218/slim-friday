@@ -3,12 +3,12 @@ import { REPORT_TOOL } from "../../mcp/orchestration/tools/ReportTool/constants"
 /*
  * Shared text of the task-worker contracts (scout, researcher, developer and the six roster specialists), phase 2b of the
  * role upgrade. Two lines: the rest of how a run fits the team (inputs, hand-offs, failures, limits) is the preloaded
- * team skill. The lead and the discord-manager do not get this block.
+ * team skill. The teammate and the discord-manager do not get this block.
  */
 
 /** `{OWNER_CONTACT}` of roles with no owner contact (roster, scout, researcher). */
 export const NO_OWNER_CONTACT =
-  "No owner contact: the owner is reached only through the lead. A brief too unclear to start ends with NEEDS_CLARIFICATION and the one question that unblocks it (in requests).";
+  "No owner contact: the owner is reached only through the teammate. A brief too unclear to start ends with NEEDS_CLARIFICATION and the one question that unblocks it (in requests).";
 
 /**
  * The shared worker block, placed right after a role's Mission and Method. `ownerContact` is the one line that differs

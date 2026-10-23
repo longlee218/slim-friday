@@ -11,7 +11,7 @@ export interface TaskMessageRow {
   goalId: string;
   /** Item the message belongs to. */
   taskId: string;
-  /** `lead`, a role name, `system` or `owner`. */
+  /** `teammate`, a role name, `system` or `owner`. */
   author: string;
   /** Message kind (see `message-kinds.ts`). */
   kind: string;

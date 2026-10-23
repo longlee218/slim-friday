@@ -6,7 +6,7 @@ import type { InboundMessage } from "../src/providers/discord/ingress/discord-me
 import { createMessageHandler } from "../src/providers/discord/ingress/discord-message-handler";
 import { BUSY_ACK_EMOJI, sendReport } from "../src/providers/discord/ui/send/send-port";
 import { TEST_CHANNEL } from "./helpers";
-import { leadHarness, until } from "./lead-harness";
+import { teammateHarness, until } from "./teammate-harness";
 
 const OWNER = "111";
 /** Receipt delay injected into the handler (the production default is 2 s). */
@@ -606,8 +606,8 @@ test("sendReport: structured links, over-long url dropped, report still sent; su
   expect(json[1].components.map((b: any) => b.url)).toEqual(["https://pr.example/1"]);
 });
 
-test("lead level: a stranger's or a bot's message never reaches the lead queue; the owner's does", async () => {
-  const h = leadHarness(async () => "lead answer");
+test("teammate level: a stranger's or a bot's message never reaches the teammate queue; the owner's does", async () => {
+  const h = teammateHarness(async () => "teammate answer");
   const onMessage = createMessageHandler({
     ownerId: OWNER,
     botId: () => BOT,
@@ -617,10 +617,10 @@ test("lead level: a stranger's or a bot's message never reaches the lead queue; 
   const th = fakeChannel("thrL", { thread: true, ownerId: BOT, parentId: TEST_CHANNEL });
   await onMessage(fakeMsg({ authorId: "222", channel: th, mention: false, content: "hey" }).msg);
   await onMessage(fakeMsg({ bot: true, channel: th, mention: false, content: "hey" }).msg);
-  await new Promise((r) => setTimeout(r, 100)); // past the lead queue's debounce
-  expect(h.ofKind("lead")).toHaveLength(0);
+  await new Promise((r) => setTimeout(r, 100)); // past the teammate queue's debounce
+  expect(h.ofKind("teammate")).toHaveLength(0);
   expect(h.env.db.query("SELECT COUNT(*) AS n FROM thread_events").get()).toEqual({ n: 0 });
   await onMessage(fakeMsg({ channel: th, mention: false, content: "hello" }).msg);
-  await until(() => h.ofKind("lead").length === 1);
-  await until(() => th.sent.some((s: any) => s.content === "lead answer")); // the lead posts through notify
+  await until(() => h.ofKind("teammate").length === 1);
+  await until(() => th.sent.some((s: any) => s.content === "teammate answer")); // the teammate posts through notify
 });

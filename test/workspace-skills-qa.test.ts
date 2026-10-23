@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { readSkillsLock } from "../src/config/skills-lock";
 import { ROLES } from "../src/roles/role-registry";
 import { GLOB_TOOL_NAME, READ_TOOL_NAME, WRITE_TOOL_NAME } from "../src/tools/sdk-tool-names";
-import { runWorkerViaLead } from "./dev-worker-fixture";
+import { runWorkerViaTeammate } from "./dev-worker-fixture";
 import { addLocation, makeEnv } from "./helpers";
 
 /** App-owned plugins of a scout run: one per source of its skills (from data, no names here). */
@@ -21,7 +21,7 @@ function skill(dir: string, name: string): void {
 /**
  * Workspace `main` with curated skill `ws-skill` and locations a and b. Each location carries decoys: its own
  * `.claude/skills`, hooks, .mcp.json and a CLAUDE.md, none of which may reach the run. Runs a scout (read-only worker)
- * through the lead and captures its options and plugin dir listing while the run lives.
+ * through the teammate and captures its options and plugin dir listing while the run lives.
  */
 async function qa(fail = false) {
   const env = makeEnv();
@@ -36,7 +36,7 @@ async function qa(fail = false) {
   }
   let pluginDirs: string[] = [];
   let pluginFiles: string[] = [];
-  const [opts] = await runWorkerViaLead(env, "scout", {
+  const [opts] = await runWorkerViaTeammate(env, "scout", {
     fail,
     probe: async (o) => {
       pluginDirs = (o.plugins ?? []).map((p: { path: string }) => p.path);
@@ -62,7 +62,7 @@ test("a workspace without curated skills gets no workspace plugin even when its 
   const env = makeEnv();
   const location = addLocation(env.home, "a");
   skill(join(location, ".claude", "skills"), "sk-a");
-  const [opts] = await runWorkerViaLead(env, "scout");
+  const [opts] = await runWorkerViaTeammate(env, "scout");
   expect(opts.skills.some((n: string) => n.startsWith("main:") || n.includes("sk-a"))).toBe(false);
   expect(opts.plugins).toHaveLength(APP_PLUGINS); // only the app-owned skills
 });
@@ -85,7 +85,7 @@ test("guard: this run's plugin dirs are READ-only; another plugin dir and <home>
   mkdirSync(join(env.home, "tmp", "other"), { recursive: true });
   writeFileSync(join(env.home, "tmp", "other", "y.txt"), "y");
   const seen: string[] = [];
-  await runWorkerViaLead(env, "scout", {
+  await runWorkerViaTeammate(env, "scout", {
     probe: async (o) => {
       const dir: string = o.plugins[0].path;
       const can = (t: string, i: object) => o.canUseTool(t, i, {});

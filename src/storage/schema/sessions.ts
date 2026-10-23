@@ -18,8 +18,8 @@ export const sessions = sqliteTable("sessions", {
   model: text(),
   /** Compaction cycle of the thread when the session row was created. */
   generation: integer().notNull().default(0),
-  /** Session owner kind: `role` (a role run) or `lead`. */
+  /** Session owner kind: `role` (a role run) or `teammate`. */
   kind: text().notNull().default("role"),
-  /** Lead sessions: `<compaction cycle>:<memory hash>` of the last memory block sent in this session (null = none sent). */
+  /** Teammate sessions: `<compaction cycle>:<memory hash>` of the last memory block sent in this session (null = none sent). */
   memory_mark: text(),
 });

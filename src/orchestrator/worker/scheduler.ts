@@ -1,4 +1,4 @@
-import { MAX_RUNNING_PER_THREAD, PRIORITY, PRIORITY_AGING_MS } from "../../config/lead-caps";
+import { MAX_RUNNING_PER_THREAD, PRIORITY, PRIORITY_AGING_MS } from "../../config/teammate-caps";
 import type { ItemRow } from "../../storage/owned-item-store";
 
 /* Pure part of the dispatch scheduler: which ready items of a goal may start now. No I/O, same input = same pick. */

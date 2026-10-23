@@ -6,7 +6,7 @@ import {
 import type { StructureOwner } from "../../storage/owned-task-store";
 
 /* The structure boundary of a goal: its items, dependencies and criteria change through ONE path. A DIRECT / DELEGATE
-   goal (`lead`) changes through add / update; a PLAN goal (`plan`) changes through create_plan / revise_plan, which
+   goal (`teammate`) changes through add / update; a PLAN goal (`plan`) changes through create_plan / revise_plan, which
    the owner approves. Code refuses a write through the other path with a coded refusal that names the right tool. */
 
 /** Code of a structure write from the side that does not own the goal. */
@@ -19,9 +19,9 @@ export interface StructureRefusal {
   message: string;
 }
 
-/** Refusal when the lead edits the items of a PLAN goal with add / update; undefined when it may. */
+/** Refusal when the teammate edits the items of a PLAN goal with add / update; undefined when it may. */
 export function assertStructureOwner(owner: StructureOwner): StructureRefusal | undefined {
-  if (owner === "lead") return undefined;
+  if (owner === "teammate") return undefined;
   return {
     ok: false,
     code: NOT_STRUCTURE_OWNER,

@@ -24,7 +24,7 @@ function put(
       threadId: thread,
       goalId: `g-${thread}`,
       taskId: task,
-      author: "lead",
+      author: "teammate",
       kind,
       replyTo: null,
       text,

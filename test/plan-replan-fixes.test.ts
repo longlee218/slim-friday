@@ -1,13 +1,13 @@
 import type { Database } from "bun:sqlite";
 import { afterEach, expect, test } from "bun:test";
-import { PENDING_PLAN_MAX_AGE_MS } from "../src/config/lead-caps";
+import { PENDING_PLAN_MAX_AGE_MS } from "../src/config/teammate-caps";
 import { renderUserNotice, type UserNotice } from "../src/ingress/user-copy";
 import { createPlanPort } from "../src/orchestrator/goal/effect-port-plan";
-import { ASK_OWNER_TIMEOUT_MS } from "../src/orchestrator/lead/lead-limits";
-import { handleApprovePlan } from "../src/orchestrator/lead/lead-plan-handlers";
-import type { LeadRuntime } from "../src/orchestrator/lead/lead-runtime";
 import { approveVersion, createPlan, rejectVersion } from "../src/orchestrator/plan/plan-lifecycle";
 import { revisePlan } from "../src/orchestrator/plan/plan-revision";
+import { ASK_OWNER_TIMEOUT_MS } from "../src/orchestrator/teammate/teammate-limits";
+import { handleApprovePlan } from "../src/orchestrator/teammate/teammate-plan-handlers";
+import type { TeammateRuntime } from "../src/orchestrator/teammate/teammate-runtime";
 import { dispatchReady } from "../src/orchestrator/worker/dispatch-ready";
 import { sweepPendingPlans } from "../src/orchestrator/worker/plan-expiry";
 import { openDb } from "../src/storage/db";
@@ -17,8 +17,8 @@ import { getOwnedTask, insertOwnedTask } from "../src/storage/owned-task-store";
 import { listUndelivered } from "../src/storage/thread-event-store";
 import { planVersions } from "../src/storage/work-plan-store";
 import { moveTaskTo } from "../src/tasks/task-resolver";
-import { FakePort, leadCtx } from "./lead-fake-port";
 import { approvedPlan, byKey, ENV, item, keysOf, openPlanGoal, TH } from "./plan-fixture";
+import { FakePort, teammateCtx } from "./teammate-fake-port";
 
 /* Re-plan after a rejected or expired plan, owner-gated re-plans, released dependencies, owner copy (review of phase 2). */
 
@@ -84,7 +84,7 @@ test("H1: reject -> Orchestrate create_plan(goalId) -> valid -> Orchestrate appr
   port.plan = real.plan;
   port.decidePlan = real.decidePlan;
   port.answer = { answer: "Reject plan", timedOut: false };
-  const rej = await handleApprovePlan(leadCtx(port), { planId: plan.id, version: 1 });
+  const rej = await handleApprovePlan(teammateCtx(port), { planId: plan.id, version: 1 });
   expect(rej).toMatchObject({ ok: true, status: "rejected" });
   expect(getOwnedTask(db, goalId)?.status).toBe("open");
   const made = real.createPlan({
@@ -100,7 +100,7 @@ test("H1: reject -> Orchestrate create_plan(goalId) -> valid -> Orchestrate appr
   });
   expect(made).toMatchObject({ ok: true, planId: plan.id, version: 2, status: "valid" });
   port.answer = { answer: "Approve plan", timedOut: false };
-  const ok = await handleApprovePlan(leadCtx(port, "in2"), { planId: plan.id, version: 2 });
+  const ok = await handleApprovePlan(teammateCtx(port, "in2"), { planId: plan.id, version: 2 });
   expect(ok).toMatchObject({ ok: true, status: "approved" });
   expect(keysOf(db, goalId)).toContain("q1:ready");
 });
@@ -140,7 +140,7 @@ test("H1: a revision whose newest version was rejected bases on the newest appro
     env: ENV,
   });
   expect(stale).toMatchObject({ ok: false, code: "STALE_VERSION" });
-  // The lead read the newest version (2, rejected): it is accepted, the approved v1 is the base.
+  // The teammate read the newest version (2, rejected): it is accepted, the approved v1 is the base.
   const v3 = revisePlan(db, {
     planId: a.planId,
     baseVersion: 2,
@@ -187,7 +187,7 @@ test("L3: releasing a NEEDS_PLANNING item with nothing waiting writes no plan_re
 });
 
 const rtOf = (announced: string[]) =>
-  ({ deps: { db }, announce: (t: string) => announced.push(t) }) as unknown as LeadRuntime;
+  ({ deps: { db }, announce: (t: string) => announced.push(t) }) as unknown as TeammateRuntime;
 
 test("L2: expiry waits for an owner answer that was asked just before the limit", () => {
   validPlan();
@@ -245,7 +245,7 @@ test("L1: a refusal after the click is posted as a notice without the internal m
     code: "GOAL_CLOSED",
     message: "Goal 7c9e6679-7425-40de-944b-e07fc1f90ae7 is no longer open",
   });
-  await handleApprovePlan({ ...leadCtx(port), language: "en" }, { planId: "p1", version: 1 });
+  await handleApprovePlan({ ...teammateCtx(port), language: "en" }, { planId: "p1", version: 1 });
   expect(port.posts[0]?.text).toBe(
     renderUserNotice({ kind: "plan-not-started", cause: "closed" }, "en"),
   );
@@ -261,7 +261,7 @@ test("B6 wiring: the dispatch pass cancels a pending item whose dependency ended
     deps: { db, stopping: () => false },
     ctxOf: () => ({}),
     announce: (t: string) => announced.push(t),
-  } as unknown as LeadRuntime;
+  } as unknown as TeammateRuntime;
   await dispatchReady(rt, TH);
   expect(byKey(db, a.goalId, "b").status).toBe("cancelled");
   expect(announced).toContain(TH);
@@ -276,13 +276,13 @@ test("pendingPlan: the open goal's valid plan until it is asked; approve_plan se
   port.decidePlan = real.decidePlan;
   port.remember = () => {};
   port.answer = { timedOut: true };
-  await handleApprovePlan(leadCtx(port), { planId: plan.id, version: 1 });
+  await handleApprovePlan(teammateCtx(port), { planId: plan.id, version: 1 });
   expect(port.asked[0]).toMatchObject({ fileName: "plan-v1.txt" });
   expect(port.asked[0]?.stem).toContain("Steps:");
   expect(port.asked[0]?.stem).not.toContain("do p1"); // briefs stay in the attachment
 });
 
-test("pendingPlan: none after the ask timed out (the lead may talk to the owner again)", async () => {
+test("pendingPlan: none after the ask timed out (the teammate may talk to the owner again)", async () => {
   const { goalId, plan } = validPlan();
   const real = createPlanPort(db, TH);
   const port = new FakePort();
@@ -299,6 +299,6 @@ test("pendingPlan: none after the ask timed out (the lead may talk to the owner 
       result: e.reply,
     });
   port.answer = { timedOut: true };
-  await handleApprovePlan(leadCtx(port), { planId: plan.id, version: 1 });
+  await handleApprovePlan(teammateCtx(port), { planId: plan.id, version: 1 });
   expect(real.pendingPlan()).toBeUndefined();
 });

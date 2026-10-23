@@ -43,7 +43,7 @@ const CEILING: Record<string, number> = {
   scout: 6600,
   researcher: 6900,
   "discord-manager": 4300,
-  lead: 3800,
+  "chief-of-staff": 3800,
 };
 
 test("every role has a ceiling and stays under it", () => {
@@ -79,10 +79,10 @@ test("worker contracts have the template sections in order", () => {
   }
 });
 
-test("the shared worker block is in every task worker once, never in the lead, planner or discord-manager", () => {
+test("the shared worker block is in every task worker once, never in the teammate, planner or discord-manager", () => {
   for (const name of TASK_WORKERS)
     expect(contract(name).split("## How the team works")).toHaveLength(2);
-  for (const name of ["lead", "planner", "discord-manager"])
+  for (const name of ["chief-of-staff", "planner", "discord-manager"])
     expect(contract(name)).not.toContain("## How the team works");
   // The run facts (watchdog, limits, failures) live in the preloaded team skill, not in the contracts.
   expect(TEAM_SKILL_TEXT).toContain(`${STALE_AFTER_MS / 60_000} minutes is aborted as stale`);

@@ -1,4 +1,4 @@
-/* Sections of the plan text: the lead writes the plan as markdown and a plan item names one of its headings. Pure. */
+/* Sections of the plan text: the teammate writes the plan as markdown and a plan item names one of its headings. Pure. */
 
 /** One markdown heading: its level (1-6) and text, and the index of its line. */
 export interface PlanHeading {

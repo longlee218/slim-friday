@@ -311,7 +311,7 @@ test("journal: hook text is never injected into a prompt; the line limit stops a
   const prompt = buildPromptContext({
     agentHome: s.home,
     workspace: "a",
-    kind: "lead",
+    kind: "teammate",
     registry: "",
   });
   expect(JSON.stringify(prompt)).not.toContain("quarkus");
@@ -344,7 +344,7 @@ test("every role run registers the PreCompact and PostCompact hooks", async () =
   const probe: RoleDefinition = {
     name: "probe-hooks",
     whenToUse: "test only",
-    kind: "lead",
+    kind: "teammate",
     limits: { maxAsk: 3, maxTurns: 20 },
     subagents: { parallel: 3, depth: 1 },
     sideEffects: "none",
@@ -362,7 +362,7 @@ test("every role run registers the PreCompact and PostCompact hooks", async () =
       threadId: "th",
       source: "test",
       location: "location",
-      role: "lead",
+      role: "chief-of-staff",
     });
     await runRole(
       {

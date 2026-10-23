@@ -3,7 +3,6 @@ import { readFileSync } from "node:fs";
 import { PLACEHOLDER } from "../src/config/agent-config";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { addLocation, makeEnv, TEST_CHANNEL } from "./helpers";
-import { sleep, until, workersDone } from "./lead-harness";
 import { outcomeOf, summarize, type Verdict, verdictOf } from "./researcher-eval-support";
 import {
   CODE_LOCATION,
@@ -12,13 +11,14 @@ import {
   pathLineRefs,
   REPO_ROOT,
 } from "./scout-codebase-eval-support";
+import { sleep, until, workersDone } from "./teammate-harness";
 
 /*
  * PAID opt-in eval of the scout (codebase reference search): runs only with SCOUT_CODE_EVAL=1 and a real
  * CLAUDE_CODE_OAUTH_TOKEN (never by default). This repository is registered as the location `friday` of a fresh db; each
- * case sends one "where / how" question to the REAL lead and the REAL scout (Haiku, cheap). Scored per case: the scout
+ * case sends one "where / how" question to the REAL teammate and the REAL scout (Haiku, cheap). Scored per case: the scout
  * completed and its result excerpt or saved report cites `path:line` for one expected path. Every case must dispatch (a
- * direct lead answer is a MISS). Cost and latency are printed. `SCOUT_CODE_EVAL_ONLY` (a case id prefix) limits the run;
+ * direct teammate answer is a MISS). Cost and latency are printed. `SCOUT_CODE_EVAL_ONLY` (a case id prefix) limits the run;
  * gate: MISS rate <= 1 - `SCOUT_CODE_EVAL_MIN` (default 0.7).
  */
 const token = process.env.CLAUDE_CODE_OAUTH_TOKEN;
@@ -28,7 +28,7 @@ if (!live)
     "SKIP scout codebase eval: needs SCOUT_CODE_EVAL=1 and a real CLAUDE_CODE_OAUTH_TOKEN\n",
   );
 
-describe.skipIf(!live)("scout codebase set (real lead and scout on this repo)", () => {
+describe.skipIf(!live)("scout codebase set (real teammate and scout on this repo)", () => {
   test("scouts complete and cite the expected path:line", async () => {
     const { query } = await import("@anthropic-ai/claude-agent-sdk");
     const only = process.env.SCOUT_CODE_EVAL_ONLY ?? "";
@@ -58,9 +58,9 @@ describe.skipIf(!live)("scout codebase set (real lead and scout on this repo)", 
         threadId: `code-eval-${c.id}`,
         text: c.text,
       });
-      // Give a dispatch 60 s to appear; a lead that answers alone is a MISS (every case must dispatch).
+      // Give a dispatch 60 s to appear; a teammate that answers alone is a MISS (every case must dispatch).
       const dispatched = await until(
-        () => !!env.db.query("SELECT 1 FROM turns WHERE role != 'lead'").get(),
+        () => !!env.db.query("SELECT 1 FROM turns WHERE role != 'chief-of-staff'").get(),
         60_000,
       ).then(
         () => true,

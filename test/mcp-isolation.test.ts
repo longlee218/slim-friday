@@ -14,9 +14,9 @@ import { REPORT_TOOL } from "../src/mcp/orchestration/tools/ReportTool/constants
 import { TASK_BOARD_TOOL } from "../src/mcp/orchestration/tools/TaskBoardTool/constants";
 import { checkToolCall, guardFor } from "../src/policy/check-tool-call";
 import { getRole, ROLES } from "../src/roles/role-registry";
-import { ALL_TOOL_NAMES, FULL_CTX, LEAD_ONLY_TOOLS, toolsByServer } from "./mcp-ctx-fixture";
+import { ALL_TOOL_NAMES, FULL_CTX, TEAMMATE_ONLY_TOOLS, toolsByServer } from "./mcp-ctx-fixture";
 
-/** Roles that run as workers (dispatched): never hold a lead tool. */
+/** Roles that run as workers (dispatched): never hold a teammate tool. */
 const WORKERS = ["developer", "scout"].map((n) => getRole(n));
 
 /** Tools of the external servers: listed in `mcpTools`, served out of process (not held by an in-process instance). */
@@ -55,16 +55,19 @@ test("a tool whose ctx part the run lacks is not built (mcpTools ∩ ctx)", () =
   );
   // No memory, no sink, no effects: nothing at all.
   expect(buildServers(dev, {})).toEqual({});
-  // The lead without a rename port still has Orchestrate, but its action table has no set_title.
-  const lead = getRole("lead");
+  // The teammate without a rename port still has Orchestrate, but its action table has no set_title.
+  const teammate = getRole("chief-of-staff");
   const description = (ctx: typeof FULL_CTX) =>
     (
-      buildServers(lead, ctx)[ORCHESTRATION_MCP_SERVER] as never as {
+      buildServers(teammate, ctx)[ORCHESTRATION_MCP_SERVER] as never as {
         instance: { _registeredTools: Record<string, { description: string }> };
       }
     ).instance._registeredTools[ORCHESTRATE_TOOL]!.description;
   const noPort = held(
-    buildServers(lead, { ...FULL_CTX, memory: { ...FULL_CTX.memory!, threadTitle: undefined } }),
+    buildServers(teammate, {
+      ...FULL_CTX,
+      memory: { ...FULL_CTX.memory!, threadTitle: undefined },
+    }),
   );
   expect(noPort).toContain(ORCHESTRATE_TOOL);
   expect(description(FULL_CTX)).toContain("set_title");
@@ -73,14 +76,14 @@ test("a tool whose ctx part the run lacks is not built (mcpTools ∩ ctx)", () =
   ).not.toContain("set_title");
 });
 
-test("worker roles never hold a lead tool, even when the run (wrongly) brings a lead ctx", () => {
+test("worker roles never hold a teammate tool, even when the run (wrongly) brings a teammate ctx", () => {
   for (const role of WORKERS) {
     const names = held(buildServers(role, FULL_CTX));
-    for (const t of LEAD_ONLY_TOOLS)
+    for (const t of TEAMMATE_ONLY_TOOLS)
       expect([role.name, t, names.includes(t)]).toEqual([role.name, t, false]);
   }
-  // Worker ctx as the engine builds it (no lead part): the orchestration instance is Report and the read-only TaskBoard.
-  const { lead: _lead, ...workerCtx } = FULL_CTX;
+  // Worker ctx as the engine builds it (no teammate part): the orchestration instance is Report and the read-only TaskBoard.
+  const { teammate: _teammate, ...workerCtx } = FULL_CTX;
   for (const role of WORKERS)
     expect(toolsByServer(buildServers(role, workerCtx))[ORCHESTRATION_MCP_SERVER]).toEqual([
       REPORT_TOOL,
@@ -88,7 +91,7 @@ test("worker roles never hold a lead tool, even when the run (wrongly) brings a 
     ]);
 });
 
-test("owner rule: only the lead saves and edits memory; workers keep the read tools, the guard denies MemorySave and MemoryEdit", () => {
+test("owner rule: only the teammate saves and edits memory; workers keep the read tools, the guard denies MemorySave and MemoryEdit", () => {
   const save = mcpToolName(MEMORY_MCP_SERVER, MEMORY_SAVE_TOOL);
   const edit = mcpToolName(MEMORY_MCP_SERVER, MEMORY_EDIT_TOOL);
   for (const role of WORKERS) {
@@ -110,19 +113,21 @@ test("owner rule: only the lead saves and edits memory; workers keep the read to
       "deny",
     ]);
   }
-  expect(checkToolCall(save, {}, guardFor(getRole("lead"), {})).decision).toBe("allow");
-  expect(checkToolCall(edit, {}, guardFor(getRole("lead"), {})).decision).toBe("allow");
+  expect(checkToolCall(save, {}, guardFor(getRole("chief-of-staff"), {})).decision).toBe("allow");
+  expect(checkToolCall(edit, {}, guardFor(getRole("chief-of-staff"), {})).decision).toBe("allow");
 });
 
-test("a lead run holds the lead tools and no Report result", () => {
-  const names = held(buildServers(getRole("lead"), { ...FULL_CTX, reportSink: undefined }));
-  for (const t of LEAD_ONLY_TOOLS) expect(names).toContain(t);
+test("a teammate run holds the teammate tools and no Report result", () => {
+  const names = held(
+    buildServers(getRole("chief-of-staff"), { ...FULL_CTX, reportSink: undefined }),
+  );
+  for (const t of TEAMMATE_ONLY_TOOLS) expect(names).toContain(t);
   expect(names).not.toContain(REPORT_TOOL);
 });
 
 test("each query() call builds fresh instances", () => {
-  const a = buildServers(getRole("lead"), FULL_CTX);
-  const b = buildServers(getRole("lead"), FULL_CTX);
+  const a = buildServers(getRole("chief-of-staff"), FULL_CTX);
+  const b = buildServers(getRole("chief-of-staff"), FULL_CTX);
   expect(a[ORCHESTRATION_MCP_SERVER]).not.toBe(b[ORCHESTRATION_MCP_SERVER]);
 });
 
@@ -134,9 +139,9 @@ test("guard (second lock): denies mcp__orchestration__DispatchAgent for develope
     expect([role.name, checkToolCall(dispatch, {}, g).decision]).toEqual([role.name, "deny"]);
     expect([role.name, checkToolCall(report, {}, g).decision]).toEqual([role.name, "allow"]);
   }
-  const lead = guardFor(getRole("lead"), {});
-  expect(checkToolCall(dispatch, {}, lead).decision).toBe("allow");
-  expect(checkToolCall(report, {}, lead).decision).toBe("deny");
+  const teammate = guardFor(getRole("chief-of-staff"), {});
+  expect(checkToolCall(dispatch, {}, teammate).decision).toBe("allow");
+  expect(checkToolCall(report, {}, teammate).decision).toBe("deny");
 });
 
 test("the guard's allow list is exactly the full names of the role's mcpTools", () => {

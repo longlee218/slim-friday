@@ -28,9 +28,9 @@ export interface RecoveryReport {
   resumed: string[];
   /** Event claims released because their consumer turn is gone. */
   unclaimed: number;
-  /** Threads with undelivered events (the lead queue is drained for them when it is on). */
+  /** Threads with undelivered events (the teammate queue is drained for them when it is on). */
   threads: string[];
-  /** Threads with a goal item in `ready` (boot-resumed, or resumed by the shutdown abort): the dispatch pass runs for them, no lead run. */
+  /** Threads with a goal item in `ready` (boot-resumed, or resumed by the shutdown abort): the dispatch pass runs for them, no teammate run. */
   readyThreads: string[];
 }
 
@@ -82,7 +82,7 @@ function recover(db: Database): RecoveryReport {
 /**
  * Goal items that were `running` when the process died go back to `ready` with `attempt + 1` (the next dispatch pass
  * resumes their session), unless the automatic resumes are used up: then the item is held (`blocked`, result FAILED) with
- * a `failure` event for the lead. Returns the ids that will resume. Runs before the turns are interrupted.
+ * a `failure` event for the teammate. Returns the ids that will resume. Runs before the turns are interrupted.
  */
 function recoverGoalItems(db: Database): string[] {
   const resumed: string[] = [];

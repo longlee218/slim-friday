@@ -4,9 +4,9 @@ import { SAVE_ARTIFACT_TOOL } from "./tools/SaveArtifactTool/constants";
 import { SEARCH_ARTIFACTS_TOOL } from "./tools/SearchArtifactsTool/constants";
 
 /**
- * The `artifacts` server tools every role with a channel scope lists (lead, scout, researcher, developer, roster
+ * The `artifacts` server tools every role with a channel scope lists (teammate, scout, researcher, developer, roster
  * specialists): list, read and search the channel's artifacts. Read-only: a worker's files reach the owner through
- * `Report result` `files` and the lead's `forward`.
+ * `Report result` `files` and the teammate's `forward`.
  */
 export const ARTIFACT_READ_TOOLS = [
   READ_ARTIFACT_TOOL,
@@ -14,5 +14,5 @@ export const ARTIFACT_READ_TOOLS = [
   SEARCH_ARTIFACTS_TOOL,
 ] as const;
 
-/** The lead's artifact tools: the read tools and `SaveArtifact` (only the lead makes artifacts of its own; code makes the others at `forward`). */
+/** The teammate's artifact tools: the read tools and `SaveArtifact` (only the teammate makes artifacts of its own; code makes the others at `forward`). */
 export const ARTIFACT_TOOLS = [SAVE_ARTIFACT_TOOL, ...ARTIFACT_READ_TOOLS] as const;

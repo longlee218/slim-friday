@@ -2,15 +2,15 @@ import type { Logger } from "pino";
 import { createFindRunner } from "../memory/find-command-handler";
 import { createMemoryJobs } from "../memory/memory-jobs";
 import type { ControlHandle, TurnHandlerDeps } from "./handler-types";
-import { createLeadSystem } from "./lead/lead-system";
 import type { DispatchDeps } from "./run/role-run-types";
+import { createTeammateSystem } from "./teammate/teammate-system";
 import { createSteerRegistry } from "./turns/steer-registry";
 import { createRunTracker } from "./turns/turn-tracker";
 
 /** Control handle of a handler built without a control runner (tests, headless). */
 const NO_CONTROL: ControlHandle = { abortAll: () => undefined, drain: async (ms) => ms };
 
-/** The long-lived services of one turn handler, built once: run tracking, memory jobs, lead system, inline command runner, control-channel runner. */
+/** The long-lived services of one turn handler, built once: run tracking, memory jobs, teammate system, inline command runner, control-channel runner. */
 export function createHandlerServices(deps: TurnHandlerDeps, log: Logger) {
   const { db, config } = deps;
   const tracker = createRunTracker(db, log);
@@ -25,16 +25,16 @@ export function createHandlerServices(deps: TurnHandlerDeps, log: Logger) {
     queryFn: deps.queryFn,
     stopping: tracker.isStopping,
     limiter: deps.limiter,
-    leadPool: deps.leadPool,
+    teammatePool: deps.teammatePool,
     threadTitle: deps.threadTitle,
     steer: createSteerRegistry(db), // streaming roles take the owner's messages while they run
     memoryJobs,
   };
-  // The lead: the only path of an owner message after the commands (queue, runner, workers, announce).
-  const lead = createLeadSystem({
+  // The teammate: the only path of an owner message after the commands (queue, runner, workers, announce).
+  const teammate = createTeammateSystem({
     deps: dispatchDeps,
     post: deps.post,
-    ...deps.leadTiming,
+    ...deps.teammateTiming,
     track: (run) => void tracker.track(run.then(() => undefined)),
   });
   // `/find` is an inline owner command (answered before any thread or task).
@@ -44,12 +44,12 @@ export function createHandlerServices(deps: TurnHandlerDeps, log: Logger) {
   // Shutdown: abort everything; drain memory jobs first, then control runs, then the task runs get the time left.
   const shutdown = {
     abortAll: () => {
-      lead.stopAll();
+      teammate.stopAll();
       tracker.abortAll();
       memoryJobs.abortAll();
       control.abortAll();
     },
     drain: async (ms: number) => tracker.drain(await control.drain(await memoryJobs.drain(ms))),
   };
-  return { tracker, memoryJobs, dispatchDeps, lead, inline, shutdown };
+  return { tracker, memoryJobs, dispatchDeps, teammate, inline, shutdown };
 }

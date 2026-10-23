@@ -24,7 +24,7 @@ const OWNER = "owner_message";
 const BAD = new Set(["blocked", "failure", "timeout"]);
 
 /**
- * Goal timeline: one lane for the lead, one per item, bars from run start to end on a time axis whose idle gaps are
+ * Goal timeline: one lane for the teammate, one per item, bars from run start to end on a time axis whose idle gaps are
  * folded into narrow bands. Vertical hairlines at the ticks run through every lane; an open goal shows a "now" line.
  * A lane with no run yet says what it waits for. Click a bar for its steps.
  */
@@ -53,7 +53,7 @@ export function Waterfall({
   );
   const keyOf = new Map(items.map((i) => [i.id, i.item_key ?? i.id.slice(0, 8)]));
   const lanes = [
-    { id: "lead", label: "lead", role: "lead", status: "", waits: "" },
+    { id: "teammate", label: "teammate", role: "chief-of-staff", status: "", waits: "" },
     ...items.map((i) => ({
       id: i.id,
       label: i.item_key ?? i.id.slice(0, 8),
@@ -62,7 +62,7 @@ export function Waterfall({
       waits: ((parseJson(i.depends_on) as string[] | null) ?? []).join(", "),
     })),
   ];
-  const laneOf = (t: Turn) => (t.role === "lead" ? "lead" : (t.owned_task_id ?? "lead"));
+  const laneOf = (t: Turn) => (t.role === "chief-of-staff" ? "teammate" : (t.owned_task_id ?? "teammate"));
   const pct = (v: number) => `${(v * 100).toFixed(3)}%`;
   const grid = (
     <>
@@ -130,7 +130,7 @@ export function Waterfall({
                 );
               })}
               {marks
-                .filter((e) => (e.kind === OWNER ? "lead" : (e.item_id ?? "lead")) === lane.id)
+                .filter((e) => (e.kind === OWNER ? "teammate" : (e.item_id ?? "teammate")) === lane.id)
                 .map((e) => (
                   <span
                     key={e.seq}

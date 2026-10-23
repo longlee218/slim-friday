@@ -20,7 +20,7 @@ function setup(turn?: string) {
   insertOwnedTask(db, {
     id: "g",
     threadId: "th",
-    ownerRole: "lead",
+    ownerRole: "chief-of-staff",
     status: "open",
     scope: "g",
     correlationId: "c",
@@ -102,27 +102,27 @@ test("no session (the run died before init, or a failed resume cleared it): brie
   expect(s.text).toEndWith(FALLBACK_LINE);
 });
 
-test("a lead retry note is read once: resume + note on the first start after it, not on the next", () => {
+test("a teammate retry note is read once: resume + note on the first start after it, not on the next", () => {
   setup("sess-1");
   appendEvent(db, {
     id: "retry:it:1",
     threadId: "th",
     itemId: "it",
     kind: "retry",
-    payload: { note: "use the other branch", afterTurn: "t1", by: "lead" },
+    payload: { note: "use the other branch", afterTurn: "t1", by: "teammate" },
   });
-  postItemMessage(db, "it", "lead", "steer", "use the other branch"); // the retry note is a message of the thread
+  postItemMessage(db, "it", "teammate", "steer", "use the other branch"); // the retry note is a message of the thread
   resetAttempt(db, "it");
   const s = startInput(db, item());
   expect(s).toMatchObject({ auto: false, resume: { sessionId: "sess-1" } });
-  expect(s.text).toContain("[steer] lead: use the other branch");
+  expect(s.text).toContain("[steer] teammate: use the other branch");
   // The retried run started: a newer turn exists, the note is consumed.
   insertTurn(db, { id: "t2", threadId: "th", source: "t", location: "r", role: "developer" });
   linkTurn(db, "t2", "it");
   const next = startInput(db, item());
   expect(next).toMatchObject({ auto: false });
   expect(next.resume).toBeUndefined();
-  expect(next.text).toContain("[steer] lead: use the other branch"); // still part of the thread
+  expect(next.text).toContain("[steer] teammate: use the other branch"); // still part of the thread
 });
 
 test("effect rows are listed one line each: newlines and control characters in scope / result become spaces", () => {

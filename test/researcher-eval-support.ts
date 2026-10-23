@@ -16,11 +16,11 @@ export interface ResearchCase {
   id: string;
   kind: (typeof KINDS)[number];
   text: string;
-  /** `dispatch`: the lead must hand it to a worker (a direct answer is a MISS); `either` (default): a sure direct answer is fine. */
+  /** `dispatch`: the teammate must hand it to a worker (a direct answer is a MISS); `either` (default): a sure direct answer is fine. */
   expect?: "dispatch" | "either";
 }
 
-/** How one case ended: `ok` (dispatched and passed), `routed-direct` (lead answered, allowed), `MISS`. */
+/** How one case ended: `ok` (dispatched and passed), `routed-direct` (teammate answered, allowed), `MISS`. */
 export type Verdict = "ok" | "routed-direct" | "MISS";
 
 /** Score one case: a direct answer is a miss only for a must-dispatch case; a dispatched case must pass. */

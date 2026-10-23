@@ -23,7 +23,13 @@ test("schema has 4 tables and WAL mode", () => {
 
 test("task/run/tool_call helpers insert rows", () => {
   const { db } = makeEnv();
-  insertTurn(db, { id: "t", threadId: "th", source: "test", location: "/r", role: "lead" });
+  insertTurn(db, {
+    id: "t",
+    threadId: "th",
+    source: "test",
+    location: "/r",
+    role: "chief-of-staff",
+  });
   finishTurn(db, "t", "done");
   insertRun(db, {
     id: "r",

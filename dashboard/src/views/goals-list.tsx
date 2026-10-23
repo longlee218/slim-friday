@@ -20,7 +20,7 @@ export interface GoalSummary {
   held: number;
   running: number;
   worker_cost: number;
-  lead_cost: number;
+  teammate_cost: number;
   end_at: number;
 }
 
@@ -42,7 +42,7 @@ export function GoalsList() {
       <Load state={state} isEmpty={(d) => !d.length} empty="No goals in this window. Pick a wider window above.">
         {(goals) => {
           const open = goals.filter((g) => g.status === "open");
-          const cost = goals.reduce((s, g) => s + g.worker_cost + g.lead_cost, 0);
+          const cost = goals.reduce((s, g) => s + g.worker_cost + g.teammate_cost, 0);
           const held = open.reduce((s, g) => s + g.held, 0);
           const q = query.trim().toLowerCase();
           const rows = [...open, ...goals.filter((g) => g.status !== "open")].filter(
@@ -104,8 +104,8 @@ export function GoalsList() {
                             )}
                           </td>
                           <td className="r">
-                            {usd(g.worker_cost + g.lead_cost)}
-                            <div className="sub">lead {usd(g.lead_cost)}</div>
+                            {usd(g.worker_cost + g.teammate_cost)}
+                            <div className="sub">teammate {usd(g.teammate_cost)}</div>
                           </td>
                           <td className="r muted">{dur((g.status === "open" ? Date.now() : g.end_at) - g.created_at)}</td>
                           <td className="r muted">{ago(g.created_at)}</td>

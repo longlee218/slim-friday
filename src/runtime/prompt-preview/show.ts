@@ -7,9 +7,9 @@ import { type RoleStats, renderRole, renderSummary } from "./render-preview";
 import { listedSkills } from "./skill-listing";
 import { toolDefinitions } from "./tool-definitions";
 
-/** Roles `prompt:show --all` covers, lead first. */
+/** Roles `prompt:show --all` covers, teammate first. */
 export const PREVIEW_ROLES = [
-  "lead",
+  "chief-of-staff",
   "scout",
   "researcher",
   "developer",

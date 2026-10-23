@@ -54,7 +54,7 @@ test("an idle thread gets one episode, the second tick writes nothing", async ()
     db,
     "u1",
     "th1",
-    "lead",
+    "chief-of-staff",
     "done",
     T0 - EPISODE_IDLE_MS - 5000,
     T0 - EPISODE_IDLE_MS - 1000,
@@ -79,16 +79,16 @@ test("an idle thread gets one episode, the second tick writes nothing", async ()
   expect(m.calls).toHaveLength(1);
 });
 
-test("not idle yet, a running turn, a failed lead turn and worker turns do not make an episode", async () => {
+test("not idle yet, a running turn, a failed teammate turn and worker turns do not make an episode", async () => {
   const db = setup();
   const m = fakeLlm();
   const deps = { db, llm: m.llm, resolve, now: () => T0 };
-  turn(db, "u1", "th1", "lead", "done", T0 - 1000, T0 - 500, "recent"); // ended 500 ms ago
+  turn(db, "u1", "th1", "chief-of-staff", "done", T0 - 1000, T0 - 500, "recent"); // ended 500 ms ago
   expect(await writeIdleEpisodes(deps)).toBe(0);
-  turn(db, "u2", "th2", "lead", "failed", 1, 2, "failed run");
+  turn(db, "u2", "th2", "chief-of-staff", "failed", 1, 2, "failed run");
   turn(db, "u3", "th3", "developer", "done", 1, 2, "worker only");
   expect(await writeIdleEpisodes(deps)).toBe(0);
-  turn(db, "u4", "th4", "lead", "done", 1, 2, "old lead turn");
+  turn(db, "u4", "th4", "chief-of-staff", "done", 1, 2, "old teammate turn");
   turn(db, "u5", "th4", "developer", "running", 3, null, "still running");
   expect(await writeIdleEpisodes(deps)).toBe(0);
   expect(m.calls).toHaveLength(0);
@@ -96,7 +96,7 @@ test("not idle yet, a running turn, a failed lead turn and worker turns do not m
 
 test("a compaction summary written during the last turn is reused with no model call", async () => {
   const db = setup();
-  turn(db, "u1", "th1", "lead", "done", T0 - 20_000_000, T0 - 10_000_000, "long task");
+  turn(db, "u1", "th1", "chief-of-staff", "done", T0 - 20_000_000, T0 - 10_000_000, "long task");
   saveSummary(db, {
     threadId: "th1",
     workspace: "ws",
@@ -121,7 +121,7 @@ test("a compaction summary written during the last turn is reused with no model 
 
 test("a model error falls back to the facts text, an aborted run writes nothing", async () => {
   const db = setup();
-  turn(db, "u1", "th1", "lead", "done", 1, 2, "deploy the cache layer");
+  turn(db, "u1", "th1", "chief-of-staff", "done", 1, 2, "deploy the cache layer");
   const bad: CompactLlm = async () => {
     throw new Error("model down");
   };
@@ -129,7 +129,7 @@ test("a model error falls back to the facts text, an aborted run writes nothing"
   expect(getThreadSummary(db, "th1")?.summary).toContain("deploy the cache layer");
 
   const db2 = setup();
-  turn(db2, "u1", "th1", "lead", "done", 1, 2, "deploy the cache layer");
+  turn(db2, "u1", "th1", "chief-of-staff", "done", 1, 2, "deploy the cache layer");
   const ac = new AbortController();
   const aborting: CompactLlm = async () => {
     ac.abort();
@@ -144,7 +144,7 @@ test("a model error falls back to the facts text, an aborted run writes nothing"
 test("at most EPISODE_MAX_PER_TICK per tick, the rest on the next one; chat-mode thread uses its id as channel", async () => {
   const db = setup();
   for (let i = 0; i < EPISODE_MAX_PER_TICK + 2; i++)
-    turn(db, `u${i}`, `c${i}`, "lead", "done", i + 1, i + 2, `topic number ${i}`);
+    turn(db, `u${i}`, `c${i}`, "chief-of-staff", "done", i + 1, i + 2, `topic number ${i}`);
   const m = fakeLlm();
   const seen: string[] = [];
   const deps = {
@@ -163,7 +163,7 @@ test("at most EPISODE_MAX_PER_TICK per tick, the rest on the next one; chat-mode
 
 test("M1: a compaction summary saved during the model call is not overwritten by the idle episode", async () => {
   const db = setup();
-  turn(db, "u1", "th1", "lead", "done", 1, 2, "deploy the cache layer");
+  turn(db, "u1", "th1", "chief-of-staff", "done", 1, 2, "deploy the cache layer");
   const racing: CompactLlm = async () => {
     // A new turn compacted while the model ran: newer summary, newer updated_at.
     saveSummary(db, {
@@ -185,7 +185,7 @@ test("M1: a compaction summary saved during the model call is not overwritten by
 
 test("M2: the model-failure fallback stores the facts only, no nesting, newest facts kept when clipped", async () => {
   const db = setup();
-  turn(db, "u1", "th1", "lead", "done", 1, 2, "first request");
+  turn(db, "u1", "th1", "chief-of-staff", "done", 1, 2, "first request");
   const bad: CompactLlm = async () => {
     throw new Error("model down");
   };
@@ -194,7 +194,7 @@ test("M2: the model-failure fallback stores the facts only, no nesting, newest f
   expect(getThreadSummary(db, "th1")?.summary).not.toContain("Earlier episode");
   // New work after the episode, long enough to need a clip: the tail (newest) survives.
   const big = `${"x".repeat(9000)} NEWEST-FACT`;
-  turn(db, "u2", "th1", "lead", "done", T0 + 1000, T0 + 2000, big);
+  turn(db, "u2", "th1", "chief-of-staff", "done", T0 + 1000, T0 + 2000, big);
   expect(await writeIdleEpisodes({ ...deps, now: () => T0 + 2000 + EPISODE_IDLE_MS })).toBe(1);
   const s = getThreadSummary(db, "th1")?.summary ?? "";
   expect(s).not.toContain("Earlier episode");
@@ -205,7 +205,7 @@ test("M2: the model-failure fallback stores the facts only, no nesting, newest f
 test("M3: threads that keep failing do not block newer ones", async () => {
   const db = setup();
   for (let i = 0; i < EPISODE_MAX_PER_TICK + 2; i++)
-    turn(db, `u${i}`, `c${i}`, "lead", "done", i + 1, i + 2, `topic number ${i}`);
+    turn(db, `u${i}`, `c${i}`, "chief-of-staff", "done", i + 1, i + 2, `topic number ${i}`);
   const m = fakeLlm();
   const deps = {
     db,
@@ -224,7 +224,7 @@ test("M3: threads that keep failing do not block newer ones", async () => {
 
 test("empty facts save nothing (no TTL refresh) and the thread is skipped until a new turn", async () => {
   const db = setup();
-  turn(db, "u1", "c9", "lead", "done", 1, 2, ""); // no title, no brief, no items
+  turn(db, "u1", "c9", "chief-of-staff", "done", 1, 2, ""); // no title, no brief, no items
   const m = fakeLlm();
   const deps = { db, llm: m.llm, resolve, now: () => T0, skip: new Map<string, number>() };
   expect(await writeIdleEpisodes(deps)).toBe(0);
@@ -236,8 +236,8 @@ test("empty facts save nothing (no TTL refresh) and the thread is skipped until 
 
 test("an unmapped channel gets no episode and no model call", async () => {
   const db = setup();
-  turn(db, "u1", "c8", "lead", "done", 1, 2, "talk in an unmapped channel");
-  turn(db, "u2", "th1", "lead", "done", 1, 2, "mapped work");
+  turn(db, "u1", "c8", "chief-of-staff", "done", 1, 2, "talk in an unmapped channel");
+  turn(db, "u2", "th1", "chief-of-staff", "done", 1, 2, "mapped work");
   const m = fakeLlm();
   const deps = { db, llm: m.llm, resolve, now: () => T0, skip: new Map<string, number>() };
   expect(await writeIdleEpisodes(deps)).toBe(1); // only th1 (chan1)

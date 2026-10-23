@@ -15,7 +15,7 @@ export type MessageKind = (typeof MESSAGE_KINDS)[number];
 
 /** Author of a message written by code (state changes the next run should know about). */
 export const AUTHOR_SYSTEM = "system";
-/** Author of the lead's own messages (brief, steer, retry note). */
-export const AUTHOR_LEAD = "lead";
-/** Author of an owner reply the lead relayed to a worker. */
+/** Author of the teammate's own messages (brief, steer, retry note). */
+export const AUTHOR_TEAMMATE = "teammate";
+/** Author of an owner reply the teammate relayed to a worker. */
 export const AUTHOR_OWNER = "owner";

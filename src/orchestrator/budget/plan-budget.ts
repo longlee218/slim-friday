@@ -4,7 +4,7 @@ import type { RoleDefinition } from "../../roles/role-types";
 import { VERIFY_ROLE } from "../plan/plan-types";
 import { isWriterRole } from "../plan/verify-items";
 
-/* Plan budget computed by code: the lead never sets it (an LLM cannot price runs). */
+/* Plan budget computed by code: the teammate never sets it (an LLM cannot price runs). */
 
 /** What the budget reads of a plan item: its role and location. */
 interface BudgetItem {

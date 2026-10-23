@@ -17,7 +17,7 @@ export const METHOD_SKILL = "using-skills";
 /** The team skill every task worker loads (data): how a run fits the team (inputs, hand-offs, failures, limits); preloaded like the method skill. */
 export const TEAM_SKILL = "team-protocol";
 
-/** Owner questions per run: a specialist never asks; it reports NEEDS_CLARIFICATION and the lead asks. */
+/** Owner questions per run: a specialist never asks; it reports NEEDS_CLARIFICATION and the teammate asks. */
 export const SPECIALIST_MAX_ASK = 0;
 /** Budget (USD) of one roster specialist run (one figure for all six; the task ceiling still caps the task). */
 export const SPECIALIST_BUDGET_USD = 4;

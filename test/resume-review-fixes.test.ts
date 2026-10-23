@@ -11,14 +11,14 @@ import { getOwnedTask } from "../src/storage/owned-task-store";
 import { getSession } from "../src/storage/session-store";
 import { recordBotThread } from "../src/storage/thread-store";
 import { addLocation, fakeQuery, initMsg, makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
-import { leadHarness, until } from "./lead-harness";
 import { isWorkerRun } from "./mcp-run-probe";
+import { teammateHarness, until } from "./teammate-harness";
 
 /* Review fixes of P2: shutdown resume restarts at boot, resume keeps the first run's cwd, /stop gives up a held item,
    a success result flagged is_error that carries an API error is a transient failure. */
 
 const sessionOf = (options: any, n: number) =>
-  options?.resume ?? (isWorkerRun(options) ? "worker-s" : `lead-${n}`);
+  options?.resume ?? (isWorkerRun(options) ? "worker-s" : `teammate-${n}`);
 const itemId = (db: any) =>
   (db.query("SELECT id FROM owned_tasks WHERE parent_id IS NOT NULL").get() as { id: string }).id;
 /** The fake abort of the SDK: the run ends with the abort error once its controller fires. */
@@ -43,7 +43,7 @@ test("SIGTERM: the abort leaves the item ready (nothing restarts while stopping)
   const env = makeEnv();
   const thread = "th-sigterm";
   recordBotThread(env.db, thread, TEST_CHANNEL, "main", "⏳ 10-15 10:00");
-  const h1 = leadHarness(
+  const h1 = teammateHarness(
     async (c) => {
       if (c.kind === "worker") return untilAborted(c);
       if (c.prompt.includes("<owner_message>")) {
@@ -65,7 +65,7 @@ test("SIGTERM: the abort leaves the item ready (nothing restarts while stopping)
   // New process: recovery sees no running item, but the ready one; the wake dispatches it.
   const report = recoverInFlight(env.db);
   expect(report.readyThreads).toEqual([thread]);
-  const h2 = leadHarness(
+  const h2 = teammateHarness(
     async (c) => {
       if (c.kind === "worker") {
         await c.report("result", { title: "T", status: "COMPLETED", summary: "ok" });
@@ -92,7 +92,7 @@ test("resume uses the cwd of the turn that owns the session, even when the item'
   const thread = "th-cwd";
   recordBotThread(env.db, thread, TEST_CHANNEL, "main", "⏳ 10-15 10:00");
   const release: (() => void)[] = [];
-  const first = leadHarness(
+  const first = teammateHarness(
     async (c) => {
       if (c.kind === "worker") {
         await new Promise<void>((r) => release.push(r)); // the process dies here
@@ -116,7 +116,7 @@ test("resume uses the cwd of the turn that owns the session, even when the item'
   // The item now reads as another location (a plan rewrite, a config change): recomputing the cwd would pick `other`.
   env.db.query("UPDATE owned_tasks SET location = 'other' WHERE id = ?").run(id);
   const report = recoverInFlight(env.db);
-  const second = leadHarness(
+  const second = teammateHarness(
     async (c) => {
       if (c.kind === "worker") {
         await c.report("result", { title: "T", status: "COMPLETED", summary: "ok" });
@@ -138,7 +138,7 @@ test("resume uses the cwd of the turn that owns the session, even when the item'
 }, 20_000);
 
 test("/stop with a held item: it and its dependents are cancelled and the goal settles cancelled", async () => {
-  const h = leadHarness(async (c) => {
+  const h = teammateHarness(async (c) => {
     if (c.kind === "worker") {
       await c.report("result", { title: "T", status: "FAILED", summary: "broke" });
       return "failed";
@@ -179,7 +179,7 @@ test("a success result flagged is_error with an API error is a transient failure
     runAgent({
       prompt: "q",
       turnId: "T",
-      role: getRole("lead"),
+      role: getRole("chief-of-staff"),
       cwd: env.home,
       config: env.config,
       db: env.db,
@@ -195,7 +195,7 @@ test("a success result flagged is_error with an API error is a transient failure
   // Through the policy: a running goal item with that result resumes.
   env.db
     .query(
-      "INSERT INTO owned_tasks (id, thread_id, owner_role, status, scope, version, correlation_id, created_at, last_progress_at, parent_id, item_key, depends_on) VALUES ('g','th','lead','open','g',0,'c',0,0,NULL,NULL,'[]'), ('it','th','developer','running','s',0,'c',0,0,'g','main','[]')",
+      "INSERT INTO owned_tasks (id, thread_id, owner_role, status, scope, version, correlation_id, created_at, last_progress_at, parent_id, item_key, depends_on) VALUES ('g','th','chief-of-staff','open','g',0,'c',0,0,NULL,NULL,'[]'), ('it','th','developer','running','s',0,'c',0,0,'g','main','[]')",
     )
     .run();
   const verdict = applyFailurePolicy({

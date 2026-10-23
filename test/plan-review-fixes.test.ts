@@ -1,17 +1,17 @@
 import type { Database } from "bun:sqlite";
 import { afterEach, expect, test } from "bun:test";
-import { CHAIN_CAP, PENDING_PLAN_MAX_AGE_MS } from "../src/config/lead-caps";
 import { PLAN_GOAL_BUDGET_MAX_USD } from "../src/config/model-routing";
+import { CHAIN_CAP, PENDING_PLAN_MAX_AGE_MS } from "../src/config/teammate-caps";
 import { createDbEffectPort } from "../src/orchestrator/goal/effect-port-db";
 import { createPlanPort } from "../src/orchestrator/goal/effect-port-plan";
 import { goalCaps, openGoalIdOf } from "../src/orchestrator/goal/effect-port-queries";
-import { handleApprovePlan } from "../src/orchestrator/lead/lead-plan-handlers";
 import { toPlanItem } from "../src/orchestrator/plan/plan-doc";
 import { approveVersion, createPlan } from "../src/orchestrator/plan/plan-lifecycle";
 import { renderPlan } from "../src/orchestrator/plan/plan-render";
 import { type Edit, revisePlan } from "../src/orchestrator/plan/plan-revision";
 import { stopThreadTree } from "../src/orchestrator/run/stop-thread-tree";
 import { checkPlanRequest } from "../src/orchestrator/strategy/plan-policy";
+import { handleApprovePlan } from "../src/orchestrator/teammate/teammate-plan-handlers";
 import { dispatchableWorkers } from "../src/roles/role-registry";
 import { openDb } from "../src/storage/db";
 import { childrenOf } from "../src/storage/owned-item-store";
@@ -19,8 +19,8 @@ import { getOwnedTask } from "../src/storage/owned-task-store";
 import { appendEvent } from "../src/storage/thread-event-store";
 import { getPlan, hasPendingPlan, planVersions } from "../src/storage/work-plan-store";
 import { moveTaskTo } from "../src/tasks/task-resolver";
-import { FakePort } from "./lead-fake-port";
 import { openPlanGoal, setStoredBudget } from "./plan-fixture";
+import { FakePort } from "./teammate-fake-port";
 
 /* Review fixes of phase L2b over a real in-memory db: chain cap, rendering, pending plans, atomic approve / revise /
    reject, dead dependencies, revision of the acceptance criteria. */
@@ -115,7 +115,7 @@ test("M1/D2: /stop closes the pending plan; an approve answered after it creates
     stopThreadTree(db, "t"); // the owner types /stop while the question is open
     return { answer: "Approve plan", timedOut: false };
   };
-  const ctx = { port, threadId: "t", leadTurnId: "lt", inputId: "in1", run: { dispatched: 0 } };
+  const ctx = { port, threadId: "t", teammateTurnId: "lt", inputId: "in1", run: { dispatched: 0 } };
   expect(await handleApprovePlan(ctx, { planId: plan.id, version: 1 })).toMatchObject({
     ok: false,
   });

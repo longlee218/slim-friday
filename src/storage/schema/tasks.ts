@@ -41,7 +41,7 @@ export const owned_tasks = sqliteTable(
     result_kind: text(),
     /** Short excerpt of the result (the full text is the task's newest `result` message). */
     result_excerpt: text(),
-    /** Who may change the goal's items: `lead` (DIRECT / DELEGATE) or `plan` (PLAN). Goal rows only; null on items. */
+    /** Who may change the goal's items: `teammate` (DIRECT / DELEGATE) or `plan` (PLAN). Goal rows only; null on items. */
     structure_owner: text(),
     /** Item urgency: 0 normal, 10 high, 100 urgent. The scheduler starts ready items by priority, then age; nothing is preempted. */
     priority: integer().notNull().default(0),

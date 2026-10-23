@@ -19,7 +19,7 @@ import { loadWorkspaces } from "./workspace-registry";
 
 /* New project from chat (`register_location` with `create: true`): CODE makes the directory, `git init`, a README with the
    request and the first commit under the owner's git identity. No agent shell is involved. Every guard returns a coded
-   refusal that names the fix. The caller (lead-location-handler) has already checked owner run, path-in-text and one-per-run. */
+   refusal that names the fix. The caller (teammate-location-handler) has already checked owner run, path-in-text and one-per-run. */
 
 /** Longest request text written into the README. */
 const README_REQUEST_CHARS = 4000;

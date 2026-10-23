@@ -3,7 +3,7 @@ import {
   DUPLICATE_MAX_MATCHES,
   DUPLICATE_MIN_OVERLAP,
   DUPLICATE_WINDOW_MS,
-} from "../../config/lead-caps";
+} from "../../config/teammate-caps";
 import { clip, redactText } from "../../observability/redact";
 import {
   recentItemEvents,
@@ -18,12 +18,16 @@ import {
   threadOfTask,
 } from "../../storage/owned-task-store";
 import { lastMessageOf } from "../../storage/task-message-store";
-import { GET_EVENTS_MAX, GET_RESULT_MAX_CHARS, SEARCH_MAX_RESULTS } from "../lead/lead-limits";
 import { messageRef } from "../messages/message-ref";
 import { type Reply, refuse } from "../reply";
+import {
+  GET_EVENTS_MAX,
+  GET_RESULT_MAX_CHARS,
+  SEARCH_MAX_RESULTS,
+} from "../teammate/teammate-limits";
 import { queryScore, similarity, type TaskText } from "./task-match";
 
-/* Read side of the task tools, over a db and one thread: `get`, `search` and the duplicate check. The lead (through its
+/* Read side of the task tools, over a db and one thread: `get`, `search` and the duplicate check. The teammate (through its
    port) . */
 
 /** Chars of one event payload shown by `get`. */

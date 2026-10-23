@@ -11,7 +11,6 @@ import { afterVerify } from "../src/orchestrator/plan/goal-verify";
 import { digestFacts } from "../src/orchestrator/worker/digest-facts";
 import { insertOwnedTask } from "../src/storage/owned-task-store";
 import { listUndelivered } from "../src/storage/thread-event-store";
-import { leadHarness, until } from "./lead-harness";
 import {
   approvedPlan,
   byKey,
@@ -23,6 +22,7 @@ import {
   TH,
 } from "./plan-fixture";
 import { createPlanFor, plannerCtxOf } from "./plan-visibility-helpers";
+import { teammateHarness, until } from "./teammate-harness";
 
 /* The per-goal budget figure: a PLAN goal = its approved plan budget (ceiling $35), a DELEGATE goal = $15. One function
    (`goalBudgetOf`) feeds the dispatch refusal, the goal-left run cap, the verify loop and the digest. */
@@ -117,7 +117,7 @@ test("budget_hit: a plan goal stops starting items at its computed plan budget (
   const caps: Record<string, number> = {};
   const started: string[] = [];
   let goalIdSeen = "";
-  const h = leadHarness(
+  const h = teammateHarness(
     async (c) => {
       if (c.kind === "worker") {
         const key = /do (\w+)/.exec(c.prompt)?.[1] as string;
@@ -162,7 +162,7 @@ test("budget_hit: a plan goal stops starting items at its computed plan budget (
   expect(caps.a).toBeCloseTo(8, 6); // the developer's own ceiling: the goal still had ~$20 left
   expect(hits()[0]?.payload).toContain("goal budget $20 used");
   const goalId = goalIdSeen;
-  // The budget hit HOLDS the item (E-L13): the lead may retry it once the budget allows, or cancel it.
+  // The budget hit HOLDS the item (E-L13): the teammate may retry it once the budget allows, or cancel it.
   const b = byKey(h.env.db, goalId, "b");
   expect(b.status).toBe("blocked");
   expect(b.resultKind).toBe("FAILED");

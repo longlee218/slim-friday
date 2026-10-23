@@ -72,10 +72,10 @@ test("no rule file = no block; a long file is cut; a $HOME location is skipped",
   expect(buildLocationRulesContext([home])).toBe("");
 });
 
-test("workers get the location rules block after the registry and before memory; the lead never", () => {
+test("workers get the location rules block after the registry and before memory; the teammate never", () => {
   const env = makeEnv();
   const base = { agentHome: env.home, workspace: "main", locationRules: "RULES_MARK" };
   const worker = buildPromptContext({ ...base, kind: "worker", registry: "REGISTRY_MARK" });
   expect(worker.slice(0, 2)).toEqual(["REGISTRY_MARK", "RULES_MARK"]);
-  expect(buildPromptContext({ ...base, kind: "lead" }).join("\n")).not.toContain("RULES_MARK");
+  expect(buildPromptContext({ ...base, kind: "teammate" }).join("\n")).not.toContain("RULES_MARK");
 });

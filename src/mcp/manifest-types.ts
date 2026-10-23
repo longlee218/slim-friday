@@ -6,7 +6,7 @@ import type {
 } from "@anthropic-ai/claude-agent-sdk";
 import type { ArtifactToolCtx } from "../artifacts/artifact-access";
 import type { MemoryToolContext } from "../memory/memory-tool-context";
-import type { LeadToolContext } from "../orchestrator/lead/lead-call";
+import type { TeammateToolContext } from "../orchestrator/teammate/teammate-call";
 import type { ReportFilesCtx } from "../orchestrator/worker/report-files";
 import type { ReportSink } from "../orchestrator/worker/report-sink";
 import type { EffectsCtx } from "../policy/effect-context";
@@ -15,13 +15,13 @@ import type { TaskBoardCtx } from "./orchestration/tools/TaskBoardTool/task-boar
 
 /**
  * Everything a run can bring to its MCP tools, as optional parts. A tool reads the part it needs; a run without that
- * part simply does not get the tool (so a worker run, which has no `lead` part, can never hold a lead tool).
+ * part simply does not get the tool (so a worker run, which has no `teammate` part, can never hold a teammate tool).
  */
 export interface RunCtx {
   /** Memory tools; also `Orchestrate set_title` (needs `memory.threadTitle`). Absent = no memory (a control-channel run). */
   memory?: MemoryToolContext;
-  /** Lead tools: the lead run's port and counters. */
-  lead?: LeadToolContext;
+  /** Teammate tools: the teammate run's port and counters. */
+  teammate?: TeammateToolContext;
   /** The run's own scratch dir (a dispatched worker): where its screenshots are checked from. */
   scratchDir?: string;
   /** Where a worker's `Report result` `files` are checked and scratch ones copied. */
@@ -32,7 +32,7 @@ export interface RunCtx {
   progress?: (p: { percent: number; note: string }) => void;
   /** A worker's `Report` message port, bound to its task: stores a message of the task's thread, returns its ref (`M42`). */
   message?: (kind: "blocker", text: string) => string;
-  /** `TaskBoard` (lead and workers): the app db and the run's thread. Absent = no task board. */
+  /** `TaskBoard` (teammate and workers): the app db and the run's thread. Absent = no task board. */
   taskBoard?: TaskBoardCtx;
   /** Effect tools: the worker run's envelope, locations and owner gate. */
   effects?: EffectsCtx;

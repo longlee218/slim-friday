@@ -1,10 +1,10 @@
 import { expect, test } from "bun:test";
-import { CHAIN_CAP, MAX_RUNNING_PER_THREAD } from "../src/config/lead-caps";
+import { CHAIN_CAP, MAX_RUNNING_PER_THREAD } from "../src/config/teammate-caps";
 import type { Location } from "../src/locations/location-registry";
 import {
-  buildLeadContextBlock,
-  LEAD_DATA_TAG,
-} from "../src/orchestrator/strategy/lead-context-block";
+  buildTeammateContextBlock,
+  TEAMMATE_DATA_TAG,
+} from "../src/orchestrator/strategy/teammate-context-block";
 import { buildTeamMd } from "../src/roles/prompts/team-md";
 import { ROLES } from "../src/roles/role-registry";
 import type { RoleDefinition } from "../src/roles/role-types";
@@ -20,15 +20,15 @@ const api: Location = {
 test("TEAM.md: authoritative members from the registry, the channel's locations, strategies and caps", () => {
   const md = buildTeamMd({ locations: [api] });
   expect(md).toContain("Built by code for this run");
-  expect(md).not.toContain("You lead the team"); // persona is IDENTITY.md's
+  expect(md).not.toContain("You teammate the team"); // persona is IDENTITY.md's
   expect(md).toMatch(/^\| developer \| .* \| location \|/m);
   expect(md).toMatch(/^\| scout \| .* \| none \|/m);
-  expect(md).not.toMatch(/^\| (lead|discord-manager) \|/m);
+  expect(md).not.toMatch(/^\| (teammate|discord-manager) \|/m);
   expect(md).toContain("- api [git]: backend");
   expect(md).not.toContain("/r/api"); // no path in the reply source
   expect(md).toContain("- DELEGATE: up to"); // the only strategy fact code owns (a cap)
   expect(md).not.toContain("- DIRECT:"); // the skill owns the strategies
-  expect(md).toContain("- PLAN: the lead writes the plan"); // a runtime fact
+  expect(md).toContain("- PLAN: the teammate writes the plan"); // a runtime fact
   expect(md).not.toContain("ANSWER"); // not a code strategy; choosing is the skill's job
   expect(md).toContain("NEEDS_PLAN");
   expect(md).not.toMatch(/^\|.*\| [^|]*\b(tasks|mcp|feedback|ask|skills)\b[^|]* \|$/m); // internal capability names are left out of Tools
@@ -36,11 +36,11 @@ test("TEAM.md: authoritative members from the registry, the channel's locations,
   expect(md).toContain("one writer per location");
   expect(md).toContain(`at most ${CHAIN_CAP} chained starts`);
   expect(md).toContain("1 dispatch or plan (create_plan, revise_plan) per run");
-  expect(md).not.toContain("/day"); // no daily budget is told to the lead
+  expect(md).not.toContain("/day"); // no daily budget is told to the teammate
   expect(md).toContain("older than 8 h is held");
-  expect(md).not.toContain("## Events"); // the lead contract and skill own events
+  expect(md).not.toContain("## Events"); // the teammate contract and skill own events
   expect(md).not.toContain("Event kinds");
-  // The playbook moved to the lead-orchestration skill: TEAM.md holds none of it.
+  // The playbook moved to the teammate-orchestration skill: TEAM.md holds none of it.
   for (const gone of ["Orchestrate retry", "Orchestrate steer", "approve_plan"])
     expect(md).not.toContain(gone);
   // Section order: members, locations, strategies, limits.
@@ -54,7 +54,7 @@ test("TEAM.md follows the roles and locations it is given and stays small", () =
   expect(buildTeamMd({ workers: [] })).toContain("none available");
   expect(buildTeamMd()).toContain("none in this channel");
   expect(buildTeamMd({ locations: [api] }).length).toBeLessThan(6000);
-  expect(buildTeamMd({ locations: [api] }).length).toBeLessThan(4000); // lead prompt v2.2: one table, routing as role data
+  expect(buildTeamMd({ locations: [api] }).length).toBeLessThan(4000); // teammate prompt v2.2: one table, routing as role data
 });
 
 test("TEAM.md members table: routing is role data (Use when, Not for), tools and facts come from capabilities", () => {
@@ -62,9 +62,9 @@ test("TEAM.md members table: routing is role data (Use when, Not for), tools and
   expect(md).toContain("| Role | Use when | Not for | Changes | Tools |");
   expect(md).toMatch(/^\| researcher \| .* \| none \| .*browser \|$/m);
   expect(md).toMatch(/^\| developer \| .*integration or end-to-end tests\. \| location \|/m); // the test split is role data
-  expect(md).not.toContain("goes to the scout"); // no routing prose: the table and the lead's skill decide
-  expect(md).not.toContain("the planner is the project manager"); // the strategies live in the lead skill
-  expect(md).not.toContain("Goal budget"); // owner: code enforces the budget, no numbers for the lead
+  expect(md).not.toContain("goes to the scout"); // no routing prose: the table and the teammate's skill decide
+  expect(md).not.toContain("the planner is the project manager"); // the strategies live in the teammate skill
+  expect(md).not.toContain("Goal budget"); // owner: code enforces the budget, no numbers for the teammate
   expect(md).toContain("- Only developer can ask the owner"); // from the `ask` capability, not a name in code
   // Rows come from the roles given: a new role is data only.
   const fake = (
@@ -98,7 +98,7 @@ test("TEAM.md members table: routing is role data (Use when, Not for), tools and
 });
 
 test("data block: <goal_state> tags, one row per item, results are redacted and clipped", () => {
-  const block = buildLeadContextBlock(
+  const block = buildTeammateContextBlock(
     {
       goalId: "g1",
       intent: "clean it",
@@ -131,7 +131,7 @@ test("data block: <goal_state> tags, one row per item, results are redacted and 
     },
     ["node_modules gone"],
   );
-  expect(block.startsWith(LEAD_DATA_TAG)).toBe(true);
+  expect(block.startsWith(TEAMMATE_DATA_TAG)).toBe(true);
   expect(block.endsWith("</goal_state>")).toBe(true);
   expect(block).toContain("Goal g1: clean it");
   expect(block).toContain("- node_modules gone");
@@ -141,5 +141,5 @@ test("data block: <goal_state> tags, one row per item, results are redacted and 
 });
 
 test("data block without a goal says so", () => {
-  expect(buildLeadContextBlock({ items: [] })).toContain("No goal yet");
+  expect(buildTeammateContextBlock({ items: [] })).toContain("No goal yet");
 });

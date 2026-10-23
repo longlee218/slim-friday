@@ -4,8 +4,8 @@ import { taskOrigin } from "../../storage/owned-task-store";
 import { appendEvent } from "../../storage/thread-event-store";
 import type { PlanDoc } from "./plan-types";
 
-/* What an applied plan revision changed, told to the lead (a `plan_revised` news event) and the owner (one short line per applied revision, see `revisionNotice`).
-   The lead hears only a revision that cancels work or changes the acceptance criteria. */
+/* What an applied plan revision changed, told to the teammate (a `plan_revised` news event) and the owner (one short line per applied revision, see `revisionNotice`).
+   The teammate hears only a revision that cancels work or changes the acceptance criteria. */
 
 /** The diff of one applied revision, by item key. */
 export interface RevisionDiff {
@@ -69,7 +69,7 @@ export function recordRevision(
 }
 
 /**
- * Tell the lead (`items_added` news, one line) that CODE added items to a PLAN goal's structure: verify-N or fix-N.
+ * Tell the teammate (`items_added` news, one line) that CODE added items to a PLAN goal's structure: verify-N or fix-N.
  * One event per insertion batch; the id is stable per key set, so a repeated pass writes it once.
  */
 export function recordCodeItems(db: Database, goalId: string, keys: string[], why: string): void {

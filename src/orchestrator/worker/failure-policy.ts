@@ -15,7 +15,7 @@ import type { FlowResult } from "../turns/turn-result";
 import { holdUntil } from "./resume-backoff";
 
 /* What happens to a goal item whose run did not deliver: a transient failure resumes the same session (capped, with
-   backoff), anything else holds the item `blocked` (result FAILED) with its dependents waiting, and the lead decides
+   backoff), anything else holds the item `blocked` (result FAILED) with its dependents waiting, and the teammate decides
    (retry or cancel). The owner's own stop is a cancel and is not handled here. */
 
 /** Logger of this module. */
@@ -78,7 +78,7 @@ export function applyFailurePolicy(a: PolicyInput): FailureVerdict | undefined {
   }
   if (!moveTaskTo(db, item.id, "blocked")) return undefined;
   setResultKind(db, item.id, "FAILED");
-  // A transient failure that used up its resumes is a real failure for the lead.
+  // A transient failure that used up its resumes is a real failure for the teammate.
   const held =
     c.class === "transient" ? { class: "real" as const, cause: `resume_cap:${c.cause}` } : c;
   logEvent(log, "task.held", { itemId: item.id, ...held, attempt: item.attempt }, "warn");

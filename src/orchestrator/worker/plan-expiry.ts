@@ -1,18 +1,18 @@
-import { PENDING_PLAN_MAX_AGE_MS } from "../../config/lead-caps";
+import { PENDING_PLAN_MAX_AGE_MS } from "../../config/teammate-caps";
 import {
   ORCHESTRATE_ACTION_CREATE_PLAN,
   orchestrateRef,
 } from "../../mcp/orchestration/tools/OrchestrateTool/action-names";
 import { logEvent, logger } from "../../observability/logger";
-import { LEAD_ROLE } from "../../roles/builtin/lead-role";
+import { CHIEF_OF_STAFF_ROLE } from "../../roles/builtin/chief-of-staff-role";
 import { staleEmptyGoals } from "../../storage/owned-item-store";
 import { taskOrigin } from "../../storage/owned-task-store";
 import { appendEvent } from "../../storage/thread-event-store";
 import { closePendingPlans, expiredValidPlans } from "../../storage/work-plan-store";
 import { moveTaskTo } from "../../tasks/task-resolver";
-import { ASK_OWNER_TIMEOUT_MS } from "../lead/lead-limits";
-import type { LeadRuntime } from "../lead/lead-runtime";
 import { rejectVersion } from "../plan/plan-lifecycle";
+import { ASK_OWNER_TIMEOUT_MS } from "../teammate/teammate-limits";
+import type { TeammateRuntime } from "../teammate/teammate-runtime";
 import { settleGoal } from "./goal-settle";
 
 /** Logger of this module. */
@@ -21,11 +21,11 @@ const log = logger.child({ module: "plan-expiry" });
 /* A plan nobody answered for `PENDING_PLAN_MAX_AGE_MS` (plus one owner-question timeout, so a question asked just before
    the limit can still be answered) stops holding its goal: the version is rejected (as the owner's
    "no": the goal stays open for a re-plan), the goal settles when all
-   its items ended, and one `timeout` event wakes the lead so it can tell the owner. A PLAN goal with no item and no plan
-   waiting (rejected, expired) that is older than twice the same limit (the lead had a day to re-plan after the expiry) is cancelled: nobody asked for a re-plan. */
+   its items ended, and one `timeout` event wakes the teammate so it can tell the owner. A PLAN goal with no item and no plan
+   waiting (rejected, expired) that is older than twice the same limit (the teammate had a day to re-plan after the expiry) is cancelled: nobody asked for a re-plan. */
 
 /** One sweep at `now`: expire every pending plan over the limit. Returns how many versions it expired. */
-export function sweepPendingPlans(rt: LeadRuntime, now = Date.now()): number {
+export function sweepPendingPlans(rt: TeammateRuntime, now = Date.now()): number {
   const { db } = rt.deps;
   let expired = 0;
   for (const row of expiredValidPlans(db, now - PENDING_PLAN_MAX_AGE_MS - ASK_OWNER_TIMEOUT_MS)) {
@@ -49,7 +49,11 @@ export function sweepPendingPlans(rt: LeadRuntime, now = Date.now()): number {
     rt.announce(goal.threadId);
     expired++;
   }
-  for (const g of staleEmptyGoals(db, LEAD_ROLE.name, now - 2 * PENDING_PLAN_MAX_AGE_MS)) {
+  for (const g of staleEmptyGoals(
+    db,
+    CHIEF_OF_STAFF_ROLE.name,
+    now - 2 * PENDING_PLAN_MAX_AGE_MS,
+  )) {
     closePendingPlans(db, g.id, "expired");
     if (!moveTaskTo(db, g.id, "cancelled")) continue;
     appendEvent(db, {

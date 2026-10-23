@@ -3,10 +3,10 @@
  * holds its item), but the run may still be alive and write files. Its location stays claimed here until the run really
  * returns, so no new writer starts in that location meanwhile. A stopped run starts no new tool (the abort fence of the
  * permission layer), and no process handle is reachable from the SDK to kill it, so a claim that lasts too long only
- * notifies the lead (see `noticeStuckZombies`); it is never dropped while the run may still write.
+ * notifies the teammate (see `noticeStuckZombies`); it is never dropped while the run may still write.
  */
 
-/** Who owns a claim: the lead of `threadId` is told when it gets stuck. */
+/** Who owns a claim: the teammate of `threadId` is told when it gets stuck. */
 export interface ZombieOwner {
   threadId: string;
   /** The force-closed run's goal item and its goal. */
@@ -19,7 +19,7 @@ export interface ZombieClaim extends Partial<ZombieOwner> {
   location: string;
   /** Epoch ms of the force-close. */
   since: number;
-  /** The lead was told this claim is stuck. */
+  /** The teammate was told this claim is stuck. */
   noticed: boolean;
 }
 

@@ -37,7 +37,7 @@ test("idle: the last task was cancelled, failed, timed out or interrupted", () =
 
 test("running: task running (Q&A or code)", () => {
   expect(deriveThreadState(task("running"), "th")).toBe("running");
-  expect(deriveThreadState(task("running", "lead"), "th")).toBe("running");
+  expect(deriveThreadState(task("running", "chief-of-staff"), "th")).toBe("running");
 });
 
 test("awaiting_owner: the run waits on an AskUserQuestion (the plan approval is one); not a gate", () => {

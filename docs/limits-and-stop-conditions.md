@@ -1,13 +1,11 @@
 # Limits and Stop Conditions
 
-> Code names still use `lead` until the rename phase (`plans/261023-1139-persistent-teammates/phase-00-rename-lead-to-teammate.md`).
-
 Single source of every limit and stop condition of the app. Other docs link here and do not repeat numbers.
 
 - Value cells hold a raw `<!-- limit:NAME=VALUE -->` marker (ms, USD, bytes, counts) and a human form. `test/limits-doc-drift.test.ts` compares each marker with the code: every exported number of the limit files and every role field must have a marker, and a marker must match the code value.
 - Rows without a marker are informational and NOT drift-checked: the Model column of the roles table, retention, approval click, Discord output, the memory note and journal guards, other tools' limits and one-shot budgets. Every marked value is checked, and the test also fails when the doc has fewer markers than the code has limits.
 - `/limits [role]` (owner only, private reply, `limits.md` file when long) shows these values read from code at runtime (`collectLimits` in `src/config/limits-report.ts`, the same scan as the drift test) plus the live pool state. Owner live checklist: [discord-setup.md](discord-setup.md#limits-pools-and-subagents-owner-live-checklist).
-- Limit files: `src/config/lead-caps.ts`, `src/config/run-caps.ts`, `src/config/resilience-caps.ts`, `src/config/memory-caps.ts`, `src/config/model-routing.ts`, `src/orchestrator/lead/lead-limits.ts`, and the role files in `src/roles/builtin/`. Pools are code constants, no env.
+- Limit files: `src/config/teammate-caps.ts`, `src/config/run-caps.ts`, `src/config/resilience-caps.ts`, `src/config/memory-caps.ts`, `src/config/model-routing.ts`, `src/orchestrator/teammate/teammate-limits.ts`, and the role files in `src/roles/builtin/`. Pools are code constants, no env.
 
 ## Definitions
 
@@ -28,25 +26,25 @@ Single source of every limit and stop condition of the app. Other docs link here
 
 | Name | Scope | Value | File | At the limit | Configurable |
 |---|---|---|---|---|---|
-| `LEAD_POOL_MAX` | g | 5 <!-- limit:LEAD_POOL_MAX=5 --> | `config/run-caps.ts` | next chief-of-staff input waits for a slot; teammate runs take no worker slot | code |
-| `LEAD_WAITING_MAX` | g | 50 threads <!-- limit:LEAD_WAITING_MAX=50 --> | `config/run-caps.ts` | owner input refused with a `queue full` notice | code |
-| `LEAD_QUEUE_PER_THREAD` | t | 10 inputs <!-- limit:LEAD_QUEUE_PER_THREAD=10 --> | `config/lead-caps.ts` | oldest queued owner input dropped (announces are deduped: one queued per thread, outside the cap) | code |
-| `LEAD_DEBOUNCE_MS` | t | 0.8 s <!-- limit:LEAD_DEBOUNCE_MS=800 --> | `config/lead-caps.ts` | quiet time before merged input is queued | code |
-| `LEAD_REPLAY_MAX_AGE_MS` | t | 6 h <!-- limit:LEAD_REPLAY_MAX_AGE_MS=21600000 --> | `config/lead-caps.ts` | an owner message the crash left unanswered is replayed at boot only when newer than this; older ones are closed unanswered. A message dropped on purpose (`/stop`, queue cap, pool refusal) is closed at once and never replayed | code |
-| `ANNOUNCE_REARM_MAX_MS` | t | 60 s <!-- limit:ANNOUNCE_REARM_MAX_MS=60000 --> | `config/lead-caps.ts` | a dropped announce (teammate pool waiting list full) is armed again after the announce window, doubling per refusal up to this; reset when a teammate run of the thread starts | code |
-| `CHAIN_CAP` | t | 6 starts <!-- limit:CHAIN_CAP=6 --> | `config/lead-caps.ts` | dispatch policy refuses further worker starts after one owner message | code |
-| `DELEGATE_MAX` | goal | 5 workers <!-- limit:DELEGATE_MAX=5 --> | `config/lead-caps.ts` | a bigger request needs a plan | code |
-| `DUPLICATE_MIN_OVERLAP` | t | 0.6 <!-- limit:DUPLICATE_MIN_OVERLAP=0.6 --> | `config/lead-caps.ts` | `Orchestrate dispatch`, `Orchestrate add` and `Plan create` compare each new item (subject + brief, lower-cased words of 3+ letters, Jaccard overlap, the better of subject alone and subject + brief) with the thread's open items and the ones completed within `DUPLICATE_WINDOW_MS`; at or above this overlap the call is refused `DUPLICATE_SUSPECT` with the matches unless `confirmNew: true`. Failed and cancelled items never count; `dispatch` leaves out the goal it supersedes, `Plan create` leaves out its own goal's items (earlier plan versions, finished waves) | code |
-| `DUPLICATE_WINDOW_MS` | t | 24 h <!-- limit:DUPLICATE_WINDOW_MS=86400000 --> | `config/lead-caps.ts` | a completed item that completed longer ago than this is no longer compared (open items always are). The check reads only the thread's 500 newest goal and item rows (`CANDIDATES_MAX` in `storage/item-edit-store.ts`; `search` too), so very old work in a very long thread is not compared | code |
-| `PRIORITY_AGING_MS` | t | 30 min <!-- limit:PRIORITY_AGING_MS=1800000 --> | `config/lead-caps.ts` | a `ready` item that waited longer than this is started as if urgent (FIFO among urgent ones), so newer urgent items cannot starve a normal one; a running item is never preempted | code |
-| `DUPLICATE_MAX_MATCHES` | t | 3 <!-- limit:DUPLICATE_MAX_MATCHES=3 --> | `config/lead-caps.ts` | a `DUPLICATE_SUSPECT` refusal lists the best 3 matches | code |
-| `LEAD_OWNER_RUN_MAX_TURNS` | run | 60 <!-- limit:LEAD_OWNER_RUN_MAX_TURNS=60 --> | `config/lead-caps.ts` | turns of a teammate run started by an owner message (it may brainstorm, write the spec and plan inside `create_plan`, `approve_plan`); an announce run keeps the role's own `maxTurns` (30) | code |
-| `LEAD_OWNER_RUN_BUDGET_USD` | run | $5 <!-- limit:LEAD_OWNER_RUN_BUDGET_USD=5 --> | `config/lead-caps.ts` | budget of a teammate run started by an owner message; an announce run keeps the role's own `budgetUsd` ($1.5) | code |
-| `DISPATCHES_PER_RUN` | run | 1 <!-- limit:DISPATCHES_PER_RUN=1 --> | `config/lead-caps.ts` | second `Orchestrate dispatch` of a teammate run refused | code |
-| `MAX_ASSIGNMENTS` | run | 20 <!-- limit:MAX_ASSIGNMENTS=20 --> | `orchestrator/lead/lead-limits.ts` | schema rejects; more than the policy allows so the policy can answer NEEDS_PLAN | code |
-| `ANNOUNCE_MAX_EVENTS` | t | 20 events <!-- limit:ANNOUNCE_MAX_EVENTS=20 --> | `config/lead-caps.ts` | the rest stays undelivered; the block says how many more and a new announce is armed after the run; one `budget_hit` per goal per batch | code |
-| `ANNOUNCE_MAX_CHARS` | t | 6000 chars <!-- limit:ANNOUNCE_MAX_CHARS=6000 --> | `config/lead-caps.ts` | same as the event cap (an event past the chars waits for the next announce) | code |
-| Announce batch | t | 2 s window, 2 attempts | `lead/lead-events.ts`, `lead/lead-run.ts` | informational | code |
+| `TEAMMATE_POOL_MAX` | g | 5 <!-- limit:TEAMMATE_POOL_MAX=5 --> | `config/run-caps.ts` | next chief-of-staff input waits for a slot; teammate runs take no worker slot | code |
+| `TEAMMATE_WAITING_MAX` | g | 50 threads <!-- limit:TEAMMATE_WAITING_MAX=50 --> | `config/run-caps.ts` | owner input refused with a `queue full` notice | code |
+| `TEAMMATE_QUEUE_PER_THREAD` | t | 10 inputs <!-- limit:TEAMMATE_QUEUE_PER_THREAD=10 --> | `config/teammate-caps.ts` | oldest queued owner input dropped (announces are deduped: one queued per thread, outside the cap) | code |
+| `TEAMMATE_DEBOUNCE_MS` | t | 0.8 s <!-- limit:TEAMMATE_DEBOUNCE_MS=800 --> | `config/teammate-caps.ts` | quiet time before merged input is queued | code |
+| `TEAMMATE_REPLAY_MAX_AGE_MS` | t | 6 h <!-- limit:TEAMMATE_REPLAY_MAX_AGE_MS=21600000 --> | `config/teammate-caps.ts` | an owner message the crash left unanswered is replayed at boot only when newer than this; older ones are closed unanswered. A message dropped on purpose (`/stop`, queue cap, pool refusal) is closed at once and never replayed | code |
+| `ANNOUNCE_REARM_MAX_MS` | t | 60 s <!-- limit:ANNOUNCE_REARM_MAX_MS=60000 --> | `config/teammate-caps.ts` | a dropped announce (teammate pool waiting list full) is armed again after the announce window, doubling per refusal up to this; reset when a teammate run of the thread starts | code |
+| `CHAIN_CAP` | t | 6 starts <!-- limit:CHAIN_CAP=6 --> | `config/teammate-caps.ts` | dispatch policy refuses further worker starts after one owner message | code |
+| `DELEGATE_MAX` | goal | 5 workers <!-- limit:DELEGATE_MAX=5 --> | `config/teammate-caps.ts` | a bigger request needs a plan | code |
+| `DUPLICATE_MIN_OVERLAP` | t | 0.6 <!-- limit:DUPLICATE_MIN_OVERLAP=0.6 --> | `config/teammate-caps.ts` | `Orchestrate dispatch`, `Orchestrate add` and `Plan create` compare each new item (subject + brief, lower-cased words of 3+ letters, Jaccard overlap, the better of subject alone and subject + brief) with the thread's open items and the ones completed within `DUPLICATE_WINDOW_MS`; at or above this overlap the call is refused `DUPLICATE_SUSPECT` with the matches unless `confirmNew: true`. Failed and cancelled items never count; `dispatch` leaves out the goal it supersedes, `Plan create` leaves out its own goal's items (earlier plan versions, finished waves) | code |
+| `DUPLICATE_WINDOW_MS` | t | 24 h <!-- limit:DUPLICATE_WINDOW_MS=86400000 --> | `config/teammate-caps.ts` | a completed item that completed longer ago than this is no longer compared (open items always are). The check reads only the thread's 500 newest goal and item rows (`CANDIDATES_MAX` in `storage/item-edit-store.ts`; `search` too), so very old work in a very long thread is not compared | code |
+| `PRIORITY_AGING_MS` | t | 30 min <!-- limit:PRIORITY_AGING_MS=1800000 --> | `config/teammate-caps.ts` | a `ready` item that waited longer than this is started as if urgent (FIFO among urgent ones), so newer urgent items cannot starve a normal one; a running item is never preempted | code |
+| `DUPLICATE_MAX_MATCHES` | t | 3 <!-- limit:DUPLICATE_MAX_MATCHES=3 --> | `config/teammate-caps.ts` | a `DUPLICATE_SUSPECT` refusal lists the best 3 matches | code |
+| `TEAMMATE_OWNER_RUN_MAX_TURNS` | run | 60 <!-- limit:TEAMMATE_OWNER_RUN_MAX_TURNS=60 --> | `config/teammate-caps.ts` | turns of a teammate run started by an owner message (it may brainstorm, write the spec and plan inside `create_plan`, `approve_plan`); an announce run keeps the role's own `maxTurns` (30) | code |
+| `TEAMMATE_OWNER_RUN_BUDGET_USD` | run | $5 <!-- limit:TEAMMATE_OWNER_RUN_BUDGET_USD=5 --> | `config/teammate-caps.ts` | budget of a teammate run started by an owner message; an announce run keeps the role's own `budgetUsd` ($1.5) | code |
+| `DISPATCHES_PER_RUN` | run | 1 <!-- limit:DISPATCHES_PER_RUN=1 --> | `config/teammate-caps.ts` | second `Orchestrate dispatch` of a teammate run refused | code |
+| `MAX_ASSIGNMENTS` | run | 20 <!-- limit:MAX_ASSIGNMENTS=20 --> | `orchestrator/teammate/teammate-limits.ts` | schema rejects; more than the policy allows so the policy can answer NEEDS_PLAN | code |
+| `ANNOUNCE_MAX_EVENTS` | t | 20 events <!-- limit:ANNOUNCE_MAX_EVENTS=20 --> | `config/teammate-caps.ts` | the rest stays undelivered; the block says how many more and a new announce is armed after the run; one `budget_hit` per goal per batch | code |
+| `ANNOUNCE_MAX_CHARS` | t | 6000 chars <!-- limit:ANNOUNCE_MAX_CHARS=6000 --> | `config/teammate-caps.ts` | same as the event cap (an event past the chars waits for the next announce) | code |
+| Announce batch | t | 2 s window, 2 attempts | `teammate/teammate-events.ts`, `teammate/teammate-run.ts` | informational | code |
 
 - Teammate run limits (turns, budget) are in [Roles](#roles).
 - The chief-of-staff is the only path of an owner message: no flag, no fallback.
@@ -56,7 +54,7 @@ Single source of every limit and stop condition of the app. Other docs link here
 | Name | Scope | Value | File | At the limit | Configurable |
 |---|---|---|---|---|---|
 | `WORKER_POOL_MAX` | g | 10 runs <!-- limit:WORKER_POOL_MAX=10 --> | `config/run-caps.ts` | a ready item waits for a slot | code |
-| `MAX_RUNNING_PER_THREAD` | t | 4 items <!-- limit:MAX_RUNNING_PER_THREAD=4 --> | `config/lead-caps.ts` | next ready item waits | code |
+| `MAX_RUNNING_PER_THREAD` | t | 4 items <!-- limit:MAX_RUNNING_PER_THREAD=4 --> | `config/teammate-caps.ts` | next ready item waits | code |
 | `WORKER_SLOT_NOTICE_MS` | item | 60 s <!-- limit:WORKER_SLOT_NOTICE_MS=60000 --> | `config/run-caps.ts` | a `slot_wait` event shows the chief-of-staff the wait once (notice only) | code |
 | `WORKER_SLOT_RETRY_MS` | item | 3 s <!-- limit:WORKER_SLOT_RETRY_MS=3000 --> | `config/run-caps.ts` | a deferred item is retried (a worker ending retries earlier) | code |
 | `ITEM_MAX_AGE_MS` | item | 8 h <!-- limit:ITEM_MAX_AGE_MS=28800000 --> | `config/resilience-caps.ts` | abort cause `item_age`: a REAL failure (no auto-resume), item held `blocked`, `failure` event, dependents wait; the chief-of-staff calls `Orchestrate retry` (fresh window) or `Orchestrate cancel` | code |
@@ -89,7 +87,7 @@ One row per role. All five fields are role data (constants at the top of each ro
 
 | Role | Model | maxTurns | budgetUsd | maxAsk | Subagents | parallel | depth |
 |---|---|---|---|---|---|---|---|
-| `lead` | Sonnet | 30 <!-- limit:role.lead.maxTurns=30 --> | $1.5 <!-- limit:role.lead.budgetUsd=1.5 --> | 0 <!-- limit:role.lead.maxAsk=0 --> | off | 3 <!-- limit:role.lead.subagents.parallel=3 --> | 1 <!-- limit:role.lead.subagents.depth=1 --> |
+| `teammate` | Sonnet | 30 <!-- limit:role.chief-of-staff.maxTurns=30 --> | $1.5 <!-- limit:role.chief-of-staff.budgetUsd=1.5 --> | 0 <!-- limit:role.chief-of-staff.maxAsk=0 --> | off | 3 <!-- limit:role.chief-of-staff.subagents.parallel=3 --> | 1 <!-- limit:role.chief-of-staff.subagents.depth=1 --> |
 | `scout` | Haiku | 40 <!-- limit:role.scout.maxTurns=40 --> | $1.5 <!-- limit:role.scout.budgetUsd=1.5 --> | 0 <!-- limit:role.scout.maxAsk=0 --> | off | 3 <!-- limit:role.scout.subagents.parallel=3 --> | 1 <!-- limit:role.scout.subagents.depth=1 --> |
 | `researcher` | Sonnet | 60 <!-- limit:role.researcher.maxTurns=60 --> | $4 <!-- limit:role.researcher.budgetUsd=4 --> | 0 <!-- limit:role.researcher.maxAsk=0 --> | off | 3 <!-- limit:role.researcher.subagents.parallel=3 --> | 1 <!-- limit:role.researcher.subagents.depth=1 --> |
 | `developer` | Sonnet | 150 <!-- limit:role.developer.maxTurns=150 --> | $8 <!-- limit:role.developer.budgetUsd=8 --> | 6 <!-- limit:role.developer.maxAsk=6 --> | on | 3 <!-- limit:role.developer.subagents.parallel=3 --> | 1 <!-- limit:role.developer.subagents.depth=1 --> |
@@ -105,7 +103,7 @@ Subagents enabled per role (1 = on, 0 = off; drift-checked, guards "developer an
 
 | Role | enabled |
 |---|---|
-| `lead` | 0 <!-- limit:role.lead.subagents.enabled=0 --> |
+| `teammate` | 0 <!-- limit:role.chief-of-staff.subagents.enabled=0 --> |
 | `scout` | 0 <!-- limit:role.scout.subagents.enabled=0 --> |
 | `researcher` | 0 <!-- limit:role.researcher.subagents.enabled=0 --> |
 | `developer` | 1 <!-- limit:role.developer.subagents.enabled=1 --> |
@@ -140,14 +138,14 @@ Subagents enabled per role (1 = on, 0 = off; drift-checked, guards "developer an
 
 | Name | Scope | Value | File | At the limit | Configurable |
 |---|---|---|---|---|---|
-| `PLAN_MAX_ITEMS` | goal | 20 <!-- limit:PLAN_MAX_ITEMS=20 --> | `config/lead-caps.ts` | validator refuses the plan | code |
-| `PLAN_MAX_CRITERIA` | goal | 5 <!-- limit:PLAN_MAX_CRITERIA=5 --> | `config/lead-caps.ts` | schema refuses a plan or revision with more acceptance criteria (they feed the verify run) | code |
-| `PLAN_MAX_REVISIONS` | goal | 5 <!-- limit:PLAN_MAX_REVISIONS=5 --> | `config/lead-caps.ts` | no further revision after version 1 | code |
-| `PENDING_PLAN_MAX_AGE_MS` | goal | 24 h <!-- limit:PENDING_PLAN_MAX_AGE_MS=86400000 --> | `config/lead-caps.ts` | a `valid` plan no longer holds its goal open; the sweeper then rejects it (`timeout` event, code `PLAN_EXPIRED`) once `ASK_OWNER_TIMEOUT_MS` more passed (an owner question asked just before the limit can still be answered), and the goal settles (or closes when it never had a plan). Drafts are never kept, so only `valid` versions expire | code |
-| `BRIEF_MAX_CHARS` | item | 4000 chars <!-- limit:BRIEF_MAX_CHARS=4000 --> | `orchestrator/lead/lead-limits.ts` | schema rejects | code |
-| `PLAN_DOC_MAX_CHARS` | `spec` and `plan` text of `create_plan` / `revise_plan` (each) | 60000 chars <!-- limit:PLAN_DOC_MAX_CHARS=60000 --> | `orchestrator/lead/lead-limits.ts` | schema rejects | code |
-| `PLAN_SECTION_MAX_CHARS` | item `section` (a heading of the plan text) | 200 chars <!-- limit:PLAN_SECTION_MAX_CHARS=200 --> | `orchestrator/lead/lead-limits.ts` | schema rejects | code |
-| `SUBJECT_MAX_CHARS` | item | 80 chars <!-- limit:SUBJECT_MAX_CHARS=80 --> | `config/lead-caps.ts` | schema rejects (`subject` is required on every new item: dispatch assignment, `add`, plan item; `brief` stays the description) | code |
+| `PLAN_MAX_ITEMS` | goal | 20 <!-- limit:PLAN_MAX_ITEMS=20 --> | `config/teammate-caps.ts` | validator refuses the plan | code |
+| `PLAN_MAX_CRITERIA` | goal | 5 <!-- limit:PLAN_MAX_CRITERIA=5 --> | `config/teammate-caps.ts` | schema refuses a plan or revision with more acceptance criteria (they feed the verify run) | code |
+| `PLAN_MAX_REVISIONS` | goal | 5 <!-- limit:PLAN_MAX_REVISIONS=5 --> | `config/teammate-caps.ts` | no further revision after version 1 | code |
+| `PENDING_PLAN_MAX_AGE_MS` | goal | 24 h <!-- limit:PENDING_PLAN_MAX_AGE_MS=86400000 --> | `config/teammate-caps.ts` | a `valid` plan no longer holds its goal open; the sweeper then rejects it (`timeout` event, code `PLAN_EXPIRED`) once `ASK_OWNER_TIMEOUT_MS` more passed (an owner question asked just before the limit can still be answered), and the goal settles (or closes when it never had a plan). Drafts are never kept, so only `valid` versions expire | code |
+| `BRIEF_MAX_CHARS` | item | 4000 chars <!-- limit:BRIEF_MAX_CHARS=4000 --> | `orchestrator/teammate/teammate-limits.ts` | schema rejects | code |
+| `PLAN_DOC_MAX_CHARS` | `spec` and `plan` text of `create_plan` / `revise_plan` (each) | 60000 chars <!-- limit:PLAN_DOC_MAX_CHARS=60000 --> | `orchestrator/teammate/teammate-limits.ts` | schema rejects | code |
+| `PLAN_SECTION_MAX_CHARS` | item `section` (a heading of the plan text) | 200 chars <!-- limit:PLAN_SECTION_MAX_CHARS=200 --> | `orchestrator/teammate/teammate-limits.ts` | schema rejects | code |
+| `SUBJECT_MAX_CHARS` | item | 80 chars <!-- limit:SUBJECT_MAX_CHARS=80 --> | `config/teammate-caps.ts` | schema rejects (`subject` is required on every new item: dispatch assignment, `add`, plan item; `brief` stays the description) | code |
 
 - No plan body byte cap: the body is bounded by items x brief. Long approval text goes to the owner as an attachment.
 - Plan revision caps: a revision counts after version 1 only; the chief-of-staff cannot go past `PLAN_MAX_REVISIONS`.
@@ -165,7 +163,7 @@ Subagents enabled per role (1 = on, 0 = off; drift-checked, guards "developer an
 | `PLAN_GOAL_BUDGET_MAX_USD` | goal | $35 <!-- limit:PLAN_GOAL_BUDGET_MAX_USD=35 --> | `config/model-routing.ts` | ceiling of a PLAN goal's budget: the approved plan's code-computed `budgetUsd` is the goal budget, never above this; a computed sum above it is capped, not refused (owner 2026-10-17). `goalBudgetOf(db, goalId)` is the one figure behind the dispatch refusal, the goal-left run cap, the verify loop and the digest | code |
 | `PLAN_BUDGET_RESERVE_FACTOR` | goal | 1.25 <!-- limit:PLAN_BUDGET_RESERVE_FACTOR=1.25 --> | `config/model-routing.ts` | the plan budget is computed by code, never by the planner (`orchestrator/budget/plan-budget.ts`): the role `budgetUsd` of every item in the version (deferred ones included) plus one `tester` verify run per location with a writer item (when the plan has criteria), times this factor, rounded up to a whole dollar, capped at `PLAN_GOAL_BUDGET_MAX_USD`. Not above the goal's spend: the spend is added on top. Recomputed on every revision; an approved budget is never lowered, and a raise waits for the owner (owner 2026-10-20) | code |
 | `MIN_RECOVERY_BUDGET_USD` | run | $0.1 <!-- limit:MIN_RECOVERY_BUDGET_USD=0.1 --> | `runtime/run-supervisor.ts` | below this much budget left, no recovery run starts | code |
-| Daily cap | - | none | - | cost per day is watched with `bun run metrics:lead` | - |
+| Daily cap | - | none | - | cost per day is watched with `bun run metrics:teammate` | - |
 
 - The chief-of-staff has no daily budget: a teammate run that hits its own budget posts the budget-stop reply, and its announced news stays undelivered, so a worker result is not lost.
 - Known gap: `ceilingBinds` (which decides whether a "raise budget" is offered) ignores the goal-left cap, so the owner may be offered a raise that `capUsd` ignores.
@@ -177,9 +175,9 @@ Subagents enabled per role (1 = on, 0 = off; drift-checked, guards "developer an
 |---|---|---|---|---|---|
 | Item age | item | 8 h, see [Workers](#workers) | `config/resilience-caps.ts` | held for the chief-of-staff | code |
 | `RELAY_WAIT_MS` | item | 2 h <!-- limit:RELAY_WAIT_MS=7200000 --> | `config/run-caps.ts` | a worker's question to the chief-of-staff or owner times out like an owner timeout; also bounded by item age | code |
-| `ASK_OWNER_TIMEOUT_MS` | run | 10 min <!-- limit:ASK_OWNER_TIMEOUT_MS=600000 --> | `orchestrator/lead/lead-limits.ts` | `Orchestrate ask_owner` returns a timeout | code |
+| `ASK_OWNER_TIMEOUT_MS` | run | 10 min <!-- limit:ASK_OWNER_TIMEOUT_MS=600000 --> | `orchestrator/teammate/teammate-limits.ts` | `Orchestrate ask_owner` returns a timeout | code |
 | Approval click | run | 600 s | `providers/discord/approval/discord-approval.ts` | the tool call is denied (below the 15 min stale threshold, so it is not marked) | code |
-| Pending plan | goal | 24 h, see [Plans](#plans) | `config/lead-caps.ts` | plan stops holding the goal | code |
+| Pending plan | goal | 24 h, see [Plans](#plans) | `config/teammate-caps.ts` | plan stops holding the goal | code |
 | Run timeout | run | none | - | `/stop` only | - |
 | `TIMEOUT_MS` | one-shot | env, default 300000 ms | `config/agent-config.ts` | only the deadline of the memory compaction one-shot (`memory-compaction-llm.ts`, min with its own 60 s) | env |
 
@@ -232,7 +230,7 @@ Files: `config/memory-caps.ts`. Time, cost and retention bounds of memory jobs; 
 
 ## Tool Input Limits
 
-All in `src/orchestrator/lead/lead-limits.ts` (zod shapes and the relay enforce them).
+All in `src/orchestrator/teammate/teammate-limits.ts` (zod shapes and the relay enforce them).
 
 | Name | Scope | Value | At the limit |
 |---|---|---|---|

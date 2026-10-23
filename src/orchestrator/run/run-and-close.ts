@@ -4,7 +4,7 @@ import { runRole } from "./run-role";
 
 /**
  * Run the role of `input` and close its turn row through `finish` (which calls `closeTurn`). A crash is handed to
- * `onCrash` (`closing` = it came from the close step): the lead marks the row `failed`; a detached worker recovers its
+ * `onCrash` (`closing` = it came from the close step): the teammate marks the row `failed`; a detached worker recovers its
  * item. Rethrows every crash.
  */
 export async function runAndClose<R>(

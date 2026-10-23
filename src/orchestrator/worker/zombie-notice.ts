@@ -1,19 +1,19 @@
 import { ZOMBIE_CLAIM_NOTICE_MS } from "../../config/resilience-caps";
 import { logEvent, logger } from "../../observability/logger";
 import { appendEvent } from "../../storage/thread-event-store";
-import type { LeadRuntime } from "../lead/lead-runtime";
 import { takeStuckClaims } from "../run/zombie-claims";
+import type { TeammateRuntime } from "../teammate/teammate-runtime";
 
 /** Logger of this module. */
 const log = logger.child({ module: "zombie-notice" });
 
 /**
  * A force-closed writer run that has still not returned after `maxMs`: its location stays claimed (no process is reachable
- * to kill, and releasing the claim would let a second writer in), so the lead is told once with a `timeout` event and the
+ * to kill, and releasing the claim would let a second writer in), so the teammate is told once with a `timeout` event and the
  * log warns. Returns how many claims were reported.
  */
 export function noticeStuckZombies(
-  rt: LeadRuntime,
+  rt: TeammateRuntime,
   now = Date.now(),
   maxMs = ZOMBIE_CLAIM_NOTICE_MS,
 ): number {

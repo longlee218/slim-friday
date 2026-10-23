@@ -139,7 +139,7 @@ test("replace: one bullet changes in place, the rest stays byte for byte, backup
     ts: clock.getTime(),
     thread_id: "thread-1",
     channel: CH,
-    role: "lead",
+    role: "chief-of-staff",
     action: "edit_replace",
     scope: "channel",
     hash: bulletHash("use drizzle for queries"),
@@ -265,11 +265,11 @@ test("MemorySave: near-duplicate refused with the existing id (usable by MemoryE
     {
       action: "save",
       scope: "channel",
-      role: "lead",
+      role: "chief-of-staff",
       hash: bulletHash("deploys happen on thursdays"),
     },
   ]);
-  // The lead then replaces the similar bullet through its id.
+  // The teammate then replaces the similar bullet through its id.
   expect(
     (await s.call(MEMORY_EDIT_TOOL, { action: "replace", id, text: `${seed} now` })).isError,
   ).toBe(false);

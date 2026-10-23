@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
 import { listUndelivered } from "../src/storage/thread-event-store";
-import { leadHarness, until } from "./lead-harness";
+import { teammateHarness, until } from "./teammate-harness";
 
-/* End to end with a fake query: owner asks something big -> lead Orchestrate create_plan (it writes the plan itself) -> lead
+/* End to end with a fake query: owner asks something big -> teammate Orchestrate create_plan (it writes the plan itself) -> teammate
    Orchestrate approve_plan -> ONE owner question -> the 3 items run one after another -> announce of the result. */
 
 const item = (key: string, dependsOn: string[] = []) => ({
@@ -18,10 +18,10 @@ const item = (key: string, dependsOn: string[] = []) => ({
 test("owner big ask -> Orchestrate create_plan -> one approval -> items run in order -> announce", async () => {
   const questions: { question: string; options: string[] }[] = [];
   const order: string[] = [];
-  const h = leadHarness(
+  const h = teammateHarness(
     async (c) => {
       if (c.kind === "worker") {
-        order.push(/\[brief\] lead: do (\w+)/.exec(c.prompt)?.[1] ?? "verify"); // the code-appended verify has no `do <key>` brief
+        order.push(/\[brief\] teammate: do (\w+)/.exec(c.prompt)?.[1] ?? "verify"); // the code-appended verify has no `do <key>` brief
         await c.report("result", { title: "T", status: "COMPLETED", summary: "done" });
         return "worker done";
       }
@@ -84,8 +84,8 @@ test("owner big ask -> Orchestrate create_plan -> one approval -> items run in o
   expect(listUndelivered(h.env.db, "t1").filter((e) => e.kind !== "start")).toEqual([]);
 });
 
-test("owner rejects the plan -> no item runs, the goal stays open for a re-plan, the lead says so", async () => {
-  const h = leadHarness(
+test("owner rejects the plan -> no item runs, the goal stays open for a re-plan, the teammate says so", async () => {
+  const h = teammateHarness(
     async (c) => {
       if (c.kind === "worker") throw new Error("no item may run");
       if (c.prompt.includes("<owner_message>\nbuild")) {

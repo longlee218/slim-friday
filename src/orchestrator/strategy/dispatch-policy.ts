@@ -1,4 +1,4 @@
-import { CHAIN_CAP, DELEGATE_MAX, DISPATCHES_PER_RUN } from "../../config/lead-caps";
+import { CHAIN_CAP, DELEGATE_MAX, DISPATCHES_PER_RUN } from "../../config/teammate-caps";
 import { MERGE_BRANCH_TOOL } from "../../mcp/effects/tools/MergeBranchTool/constants";
 import { askNeeded } from "../../policy/ask-policy";
 import { effectRisk } from "../../policy/check-envelope";
@@ -6,7 +6,7 @@ import type { EffectGrant } from "../../policy/envelope";
 import { goalOpenMessage } from "../plan/structure-owner";
 import type { Caps, GoalState, PolicyEnv } from "./caps";
 
-/* Pure dispatch policy: the lead picked a typed action; this decides whether code allows it. No db, no clock. */
+/* Pure dispatch policy: the teammate picked a typed action; this decides whether code allows it. No db, no clock. */
 
 /** One worker assignment of a dispatch request. */
 export interface Assignment {
@@ -23,7 +23,7 @@ export interface Assignment {
   dependsOn: string[];
 }
 
-/** One action the lead asks the owner to allow for the goal (DeletePaths needs none: the trash is restorable within bounds). */
+/** One action the teammate asks the owner to allow for the goal (DeletePaths needs none: the trash is restorable within bounds). */
 interface GrantReq {
   tool: EffectGrant["tool"];
   location: string;
@@ -116,10 +116,13 @@ export function checkDispatch(
   if (caps.dispatchedThisRun >= DISPATCHES_PER_RUN)
     return refuse(
       "ONE_PER_RUN",
-      "One dispatch per lead run: wait for the result, then dispatch again.",
+      "One dispatch per teammate run: wait for the result, then dispatch again.",
     );
   if (state.openGoalId && req.supersedes !== state.openGoalId)
-    return refuse("GOAL_OPEN", goalOpenMessage(state.openGoalId, state.structureOwner ?? "lead"));
+    return refuse(
+      "GOAL_OPEN",
+      goalOpenMessage(state.openGoalId, state.structureOwner ?? "teammate"),
+    );
   // `supersedes` names the open goal or nothing: any other id (stale, foreign) is refused, never acted on.
   if (req.supersedes && req.supersedes !== state.openGoalId)
     return refuse(

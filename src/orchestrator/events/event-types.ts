@@ -14,9 +14,9 @@ export type EventKind =
   | "slot_wait" // a ready item waits for a worker slot past the notice delay (news only)
   | "plan_revised" // an applied plan revision that cancelled work or changed the criteria (news; payload = the diff)
   | "items_added" // code added verify-N / fix-N to a PLAN goal (passive news, read with the next announce, never a wake-up; payload.added = the keys)
-  | "retry" // the lead re-queued a held item (the retry tool); payload.note, payload.by = "lead"
+  | "retry" // the teammate re-queued a held item (the retry tool); payload.note, payload.by = "teammate"
   | "recovered_after_restart"
-  | "lead_decision"; // a lead tool call with no natural kind (reads, forward); payload.by = "lead"
+  | "teammate_decision"; // a teammate tool call with no natural kind (reads, forward); payload.by = "teammate"
 
 /**
  * One event of a thread. `payload` is data, never instructions: when injected into a prompt it is

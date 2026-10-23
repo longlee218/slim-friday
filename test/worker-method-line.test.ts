@@ -12,8 +12,8 @@ const CALL = "call the Skill tool for every listed skill whose description match
 /** Roles whose Method rule is in the preloaded method skill: the contract no longer inlines the line. */
 const preloads = (name: string) => !!ROLES[name]?.preloadSkills?.includes(METHOD_SKILL);
 
-test("a role without a preloaded skill (not the lead) has the Method line, once, naming no skill; a preloading role has none", () => {
-  for (const name of Object.keys(ROLES).filter((n) => n !== "lead")) {
+test("a role without a preloaded skill (not the teammate) has the Method line, once, naming no skill; a preloading role has none", () => {
+  for (const name of Object.keys(ROLES).filter((n) => n !== "chief-of-staff")) {
     const c = contract(name);
     if (preloads(name)) {
       expect(c, name).not.toContain("- Method:");
@@ -26,6 +26,6 @@ test("a role without a preloaded skill (not the lead) has the Method line, once,
 });
 
 test("the roles that keep the line are exactly researcher, scout and discord-manager", () => {
-  const keep = Object.keys(ROLES).filter((n) => n !== "lead" && !preloads(n));
+  const keep = Object.keys(ROLES).filter((n) => n !== "chief-of-staff" && !preloads(n));
   expect(keep.sort()).toEqual(["discord-manager", "researcher", "scout"]);
 });

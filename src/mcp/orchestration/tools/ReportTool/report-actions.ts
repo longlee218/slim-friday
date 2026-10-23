@@ -1,11 +1,11 @@
 import { z } from "zod";
 import { logEvent, logger } from "../../../../observability/logger";
+import { refuse } from "../../../../orchestrator/reply";
+import { REPORT_BLOCKER_SHAPE } from "../../../../orchestrator/teammate/task-schemas";
 import {
   REPORT_PROGRESS_SHAPE,
   REPORT_RESULT_SHAPE,
-} from "../../../../orchestrator/lead/lead-schemas";
-import { REPORT_BLOCKER_SHAPE } from "../../../../orchestrator/lead/task-schemas";
-import { refuse } from "../../../../orchestrator/reply";
+} from "../../../../orchestrator/teammate/teammate-schemas";
 import {
   checkReportFiles,
   type ReportFilesCtx,
@@ -89,8 +89,8 @@ export const REPORT_ACTIONS = [
       const sink = c.sink;
       if (!sink) return refuse(ACTION_UNAVAILABLE, "This run has no report sink.");
       if (sink.report) return refuse("ALREADY_REPORTED", "You already reported.");
-      // A blocker IS a BLOCKED report: the task is held for the lead, the session is kept for the resume. The sink also
-      // carries what it needs, so the end event tells the lead and the lead is woken at once.
+      // A blocker IS a BLOCKED report: the task is held for the teammate, the session is kept for the resume. The sink also
+      // carries what it needs, so the end event tells the teammate and the teammate is woken at once.
       sink.report = { title: `Blocked: needs ${p.needs}`, status: "BLOCKED", summary: p.reason };
       sink.blocker = {
         ...p,
@@ -98,7 +98,7 @@ export const REPORT_ACTIONS = [
         messageId: c.message?.("blocker", `needs: ${p.needs}. ${p.reason}`),
       };
       logEvent(log, "worker.blocker", { needs: p.needs });
-      return { ok: true, note: "Blocker recorded. End your turn now: the lead decides." };
+      return { ok: true, note: "Blocker recorded. End your turn now: the teammate decides." };
     },
   }),
 ];

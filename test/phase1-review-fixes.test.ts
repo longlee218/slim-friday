@@ -1,35 +1,42 @@
 import { expect, test } from "bun:test";
-import { LEAD_REPLAY_MAX_AGE_MS } from "../src/config/lead-caps";
+import { TEAMMATE_REPLAY_MAX_AGE_MS } from "../src/config/teammate-caps";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
-import { forgetBatch, rearm } from "../src/orchestrator/lead/lead-failure";
-import { createLeadQueue, type LeadInput } from "../src/orchestrator/lead/lead-queue";
 import { liveRunsOf } from "../src/orchestrator/run/live-runs";
 import { claimZombieLocation } from "../src/orchestrator/run/zombie-claims";
+import { forgetBatch, rearm } from "../src/orchestrator/teammate/teammate-failure";
+import {
+  createTeammateQueue,
+  type TeammateInput,
+} from "../src/orchestrator/teammate/teammate-queue";
 import { createRunLimiter } from "../src/orchestrator/turns/run-limiter";
 import { recoverInFlight } from "../src/orchestrator/worker/recover-in-flight";
 import { appendEvent, listUndelivered } from "../src/storage/thread-event-store";
 import { recordBotThread } from "../src/storage/thread-store";
 import { moveTaskTo } from "../src/tasks/task-resolver";
 import { makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
-import { type Call, leadHarness, sleep, until, workersDone } from "./lead-harness";
+import { type Call, sleep, teammateHarness, until, workersDone } from "./teammate-harness";
 
-/* Review fixes of Phase 1 groups A and C: F1 (dropped owner input is never replayed), F3 (/stop does not wake the lead),
+/* Review fixes of Phase 1 groups A and C: F1 (dropped owner input is never replayed), F3 (/stop does not wake the teammate),
    F4 (a writer location stays claimed), F5 (announce dedupe). */
 
-const owner = (id: string, threadId = "th"): LeadInput => ({
+const owner = (id: string, threadId = "th"): TeammateInput => ({
   threadId,
   kind: "owner",
   messageIds: [id],
   text: id,
 });
-const announce = (threadId = "th"): LeadInput => ({ threadId, kind: "announce", messageIds: [] });
+const announce = (threadId = "th"): TeammateInput => ({
+  threadId,
+  kind: "announce",
+  messageIds: [],
+});
 const ownerEvents = (db: any, t: string) =>
   listUndelivered(db, t).filter((e) => e.kind === "owner_message");
 
 test("F1: a queue cap drop and a pool refusal discard the owner input; a shutdown does not", async () => {
   const discarded: string[] = [];
   let release = () => {};
-  const q = createLeadQueue({
+  const q = createTeammateQueue({
     run: () => new Promise<void>((r) => (release = r)),
     debounceMs: 1,
     cap: 1,
@@ -47,7 +54,7 @@ test("F1: a queue cap drop and a pool refusal discard the owner input; a shutdow
   expect(discarded).toEqual(["q1"]);
 
   const refused: string[] = [];
-  const q2 = createLeadQueue({
+  const q2 = createTeammateQueue({
     run: async () => {},
     debounceMs: 1,
     pool: { tryAcquire: () => null, acquire: async () => null, canWait: () => false },
@@ -59,8 +66,8 @@ test("F1: a queue cap drop and a pool refusal discard the owner input; a shutdow
 });
 
 test("F1: /stop closes the queued owner message, so the boot replay does not bring it back", async () => {
-  const h = leadHarness(async (c) => {
-    // The first lead run holds the thread until the owner's /stop aborts it.
+  const h = teammateHarness(async (c) => {
+    // The first teammate run holds the thread until the owner's /stop aborts it.
     const signal = c.options.abortController.signal as AbortSignal;
     await new Promise<void>((res) => {
       if (signal.aborted) res();
@@ -69,7 +76,7 @@ test("F1: /stop closes the queued owner message, so the boot replay does not bri
     return "";
   });
   await h.send("first");
-  await until(() => h.ofKind("lead").length === 1);
+  await until(() => h.ofKind("teammate").length === 1);
   await h.send("second"); // queued behind the running run
   await sleep(60);
   expect(ownerEvents(h.env.db, "t1").length).toBe(2);
@@ -84,23 +91,23 @@ test("F1: /stop closes the queued owner message, so the boot replay does not bri
 }, 15_000);
 
 test("F1: boot replay skips (and closes) an owner message older than the age bound", async () => {
-  const h = leadHarness(async () => "answered");
+  const h = teammateHarness(async () => "answered");
   recordBotThread(h.env.db, "t1", TEST_CHANNEL, "main", "x");
   appendEvent(h.env.db, {
     id: "owner:old",
     threadId: "t1",
     kind: "owner_message",
     payload: { text: "stale request" },
-    createdAt: Date.now() - LEAD_REPLAY_MAX_AGE_MS - 1000,
+    createdAt: Date.now() - TEAMMATE_REPLAY_MAX_AGE_MS - 1000,
   });
   h.handle.wake({ ...recoverInFlight(h.env.db), threads: ["t1"] });
   await sleep(200);
-  expect(h.ofKind("lead").some((c) => c.prompt.includes("stale request"))).toBe(false);
+  expect(h.ofKind("teammate").some((c) => c.prompt.includes("stale request"))).toBe(false);
   expect(ownerEvents(h.env.db, "t1")).toEqual([]);
 }, 15_000);
 
 test("F9: the stored owner text is redacted", async () => {
-  const h = leadHarness(async () => "ok");
+  const h = teammateHarness(async () => "ok");
   await h.send("my key is sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123456789");
   const stored = JSON.stringify(
     h.env.db.query("SELECT payload FROM thread_events WHERE kind = 'owner_message'").all(),
@@ -109,10 +116,10 @@ test("F9: the stored owner text is redacted", async () => {
 });
 
 test("F5: announces are deduped per thread and never evict an owner input", async () => {
-  const dropped: LeadInput[] = [];
+  const dropped: TeammateInput[] = [];
   const ran: string[] = [];
   let release = () => {};
-  const q = createLeadQueue({
+  const q = createTeammateQueue({
     run: (i) => {
       ran.push(`${i.kind}:${i.text ?? ""}`);
       return new Promise<void>((r) => (release = r));
@@ -158,8 +165,8 @@ const dispatchOne = (c: Call) =>
     assignments: [{ key: "a", subject: "task", role: "scout", brief: "do a", dependsOn: [] }],
   });
 
-test("F3: after /stop a COMPLETED-before-stop result is recorded but does not wake the lead", async () => {
-  const h = leadHarness(async (c) => {
+test("F3: after /stop a COMPLETED-before-stop result is recorded but does not wake the teammate", async () => {
+  const h = teammateHarness(async (c) => {
     if (c.kind === "worker") return reportThenWait(c);
     if (c.prompt.includes("<owner_message>")) {
       await dispatchOne(c);
@@ -174,11 +181,11 @@ test("F3: after /stop a COMPLETED-before-stop result is recorded but does not wa
   await workersDone(h.env.db);
   await sleep(300); // announce window is 20 ms
   expect(listUndelivered(h.env.db, "t1").map((e) => e.kind)).toContain("result");
-  expect(h.ofKind("lead").some((c) => c.prompt.includes("<events>"))).toBe(false);
+  expect(h.ofKind("teammate").some((c) => c.prompt.includes("<events>"))).toBe(false);
 }, 15_000);
 
-test("E-L12 race: a lead cancel (no /stop) of a run that reported COMPLETED still wakes the lead", async () => {
-  const h = leadHarness(async (c) => {
+test("E-L12 race: a teammate cancel (no /stop) of a run that reported COMPLETED still wakes the teammate", async () => {
+  const h = teammateHarness(async (c) => {
     if (c.kind === "worker") return reportThenWait(c);
     if (c.prompt.includes("<owner_message>")) {
       await dispatchOne(c);
@@ -190,13 +197,13 @@ test("E-L12 race: a lead cancel (no /stop) of a run that reported COMPLETED stil
   await until(() => liveRunsOf("t1").some((r) => r.kind === "worker"));
   await sleep(100);
   const run = liveRunsOf("t1").find((r) => r.kind === "worker")!;
-  moveTaskTo(h.env.db, run.taskId!, "cancelled"); // what the lead's Orchestrate cancel does
+  moveTaskTo(h.env.db, run.taskId!, "cancelled"); // what the teammate's Orchestrate cancel does
   run.ac.abort();
-  await until(() => h.ofKind("lead").some((c) => c.prompt.includes("<events>")), 8000);
+  await until(() => h.ofKind("teammate").some((c) => c.prompt.includes("<events>")), 8000);
 }, 15_000);
 
 test("F4: a ready writer item waits while its location is claimed by a force-closed run", async () => {
-  const h = leadHarness(async (c) => {
+  const h = teammateHarness(async (c) => {
     if (c.kind === "worker") {
       await c.report("result", { title: "T", status: "COMPLETED", summary: "ok" });
       return "done";
@@ -218,11 +225,11 @@ test("F4: a ready writer item waits while its location is claimed by a force-clo
   await until(() => h.ofKind("worker").length === 1, 8000);
 }, 15_000);
 
-test("E-M10 wiring: an announce refused by a full lead pool is re-armed and runs once a slot frees", async () => {
+test("E-M10 wiring: an announce refused by a full teammate pool is re-armed and runs once a slot frees", async () => {
   const env = makeEnv();
   let calls = 0;
-  const leadPool = createRunLimiter(1, 0); // full, nobody may wait: the announce is refused
-  const hold = leadPool.tryAcquire()!;
+  const teammatePool = createRunLimiter(1, 0); // full, nobody may wait: the announce is refused
+  const hold = teammatePool.tryAcquire()!;
   const handle = createTurnHandler({
     db: env.db,
     config: env.config,
@@ -232,9 +239,9 @@ test("E-M10 wiring: an announce refused by a full lead pool is re-armed and runs
         yield resultMsg();
       })();
     }) as never,
-    leadPool,
+    teammatePool,
     limiter: createRunLimiter(10),
-    leadTiming: { debounceMs: 5, announceWindowMs: 20 },
+    teammateTiming: { debounceMs: 5, announceWindowMs: 20 },
     post: async () => {},
   });
   recordBotThread(env.db, "t1", TEST_CHANNEL, "main", "x");

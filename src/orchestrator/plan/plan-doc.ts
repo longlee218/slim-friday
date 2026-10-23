@@ -26,7 +26,7 @@ export interface ItemInput {
   risk: string;
 }
 
-/** The lead's envelope input (roles are derived, never asked). */
+/** The teammate's envelope input (roles are derived, never asked). */
 export interface EnvelopeInput {
   locations: string[];
   riskClasses: string[];

@@ -7,7 +7,7 @@ import { validateRegistry } from "../src/roles/capability-registry";
 import { dispatchableWorkers, getRole } from "../src/roles/role-registry";
 import { toolsFor } from "../src/tools/tool-catalog";
 
-/* The six roster specialists are flat role data: same contract, no delivery, no lead tools; subagents only for the tester (D7). */
+/* The six roster specialists are flat role data: same contract, no delivery, no teammate tools; subagents only for the tester (D7). */
 
 const ROSTER = ["solution-architect", "designer", "tester", "devops", "humanizer-writer", "hacker"];
 

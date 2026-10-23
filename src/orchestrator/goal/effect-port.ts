@@ -3,14 +3,14 @@ import type { ItemRow, ResultKind } from "../../storage/owned-item-store";
 import type { EventKind } from "../events/event-types";
 import type { RevisionDiff } from "../plan/plan-revised";
 import type { Edit } from "../plan/plan-revision";
-import type { CreateLeadPlanInput } from "../plan/plan-schemas";
+import type { CreateTeammatePlanInput } from "../plan/plan-schemas";
 import type { PlanDoc, PlanStatusView } from "../plan/plan-types";
 import type { Caps, GoalState, PolicyEnv } from "../strategy/caps";
 import type { ItemDraft } from "../strategy/dispatch-policy";
 import type { ForwardPlan } from "./effect-port-forward";
 import type { TaskPort } from "./effect-port-item-types";
 
-/* The port the lead's tool handlers act through. Handlers hold the rules and stay pure over it: tests pass a fake,
+/* The port the teammate's tool handlers act through. Handlers hold the rules and stay pure over it: tests pass a fake,
    the real one (`effect-port-db.ts`) reads and writes the db and calls the injected IO. */
 
 /** What `Orchestrate steer` did. `answered` = it resolved a pending worker question, `resumed` = it re-queued a `waiting_user` item with the text as its answer. */
@@ -140,7 +140,7 @@ export type PlanDecision =
   | { ok: true; created?: string[] }
   | { ok: false; code: string; message: string };
 
-/** Everything a lead tool may do to the world; every method acts on the thread the port was built for. */
+/** Everything a teammate tool may do to the world; every method acts on the thread the port was built for. */
 export interface EffectPort extends TaskPort {
   /** Stored reply of an earlier call with this key, or undefined (idempotency: replay it, do not act again). */
   recall(key: string): string | undefined;
@@ -152,7 +152,7 @@ export interface EffectPort extends TaskPort {
       reply: string;
       goalId?: string;
       itemId?: string;
-      /** Audit scope and grantor; default "lead tool call" / "role". */
+      /** Audit scope and grantor; default "teammate tool call" / "role". */
       scope?: string;
       grantedBy?: string;
       /** Epoch ms to stamp (default now): an ask is stamped at its START. */
@@ -183,10 +183,10 @@ export interface EffectPort extends TaskPort {
    */
   dispatch(d: DispatchWrite): DispatchResult;
   /**
-   * Store a plan the lead wrote, in ONE transaction: the goal (new, or the thread's open goal) and the validated version;
-   * a refusal (validator, duplicate, wrong goal) leaves nothing behind. The lead call records the audit row and event.
+   * Store a plan the teammate wrote, in ONE transaction: the goal (new, or the thread's open goal) and the validated version;
+   * a refusal (validator, duplicate, wrong goal) leaves nothing behind. The teammate call records the audit row and event.
    */
-  createPlan(input: CreateLeadPlanInput): PlanWriteResult;
+  createPlan(input: CreateTeammatePlanInput): PlanWriteResult;
   /** A new version of a plan of this thread from add / cancel / modify edits (compare-and-set on the base version). */
   revisePlan(w: PlanReviseWrite): PlanWriteResult;
   /** One plan version of this thread's goals, or undefined. */

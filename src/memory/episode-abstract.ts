@@ -9,7 +9,7 @@ const STOPWORDS = new Set(
     "the and for that this with from have has had are was were will would should could can not but you your " +
     "they them their then than when what which where who how why into onto over under about after before " +
     "also just more most some such only very been being does did done use used using need needs want wants " +
-    "thread summary owner user lead worker task item " +
+    "thread summary owner user teammate worker task item " +
     "khong nhung cua cho voi mot nhieu cac nay kia nao thi la va de duoc dang da se cung nhu khi neu thanh"
   ).split(" "),
 );

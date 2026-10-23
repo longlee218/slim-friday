@@ -77,7 +77,7 @@ export function createMemoryJobs(deps: {
   let ticking: Promise<void> | null = null;
   let timer: ReturnType<typeof setInterval> | undefined;
   /** The start-up prune counts as the first one, so the first tick does not prune again. */
-  /** Threads the idle writer skips (failed or nothing new) until their next lead turn; lives for the process. */
+  /** Threads the idle writer skips (failed or nothing new) until their next teammate turn; lives for the process. */
   const episodeSkip = new Map<string, number>();
   let lastPrune = (deps.now?.() ?? new Date()).getTime();
   const jobs = {

@@ -29,20 +29,20 @@ export type RoleSkills = string[];
 export interface RoleDefinition {
   /** Role name: the registry key and the log `mode` value. */
   name: string;
-  /** Mutually exclusive wording; the lead's TEAM.md, the lead reads it from the registry. */
+  /** Mutually exclusive wording; the teammate's TEAM.md, the teammate reads it from the registry. */
   whenToUse: string;
   /**
-   * Work that looks like this role's but is not (and where it goes instead): the "Not for" column of the lead's TEAM
+   * Work that looks like this role's but is not (and where it goes instead): the "Not for" column of the teammate's TEAM
    * table reads it, so routing between roles is role data, not prompt text. Every
    * dispatchable role has one (test).
    */
   notFor?: string;
   /**
    * What the role is. `worker` = a detached task: its run counts toward the concurrent task cap, takes a start notice,
-   * is queued behind a busy thread, works in a location, and the owner steers it. `lead` = the thread's router (a short
-   * foreground answer, reached only through the lead runner). `control` = the #ops-control role (no workspace).
+   * is queued behind a busy thread, works in a location, and the owner steers it. `teammate` = the thread's router (a short
+   * foreground answer, reached only through the teammate runner). `control` = the #ops-control role (no workspace).
    */
-  kind: "lead" | "worker" | "control";
+  kind: "teammate" | "worker" | "control";
   /** Skills the role gets (see `RoleSkills`). Omitted = `[]`. */
   skills?: RoleSkills;
   /**
@@ -59,7 +59,7 @@ export interface RoleDefinition {
   noSubagents?: boolean;
   /** Subagent bounds of a run: `parallel` = most subagents running at once (the guard denies the next start), `depth` = nesting levels (>= 1; 1 = a subagent has no Agent tool). Only used when `noSubagents` is not set. */
   subagents: { parallel: number; depth: number };
-  /** The lead may dispatch this role as a worker (`Orchestrate dispatch`); TEAM.md lists these roles. Omitted = not dispatchable. */
+  /** The teammate may dispatch this role as a worker (`Orchestrate dispatch`); TEAM.md lists these roles. Omitted = not dispatchable. */
   dispatchable?: boolean;
   /**
    * Bare names of the in-process MCP tools the role gets (from each tool's `constants.ts`). A run builds only these,
@@ -86,7 +86,7 @@ export interface RoleDefinition {
   permissionMode?: "auto" | "bypassPermissions";
   /**
    * What the role may change: `none` (answers only), `location` (files / git of a checkout), `external` (outside systems).
-   * Data for the lead and the outcome check. Authorization stays in the guards.
+   * Data for the teammate and the outcome check. Authorization stays in the guards.
    */
   sideEffects: "none" | "location" | "external";
   /**

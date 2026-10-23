@@ -2,7 +2,7 @@ import type { RunOutcome } from "../observability/run-usage";
 import { RESUME_FAILED } from "./run-errors";
 
 /* Failure classes of a worker run (pure): is the failure worth an automatic resume of the same session (`transient`),
-   a failure the lead must decide on (`real`), or the owner's own stop (`owner_stop`, a cancel, never resumed)? */
+   a failure the teammate must decide on (`real`), or the owner's own stop (`owner_stop`, a cancel, never resumed)? */
 
 /** Provider / network phrases that pass by themselves: overload, 5xx, rate limit without a usage window, dropped connection. */
 const TRANSIENT_TEXT =
@@ -12,7 +12,7 @@ const TRANSIENT_TEXT =
 export const isTransientError = (errorText: string | undefined): boolean =>
   !!errorText && TRANSIENT_TEXT.test(errorText);
 
-/** `transient`: resume the same session; `real`: hold the item for the lead; `owner_stop`: the owner cancelled it. */
+/** `transient`: resume the same session; `real`: hold the item for the teammate; `owner_stop`: the owner cancelled it. */
 export type FailureClass = "transient" | "real" | "owner_stop";
 
 /** What the run ended with. */
@@ -33,7 +33,7 @@ export function classifyRunFailure(i: FailureInput): { class: FailureClass; caus
   if (i.outcome === "aborted") {
     if (i.stopping) return { class: "transient", cause: "shutdown" };
     if (i.abortCause === "stale") return { class: "transient", cause: "stale" };
-    // The item outlived its age limit: a decision for the lead, never an automatic resume.
+    // The item outlived its age limit: a decision for the teammate, never an automatic resume.
     if (i.abortCause === "item_age") return { class: "real", cause: "item_age" };
     return { class: "owner_stop", cause: "owner_stop" };
   }
@@ -45,6 +45,6 @@ export function classifyRunFailure(i: FailureInput): { class: FailureClass; caus
     (i.transient || isTransientError(i.errorText))
   )
     return { class: "transient", cause: "api_error" };
-  // max_budget, max_turns, timeout, quota with a usage window, unknown errors: the lead decides.
+  // max_budget, max_turns, timeout, quota with a usage window, unknown errors: the teammate decides.
   return { class: "real", cause: i.outcome };
 }

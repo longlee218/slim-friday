@@ -1,11 +1,11 @@
 import { expect, test } from "bun:test";
 import { RESUME_PROMPT } from "../src/orchestrator/worker/resume-prompt";
 import { getItem } from "../src/storage/owned-item-store";
-import { leadHarness, until } from "./lead-harness";
 import { isWorkerRun } from "./mcp-run-probe";
+import { teammateHarness, until } from "./teammate-harness";
 
-/* The hold policy end to end over the fake query: a failed item is held (dependents wait), the lead retries it with a note,
-   a transient API error resumes the same session with backoff, and the cap holds the item for the lead. */
+/* The hold policy end to end over the fake query: a failed item is held (dependents wait), the teammate retries it with a note,
+   a transient API error resumes the same session with backoff, and the cap holds the item for the teammate. */
 
 const step = (key: string, dependsOn: string[] = [], role = "developer") => ({
   key,
@@ -26,18 +26,18 @@ const dispatch = (c: any, assignments: object[]) =>
 const sessionOf = (options: any, n: number) =>
   options?.resume ?? (isWorkerRun(options) ? `w${n}` : `l${n}`);
 /** The item with `key` (undefined until the dispatch created it). */
-const itemOf = (h: ReturnType<typeof leadHarness>, key: string) => {
+const itemOf = (h: ReturnType<typeof teammateHarness>, key: string) => {
   const r = h.env.db.query("SELECT id FROM owned_tasks WHERE item_key = ?").get(key) as {
     id: string;
   } | null;
   return r ? getItem(h.env.db, r.id) : undefined;
 };
-const goalStatus = (h: ReturnType<typeof leadHarness>) =>
+const goalStatus = (h: ReturnType<typeof teammateHarness>) =>
   (h.env.db.query("SELECT status FROM owned_tasks WHERE parent_id IS NULL").get() as any)?.status;
 
 test("worker FAILED: dependents stay pending, goal stays open; Orchestrate retry resumes the item with the note and the goal completes", async () => {
   let failures = 0;
-  const h = leadHarness(
+  const h = teammateHarness(
     async (c) => {
       if (c.kind === "worker") {
         const key =
@@ -75,13 +75,13 @@ test("worker FAILED: dependents stay pending, goal stays open; Orchestrate retry
   const retried = workers[1]!;
   expect(retried.options.resume).toBe(workers[0]!.options.resume ?? "w2");
   expect(retried.prompt).toContain(RESUME_PROMPT);
-  expect(retried.prompt).toContain("[steer] lead: try the other approach");
+  expect(retried.prompt).toContain("[steer] teammate: try the other approach");
   expect(itemOf(h, "a")).toMatchObject({ status: "completed", dispatchCount: 2, attempt: 0 });
   expect(itemOf(h, "b")?.status).toBe("completed");
 });
 
-test("held item: dependents are not started and the goal is not settled while the lead has not decided", async () => {
-  const h = leadHarness(async (c) => {
+test("held item: dependents are not started and the goal is not settled while the teammate has not decided", async () => {
+  const h = teammateHarness(async (c) => {
     if (c.kind === "worker") {
       await c.report("result", { title: "T", status: "FAILED", summary: "broke" });
       return "failed";
@@ -101,9 +101,9 @@ test("held item: dependents are not started and the goal is not settled while th
   expect(h.ofKind("worker")).toHaveLength(1);
 });
 
-test("overload: the same session is resumed after the backoff, no failure event reaches the lead", async () => {
+test("overload: the same session is resumed after the backoff, no failure event reaches the teammate", async () => {
   let n = 0;
-  const h = leadHarness(
+  const h = teammateHarness(
     async (c) => {
       if (c.kind === "worker") {
         if (n++ === 0) throw new Error("API Error: 529 overloaded_error");
@@ -134,7 +134,7 @@ test("overload: the same session is resumed after the backoff, no failure event 
 }, 20_000);
 
 test("overload on every run: 2 automatic resumes (+2 s, +4 s), then the item is held with a failure event", async () => {
-  const h = leadHarness(async (c) => {
+  const h = teammateHarness(async (c) => {
     if (c.kind === "worker") throw new Error("API Error: 529 overloaded_error");
     if (c.prompt.includes("<owner_message>")) {
       await dispatch(c, [step("a")]);
@@ -160,9 +160,9 @@ test("overload on every run: 2 automatic resumes (+2 s, +4 s), then the item is 
 test("start + 2 Orchestrate retry, then a transient failure: the breaker does not kill the resume; after the cap the item is held, never failed", async () => {
   let runs = 0;
   let retries = 0;
-  const h = leadHarness(async (c) => {
+  const h = teammateHarness(async (c) => {
     if (c.kind === "worker") {
-      // Runs 1 and 2 report FAILED (the lead retries them); from run 3 (dispatch 3) the API is overloaded.
+      // Runs 1 and 2 report FAILED (the teammate retries them); from run 3 (dispatch 3) the API is overloaded.
       if (++runs <= 2) {
         await c.report("result", { title: "T", status: "FAILED", summary: "broke" });
         return "failed";

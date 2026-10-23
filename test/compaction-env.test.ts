@@ -68,7 +68,7 @@ describe("compaction + cache TTL env (set by the app for every role, never inher
 
   test("every role run: window, 75%, main and subagent cache TTL", async () => {
     const env = makeEnv();
-    for (const role of ["lead", "developer"]) {
+    for (const role of ["chief-of-staff", "developer"]) {
       const e = (await optionsOf(env, role)).env;
       expect(e[AUTO_COMPACT_WINDOW_VAR]).toBe(String(COMPACT_WINDOW_TOKENS));
       expect(e[AUTOCOMPACT_PCT_VAR]).toBe("75");
@@ -80,7 +80,7 @@ describe("compaction + cache TTL env (set by the app for every role, never inher
   test("the owner's shell values of the 4 vars reach no role", async () => {
     for (const v of VARS) process.env[v] = "12345";
     const env = makeEnv();
-    for (const role of ["lead", "developer"]) {
+    for (const role of ["chief-of-staff", "developer"]) {
       const e = (await optionsOf(env, role)).env;
       expect(e[AUTO_COMPACT_WINDOW_VAR]).toBe(String(COMPACT_WINDOW_TOKENS));
       expect(e[AUTOCOMPACT_PCT_VAR]).toBe("75");
@@ -90,9 +90,9 @@ describe("compaction + cache TTL env (set by the app for every role, never inher
   });
 
   test("the window is the app default; no env var changes it", async () => {
-    process.env.COMPACT_WINDOW_LEAD = "150000";
-    const e = (await optionsOf(makeEnv(), "lead")).env;
-    delete process.env.COMPACT_WINDOW_LEAD;
+    process.env.COMPACT_WINDOW_TEAMMATE = "150000";
+    const e = (await optionsOf(makeEnv(), "chief-of-staff")).env;
+    delete process.env.COMPACT_WINDOW_TEAMMATE;
     expect(e[AUTO_COMPACT_WINDOW_VAR]).toBe(String(COMPACT_WINDOW_TOKENS));
   });
 });

@@ -13,11 +13,11 @@ export interface PromptContextInput {
   /** Channel (yaml `name`) the run started in: its persona files and its MEMORY.md. */
   channel?: string;
   /**
-   * `lead`: persona only (owner files, TEAM); its memory goes in the user turn, sent on change (orchestrator/lead/lead-memory.ts).
+   * `teammate`: persona only (owner files, TEAM); its memory goes in the user turn, sent on change (orchestrator/teammate/teammate-memory.ts).
    * `worker`: no persona; the registry, the same memory (read-only: workers have no `MemorySave`) and the ledger.
    */
-  kind: "lead" | "worker";
-  /** The lead's TEAM.md (roster, locations, how to delegate), placed before AGENTS.md. */
+  kind: "teammate" | "worker";
+  /** The teammate's TEAM.md (roster, locations, how to delegate), placed before AGENTS.md. */
   team?: string;
   /** Registry block of a worker: its locations with their test command. */
   registry?: string;
@@ -29,26 +29,26 @@ export interface PromptContextInput {
 
 /**
  * The one place that orders the prompt context of a run:
- * lead: `<owner_files>` (AGENTS, IDENTITY, SOUL, USER) -> `<team>`; nothing that changes per turn, so the system prompt
+ * teammate: `<owner_files>` (AGENTS, IDENTITY, SOUL, USER) -> `<team>`; nothing that changes per turn, so the system prompt
  *   stays byte-identical across the turns of a session (prompt cache);
  * worker: registry -> location rules (its locations' CLAUDE.md and .claude/rules) -> memory (root, channel) -> earlier-steps block.
  * The SDK still loads no settings (settingSources []): a location's rules reach a worker only through this block,
- * never its hooks, settings or skills; the lead gets none.
+ * never its hooks, settings or skills; the teammate gets none.
  * Logs one `prompt.context` event with the chars of each layer (counts only, never content).
  * BOOTSTRAP.md is an owner guide and is never injected.
  */
 export function buildPromptContext(i: PromptContextInput): string[] {
-  const lead = i.kind === "lead";
-  const persona = lead
+  const teammate = i.kind === "teammate";
+  const persona = teammate
     ? buildPersonaContext(i.agentHome, i.workspace, i.channel, i.team)
     : { text: "", truncated: false };
-  const registry = lead ? "" : (i.registry ?? "");
-  const locationRules = lead ? "" : (i.locationRules ?? "");
-  const layers = lead
+  const registry = teammate ? "" : (i.registry ?? "");
+  const locationRules = teammate ? "" : (i.locationRules ?? "");
+  const layers = teammate
     ? { root: "", channel: "" }
     : readMemoryLayers(i.agentHome, i.workspace, i.channel);
   const memory = formatMemoryContext(layers, i.channel);
-  const ledger = lead ? "" : (i.ledger ?? "");
+  const ledger = teammate ? "" : (i.ledger ?? "");
   const blocks = [persona.text, registry, locationRules, memory, ledger];
   logEvent(
     log,

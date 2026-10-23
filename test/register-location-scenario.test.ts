@@ -5,10 +5,10 @@ import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { systemPromptText } from "../src/runtime/system-prompt";
 import { makeEnv, TEST_CHANNEL, tempDirs } from "./helpers";
-import { type Call, leadHarness, until, workersDone } from "./lead-harness";
+import { type Call, teammateHarness, until, workersDone } from "./teammate-harness";
 
-/* Orchestrate register_location end to end with a fake query: the real handler, lead runner, approvals buttons (stub), yaml write and
-   dispatch-ready. The fake lead calls the real tools of its run. */
+/* Orchestrate register_location end to end with a fake query: the real handler, teammate runner, approvals buttons (stub), yaml write and
+   dispatch-ready. The fake teammate calls the real tools of its run. */
 
 /** A project dir (a git repo) outside AGENT_HOME, named `shop`. */
 function project(): string {
@@ -28,7 +28,7 @@ function editYaml(env: ReturnType<typeof makeEnv>, fn: (doc: any) => void): void
   writeFileSync(config, Bun.YAML.stringify(doc));
 }
 
-/** Lead script: on the owner message with the path, Orchestrate register_location then Orchestrate dispatch to `shop` in the same run. */
+/** Teammate script: on the owner message with the path, Orchestrate register_location then Orchestrate dispatch to `shop` in the same run. */
 function registerThenDispatch(proj: string, out: { reg?: any; dispatch?: any; teams: string[] }) {
   return async (c: Call) => {
     if (c.kind === "worker") {
@@ -72,7 +72,7 @@ for (const mode of ["task", "chat"] as const) {
     const proj = project();
     const out: { reg?: any; dispatch?: any; teams: string[] } = { teams: [] };
     const asked: string[] = [];
-    const h = leadHarness(registerThenDispatch(proj, out), env, {
+    const h = teammateHarness(registerThenDispatch(proj, out), env, {
       askChoice: async (q: any) => {
         asked.push(q.question);
         return "Yes";
@@ -109,7 +109,7 @@ test("channel with a locations subset becomes [location, shop]", async () => {
   });
   const proj = project();
   const out: { reg?: any; dispatch?: any; teams: string[] } = { teams: [] };
-  const h = leadHarness(registerThenDispatch(proj, out), env, { askChoice: async () => "Yes" });
+  const h = teammateHarness(registerThenDispatch(proj, out), env, { askChoice: async () => "Yes" });
   await h.send(`work in ${proj}`);
   await until(() => out.dispatch !== undefined);
   expect(out.dispatch).toMatchObject({ ok: true });
@@ -124,7 +124,7 @@ test("owner clicks No: nothing written, dispatch not attempted", async () => {
   const env = makeEnv();
   const proj = project();
   const out: { reg?: any; dispatch?: any; teams: string[] } = { teams: [] };
-  const h = leadHarness(registerThenDispatch(proj, out), env, { askChoice: async () => "No" });
+  const h = teammateHarness(registerThenDispatch(proj, out), env, { askChoice: async () => "No" });
   await h.send(`work in ${proj}`);
   await until(() => out.reg !== undefined && h.posts.length > 0);
   expect(out.reg).toMatchObject({ ok: false, code: "OWNER_DENIED" });
@@ -139,9 +139,9 @@ test("path not in the owner message is refused (nothing asked)", async () => {
   const proj = project();
   let reg: any;
   let asked = 0;
-  const h = leadHarness(
+  const h = teammateHarness(
     async (c) => {
-      if (c.kind === "lead") reg = await c.orchestrate("register_location", { path: proj });
+      if (c.kind === "teammate") reg = await c.orchestrate("register_location", { path: proj });
       return "ok";
     },
     env,
@@ -163,7 +163,7 @@ test("a run started by a worker event cannot register, even with the path in the
   const proj = project();
   let reg: any;
   let asked = 0;
-  const h = leadHarness(
+  const h = teammateHarness(
     async (c) => {
       if (c.kind === "worker") {
         await c.report("result", {
@@ -207,9 +207,9 @@ test("a second Orchestrate register_location in one run is allowed", async () =>
   const proj = project();
   const second = project();
   const replies: any[] = [];
-  const h = leadHarness(
+  const h = teammateHarness(
     async (c) => {
-      if (c.kind === "lead") {
+      if (c.kind === "teammate") {
         replies.push(await c.orchestrate("register_location", { path: proj }));
         replies.push(await c.orchestrate("register_location", { path: second }));
       }
@@ -233,7 +233,7 @@ test("a second owner message mid-run replaces the thread ctx: same-run dispatch 
   const asked = new Promise<void>((r) => {
     asking = r;
   });
-  const h = leadHarness(registerThenDispatch(proj, out), env, {
+  const h = teammateHarness(registerThenDispatch(proj, out), env, {
     askChoice: () =>
       new Promise<string>((r) => {
         release = r;

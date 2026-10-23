@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { PLAN_MAX_ITEMS, PLAN_MAX_REVISIONS } from "../src/config/lead-caps";
+import { PLAN_MAX_ITEMS, PLAN_MAX_REVISIONS } from "../src/config/teammate-caps";
 import { buildEnvelope, toPlanItem } from "../src/orchestrator/plan/plan-doc";
 import { normalizeRisk, type PlanCtx, type PlanDoc } from "../src/orchestrator/plan/plan-types";
 import { validatePlan } from "../src/orchestrator/plan/validate-plan";
@@ -52,7 +52,7 @@ test("each rule answers its code", () => {
     ["DUP_KEY reserved verify", ["DUP_KEY"], doc([item("verify-1")])],
     ["DUP_KEY reserved fix", ["DUP_KEY"], doc([item("fix-2")])],
     ["DUP_KEY existing", ["DUP_KEY"], doc([item("old")]), { existingKeys: ["old"] }],
-    ["UNKNOWN_ROLE", ["UNKNOWN_ROLE"], doc([item("a", { role: "lead" })])],
+    ["UNKNOWN_ROLE", ["UNKNOWN_ROLE"], doc([item("a", { role: "chief-of-staff" })])],
     ["UNKNOWN_DEP", ["UNKNOWN_DEP"], doc([item("a", { dependsOn: ["nope"] })])],
     [
       "CYCLE",

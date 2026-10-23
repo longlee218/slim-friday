@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
 import { SONNET_MODEL } from "../src/config/model-ids";
 import { validateRole } from "../src/orchestrator/run/validate-role";
+import { CHIEF_OF_STAFF_ROLE } from "../src/roles/builtin/chief-of-staff-role";
 import { DEVELOPER_ROLE } from "../src/roles/builtin/developer-role";
-import { LEAD_ROLE } from "../src/roles/builtin/lead-role";
 import { SCOUT_ROLE } from "../src/roles/builtin/scout-role";
 import { ROLES } from "../src/roles/role-registry";
 import type { RoleDefinition } from "../src/roles/role-types";
@@ -18,15 +18,15 @@ test("dev is a background role: one run, bypass from the first token, no plan co
   expect(DEVELOPER_ROLE.capabilities).toContain("ask");
   expect(DEVELOPER_ROLE.capabilities).not.toContain("planControl" as never);
   expect(DEVELOPER_ROLE.model).toBe(SONNET_MODEL);
-  expect(DEVELOPER_ROLE.skills).not.toContain("brainstorming"); // the lead alone talks to the human
+  expect(DEVELOPER_ROLE.skills).not.toContain("brainstorming"); // the teammate alone talks to the human
 });
 
-test("the lead is a foreground role without shell, ask, write or subagents; the scout is a read-only background worker", () => {
-  expect(LEAD_ROLE.kind).toBe("lead");
+test("the teammate is a foreground role without shell, ask, write or subagents; the scout is a read-only background worker", () => {
+  expect(CHIEF_OF_STAFF_ROLE.kind).toBe("teammate");
   for (const c of ["write", "ask", "shell"])
-    expect(LEAD_ROLE.capabilities).not.toContain(c as never);
-  expect(LEAD_ROLE.noSubagents).toBe(true);
-  expect(LEAD_ROLE.permissionMode).toBe("auto");
+    expect(CHIEF_OF_STAFF_ROLE.capabilities).not.toContain(c as never);
+  expect(CHIEF_OF_STAFF_ROLE.noSubagents).toBe(true);
+  expect(CHIEF_OF_STAFF_ROLE.permissionMode).toBe("auto");
   expect(SCOUT_ROLE.kind).toBe("worker");
   expect(SCOUT_ROLE.sideEffects).toBe("none");
   for (const c of ["write", "ask"]) expect(SCOUT_ROLE.capabilities).not.toContain(c as never);
@@ -40,7 +40,7 @@ test("role data is flat: no stages, gates, handoffs or per-run timeouts in any r
 
 test("validateRole refuses a role without a positive budget or with a bad ask limit", () => {
   expect(validateRole(DEVELOPER_ROLE)).toBeUndefined();
-  expect(validateRole(LEAD_ROLE)).toBeUndefined();
+  expect(validateRole(CHIEF_OF_STAFF_ROLE)).toBeUndefined();
   expect(validateRole(SCOUT_ROLE)).toBeUndefined();
   const bad = (p: Partial<RoleDefinition>) => validateRole({ ...DEVELOPER_ROLE, ...p });
   expect(bad({ budgetUsd: 0 })).toContain("budget");

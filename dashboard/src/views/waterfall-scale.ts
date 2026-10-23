@@ -1,6 +1,6 @@
 /**
  * Time -> x (0..1) for the waterfall, with idle gaps folded. A goal often waits hours for the owner between
- * 20-second lead runs; on a linear axis those runs vanish. Gaps longer than GAP_MS take a fixed GAP_SHARE of the
+ * 20-second teammate runs; on a linear axis those runs vanish. Gaps longer than GAP_MS take a fixed GAP_SHARE of the
  * width each and are drawn as breaks; busy time shares the rest in proportion.
  */
 const GAP_MS = 10 * 60_000;

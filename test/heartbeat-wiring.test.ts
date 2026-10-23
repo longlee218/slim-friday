@@ -4,7 +4,7 @@ import { guardFor } from "../src/policy/check-tool-call";
 import { getRole } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
 import { makeEnv, resultMsg } from "./helpers";
-import { leadHarness, until } from "./lead-harness";
+import { teammateHarness, until } from "./teammate-harness";
 
 /* The heartbeat wiring: a tool start reaches `onToolStart` (sdk-options), and a real worker run turns it into activity. */
 
@@ -44,7 +44,7 @@ test("runAgent: every PreToolUse guard decision (allow or deny) calls onToolStar
 test("a worker run: a tool start stamps the live run, Report progress records percent and note (full path)", async () => {
   let before = -1;
   let after = -1;
-  const h = leadHarness(async (c) => {
+  const h = teammateHarness(async (c) => {
     if (c.kind === "worker") {
       const run = liveWorkers()[0];
       if (!run) throw new Error("worker run is not live");

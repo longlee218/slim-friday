@@ -46,7 +46,12 @@ test("bypass: guard deny stays a hard deny and is logged tool.denied", async () 
 });
 
 test("bypass: Bash without a shell capability stays a hard deny", async () => {
-  const { out } = await pre(true, "Bash", { command: "ls" }, guardFor(getRole("lead"), {}));
+  const { out } = await pre(
+    true,
+    "Bash",
+    { command: "ls" },
+    guardFor(getRole("chief-of-staff"), {}),
+  );
   expect(out.hookSpecificOutput.permissionDecision).toBe("deny");
 });
 
@@ -174,7 +179,7 @@ test("runAgent: exec asks SDK for bypass with the opt-in; confirmed -> ask runs,
 
 test("an auto role's options carry no allowDangerouslySkipPermissions", async () => {
   expect(getRole("developer").permissionMode).toBe("bypassPermissions");
-  for (const role of ["lead"] as const) {
+  for (const role of ["chief-of-staff"] as const) {
     const env = makeEnv();
     let opts: Options | undefined;
     await runAgent({
@@ -190,7 +195,7 @@ test("an auto role's options carry no allowDangerouslySkipPermissions", async ()
           yield resultMsg({ result: "ok" });
         })()) as never,
       role: getRole(role),
-      guard: guardFor(getRole("lead"), { readPaths: [env.location] }),
+      guard: guardFor(getRole("chief-of-staff"), { readPaths: [env.location] }),
       code: { threadId: "th" },
     });
     expect(opts!.allowDangerouslySkipPermissions).toBeUndefined();

@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { afterEach, expect, test } from "bun:test";
-import { PLAN_MAX_REVISIONS } from "../src/config/lead-caps";
+import { PLAN_MAX_REVISIONS } from "../src/config/teammate-caps";
 import { createPlanPort } from "../src/orchestrator/goal/effect-port-plan";
 import { openGoalIdOf } from "../src/orchestrator/goal/effect-port-queries";
 import { approveVersion, createPlan, rejectVersion } from "../src/orchestrator/plan/plan-lifecycle";
@@ -75,7 +75,7 @@ test("a plan that fails validation is not stored", () => {
   const r = createPlan(db, {
     goalId: w.goalId,
     objective: "o",
-    items: [item("a", { role: "lead" })],
+    items: [item("a", { role: "chief-of-staff" })],
     acceptanceCriteria: [],
     envelope: ENVELOPE,
     effects: [],

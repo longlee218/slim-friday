@@ -6,14 +6,14 @@ import { insertOwnedTask } from "../src/storage/owned-task-store";
 import { listUndelivered } from "../src/storage/thread-event-store";
 import { moveTaskTo } from "../src/tasks/task-resolver";
 import { makeEnv, TEST_CHANNEL } from "./helpers";
-import { type Call, leadHarness, until, workersDone } from "./lead-harness";
+import { type Call, teammateHarness, until, workersDone } from "./teammate-harness";
 
 /* Group B of the execution audit: a waiting_user item resumes on the owner's answer (E-H1), stop covers it and held items. */
 
 const ANSWER = "use the blue theme";
 
-/** Lead + developer script: the first worker run ends with no report (item waiting_user), the next one completes. */
-function waitingScript(onLead: (c: Call, item: () => string) => Promise<void> | void) {
+/** Teammate + developer script: the first worker run ends with no report (item waiting_user), the next one completes. */
+function waitingScript(onTeammate: (c: Call, item: () => string) => Promise<void> | void) {
   let itemId = "";
   return (c: Call) => {
     if (c.kind === "worker") {
@@ -40,14 +40,14 @@ function waitingScript(onLead: (c: Call, item: () => string) => Promise<void> | 
           return "started";
         });
     }
-    return Promise.resolve(onLead(c, () => itemId)).then(() => "ok");
+    return Promise.resolve(onTeammate(c, () => itemId)).then(() => "ok");
   };
 }
 
-const workerCalls = (h: ReturnType<typeof leadHarness>) => h.ofKind("worker");
+const workerCalls = (h: ReturnType<typeof teammateHarness>) => h.ofKind("worker");
 
-test("E-H1: a Discord reply to the item's question message resumes it with the answer; the lead sees an answer event", async () => {
-  const h = leadHarness(waitingScript(() => {}));
+test("E-H1: a Discord reply to the item's question message resumes it with the answer; the teammate sees an answer event", async () => {
+  const h = teammateHarness(waitingScript(() => {}));
   await h.send("style it");
   await workersDone(h.env.db);
   const item = h.env.db.query("SELECT id FROM owned_tasks WHERE parent_id IS NOT NULL").get() as {
@@ -58,7 +58,7 @@ test("E-H1: a Discord reply to the item's question message resumes it with the a
   expect(itemOfQuestionMessage(h.env.db, "q-msg-1", "t1")).toBe(item.id);
   expect(itemOfQuestionMessage(h.env.db, "q-msg-1", "other")).toBeUndefined();
 
-  const leadRunsBefore = h.ofKind("lead").length;
+  const teammateRunsBefore = h.ofKind("teammate").length;
   await h.handle({
     source: "discord",
     userId: "owner",
@@ -74,7 +74,7 @@ test("E-H1: a Discord reply to the item's question message resumes it with the a
   expect(workerCalls(h)[1]?.prompt).toContain(ANSWER); // the answer is the resumed session's prompt
   expect(workerCalls(h)[1]?.options.resume).toBeTruthy();
   await until(() => getItem(h.env.db, item.id)?.status === "completed", 8000);
-  // The owner's text did not go to the lead as an owner message; the lead read the answer as news.
+  // The owner's text did not go to the teammate as an owner message; the teammate read the answer as news.
   const owner = h.env.db
     .query(
       "SELECT COUNT(*) AS n FROM thread_events WHERE kind = 'owner_message' AND id = 'owner:m-reply'",
@@ -88,13 +88,15 @@ test("E-H1: a Discord reply to the item's question message resumes it with the a
     answers.some((a) => a.payload.includes(ANSWER) && a.payload.includes('"by":"owner"')),
   ).toBe(true);
   await until(
-    () => h.ofKind("lead").length > leadRunsBefore && listUndelivered(h.env.db, "t1").length === 0,
+    () =>
+      h.ofKind("teammate").length > teammateRunsBefore &&
+      listUndelivered(h.env.db, "t1").length === 0,
     8000,
   );
 }, 30_000);
 
-test("E-H1: a reply to an unknown message is a plain thread message for the lead", async () => {
-  const h = leadHarness(waitingScript(() => {}));
+test("E-H1: a reply to an unknown message is a plain thread message for the teammate", async () => {
+  const h = teammateHarness(waitingScript(() => {}));
   await h.handle({
     source: "discord",
     userId: "owner",
@@ -106,13 +108,13 @@ test("E-H1: a reply to an unknown message is a plain thread message for the lead
     language: "en",
     notify: async () => {},
   });
-  await until(() => h.ofKind("lead").length > 0, 8000);
-  expect(h.ofKind("lead")[0]?.prompt).toContain("style it");
+  await until(() => h.ofKind("teammate").length > 0, 8000);
+  expect(h.ofKind("teammate")[0]?.prompt).toContain("style it");
 }, 15_000);
 
-test("E-H1: the lead's Orchestrate steer on a waiting_user item resumes it (no `ended`)", async () => {
+test("E-H1: the teammate's Orchestrate steer on a waiting_user item resumes it (no `ended`)", async () => {
   let steered = "";
-  const h = leadHarness(
+  const h = teammateHarness(
     waitingScript(async (c, item) => {
       if (!steered && item())
         steered = (await c.orchestrate("steer", { taskId: item(), text: ANSWER })).result;
@@ -120,7 +122,7 @@ test("E-H1: the lead's Orchestrate steer on a waiting_user item resumes it (no `
   );
   await h.send("style it");
   await workersDone(h.env.db);
-  // The worker's end event wakes the lead (announce run), which steers the waiting item.
+  // The worker's end event wakes the teammate (announce run), which steers the waiting item.
   await until(() => steered !== "", 8000);
   expect(steered).toBe("resumed");
   await until(() => workerCalls(h).length === 2, 8000);
@@ -132,7 +134,7 @@ test("E-H1: /stop cancels a waiting_user item and a blocked (BLOCKED) item, and 
   insertOwnedTask(db, {
     id: "g",
     threadId: "th",
-    ownerRole: "lead",
+    ownerRole: "chief-of-staff",
     status: "open",
     scope: "g",
     correlationId: "c",

@@ -9,7 +9,7 @@ import type { Capability, RoleDefinition } from "../src/roles/role-types";
 const role = (name: string, over: Partial<RoleDefinition> = {}): RoleDefinition => ({
   name,
   whenToUse: `use ${name}`,
-  kind: "lead",
+  kind: "teammate",
   limits: { maxAsk: 0, maxTurns: 20 },
   subagents: { parallel: 3, depth: 1 },
   sideEffects: "none",

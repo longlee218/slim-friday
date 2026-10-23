@@ -17,10 +17,10 @@ function sources(dir: string): { file: string; text: string }[] {
 const imports = (text: string): string[] =>
   [...text.matchAll(/(?:from|import)\s*\(?\s*["']([^"']+)["']/g)].map((m) => m[1] as string);
 
-/** The generic run code: the former engine dir, now lead / worker / run / goal. */
-const ENGINE_DIRS = ["lead", "worker", "run", "goal"].map((d) => `src/orchestrator/${d}`);
+/** The generic run code: the former engine dir, now teammate / worker / run / goal. */
+const ENGINE_DIRS = ["teammate", "worker", "run", "goal"].map((d) => `src/orchestrator/${d}`);
 
-test('engine knows no role names: no "developer" / "lead" string literal under orchestrator/{lead,worker,run,goal}', () => {
+test('engine knows no role names: no "developer" / "teammate" string literal under orchestrator/{teammate,worker,run,goal}', () => {
   const files = ENGINE_DIRS.flatMap(sources);
   expect(files.length).toBeGreaterThan(5);
   const hits = files

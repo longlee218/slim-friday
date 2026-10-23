@@ -8,10 +8,10 @@ import { locationOfTool } from "../src/observability/tool-hooks";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { READ_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { CHANNEL_2, resultMsg, TEST_CHANNEL, twoWorkspaces } from "./helpers";
-import { devLeadQuery, workersDone } from "./lead-harness";
 import { STRAY_QUEUE_FILE, writeChannelNotes } from "./memory-fixture";
+import { devTeammateQuery, workersDone } from "./teammate-harness";
 
-/** Full prompt context text of a worker run in channel `<ws>-agent` of `ws` (the lead's memory is in its user turn). */
+/** Full prompt context text of a worker run in channel `<ws>-agent` of `ws` (the teammate's memory is in its user turn). */
 const promptOf = (home: string, ws: string) =>
   buildPromptContext({
     agentHome: home,
@@ -72,8 +72,8 @@ test("a real dev run prompt contains no pending-file text and no other workspace
   const handle = createTurnHandler({
     db: env.db,
     config: env.config,
-    queryFn: devLeadQuery(queryFn),
-    leadTiming: { debounceMs: 10, announceWindowMs: 20 },
+    queryFn: devTeammateQuery(queryFn),
+    teammateTiming: { debounceMs: 10, announceWindowMs: 20 },
   });
   await handle({
     source: "t",
@@ -101,8 +101,8 @@ test("a message from w2's channel gets w2's memory and not w1's", async () => {
   const handle = createTurnHandler({
     db: env.db,
     config: env.config,
-    queryFn: devLeadQuery(queryFn),
-    leadTiming: { debounceMs: 10, announceWindowMs: 20 },
+    queryFn: devTeammateQuery(queryFn),
+    teammateTiming: { debounceMs: 10, announceWindowMs: 20 },
   });
   await handle({
     source: "t",
@@ -121,12 +121,12 @@ test("no CLAUDE.md is created under the home by ensureHome or a handler run", as
   const handle = createTurnHandler({
     db: env.db,
     config: env.config,
-    queryFn: devLeadQuery((_a: unknown) =>
+    queryFn: devTeammateQuery((_a: unknown) =>
       (async function* () {
         yield resultMsg();
       })(),
     ),
-    leadTiming: { debounceMs: 10, announceWindowMs: 20 },
+    teammateTiming: { debounceMs: 10, announceWindowMs: 20 },
   });
   await handle({
     source: "t",

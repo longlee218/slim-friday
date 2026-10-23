@@ -7,7 +7,7 @@ import { REPORT_TOOL } from "../src/mcp/orchestration/tools/ReportTool/constants
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { EDIT_TOOL_NAME, WRITE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { makeEnv, TEST_CHANNEL } from "./helpers";
-import { until, workersDone } from "./lead-harness";
+import { until, workersDone } from "./teammate-harness";
 
 // Live test: needs a real OAuth token (a dummy gives 401 and retries forever).
 // Note: bun auto-loads .env, so a placeholder there must be treated as missing.
@@ -17,7 +17,7 @@ if (!live) {
   process.stderr.write("SKIP live-agent smoke: CLAUDE_CODE_OAUTH_TOKEN missing or REPLACE_ME\n");
 }
 
-describe.skipIf(!live)("live agent smoke (lead -> scout, Haiku)", () => {
+describe.skipIf(!live)("live agent smoke (teammate -> scout, Haiku)", () => {
   test("answers on a temp location; no write tools exposed; rows recorded", async () => {
     const env = makeEnv({
       CLAUDE_CODE_OAUTH_TOKEN: token!,
@@ -32,9 +32,9 @@ describe.skipIf(!live)("live agent smoke (lead -> scout, Haiku)", () => {
 
     const tools: string[][] = [];
     const { query } = await import("@anthropic-ai/claude-agent-sdk");
-    // Wrap the real query to capture the system init tool list of the WORKER runs (the lead has its own tools).
+    // Wrap the real query to capture the system init tool list of the WORKER runs (the teammate has its own tools).
     const queryFn = (a: Parameters<typeof query>[0]) => {
-      // A worker run is the one whose orchestration server holds Report (the lead's holds the lead tools).
+      // A worker run is the one whose orchestration server holds Report (the teammate's holds the teammate tools).
       const orchestration = (a.options?.mcpServers as any)?.[ORCHESTRATION_MCP_SERVER];
       const isWorker = !!orchestration?.instance?._registeredTools?.[REPORT_TOOL];
       return (async function* () {
@@ -46,7 +46,7 @@ describe.skipIf(!live)("live agent smoke (lead -> scout, Haiku)", () => {
       })();
     };
 
-    // Plain text: the lead decides and dispatches a read-only scout; the scout's typed result lands on its item row.
+    // Plain text: the teammate decides and dispatches a read-only scout; the scout's typed result lands on its item row.
     await createTurnHandler({ db: env.db, config: cfg, queryFn: queryFn as never })({
       source: "test",
       channelId: TEST_CHANNEL,
@@ -66,10 +66,10 @@ describe.skipIf(!live)("live agent smoke (lead -> scout, Haiku)", () => {
     expect(
       env.db
         .query<{ n: number }, []>(
-          "SELECT COUNT(*) n FROM runs r JOIN turns t ON t.id = r.turn_id WHERE t.role != 'lead'",
+          "SELECT COUNT(*) n FROM runs r JOIN turns t ON t.id = r.turn_id WHERE t.role != 'chief-of-staff'",
         )
         .get()!.n,
-    ).toBe(1); // one worker run (the lead's own runs are not counted)
+    ).toBe(1); // one worker run (the teammate's own runs are not counted)
     expect(
       env.db.query<{ n: number }, []>("SELECT COUNT(*) n FROM tool_calls").get()!.n,
     ).toBeGreaterThan(0);

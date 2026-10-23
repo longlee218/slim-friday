@@ -2,12 +2,12 @@ import type { Database } from "bun:sqlite";
 import { afterEach, expect, test } from "bun:test";
 import { createPlanPort } from "../src/orchestrator/goal/effect-port-plan";
 import { openGoalIdOf } from "../src/orchestrator/goal/effect-port-queries";
-import { handleApprovePlan } from "../src/orchestrator/lead/lead-plan-handlers";
 import { buildEnvelope, toPlanItem } from "../src/orchestrator/plan/plan-doc";
 import { approveVersion, createPlan, rejectVersion } from "../src/orchestrator/plan/plan-lifecycle";
 import { type Edit, revisePlan } from "../src/orchestrator/plan/plan-revision";
 import { validatePlan } from "../src/orchestrator/plan/validate-plan";
 import { checkDispatch } from "../src/orchestrator/strategy/dispatch-policy";
+import { handleApprovePlan } from "../src/orchestrator/teammate/teammate-plan-handlers";
 import { cancelDependents, settleGoal } from "../src/orchestrator/worker/goal-settle";
 import { dispatchableWorkers } from "../src/roles/role-registry";
 import { openDb } from "../src/storage/db";
@@ -15,8 +15,8 @@ import { childrenOf } from "../src/storage/owned-item-store";
 import { getOwnedTask } from "../src/storage/owned-task-store";
 import { getPlan, planVersions } from "../src/storage/work-plan-store";
 import { moveTaskTo } from "../src/tasks/task-resolver";
-import { FakePort } from "./lead-fake-port";
 import { openPlanGoal } from "./plan-fixture";
+import { FakePort } from "./teammate-fake-port";
 
 /* Gap audit of phase L2b over a real in-memory db: superseded and stale approvals, a materialize that fails midway
    (rolls back all), a planner that crashes after or before storing a plan, a revision that drops a depended-on item,
@@ -83,7 +83,7 @@ test("Orchestrate approve_plan on a superseded version is refused before the own
   port.plan = real.plan;
   port.decidePlan = real.decidePlan;
   port.answer = { answer: "Approve plan", timedOut: false };
-  const ctx = { port, threadId: "t", leadTurnId: "lt", inputId: "in1", run: { dispatched: 0 } };
+  const ctx = { port, threadId: "t", teammateTurnId: "lt", inputId: "in1", run: { dispatched: 0 } };
   expect(await handleApprovePlan(ctx, { planId: plan.id, version: 1 })).toMatchObject({
     code: "PLAN_NOT_VALID",
   });
@@ -124,13 +124,13 @@ test("materialize is one transaction: a failing item insert rolls back every ite
 test("a valid plan keeps the goal open for the owner; a rejection leaves it open for a re-plan", () => {
   const { goalId, plan } = setup();
   settleGoal(db, goalId);
-  // Not settled: the plan is `valid` and waits. Nothing sweeps it; only the lead (approve / reject) or /stop ends it.
+  // Not settled: the plan is `valid` and waits. Nothing sweeps it; only the teammate (approve / reject) or /stop ends it.
   expect(getOwnedTask(db, goalId)?.status).toBe("open");
   expect(openGoalIdOf(db, "t")).toBe(goalId);
   expect(getPlan(db, plan.id, 1)?.status).toBe("valid");
   expect(rejectVersion(db, plan.id, 1, "owner rejected")).toEqual({ ok: true });
   settleGoal(db, goalId);
-  expect(getOwnedTask(db, goalId)?.status).toBe("open"); // the lead may re-plan in this goal
+  expect(getOwnedTask(db, goalId)?.status).toBe("open"); // the teammate may re-plan in this goal
   expect(openGoalIdOf(db, "t")).toBe(goalId);
 });
 
@@ -151,7 +151,7 @@ test("a revision that cancels an item another item still needs is refused (UNKNO
 
 test("the planner cannot be a plan role: the registry and the validator refuse it, Orchestrate dispatch refuses it", () => {
   expect(ENV.workerRoles).not.toContain("planner");
-  expect(ENV.workerRoles).not.toContain("lead");
+  expect(ENV.workerRoles).not.toContain("chief-of-staff");
   const doc = (role: string) => ({
     spec: "# Spec",
     plan: "# Plan",
@@ -170,7 +170,7 @@ test("the planner cannot be a plan role: the registry and the validator refuse i
     existingKeys: [],
     revisions: 0,
   };
-  for (const role of ["planner", "lead"])
+  for (const role of ["planner", "chief-of-staff"])
     expect(validatePlan(doc(role), ctx).map((e) => e.code)).toEqual(["UNKNOWN_ROLE"]);
   const state = { items: [] };
   const caps = { chainCount: 0, dispatchedThisRun: 0 };

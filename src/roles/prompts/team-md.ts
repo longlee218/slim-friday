@@ -1,11 +1,11 @@
 import { REPORT_IMAGES_MAX } from "../../artifacts/artifact-limits";
+import { ITEM_MAX_AGE_MS } from "../../config/resilience-caps";
 import {
   CHAIN_CAP,
   DELEGATE_MAX,
   DISPATCHES_PER_RUN,
   MAX_RUNNING_PER_THREAD,
-} from "../../config/lead-caps";
-import { ITEM_MAX_AGE_MS } from "../../config/resilience-caps";
+} from "../../config/teammate-caps";
 import type { Location } from "../../locations/location-registry";
 import { PLAYWRIGHT_TOOLS } from "../../mcp/playwright/playwright-tool-names";
 import { dispatchableWorkers } from "../role-registry";
@@ -14,8 +14,8 @@ import type { Capability, RoleDefinition } from "../role-types";
 /** The item age limit in hours, for the prompt line. */
 const ITEM_MAX_AGE_HOURS = ITEM_MAX_AGE_MS / 3_600_000;
 
-/* TEAM.md: the lead's team, built by code per run from the role registry and the thread's locations (never a hand-kept
-   list), so it is always true. Runtime facts only: strategies, events and what to do about them are the lead-orchestration skill's job; style,
+/* TEAM.md: the teammate's team, built by code per run from the role registry and the thread's locations (never a hand-kept
+   list), so it is always true. Runtime facts only: strategies, events and what to do about them are the teammate-orchestration skill's job; style,
    memory and privacy are the owner's (AGENTS.md). */
 
 /** The one strategy fact code owns (a cap): the skill owns the strategies and when to pick which. */
@@ -23,7 +23,7 @@ const DELEGATE_LINE = `- DELEGATE: up to ${DELEGATE_MAX} workers as a chain: a t
 
 /** The PLAN strategy fact: who staffs a plan (the skill owns when to pick it). */
 const PLAN_LINE =
-  "- PLAN: the lead writes the plan (spec, items staffed from the members above) and the owner approves it once.";
+  "- PLAN: the teammate writes the plan (spec, items staffed from the members above) and the owner approves it once.";
 
 /** Member facts after the table: who can install or commit, how a screenshot reaches the owner, who may ask the owner (all from role data). */
 const memberFacts = (workers: readonly RoleDefinition[]): string[] => {
@@ -73,7 +73,7 @@ const memberTable = (workers: readonly RoleDefinition[]): string[] => [
   }),
 ];
 
-/** One location line: name, git flag and the owner's description (no path: the lead's reply is posted as is). */
+/** One location line: name, git flag and the owner's description (no path: the teammate's reply is posted as is). */
 const locationLine = (l: Location): string =>
   `- ${l.name}${l.git ? " [git]" : ""}${l.description ? `: ${l.description}` : ""}`;
 

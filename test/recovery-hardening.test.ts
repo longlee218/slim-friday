@@ -10,9 +10,9 @@ import { runAgent } from "../src/runtime/run-agent";
 import { insertTurn, interruptRunningTurns, setTurnStatus } from "../src/storage/run-store";
 import { getSession, setSession } from "../src/storage/session-store";
 import { fakeQuery, initMsg, makeEnv, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
-import { devLeadQuery, workersDone } from "./lead-harness";
+import { devTeammateQuery, workersDone } from "./teammate-harness";
 
-/** A message the fake lead dispatches to a detached dev worker. */
+/** A message the fake teammate dispatches to a detached dev worker. */
 const task = (text: string, threadId = "th1") => ({
   source: "test",
   channelId: TEST_CHANNEL,
@@ -27,8 +27,8 @@ const devHandler = (env: ReturnType<typeof makeEnv>, queryFn: unknown) =>
     config: env.config,
     approvals: stubGateway(),
     limiter: createRunLimiter(10),
-    queryFn: devLeadQuery(queryFn),
-    leadTiming: { debounceMs: 10, announceWindowMs: 20 },
+    queryFn: devTeammateQuery(queryFn),
+    teammateTiming: { debounceMs: 10, announceWindowMs: 20 },
   });
 
 /** Run the agent against a fake query and return its result. */
@@ -36,7 +36,7 @@ const go = (env: ReturnType<typeof makeEnv>, q: ReturnType<typeof fakeQuery>) =>
   runAgent({
     prompt: "q",
     turnId: "T",
-    role: getRole("lead"),
+    role: getRole("chief-of-staff"),
     cwd: env.home,
     config: env.config,
     db: env.db,
@@ -75,10 +75,16 @@ test("quota/error runs never replace the stored session either", async () => {
 
 test("restart marks running tasks interrupted", () => {
   const { db } = makeEnv();
-  insertTurn(db, { id: "a", threadId: "th", source: "d", location: "r", role: "lead" });
+  insertTurn(db, { id: "a", threadId: "th", source: "d", location: "r", role: "chief-of-staff" });
   insertTurn(db, { id: "b", threadId: "th", source: "d", location: "r", role: "developer" });
   setTurnStatus(db, "b", "waiting_approval");
-  insertTurn(db, { id: "c", threadId: "other", source: "d", location: "r", role: "lead" });
+  insertTurn(db, {
+    id: "c",
+    threadId: "other",
+    source: "d",
+    location: "r",
+    role: "chief-of-staff",
+  });
   setTurnStatus(db, "c", "done");
   interruptRunningTurns(db);
   const st = db.query<{ status: string }, []>("SELECT status FROM turns WHERE id='a'").get();

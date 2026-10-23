@@ -70,7 +70,7 @@ export async function answerTurn(
     });
     started?.();
     const reply = await call;
-    if (reply === undefined) return; // nothing to send here: the lead answers on its own through `notify`
+    if (reply === undefined) return; // nothing to send here: the teammate answers on its own through `notify`
     retype();
     await sendReply(channel, reply, language, visible);
   } finally {

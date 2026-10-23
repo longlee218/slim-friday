@@ -165,7 +165,7 @@ test("a thrown run does not leave a run row 'running': the runs row carries the 
     threadId: "th",
     source: "t",
     location: "location",
-    role: "lead",
+    role: "chief-of-staff",
   });
   const run = runRole(
     {
@@ -180,7 +180,7 @@ test("a thrown run does not leave a run row 'running': the runs row carries the 
       turnId: "t1",
       threadId: "th",
       text: "x",
-      role: "lead",
+      role: "chief-of-staff",
       workspace: "main",
       locations: [{ name: "location", path: env.location } as never],
       ac: new AbortController(),

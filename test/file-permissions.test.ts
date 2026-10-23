@@ -3,17 +3,17 @@ import { existsSync, statSync } from "node:fs";
 import { dirname } from "node:path";
 import { rollingFile } from "../src/observability/log-files";
 import { makeEnv, rolledFiles } from "./helpers";
-import { leadHarness, until } from "./lead-harness";
+import { teammateHarness, until } from "./teammate-harness";
 
 /** Permission bits (octal string) of a path. */
 const mode = (p: string) => (statSync(p).mode & 0o777).toString(8);
 
 test("dirs are 0700; db, sidecars, app log and per-task jsonl are 0600", async () => {
   const env = makeEnv();
-  // A real lead run writes the db, the per-task jsonl and (via sqlite) the WAL/SHM files.
-  const h = leadHarness(() => "hi", env);
+  // A real teammate run writes the db, the per-task jsonl and (via sqlite) the WAL/SHM files.
+  const h = teammateHarness(() => "hi", env);
   await h.send("hi");
-  await until(() => h.ofKind("lead").length > 0);
+  await until(() => h.ofKind("teammate").length > 0);
   await until(() => env.db.query("SELECT id FROM turns WHERE status != 'running'").get() !== null);
   // The app logger is silent under test: open the rolling app log directly to check its mode.
   const sink = rollingFile(env.paths.appLog());

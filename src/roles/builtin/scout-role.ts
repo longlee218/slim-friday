@@ -19,7 +19,7 @@ const MAX_TURNS = 40;
 /**
  * The scout: Haiku, reference search in the locations (files, symbols, call paths, structure) and library docs lookup;
  * changes no location (`sideEffects: "none"`: a report is the final reply, app-owned data, not a side effect).
- * Web research beyond library docs is the researcher's. Reached only through the lead (`kind: "worker"`, `dispatchable`).
+ * Web research beyond library docs is the researcher's. Reached only through the teammate (`kind: "worker"`, `dispatchable`).
  * Skills are its own list (`skills`).
  */
 export const SCOUT_ROLE: RoleDefinition = {

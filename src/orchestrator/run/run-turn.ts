@@ -8,7 +8,7 @@ import { type DetachedOpts, runDetached } from "./run-detached";
 
 export { type DetachedOpts, runDetached } from "./run-detached";
 
-/* The ONE begin / run / close sequence of a turn, for the lead and for a detached worker:
+/* The ONE begin / run / close sequence of a turn, for the teammate and for a detached worker:
    begin the turn row -> build the run input -> run the role -> close the turn row (a crash marks it failed). */
 
 /** Logger of this module. */
@@ -24,14 +24,14 @@ export interface TurnBegin {
   turn: Parameters<typeof beginTurn>[3];
 }
 
-/** The lead's closing step: how the finished run is stored and worded (the lead keeps its session, its model, location `*`). */
-export type LeadClose = (res: FlowResult, t0: number) => { res: FlowResult; opts: CloseOpts };
+/** The teammate's closing step: how the finished run is stored and worded (the teammate keeps its session, its model, location `*`). */
+export type TeammateClose = (res: FlowResult, t0: number) => { res: FlowResult; opts: CloseOpts };
 
 /** The `closeTurn` options argument. */
 type CloseOpts = Parameters<typeof closeTurn>[3];
 
-/** What one lead turn gives back. */
-export interface LeadTurnResult {
+/** What one teammate turn gives back. */
+export interface TeammateTurnResult {
   /** Turn row of the run. */
   turnId: string;
   reply: string;
@@ -41,31 +41,31 @@ export interface LeadTurnResult {
 }
 
 /**
- * One turn, start to end. `lead`: the run is awaited and its reply returned; its registry entry is the caller's (it
+ * One turn, start to end. `teammate`: the run is awaited and its reply returned; its registry entry is the caller's (it
  * spans the whole input, not just the turn). `worker`: the run is registered and detached, the call returns at once.
  * `build` runs after the turn row exists (as before the merge): a throw leaves the row, the caller handles it.
  */
 export function runTurn(
-  kind: "lead",
+  kind: "teammate",
   deps: DispatchDeps,
-  spec: { begin: TurnBegin; build: () => { input: RoleRunInput; close: LeadClose } },
-): Promise<LeadTurnResult>;
+  spec: { begin: TurnBegin; build: () => { input: RoleRunInput; close: TeammateClose } },
+): Promise<TeammateTurnResult>;
 export function runTurn(
   kind: "worker",
   deps: DispatchDeps,
   spec: { begin: TurnBegin; build: () => { input: RoleRunInput; detached: DetachedOpts } },
 ): void;
 export function runTurn(
-  kind: "lead" | "worker",
+  kind: "teammate" | "worker",
   deps: DispatchDeps,
   spec: {
     begin: TurnBegin;
-    build: () => { input: RoleRunInput; close?: LeadClose; detached?: DetachedOpts };
+    build: () => { input: RoleRunInput; close?: TeammateClose; detached?: DetachedOpts };
   },
-): Promise<LeadTurnResult> | undefined {
+): Promise<TeammateTurnResult> | undefined {
   const { begin } = spec;
-  // The run owns its log context. A turn is started from whichever async tree woke it (a lead announce timer armed
-  // inside a running worker, a dispatch inside a lead run, ...): `setLogContext` mutates the store object of that
+  // The run owns its log context. A turn is started from whichever async tree woke it (a teammate announce timer armed
+  // inside a running worker, a dispatch inside a teammate run, ...): `setLogContext` mutates the store object of that
   // tree, so without a fresh store here a later run would relabel every line of the one still running. Everything
   // below (turn row, run stream, tool hooks, close) runs inside this store and keeps it across awaits and callbacks.
   // The per-run keys of the waking tree are blanked; `traceId`, `threadId`, `channelId` stay.
@@ -90,7 +90,7 @@ export function runTurn(
       input,
       () => failTurn(deps.db, log, input.turnId),
       (res) => {
-        const c = (built.close as LeadClose)(res, t0);
+        const c = (built.close as TeammateClose)(res, t0);
         return closeTurn(
           deps.db,
           { turnId: input.turnId, threadId: input.threadId },

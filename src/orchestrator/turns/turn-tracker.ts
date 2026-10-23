@@ -24,7 +24,7 @@ export function createRunTracker(db: Database, log: Logger) {
   /** Abort every active run (graceful shutdown). */
   const abortAll = () => {
     stopping = true;
-    abortAllRuns(); // lead and detached worker runs
+    abortAllRuns(); // teammate and detached worker runs
   };
 
   return {

@@ -65,7 +65,7 @@ interface Replay {
   )[];
 }
 
-/** A thread replayed top to bottom: owner messages, lead runs, dispatches, worker runs, reports, in time order. */
+/** A thread replayed top to bottom: owner messages, teammate runs, dispatches, worker runs, reports, in time order. */
 export function ThreadReplay({ id, run }: { id: string; run: string | null }) {
   const state = useApi<Replay>(`threads/${id}`);
   const pick = (turnId: string | null) => go(link("threads", id, { run: turnId }));

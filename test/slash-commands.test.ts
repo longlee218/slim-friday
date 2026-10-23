@@ -25,10 +25,10 @@ test("task commands: only the slash forms are commands", () => {
   expect(parseMessageCommand("/stop now")).toEqual({ kind: "message" });
   expect(parseMessageCommand("/go +2")).toEqual({ kind: "message" }); // /go is gone: plain text
   expect(parseMessageCommand("/cleanup t-1")).toEqual({ kind: "message" });
-  // removed memory commands are plain messages for the lead
+  // removed memory commands are plain messages for the teammate
   for (const t of ["/remember x y z", "/forget global x y z", "/compact"])
     expect(parseMessageCommand(t)).toEqual({ kind: "message" });
-  // text forms are plain messages for the lead
+  // text forms are plain messages for the teammate
   for (const t of ["stop", "status", "purge", "forget: x y z", "compact memory", "remember: x y z"])
     expect(parseMessageCommand(t)).toEqual({ kind: "message" });
   // a plain message that only mentions a command is a task

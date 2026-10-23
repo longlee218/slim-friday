@@ -54,7 +54,7 @@ export const REFLECT_SYSTEM =
   "Each field is one short line. Never copy secrets (tokens, keys, passwords).";
 
 /**
- * Custom instructions for the SDK compaction summary of a lead run (PreCompact hook, `systemMessage`). Facts of what
+ * Custom instructions for the SDK compaction summary of a teammate run (PreCompact hook, `systemMessage`). Facts of what
  * the summary must keep; the summary is stored as the thread summary and feeds the memory flush. Not a cap.
  */
 export const COMPACT_INSTRUCTIONS =

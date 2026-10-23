@@ -1,14 +1,14 @@
 import type { Database } from "bun:sqlite";
 import { afterEach, expect, test } from "bun:test";
-import { PENDING_PLAN_MAX_AGE_MS } from "../src/config/lead-caps";
+import { PENDING_PLAN_MAX_AGE_MS } from "../src/config/teammate-caps";
 import { renderUserNotice } from "../src/ingress/user-copy";
 import { createDbEffectPort } from "../src/orchestrator/goal/effect-port-db";
 import { createPlanPort } from "../src/orchestrator/goal/effect-port-plan";
-import { ASK_OWNER_TIMEOUT_MS } from "../src/orchestrator/lead/lead-limits";
-import { handleApprovePlan } from "../src/orchestrator/lead/lead-plan-handlers";
-import type { LeadRuntime } from "../src/orchestrator/lead/lead-runtime";
 import { approveVersion, createPlan, rejectVersion } from "../src/orchestrator/plan/plan-lifecycle";
 import { revisePlan } from "../src/orchestrator/plan/plan-revision";
+import { ASK_OWNER_TIMEOUT_MS } from "../src/orchestrator/teammate/teammate-limits";
+import { handleApprovePlan } from "../src/orchestrator/teammate/teammate-plan-handlers";
+import type { TeammateRuntime } from "../src/orchestrator/teammate/teammate-runtime";
 import { cancelDeadWaiters, settleGoal } from "../src/orchestrator/worker/goal-settle";
 import { sweepPendingPlans } from "../src/orchestrator/worker/plan-expiry";
 import { openDb } from "../src/storage/db";
@@ -17,8 +17,8 @@ import { getOwnedTask, insertOwnedTask } from "../src/storage/owned-task-store";
 import { appendEvent, listUndelivered } from "../src/storage/thread-event-store";
 import { getPlan, planVersions } from "../src/storage/work-plan-store";
 import { moveTaskTo } from "../src/tasks/task-resolver";
-import { FakePort, leadCtx } from "./lead-fake-port";
 import { approvedPlan, byKey, complete, ENV, item, openPlanGoal, spend, TH } from "./plan-fixture";
+import { FakePort, teammateCtx } from "./teammate-fake-port";
 
 /* Plan lifecycle fixes (phase 2 of the orchestration hardening; B<n> = finding n of the boundary audit). */
 
@@ -112,13 +112,13 @@ test("B1: the owner's typed text comes back on UNCLEAR; a reject says no reason 
   const port = new FakePort();
   port.plans.set("p1:1", view());
   port.answer = { answer: "step 3 should use Postgres, not SQLite", timedOut: false };
-  const r = await handleApprovePlan(leadCtx(port), { planId: "p1", version: 1 });
+  const r = await handleApprovePlan(teammateCtx(port), { planId: "p1", version: 1 });
   expect(r).toMatchObject({ ok: false, code: "UNCLEAR" });
   expect(r.ok === false && r.message).toContain("step 3 should use Postgres");
   expect(r.ok === false && r.message).toContain("Orchestrate revise_plan");
   expect(port.decisions).toHaveLength(0);
   port.answer = { answer: "Reject plan", timedOut: false };
-  const rej = await handleApprovePlan(leadCtx(port, "in2"), { planId: "p1", version: 1 });
+  const rej = await handleApprovePlan(teammateCtx(port, "in2"), { planId: "p1", version: 1 });
   expect(rej).toMatchObject({ ok: true, status: "rejected" });
   expect(rej).toMatchObject({
     ok: true,
@@ -144,12 +144,12 @@ test("B4: a plan that dropped a not-started item by revision settles `completed`
   expect(getOwnedTask(db, goalId)?.status).toBe("completed");
 });
 
-test("B4: an item the lead cancelled still counts: the goal settles `cancelled`", () => {
+test("B4: an item the teammate cancelled still counts: the goal settles `cancelled`", () => {
   const { goalId, planId } = approved([item("a"), item("b")]);
   revisePlan(db, { planId, baseVersion: 1, edit: edit({ cancel: ["b"] }), reason: "x", env: ENV });
   approveVersion(db, planId, 2); // the owner approves the revision
   const b = byKey(db, goalId, "b").id;
-  // The lead's Orchestrate cancel event names the item: the owner's side stopped this work, it is not a plan drop.
+  // The teammate's Orchestrate cancel event names the item: the owner's side stopped this work, it is not a plan drop.
   appendEvent(db, {
     id: `cancel:${b}`,
     threadId: TH,
@@ -270,10 +270,10 @@ test("B8: modify of a started item is refused when the base is a pending valid v
 
 /** A fake runtime for the sweeper: the db and a recorder of announces. */
 const rtOf = (announced: string[]) =>
-  ({ deps: { db }, announce: (t: string) => announced.push(t) }) as unknown as LeadRuntime;
+  ({ deps: { db }, announce: (t: string) => announced.push(t) }) as unknown as TeammateRuntime;
 const later = () => Date.now() + PENDING_PLAN_MAX_AGE_MS + ASK_OWNER_TIMEOUT_MS + 1000;
 
-test("B10: an expired pending plan is rejected, its goal stays open for a re-plan and the lead is told once", () => {
+test("B10: an expired pending plan is rejected, its goal stays open for a re-plan and the teammate is told once", () => {
   const { goalId, plan } = validPlan();
   const announced: string[] = [];
   expect(sweepPendingPlans(rtOf(announced), later())).toBe(1);
@@ -312,7 +312,7 @@ test("B10/B14: Orchestrate approve_plan is refused before asking when the goal i
   expect(real.plan(plan.id, 1)?.blocker).toMatchObject({ code: "GOAL_NOT_OPEN" });
   const port = new FakePort();
   port.plan = real.plan;
-  const r = await handleApprovePlan(leadCtx(port), { planId: plan.id, version: 1 });
+  const r = await handleApprovePlan(teammateCtx(port), { planId: plan.id, version: 1 });
   expect(r).toMatchObject({ ok: false, code: "GOAL_NOT_OPEN" });
   expect(port.asked).toHaveLength(0);
   expect(goalId).toBeTruthy();
@@ -339,7 +339,7 @@ test("B14: a plan whose budget is spent is refused before the question; a refusa
   port.answer = { answer: "Approve plan", timedOut: false };
   port.decidePlan = () => ({ ok: false, code: "BUDGET", message: "Budget $3 is spent." });
   const r = await handleApprovePlan(
-    { ...leadCtx(port), language: "en" },
+    { ...teammateCtx(port), language: "en" },
     { planId: "p1", version: 1 },
   );
   expect(r).toMatchObject({ ok: false, code: "BUDGET" });

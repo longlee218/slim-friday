@@ -94,7 +94,7 @@ export const toolsFor = (role: RoleDefinition): string[] => [
 
 /**
  * Capabilities whose tools a SUBAGENT may call (owner allowlist): files, shell, web and skills only. Everything else is
- * denied to a subagent: every MCP tool (report, memory, lead, effect), AskUserQuestion, Agent/SendMessage/ListAgents,
+ * denied to a subagent: every MCP tool (report, memory, teammate, effect), AskUserQuestion, Agent/SendMessage/ListAgents,
  * tasks, mcp, feedback and unknown tools. The ONE place of this list.
  */
 export const SUBAGENT_CAPABILITIES: readonly Capability[] = [

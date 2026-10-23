@@ -29,9 +29,9 @@ import {
   stubGateway,
   TEST_CHANNEL,
 } from "./helpers";
-import { devLeadQuery, leadHarness, until, workersDone } from "./lead-harness";
+import { devTeammateQuery, teammateHarness, until, workersDone } from "./teammate-harness";
 
-/** A message the fake lead dispatches to a detached dev worker. */
+/** A message the fake teammate dispatches to a detached dev worker. */
 const task = (text: string, threadId: string) => ({
   source: "test",
   channelId: TEST_CHANNEL,
@@ -46,8 +46,8 @@ const devHandler = (env: ReturnType<typeof makeEnv>, queryFn: unknown) =>
     config: env.config,
     approvals: stubGateway(),
     limiter: createRunLimiter(10),
-    queryFn: devLeadQuery(queryFn),
-    leadTiming: { debounceMs: 10, announceWindowMs: 20 },
+    queryFn: devTeammateQuery(queryFn),
+    teammateTiming: { debounceMs: 10, announceWindowMs: 20 },
   });
 const tick = (ms = 5) => new Promise((r) => setTimeout(r, ms));
 
@@ -175,7 +175,13 @@ test("two concurrent tasks do not mix contexts", async () => {
 
 test("approval decided by a click outside the task context still logs the task's ids", async () => {
   const db = openDb(":memory:");
-  insertTurn(db, { id: "t1", threadId: "th", source: "discord", location: "r", role: "lead" });
+  insertTurn(db, {
+    id: "t1",
+    threadId: "th",
+    source: "discord",
+    location: "r",
+    role: "chief-of-staff",
+  });
   const sent: any[] = [];
   const channel = {
     isSendable: () => true,
@@ -256,7 +262,7 @@ async function runUnpinned(env: ReturnType<typeof makeEnv>, file?: string) {
   await handle(task("hi there", "th-unpinned"));
   await workersDone(env.db);
   cap.stop();
-  return cap.lines.filter((l) => l.mode !== "lead"); // the worker's lines (the fake lead logs too)
+  return cap.lines.filter((l) => l.mode !== "chief-of-staff"); // the worker's lines (the fake teammate logs too)
 }
 
 test("one workspace with one location: unpinned worker lines carry the location", async () => {
@@ -288,17 +294,17 @@ test("a tool call outside every location keeps location *", async () => {
   expect(lines.find((l) => l.event === "task.finished")).toMatchObject({ location: "*" });
 });
 
-test("a lead run woken by a worker's question does not relabel the still-running worker's lines", async () => {
+test("a teammate run woken by a worker's question does not relabel the still-running worker's lines", async () => {
   const cap = captureLogs();
-  const h = leadHarness(async (c) => {
+  const h = teammateHarness(async (c) => {
     if (c.kind === "worker") {
-      // The question wakes the lead (announce timer armed from this worker's async context) and parks the worker.
+      // The question wakes the teammate (announce timer armed from this worker's async context) and parks the worker.
       await c.options.canUseTool(
         "AskUserQuestion",
         { questions: [{ question: "Which dir?", options: [{ label: "a" }] }] },
         {},
       );
-      // Still running after the lead's run started: a hook line of the worker.
+      // Still running after the teammate's run started: a hook line of the worker.
       await c.options.hooks.PostToolUse[0].hooks[0](
         {
           hook_event_name: "PostToolUse",

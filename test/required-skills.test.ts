@@ -29,13 +29,14 @@ test("required sets per role", () => {
   expect(set("solution-architect")).toEqual(["architecture-designer"]);
   expect(set("humanizer-writer")).toEqual(["technical-writing", "verification-before-completion"]);
   expect(set("researcher")).toEqual(["deep-research"]);
-  for (const r of ["scout", "planner", "lead", "discord-manager"]) expect(set(r)).toEqual([]);
+  for (const r of ["scout", "planner", "chief-of-staff", "discord-manager"])
+    expect(set(r)).toEqual([]);
 });
 
-test("brainstorming belongs to the lead only", () => {
+test("brainstorming belongs to the teammate only", () => {
   for (const [name, role] of Object.entries(ROLES))
-    expect(role.skills?.includes("brainstorming") ?? false, name).toBe(name === "lead");
-  expect(ROLES.lead?.preloadSkills ?? []).not.toContain("brainstorming");
+    expect(role.skills?.includes("brainstorming") ?? false, name).toBe(name === "chief-of-staff");
+  expect(ROLES["chief-of-staff"]?.preloadSkills ?? []).not.toContain("brainstorming");
 });
 
 test("the prompt has one line with the qualified names, after the preloaded skills", () => {

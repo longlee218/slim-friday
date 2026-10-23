@@ -51,7 +51,7 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
   // The start checks passed: a held task this run continues is taken over now (a failure above keeps the hold).
   i.onStarted?.();
   i.onCwd?.(s.cwd);
-  // Every log line of this run names its session (lead of the thread, or the worker of its owned task).
+  // Every log line of this run names its session (teammate of the thread, or the worker of its owned task).
   setLogContext({
     sessionKey: sessionKeyOf({
       threadId: i.threadId,
@@ -90,7 +90,7 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
     clearProgressNote(i.turnId);
   });
   watch.afterRetry(res);
-  // A worker run's session is the turn row's only: saved as the thread's, the lead would resume it.
+  // A worker run's session is the turn row's only: saved as the thread's, the teammate would resume it.
   const base: FlowResult = {
     ...res,
     cwd: s.cwd,

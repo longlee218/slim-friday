@@ -8,7 +8,7 @@ import type { PlanDoc } from "./plan-types";
 /** Chars of the objective in the head line (the stem the owner sees above the buttons). */
 const HEAD_OBJECTIVE_CHARS = 120;
 
-/** Button labels of the plan question (the lead compares the answer with these). */
+/** Button labels of the plan question (the teammate compares the answer with these). */
 export const APPROVE_LABEL = "Approve plan";
 export const REJECT_LABEL = "Reject plan";
 

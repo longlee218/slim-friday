@@ -42,11 +42,11 @@ export const TURN_SELECT = `
     (SELECT c.tool FROM tool_calls c WHERE c.turn_id = t.id ORDER BY c.rowid DESC LIMIT 1) AS last_tool
   FROM turns t LEFT JOIN owned_tasks o ON o.id = t.owned_task_id`;
 
-/** Turns of a thread whose span overlaps [from, to]: the lead runs that served one goal. */
-export function leadTurnsInWindow(db: Database, threadId: string, from: number, to: number): TurnRow[] {
+/** Turns of a thread whose span overlaps [from, to]: the teammate runs that served one goal. */
+export function teammateTurnsInWindow(db: Database, threadId: string, from: number, to: number): TurnRow[] {
   return db
     .query<TurnRow, [string, number, number]>(
-      `${TURN_SELECT} WHERE t.thread_id = ? AND t.role = 'lead'
+      `${TURN_SELECT} WHERE t.thread_id = ? AND t.role = 'chief-of-staff'
          AND COALESCE(t.ended_at, 9e15) >= ? AND t.started_at <= ? ORDER BY t.started_at`,
     )
     .all(threadId, from, to);

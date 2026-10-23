@@ -2,16 +2,16 @@ import type { Database } from "bun:sqlite";
 import { afterEach, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { z } from "zod";
-import { PLAN_DOC_MAX_CHARS } from "../src/orchestrator/lead/lead-limits";
 import { ensureBriefMessage } from "../src/orchestrator/messages/brief-message";
 import { boardGet } from "../src/orchestrator/messages/task-board-reads";
 import { syncPlanArtifacts } from "../src/orchestrator/plan/plan-artifact";
 import { approveVersion, createPlan } from "../src/orchestrator/plan/plan-lifecycle";
 import { revisePlan } from "../src/orchestrator/plan/plan-revision";
 import {
-  CREATE_LEAD_PLAN_SHAPE,
+  CREATE_TEAMMATE_PLAN_SHAPE,
   PROPOSE_REVISION_SHAPE,
 } from "../src/orchestrator/plan/plan-schemas";
+import { PLAN_DOC_MAX_CHARS } from "../src/orchestrator/teammate/teammate-limits";
 import { listByGoal } from "../src/storage/artifact-store";
 import { openDb } from "../src/storage/db";
 import { childrenOf } from "../src/storage/owned-item-store";
@@ -54,7 +54,7 @@ function setup(items = [item("a", { section: "Login" })], spec = SPEC, plan = PL
 }
 
 test("create_plan needs spec and plan; revise_plan may omit them", () => {
-  const create = z.object(CREATE_LEAD_PLAN_SHAPE);
+  const create = z.object(CREATE_TEAMMATE_PLAN_SHAPE);
   const base = {
     objective: "o",
     items: [{ ...item("a") }],

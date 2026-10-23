@@ -26,7 +26,7 @@ export function goalsWithLiveWork(db: Database): DigestGoal[] {
     .all();
 }
 
-/** A held item that waited long enough for the lead's decision. */
+/** A held item that waited long enough for the teammate's decision. */
 export interface HeldItem {
   itemId: string;
   goalId: string;
@@ -41,7 +41,7 @@ export interface HeldItem {
  * Held items (`blocked`) of an OPEN goal, held at or before `now - waitMs` and not before `now - maxHeldMs` (a forgotten
  * hold), with no `retry` / `cancel` event at or after the moment they were held (a retry moves the item out of `blocked`;
  * the event check guards a stale row) and no escalation (`timeout`, cause `hold_undecided`) of this hold in the last
- * `repeatMs` (so an undecided hold wakes the lead again after that floor). Oldest first, at most `limit` rows.
+ * `repeatMs` (so an undecided hold wakes the teammate again after that floor). Oldest first, at most `limit` rows.
  */
 export function heldTooLong(
   db: Database,

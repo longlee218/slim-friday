@@ -8,7 +8,7 @@ import { errText } from "../observability/redact";
 import type { AttachmentDeps } from "./attachment-text";
 import { stripMarkers } from "./strip-markers";
 
-/* Summary + saved copy of a long attachment (the cheap tier reads it once; the lead and the agent work
+/* Summary + saved copy of a long attachment (the cheap tier reads it once; the teammate and the agent work
    from the summary). The model call is the memory compaction's `sdkCompactLlm`: no tools, thinking off, one turn. */
 
 /** Logger of this module. */

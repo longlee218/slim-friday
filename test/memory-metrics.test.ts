@@ -25,7 +25,7 @@ test("counts per channel and day from a temp db and log lines; no text in the ou
       ts,
       threadId: "t1",
       channel: "dev",
-      role: "lead",
+      role: "chief-of-staff",
       action,
       scope: "channel",
       hash: "abc",

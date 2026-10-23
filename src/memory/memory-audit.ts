@@ -5,8 +5,8 @@ import type { MemoryToolContext } from "./memory-tool-context";
 
 const log = logger.child({ module: "memory-audit" });
 
-/** Role recorded when the context names none: only the lead writes memory. */
-const DEFAULT_ROLE = "lead";
+/** Role recorded when the context names none: only the teammate writes memory. */
+const DEFAULT_ROLE = "chief-of-staff";
 
 /**
  * Append one `memory_audit` row for a memory write that just succeeded (hash only, never text). An audit failure is

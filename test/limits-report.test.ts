@@ -6,8 +6,8 @@ import { openDb } from "../src/storage/db";
 import { runningItemsByThread } from "../src/storage/running-items-store";
 
 const LIVE: LiveState = {
-  leadUsed: 2,
-  leadWaiting: 1,
+  teammateUsed: 2,
+  teammateWaiting: 1,
   workerUsed: 7,
   readyWaiting: 3,
   running: [{ threadId: "T-9", count: 4 }],
@@ -43,7 +43,9 @@ test("live state and language", async () => {
   const en = renderLimits(limits, { live: LIVE, language: "en" }).text;
   expect(en).toContain(`Worker slots: 7/${limits.get("WORKER_POOL_MAX")} in use`);
   expect(en).toContain("Items ready and waiting for a slot: 3");
-  expect(en).toContain(`Lead pool: 2/${limits.get("LEAD_POOL_MAX")} in use, 1 threads waiting`);
+  expect(en).toContain(
+    `Teammate pool: 2/${limits.get("TEAMMATE_POOL_MAX")} in use, 1 threads waiting`,
+  );
   expect(en).toContain("<#T-9>: 4 running");
   const vi = renderLimits(limits, { live: LIVE, language: "vi" }).text;
   expect(vi).toContain("Việc đã sẵn sàng nhưng đang chờ slot: 3");
@@ -53,7 +55,7 @@ test("role filter shows one role only; unknown role says so", async () => {
   const limits = await collectLimits();
   const one = renderLimits(limits, { role: "developer", live: LIVE, language: "en" }).text;
   expect(one).toContain("- developer (");
-  expect(one).not.toContain("- lead (");
+  expect(one).not.toContain("- teammate (");
   expect(one).not.toContain("WORKER_POOL_MAX");
   expect(one).toContain("subagents on (parallel");
   expect(renderLimits(limits, { role: "nope", live: LIVE, language: "en" }).text).toBe(

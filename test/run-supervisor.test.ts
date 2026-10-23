@@ -168,12 +168,12 @@ test("recoverOnce never follows a success, an abort, a quota stop or an unknown 
 import { captureLogs } from "../src/observability/logger";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
-import { until } from "./lead-harness";
+import { until } from "./teammate-harness";
 
 const HINT_WORDS = /Internal note|recovery|supervisor|turn_limit|repeated_issue|run\.control/i;
 
-/** Lead handler whose queries answer from `script` (one entry per query); records every prompt. The lead posts its reply through `notify`. */
-function leadRun(script: Record<string, unknown>[]) {
+/** Teammate handler whose queries answer from `script` (one entry per query); records every prompt. The teammate posts its reply through `notify`. */
+function teammateRun(script: Record<string, unknown>[]) {
   const env = makeEnv();
   let n = 0;
   const prompts: string[] = [];
@@ -188,10 +188,10 @@ function leadRun(script: Record<string, unknown>[]) {
     db: env.db,
     config: env.config,
     queryFn: query as never,
-    leadTiming: { debounceMs: 10, announceWindowMs: 20 },
+    teammateTiming: { debounceMs: 10, announceWindowMs: 20 },
   });
   const posts: string[] = [];
-  /** Send the owner message and return the lead's posted reply (the handler itself returns nothing). */
+  /** Send the owner message and return the teammate's posted reply (the handler itself returns nothing). */
   const ask = async () => {
     await handle({
       source: "t",
@@ -215,7 +215,7 @@ const MAX_TURNS_RESULT = {
 
 test("audit: a successful recovery logs run.control recover (reason turn_limit); the reply is the answer, with no internal text", async () => {
   const cap = captureLogs();
-  const r = leadRun([MAX_TURNS_RESULT, { result: "it is 60s, src/cache.ts:42" }]);
+  const r = teammateRun([MAX_TURNS_RESULT, { result: "it is 60s, src/cache.ts:42" }]);
   const reply = await r.ask();
   cap.stop();
   expect(r.runs()).toBe(2);
@@ -228,7 +228,7 @@ test("audit: a successful recovery logs run.control recover (reason turn_limit);
 
 test("audit: an exhausted recovery logs the technical reason; Discord text says plainly what did not finish", async () => {
   const cap = captureLogs();
-  const r = leadRun([MAX_TURNS_RESULT, MAX_TURNS_RESULT, MAX_TURNS_RESULT]);
+  const r = teammateRun([MAX_TURNS_RESULT, MAX_TURNS_RESULT, MAX_TURNS_RESULT]);
   const reply = await r.ask();
   cap.stop();
   expect(r.runs()).toBe(2); // ONE automatic recovery, never more
@@ -241,7 +241,7 @@ test("audit: an exhausted recovery logs the technical reason; Discord text says 
 
 test("audit: a success logs nothing (no control action, no noise)", async () => {
   const cap = captureLogs();
-  const r = leadRun([{ result: "fine" }]);
+  const r = teammateRun([{ result: "fine" }]);
   await r.ask();
   cap.stop();
   expect(cap.lines.some((l) => l.event === "run.control")).toBe(false);

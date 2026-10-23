@@ -202,7 +202,7 @@ test("the 21st call of a run is refused; calls in parallel all land", async () =
 });
 
 test("the guard allows MemorySave for a role that lists it, denies any other memory tool", () => {
-  const ctx = guardFor(getRole("lead"), {});
+  const ctx = guardFor(getRole("chief-of-staff"), {});
   expect(checkToolCall(mcpToolName(MEMORY_MCP_SERVER, MEMORY_SAVE_TOOL), {}, ctx).decision).toBe(
     "allow",
   );
@@ -215,15 +215,17 @@ test("the guard allows MemorySave for a role that lists it, denies any other mem
 
 test("every role with memory tools gets the memory server when the run brings a context; none without", async () => {
   const { ctx } = setup();
-  for (const name of ["lead", "developer"] as const) {
+  for (const name of ["chief-of-staff", "developer"] as const) {
     expect(Object.keys(buildServers(getRole(name), { memory: ctx }))).toContain(MEMORY_MCP_SERVER);
     expect(Object.keys(buildServers(getRole(name), {}))).not.toContain(MEMORY_MCP_SERVER);
   }
-  // A lead run with only a memory ctx (no rename port): the memory server alone.
-  expect(Object.keys(buildServers(getRole("lead"), { memory: ctx }))).toEqual([MEMORY_MCP_SERVER]);
+  // A teammate run with only a memory ctx (no rename port): the memory server alone.
+  expect(Object.keys(buildServers(getRole("chief-of-staff"), { memory: ctx }))).toEqual([
+    MEMORY_MCP_SERVER,
+  ]);
 });
 
-for (const roleName of ["lead", "developer"] as const)
+for (const roleName of ["chief-of-staff", "developer"] as const)
   test(`runAgent passes the in-process memory server to query (${roleName})`, async () => {
     const env = makeEnv({ CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat-test" });
     const { ctx } = setup();
@@ -249,17 +251,17 @@ for (const roleName of ["lead", "developer"] as const)
     expect(server.instance).toBeDefined();
     expect(options?.strictMcpConfig).toBe(true);
     const g = guardFor(getRole(roleName), {});
-    // Owner rule: only the lead may call MemorySave; a worker's guard denies it.
+    // Owner rule: only the teammate may call MemorySave; a worker's guard denies it.
     expect(checkToolCall(mcpToolName(MEMORY_MCP_SERVER, MEMORY_SAVE_TOOL), {}, g).decision).toBe(
-      roleName === "lead" ? "allow" : "deny",
+      roleName === "chief-of-staff" ? "allow" : "deny",
     );
   });
 
-test("DEFAULT_AGENTS has the Memory text (privacy is the lead contract's) within the persona cap; no role prompt carries a memory rule", () => {
+test("DEFAULT_AGENTS has the Memory text (privacy is the teammate contract's) within the persona cap; no role prompt carries a memory rule", () => {
   expect(DEFAULT_AGENTS).toContain("## Memory");
-  expect(DEFAULT_AGENTS).not.toContain("### Privacy"); // the shared-channel rule lives once, in the lead contract
+  expect(DEFAULT_AGENTS).not.toContain("### Privacy"); // the shared-channel rule lives once, in the teammate contract
   expect(DEFAULT_AGENTS.length).toBeLessThan(PERSONA_MAX);
-  for (const name of ["lead", "developer"] as const) {
+  for (const name of ["chief-of-staff", "developer"] as const) {
     const p = JSON.stringify(buildSystemPrompt("", getRole(name)));
     // No role prompt names the tool: every role relies on the AGENTS.md rule.
     expect(p.includes(MEMORY_SAVE_TOOL)).toBe(false);

@@ -2,9 +2,9 @@ import { expect, test } from "bun:test";
 import { ORCHESTRATE_ACTIONS } from "../src/mcp/orchestration/tools/OrchestrateTool/orchestrate-actions";
 import { createOrchestrateTool } from "../src/mcp/orchestration/tools/OrchestrateTool/orchestrate-tool";
 
-/* The lead's Orchestrate action table: examples stay valid, a bad call is answered with the params and an example. */
+/* The teammate's Orchestrate action table: examples stay valid, a bad call is answered with the params and an example. */
 
-const tool = () => createOrchestrateTool({ lead: {} as never, titleCalls: { n: 0 } });
+const tool = () => createOrchestrateTool({ teammate: {} as never, titleCalls: { n: 0 } });
 
 test("every action's example passes its own schema", () => {
   for (const a of ORCHESTRATE_ACTIONS)

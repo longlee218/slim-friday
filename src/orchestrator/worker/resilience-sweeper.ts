@@ -1,7 +1,7 @@
 import { SWEEP_TICK_MS } from "../../config/resilience-caps";
 import { logEvent, logger } from "../../observability/logger";
 import { errText } from "../../observability/redact";
-import type { LeadRuntime } from "../lead/lead-runtime";
+import type { TeammateRuntime } from "../teammate/teammate-runtime";
 import { reapAborted } from "./abort-reaper";
 import { createCheckIn } from "./check-in";
 import { sweepItemAge } from "./item-age";
@@ -15,7 +15,7 @@ const log = logger.child({ module: "resilience-sweeper" });
 /* One timer for the resilience checks of the live worker runs (the watchdog, the item age limit, the reaper, stuck zombie claims and the check-in digest). */
 
 /** Sweep every tick; the timer never keeps the process alive. Returns the stop function. */
-export function startResilienceSweeper(rt: LeadRuntime, tickMs = SWEEP_TICK_MS): () => void {
+export function startResilienceSweeper(rt: TeammateRuntime, tickMs = SWEEP_TICK_MS): () => void {
   const checkIn = createCheckIn();
   const timer = setInterval(() => {
     // Each step has its own guard: a throw in one (db error) must not skip the others; the next tick tries again.

@@ -1,5 +1,5 @@
 {
-  "_doc": "Scout codebase eval set (opt-in SCOUT_CODE_EVAL=1). Each case is one owner question about this repository, registered as the location `friday`, sent to the real lead; the scout is expected to answer with path:line references. expect = repo-relative path substrings; a case passes when the scout completed and its result or saved report cites `path:line` for one of them. Every expected path is checked to exist by test/scout-codebase.test.ts.",
+  "_doc": "Scout codebase eval set (opt-in SCOUT_CODE_EVAL=1). Each case is one owner question about this repository, registered as the location `friday`, sent to the real teammate; the scout is expected to answer with path:line references. expect = repo-relative path substrings; a case passes when the scout completed and its result or saved report cites `path:line` for one of them. Every expected path is checked to exist by test/scout-codebase.test.ts.",
   "cases": [
     {
       "id": "code-01-stale",
@@ -18,7 +18,7 @@
     },
     {
       "id": "code-04-bubbles",
-      "text": "in the friday code, where is a lead reply split into several Discord messages, and what is the max number of messages?",
+      "text": "in the friday code, where is a teammate reply split into several Discord messages, and what is the max number of messages?",
       "expect": ["src/providers/discord/ingress/reply-bubbles.ts"]
     },
     {

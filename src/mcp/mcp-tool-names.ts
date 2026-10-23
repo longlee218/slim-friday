@@ -16,7 +16,7 @@ export const mcpToolName = (server: string, tool: string): string =>
 
 /** Memory server: save, search, read and expand notes. */
 export const MEMORY_MCP_SERVER = "memory";
-/** Orchestration server: the lead's typed actions, `Orchestrate set_title` and the worker's `Report` result (isolated per run by `role.mcpTools`). */
+/** Orchestration server: the teammate's typed actions, `Orchestrate set_title` and the worker's `Report` result (isolated per run by `role.mcpTools`). */
 export const ORCHESTRATION_MCP_SERVER = "orchestration";
 /** Effects server: the only way to delete, push, open a PR or merge. */
 export const EFFECTS_MCP_SERVER = "effects";

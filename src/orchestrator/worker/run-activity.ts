@@ -2,13 +2,13 @@ import type { Database } from "bun:sqlite";
 import { ACTIVITY_PERSIST_MS } from "../../config/resilience-caps";
 import { redactClip } from "../../observability/redact";
 import { touchProgress } from "../../storage/owned-task-store";
-import { PROGRESS_NOTE_MAX_CHARS } from "../lead/lead-limits";
 import { type LiveRun, runOfTask } from "../run/live-runs";
+import { PROGRESS_NOTE_MAX_CHARS } from "../teammate/teammate-limits";
 
 /* Activity of a worker run, kept on its live-run entry: the watchdog's heartbeat and the `Report` progress facts.
    The in-memory stamp is always fresh; the db stamp (`owned_tasks.last_progress_at`, no schema change) is written at
    most once per `ACTIVITY_PERSIST_MS` so a tool-heavy run does not write on every call. A run that is not live (or
-   is the lead's) is ignored: nothing here throws. */
+   is the teammate's) is ignored: nothing here throws. */
 
 /** The live worker run of a task id or turn id, or undefined. */
 const workerOf = (idOrTurn: string): LiveRun | undefined => {
@@ -45,7 +45,7 @@ export function setProgress(
 }
 
 /**
- * Open (`true`) or close (`false`) one by-design wait of the run on the owner / lead; the watchdog skips the run while
+ * Open (`true`) or close (`false`) one by-design wait of the run on the owner / teammate; the watchdog skips the run while
  * any wait is open (a counter: parallel waits do not cancel each other). Closing the LAST wait counts as activity.
  */
 export function setWaiting(db: Database, idOrTurn: string, waiting: boolean): void {

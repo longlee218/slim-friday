@@ -13,7 +13,7 @@ import {
   WRITE_TOOL_NAME,
 } from "../src/tools/sdk-tool-names";
 import { resultMsg, TEST_CHANNEL, twoWorkspaces } from "./helpers";
-import { devLeadQuery, workersDone } from "./lead-harness";
+import { devTeammateQuery, workersDone } from "./teammate-harness";
 
 /** Isolation cases: a w1 run (real guard, fake query) must be denied every reach into w2 or the home data. */
 test("w1 run cannot reach w2 clone, w2 scratch, git path, symlink escape or agent.db", async () => {
@@ -31,12 +31,12 @@ test("w1 run cannot reach w2 clone, w2 scratch, git path, symlink escape or agen
       yield resultMsg();
     })();
   };
-  // A message the fake lead dispatches to a dev worker (detached): its canUseTool is the run's real permission layer.
+  // A message the fake teammate dispatches to a dev worker (detached): its canUseTool is the run's real permission layer.
   const handle = createTurnHandler({
     db: env.db,
     config: env.config,
-    queryFn: devLeadQuery(queryFn),
-    leadTiming: { debounceMs: 10, announceWindowMs: 20 },
+    queryFn: devTeammateQuery(queryFn),
+    teammateTiming: { debounceMs: 10, announceWindowMs: 20 },
   });
   await handle({
     source: "t",

@@ -1,4 +1,4 @@
-import { PLAN_MAX_ITEMS, PLAN_MAX_REVISIONS } from "../../config/lead-caps";
+import { PLAN_MAX_ITEMS, PLAN_MAX_REVISIONS } from "../../config/teammate-caps";
 import { planHeadings, sameHeading } from "./plan-section";
 import {
   budgetSpentMessage,
@@ -9,7 +9,7 @@ import {
   RESERVED_KEY_PATTERN,
 } from "./plan-types";
 
-/* Pure plan validator: no db, no clock. The lead retries on the coded errors. */
+/* Pure plan validator: no db, no clock. The teammate retries on the coded errors. */
 
 /** Most headings a BAD_SECTION message lists. */
 const MAX_HEADINGS_LISTED = 20;

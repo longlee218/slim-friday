@@ -9,11 +9,14 @@ import type { ViewerConfig } from "../src/config/viewer-config";
 import { renderDigest } from "../src/ingress/digest-copy";
 import { type PlanFacts, renderPlanFacts } from "../src/ingress/plan-copy";
 import { renderUserNotice } from "../src/ingress/user-copy";
-import type { LeadRuntime, LeadThreadCtx } from "../src/orchestrator/lead/lead-runtime";
 import { planUrlOfGoal, syncPlanArtifacts } from "../src/orchestrator/plan/plan-artifact";
 import { approveVersion, createPlan, rejectVersion } from "../src/orchestrator/plan/plan-lifecycle";
 import { revisionNotice } from "../src/orchestrator/plan/plan-revised";
 import { planSideEffects } from "../src/orchestrator/plan/plan-side-effects";
+import type {
+  TeammateRuntime,
+  TeammateThreadCtx,
+} from "../src/orchestrator/teammate/teammate-runtime";
 import { createPlanLookup } from "../src/orchestrator/turns/plan-live";
 import { createCheckIn } from "../src/orchestrator/worker/check-in";
 import { digestFacts, factsKey } from "../src/orchestrator/worker/digest-facts";
@@ -113,7 +116,7 @@ test("an unmapped thread saves no artifact and gives no link, nothing throws", (
   expect(planUrlOfGoal(deps, TH, goalId)).toBeUndefined();
 });
 
-/** Plan side effects over a real runtime stub; returns the lead's plan app and what the thread received. */
+/** Plan side effects over a real runtime stub; returns the teammate's plan app and what the thread received. */
 function plannerCtx(viewer: boolean) {
   const { env, goalId, planId, deps } = world({ approve: true, viewer });
   const posts: { text: string; links?: { label: string; url: string }[] }[] = [];
@@ -127,10 +130,10 @@ function plannerCtx(viewer: boolean) {
         posts.push({ text, ...(o?.links && { links: o.links }) });
       },
     },
-  } as unknown as LeadThreadCtx;
+  } as unknown as TeammateThreadCtx;
   const rt = {
     deps: { db, config: { ...env.config, ...(viewer && { viewer: VIEWER }) } },
-  } as unknown as LeadRuntime;
+  } as unknown as TeammateRuntime;
   const fx = planSideEffects(rt, ctx, TH);
   const app = plannerCtxOf({ db }, goalId, {
     onVersion: () => fx.onVersion(goalId),
@@ -284,7 +287,7 @@ test("the digest shows the plan version, a revision counts as a change, and the 
           void posts.push({ text, links: o?.links }),
       },
     }),
-  } as unknown as LeadRuntime;
+  } as unknown as TeammateRuntime;
   const tick = createCheckIn();
   await tick(rt, 10_000_000 - DIGEST_FLOOR_MS); // first sight is silent
   await tick(rt, 10_000_000);

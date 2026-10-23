@@ -11,11 +11,11 @@ import { logEvent, logger } from "../../observability/logger";
 import { errText } from "../../observability/redact";
 import { type DigestGoal, goalsWithLiveWork, heldTooLong } from "../../storage/check-in-store";
 import { appendEvent } from "../../storage/thread-event-store";
-import { type LeadRuntime, postTo } from "../lead/lead-runtime";
 import { AUTHOR_SYSTEM } from "../messages/message-kinds";
 import { messageRef } from "../messages/message-ref";
 import { postItemMessage } from "../messages/task-messages";
 import { planLinks, planUrlOfGoal } from "../plan/plan-artifact";
+import { postTo, type TeammateRuntime } from "../teammate/teammate-runtime";
 import { digestFacts, factsKey } from "./digest-facts";
 
 /* The timer check-in, on the resilience tick: (1) a code-rendered digest (0 LLM tokens) per thread with an open goal that
@@ -30,7 +30,7 @@ const log = logger.child({ module: "check-in" });
 class DuplicateEscalation extends Error {}
 
 /** Escalate every held item that waited long enough (again after `HOLD_REESCALATE_MS` while it stays undecided). */
-function escalateHolds(rt: LeadRuntime, now: number): void {
+function escalateHolds(rt: TeammateRuntime, now: number): void {
   for (const h of heldTooLong(
     rt.deps.db,
     now,
@@ -47,7 +47,7 @@ function escalateHolds(rt: LeadRuntime, now: number): void {
         h.itemId,
         AUTHOR_SYSTEM,
         "note",
-        `The app asked the lead to decide: this item has been held ${Math.round((now - h.heldAt) / 60_000)} min with no decision.`,
+        `The app asked the teammate to decide: this item has been held ${Math.round((now - h.heldAt) / 60_000)} min with no decision.`,
       );
       const ok = appendEvent(rt.deps.db, {
         id: `hold:${h.itemId}:${h.dispatchCount}:${now}`,
@@ -85,7 +85,7 @@ const isUnknownChannel = (err: unknown): boolean =>
   (err as { code?: unknown } | null)?.code === UNKNOWN_CHANNEL;
 
 /** Build the check-in: the returned function is called once per tick (`now` is injectable for tests). */
-export function createCheckIn(): (rt: LeadRuntime, now?: number) => Promise<void> {
+export function createCheckIn(): (rt: TeammateRuntime, now?: number) => Promise<void> {
   /** Per thread: when the last digest was tried and the hash of the facts it showed. */
   const state = new Map<string, { at: number; hash: string }>();
   /** Threads with a post in flight (a slow post must not start a second one). */
@@ -94,11 +94,11 @@ export function createCheckIn(): (rt: LeadRuntime, now?: number) => Promise<void
   const gone = new Set<string>();
 
   /** Post one thread's digest (state is updated here; never throws). */
-  async function digestOne(rt: LeadRuntime, g: DigestGoal, now: number): Promise<void> {
+  async function digestOne(rt: TeammateRuntime, g: DigestGoal, now: number): Promise<void> {
     const { threadId } = g;
     const prev = state.get(threadId);
     if (!prev) {
-      // First sight of live work: the lead has just answered, so stay silent for one floor (no digest right after a hand-off).
+      // First sight of live work: the teammate has just answered, so stay silent for one floor (no digest right after a hand-off).
       state.set(threadId, { at: now, hash: "" });
       return;
     }
@@ -139,7 +139,7 @@ export function createCheckIn(): (rt: LeadRuntime, now?: number) => Promise<void
     }
   }
 
-  async function digests(rt: LeadRuntime, now: number): Promise<void> {
+  async function digests(rt: TeammateRuntime, now: number): Promise<void> {
     // One goal per thread: the newest.
     const goals = new Map(goalsWithLiveWork(rt.deps.db).map((g) => [g.threadId, g]));
     for (const [t, s] of state) {

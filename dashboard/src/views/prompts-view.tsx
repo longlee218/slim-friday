@@ -34,7 +34,7 @@ const tok = (chars: number) => `${(chars / 4 / 1000).toFixed(1)}k tok`;
  */
 export function PromptsView({ role, workspace, channel }: { role: string | null; workspace: string | null; channel: string | null }) {
   const scopes = useApi<Scopes>("prompts");
-  const name = role ?? "lead";
+  const name = role ?? "chief-of-staff";
   const q = new URLSearchParams();
   if (workspace) q.set("workspace", workspace);
   if (channel) q.set("channel", channel);

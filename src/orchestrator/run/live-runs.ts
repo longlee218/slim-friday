@@ -1,5 +1,5 @@
 /*
- * The ONE registry of the agent runs alive in this process: the lead run of a thread and every detached worker run.
+ * The ONE registry of the agent runs alive in this process: the teammate run of a thread and every detached worker run.
  * A run registers when it starts (with its abort handle, thread, turn / task and role) and unregisters in its own
  * `finally`. A streaming worker also attaches its steer input sink to its entry. `/stop`, `/status`, steering and the
  * shutdown drain all reach a run through here, whatever thread lock it holds.
@@ -11,16 +11,16 @@ import type { SteerRun, SteerSink } from "../../runtime/run-input-channel";
 /** Logger of this module. */
 const log = logger.child({ module: "live-runs" });
 
-/** `lead` = the thread's foreground run (one at a time); `worker` = a detached task run (several per thread). */
-export type RunKind = "lead" | "worker";
+/** `teammate` = the thread's foreground run (one at a time); `worker` = a detached task run (several per thread). */
+export type RunKind = "teammate" | "worker";
 
 /** What the registry knows about one live run. */
 export interface LiveRun {
-  /** Registry key: the owned task id of a worker, `lead:<threadId>` of a lead run. */
+  /** Registry key: the owned task id of a worker, `teammate:<threadId>` of a teammate run. */
   key: string;
   kind: RunKind;
   threadId: string;
-  /** Turn row of the run; unknown for a lead run at registration time (its turn is created inside the run). */
+  /** Turn row of the run; unknown for a teammate run at registration time (its turn is created inside the run). */
   turnId?: string;
   /** Owned task of a worker run. */
   taskId?: string;
@@ -37,11 +37,11 @@ export interface LiveRun {
   persistedAt?: number;
   /** Latest `Report` progress of a worker (in memory only: lost on a restart, harmless). */
   progress?: { percent: number; note: string; at: number };
-  /** Open by-design waits of the run on the owner or the lead (question relay, effect confirms); the watchdog skips the run while it is above 0. */
+  /** Open by-design waits of the run on the owner or the teammate (question relay, effect confirms); the watchdog skips the run while it is above 0. */
   waitingCount?: number;
   /** Why the app (not the owner) aborted the run; set before `ac.abort()` so the run's end can tell the cause. */
   abortCause?: "stale" | "item_age";
-  /** Set when the owner's `/stop` aborted the run (not a lead `Orchestrate cancel`, not the watchdog): its end must not wake the lead. */
+  /** Set when the owner's `/stop` aborted the run (not a teammate `Orchestrate cancel`, not the watchdog): its end must not wake the teammate. */
   ownerStopped?: boolean;
   /** Give up on a run that did not exit after its abort: settles its item, frees its slot and entry (the reaper calls it). */
   forceClose?: () => void;
@@ -71,7 +71,7 @@ export function registerRun(r: {
   // A worker without an id would share one key with every other such worker: fail loudly instead.
   if (r.kind === "worker" && !workerKey)
     throw new Error("registerRun: a worker needs a taskId or turnId");
-  const key = r.kind === "lead" ? `lead:${r.threadId}` : (workerKey as string);
+  const key = r.kind === "teammate" ? `teammate:${r.threadId}` : (workerKey as string);
   const old = runs.get(key);
   if (old && r.kind === "worker") {
     logEvent(log, "task_run.replaced", { key, oldTurnId: old.turnId, turnId: r.turnId }, "warn");
@@ -92,12 +92,12 @@ export function registerRun(r: {
   };
 }
 
-/** Live runs of a thread, oldest first (the lead run included). */
+/** Live runs of a thread, oldest first (the teammate run included). */
 export function liveRunsOf(threadId: string): LiveRun[] {
   return [...runs.values()].filter((h) => h.threadId === threadId).sort((a, b) => a.seq - b.seq);
 }
 
-/** Every live worker run (the watchdog's candidates; the lead run is never one). */
+/** Every live worker run (the watchdog's candidates; the teammate run is never one). */
 export const liveWorkers = (): LiveRun[] => [...runs.values()].filter((h) => h.kind === "worker");
 
 /** One live worker run by owned task id or by turn id, or undefined. */
@@ -105,14 +105,14 @@ export const runOfTask = (idOrTurn: string): LiveRun | undefined =>
   runs.get(idOrTurn) ?? [...runs.values()].find((h) => h.turnId === idOrTurn);
 
 /**
- * The thread's live run as one controller: the lead run holding the thread, else the newest worker run, else
+ * The thread's live run as one controller: the teammate run holding the thread, else the newest worker run, else
  * undefined. Busy lane and `/stop` read the thread through it.
  */
 export function liveRunOf(threadId: string): AbortController | undefined {
-  return (runs.get(`lead:${threadId}`) ?? liveRunsOf(threadId).at(-1))?.ac;
+  return (runs.get(`teammate:${threadId}`) ?? liveRunsOf(threadId).at(-1))?.ac;
 }
 
-/** Abort every live run of a thread (lead and workers); returns the runs that were aborted (the caller settles their rows). */
+/** Abort every live run of a thread (teammate and workers); returns the runs that were aborted (the caller settles their rows). */
 export function abortThreadRuns(threadId: string): LiveRun[] {
   const live = liveRunsOf(threadId);
   for (const h of live) {

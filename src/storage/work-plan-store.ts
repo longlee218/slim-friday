@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite";
-import { PENDING_PLAN_MAX_AGE_MS } from "../config/lead-caps";
+import { PENDING_PLAN_MAX_AGE_MS } from "../config/teammate-caps";
 
 /** Lifecycle of a work plan version. */
 export type PlanStatus = "draft" | "valid" | "approved" | "superseded" | "rejected";
@@ -14,11 +14,11 @@ export interface WorkPlanRow {
   goalId: string;
   /** Lifecycle state of this version. */
   status: PlanStatus;
-  /** How the work is split (strategy name chosen by the lead). */
+  /** How the work is split (strategy name chosen by the teammate). */
   strategy: string;
   /** What the goal must achieve, one paragraph. */
   objective: string;
-  /** Plan text / items as written by the lead. */
+  /** Plan text / items as written by the teammate. */
   body: string;
   /** Spec text of the goal (markdown; empty when none). */
   specMd: string;

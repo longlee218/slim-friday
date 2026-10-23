@@ -6,12 +6,12 @@ import { MEMORY_MCP_SERVER } from "../src/mcp/mcp-tool-names";
 import { ORCHESTRATE_TOOL } from "../src/mcp/orchestration/tools/OrchestrateTool/constants";
 import { getRole } from "../src/roles/role-registry";
 
-/** The lead's action tool: no worker run may ever hold or call one of these. */
-export const LEAD_ONLY_TOOLS = [ORCHESTRATE_TOOL];
+/** The teammate's action tool: no worker run may ever hold or call one of these. */
+export const TEAMMATE_ONLY_TOOLS = [ORCHESTRATE_TOOL];
 
 /**
  * A run ctx with EVERY part present (fake: the tools are only built, never called). Tests slice it (`{ ...FULL_CTX,
- * lead: undefined }`) to model a run that lacks a part.
+ * teammate: undefined }`) to model a run that lacks a part.
  */
 export const FULL_CTX: RunCtx = {
   memory: {
@@ -23,7 +23,7 @@ export const FULL_CTX: RunCtx = {
     threadTitle: { rename: async () => "kept" } as never,
   },
   artifacts: { db: new Database(":memory:"), home: "/nowhere", workspace: "w", locations: [] },
-  lead: {} as never,
+  teammate: {} as never,
   taskBoard: { db: new Database(":memory:"), threadId: "t1" },
   reportSink: {},
   progress: () => {},
@@ -49,9 +49,9 @@ export function toolsByServer(servers: Record<string, unknown>): Record<string, 
   );
 }
 
-/** The `memory` server of a lead run (the only role that holds MemorySave) with this memory ctx. */
+/** The `memory` server of a teammate run (the only role that holds MemorySave) with this memory ctx. */
 export const memoryServer = (memory: NonNullable<RunCtx["memory"]>) =>
-  buildServers(getRole("lead"), { memory })[MEMORY_MCP_SERVER] as never;
+  buildServers(getRole("chief-of-staff"), { memory })[MEMORY_MCP_SERVER] as never;
 
 /** Every bare tool name of every manifest (a role listing all of them builds every server). */
 export const ALL_TOOL_NAMES = ALL_SERVERS.flatMap((s) => s.tools.map((t) => t.name));

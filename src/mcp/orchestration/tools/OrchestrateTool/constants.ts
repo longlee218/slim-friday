@@ -1,4 +1,4 @@
-/** The lead's action tool: dispatch, list, steer, retry, cancel, forward, ask the owner, plan, title, register a location (`{ action, params }`). */
+/** The teammate's action tool: dispatch, list, steer, retry, cancel, forward, ask the owner, plan, title, register a location (`{ action, params }`). */
 export const ORCHESTRATE_TOOL = "Orchestrate";
 
 /** Limits of the `set_title` action. */

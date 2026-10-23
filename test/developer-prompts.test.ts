@@ -1,11 +1,11 @@
 import { expect, test } from "bun:test";
+import { CHIEF_OF_STAFF_ROLE } from "../src/roles/builtin/chief-of-staff-role";
 import {
   askRules,
   DEVELOPER,
   DEVELOPER_ROLE,
   DEVELOPER_WORK,
 } from "../src/roles/builtin/developer-role";
-import { LEAD_ROLE } from "../src/roles/builtin/lead-role";
 import { buildSystemPrompt, systemPromptText } from "../src/runtime/system-prompt";
 import { ASK_USER_QUESTION_TOOL_NAME } from "../src/tools/sdk-tool-names";
 
@@ -15,7 +15,7 @@ const rules = (role: typeof DEVELOPER_ROLE) => systemPromptText(buildSystemPromp
    rich contracts; ceilings in test/role-contract-sections.test.ts). */
 
 test("the skills bootstrap block is gone; skills are not described in the prompt", () => {
-  for (const role of [DEVELOPER_ROLE, LEAD_ROLE]) {
+  for (const role of [DEVELOPER_ROLE, CHIEF_OF_STAFF_ROLE]) {
     const text = rules(role);
     expect(text).not.toContain("## Skills");
     expect(text).not.toContain("superpowers:<name>");
@@ -61,7 +61,7 @@ test("dev: one contract, approval before changes by ask, a design request may en
     "## How the team works",
     "## Scope",
     "## How the work goes",
-    "## Asking the lead",
+    "## Asking the teammate",
     "## Commits",
     "## Environment facts",
     "## Stop, ask or fail",

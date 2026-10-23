@@ -57,8 +57,8 @@ export const DEVELOPER_ROLE: RoleDefinition = {
     "Implement, fix or refactor code in a location, with unit tests of its own change; installs, commits and delivers (merge, PR or keep) after the owner chose.",
   notFor: "Choosing a design or writing a plan; integration or end-to-end tests.",
   kind: "worker",
-  dispatchable: true, // the lead may start it as a worker
-  // Memory read tools (the lead alone saves), the Report tool and the effect tools (a run without the effects ctx just lacks them).
+  dispatchable: true, // the teammate may start it as a worker
+  // Memory read tools (the teammate alone saves), the Report tool and the effect tools (a run without the effects ctx just lacks them).
   mcpTools: [
     MEMORY_SEARCH_TOOL,
     MEMORY_GET_TOOL,

@@ -2,8 +2,8 @@ import { expect, test } from "bun:test";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { createRunLimiter } from "../src/orchestrator/turns/run-limiter";
 import { makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
-import { devLeadQuery, until } from "./lead-harness";
 import { isWorkerRun } from "./mcp-run-probe";
+import { devTeammateQuery, until } from "./teammate-harness";
 
 test("limiter caps at max and frees on release (idempotent)", () => {
   const l = createRunLimiter(2);
@@ -19,8 +19,8 @@ test("limiter caps at max and frees on release (idempotent)", () => {
 });
 
 /**
- * Handler over a fake `query`: a worker run blocks on `gate` until released or aborted; the lead answers at once. The
- * lead runs in its own pool, so one worker slot is all the first worker needs.
+ * Handler over a fake `query`: a worker run blocks on `gate` until released or aborted; the teammate answers at once. The
+ * teammate runs in its own pool, so one worker slot is all the first worker needs.
  */
 function gatedHandler(env: ReturnType<typeof makeEnv>, limiter = createRunLimiter(1)) {
   const gate: { open?: () => void; entered: number } = { entered: 0 };
@@ -40,9 +40,9 @@ function gatedHandler(env: ReturnType<typeof makeEnv>, limiter = createRunLimite
   const handle = createTurnHandler({
     db: env.db,
     config: env.config,
-    queryFn: devLeadQuery(queryFn),
+    queryFn: devTeammateQuery(queryFn),
     limiter,
-    leadTiming: { debounceMs: 10, announceWindowMs: 20 },
+    teammateTiming: { debounceMs: 10, announceWindowMs: 20 },
   });
   const send = (text: string, threadId: string) =>
     handle({

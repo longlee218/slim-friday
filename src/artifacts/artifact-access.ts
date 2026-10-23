@@ -108,7 +108,7 @@ export function searchChannel(
 function artifactText(c: ArtifactToolCtx, a: ArtifactRow): string | null {
   if ((a.kind as ArtifactKind) === "html") return null;
   if (a.origin === "store") {
-    // A store path is app-written; it is re-checked anyway (a row must never lead outside AGENT_HOME, or outside the
+    // A store path is app-written; it is re-checked anyway (a row must never teammate outside AGENT_HOME, or outside the
     // `docs/friday` folder of the location it names).
     const real = resolveReal(a.path);
     const root = storeRootOf(
@@ -168,7 +168,7 @@ export function readArtifact(c: ArtifactToolCtx, id: string, offset = 0, limit?:
   };
 }
 
-/** Save a document artifact in the run's channel (the lead only; through the writer, no size cap), under AGENT_HOME. */
+/** Save a document artifact in the run's channel (the teammate only; through the writer, no size cap), under AGENT_HOME. */
 export function saveArtifact(
   c: ArtifactToolCtx,
   a: { title: string; kind: ArtifactKind; body: string },

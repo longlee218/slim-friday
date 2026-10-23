@@ -1,7 +1,7 @@
 import type { Database } from "bun:sqlite";
-import { PENDING_PLAN_MAX_AGE_MS } from "../../config/lead-caps";
+import { PENDING_PLAN_MAX_AGE_MS } from "../../config/teammate-caps";
 import { clip, redactText } from "../../observability/redact";
-import { LEAD_ROLE } from "../../roles/builtin/lead-role";
+import { CHIEF_OF_STAFF_ROLE } from "../../roles/builtin/chief-of-staff-role";
 import {
   childrenOf,
   getItem,
@@ -19,11 +19,11 @@ import type { TaskSnapshot } from "./effect-port";
 /* Read-only db queries of the db-backed EffectPort (caps counters, the open goal, a worker's pending question). */
 
 /**
- * Id of the thread's open goal: its newest lead goal with status `open` and at least one unfinished item (or no item
+ * Id of the thread's open goal: its newest teammate goal with status `open` and at least one unfinished item (or no item
  * yet) or a plan waiting for the owner (not older than `PENDING_PLAN_MAX_AGE_MS`). A goal whose items all ended is done even while its row still says `open`.
  */
 export function openGoalIdOf(db: Database, threadId: string, now = Date.now()): string | undefined {
-  return openGoalId(db, threadId, LEAD_ROLE.name, now - PENDING_PLAN_MAX_AGE_MS);
+  return openGoalId(db, threadId, CHIEF_OF_STAFF_ROLE.name, now - PENDING_PLAN_MAX_AGE_MS);
 }
 
 /**
@@ -46,7 +46,7 @@ export function pendingQuestionOf(db: Database, itemId: string): string | undefi
 export function snapshotOf(db: Database, threadId: string, taskId?: string): TaskSnapshot {
   const goalId = taskId
     ? (goalOf(db, taskId) ?? taskId)
-    : latestGoalId(db, threadId, LEAD_ROLE.name);
+    : latestGoalId(db, threadId, CHIEF_OF_STAFF_ROLE.name);
   if (!goalId) return { items: [] };
   const intent = taskScope(db, goalId);
   return {

@@ -23,7 +23,7 @@ function setup(attempt = 0, standalone = false) {
     insertOwnedTask(db, {
       id: "g",
       threadId: "th",
-      ownerRole: "lead",
+      ownerRole: "chief-of-staff",
       status: "open",
       scope: "g",
       correlationId: "c",
@@ -57,7 +57,7 @@ const run = (r: FlowResult, o: Partial<Parameters<typeof applyFailurePolicy>[0]>
     ...o,
   });
 
-test("state machine: running -> ready (auto resume) and blocked -> failed (lead gives up) are allowed", () => {
+test("state machine: running -> ready (auto resume) and blocked -> failed (teammate gives up) are allowed", () => {
   expect(canTransition("running", "ready")).toBe(true);
   expect(canTransition("blocked", "failed")).toBe(true);
   expect(canTransition("blocked", "ready")).toBe(true);
@@ -149,7 +149,7 @@ test("a standalone task (no goal) and an item no longer running are not touched"
   expect(run(res("error"))).toBeUndefined();
   db.close();
   setup();
-  db.query("UPDATE owned_tasks SET status = 'cancelled' WHERE id = 'it'").run(); // the lead cancelled it
+  db.query("UPDATE owned_tasks SET status = 'cancelled' WHERE id = 'it'").run(); // the teammate cancelled it
   expect(run(res("aborted"), { stopping: true })).toBeUndefined();
 });
 

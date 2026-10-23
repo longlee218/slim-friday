@@ -19,7 +19,7 @@ const ERROR_CALLS = 5;
 const REPEAT_CALLS = 3;
 const MANY_DISPATCHES = 2;
 
-/** Items held for the lead: blocked or failed, inside a goal that is still open. */
+/** Items held for the teammate: blocked or failed, inside a goal that is still open. */
 function heldItems(db: Database, since: number): Problem[] {
   return db
     .query<Problem, [number]>(
@@ -55,7 +55,7 @@ function badRuns(db: Database, since: number): Problem[] {
          COALESCE(substr(t.brief, 1, 200), '') AS detail, t.started_at AS at, o.parent_id AS goal_id,
          t.id AS turn_id, t.thread_id
        FROM runs r JOIN turns t ON t.id = r.turn_id LEFT JOIN owned_tasks o ON o.id = t.owned_task_id
-       WHERE t.started_at >= ?1 AND (r.outcome <> 'success' OR (r.cost_usd >= ?2 AND t.role <> 'lead'))`,
+       WHERE t.started_at >= ?1 AND (r.outcome <> 'success' OR (r.cost_usd >= ?2 AND t.role <> 'chief-of-staff'))`,
     )
     .all(since, COSTLY_RUN_USD);
 }

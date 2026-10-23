@@ -2,14 +2,14 @@ import { DEFAULT_LANGUAGE } from "../../i18n/languages";
 import { type OwnerLanguage, renderUserNotice } from "../../ingress/user-copy";
 import { logEvent, logger } from "../../observability/logger";
 import { errText } from "../../observability/redact";
-import { type LeadRuntime, type LeadThreadCtx, postTo } from "../lead/lead-runtime";
+import { postTo, type TeammateRuntime, type TeammateThreadCtx } from "../teammate/teammate-runtime";
 import { planLinks, planUrlOfGoal, syncPlanArtifacts } from "./plan-artifact";
 import { type RevisionDiff, revisionNotice } from "./plan-revised";
 
 /** Logger of this module. */
 const log = logger.child({ module: "plan-side-effects" });
 
-/** What the lead's plan actions do beyond the db write: the plan artifacts of the channel and the one owner line. */
+/** What the teammate's plan actions do beyond the db write: the plan artifacts of the channel and the one owner line. */
 export interface PlanSideEffects {
   /** A plan version was stored: save it as an artifact. Never throws. */
   onVersion(goalId: string): void;
@@ -19,8 +19,8 @@ export interface PlanSideEffects {
 
 /** The side effects of the plan actions of one thread. */
 export function planSideEffects(
-  rt: LeadRuntime,
-  ctx: LeadThreadCtx,
+  rt: TeammateRuntime,
+  ctx: TeammateThreadCtx,
   threadId: string,
 ): PlanSideEffects {
   const { db } = rt.deps;

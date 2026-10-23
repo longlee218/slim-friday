@@ -1,11 +1,11 @@
 import { z } from "zod";
-import { PLAN_MAX_CRITERIA, PLAN_MAX_ITEMS } from "../../config/lead-caps";
+import { PLAN_MAX_CRITERIA, PLAN_MAX_ITEMS } from "../../config/teammate-caps";
 import {
   BRIEF_MAX_CHARS,
   PLAN_DOC_MAX_CHARS,
   PLAN_SECTION_MAX_CHARS,
   REASON_MAX_CHARS,
-} from "../lead/lead-limits";
+} from "../teammate/teammate-limits";
 import {
   CONFIRM_NEW,
   KEY,
@@ -13,10 +13,10 @@ import {
   PRIORITY_VALUE,
   SUBJECT,
   TASK_ID,
-} from "../lead/lead-schemas";
+} from "../teammate/teammate-schemas";
 import { DELIVERY_EFFECT_TOOLS } from "./plan-types";
 
-/* Input schemas (zod raw shapes) of the lead's Orchestrate create_plan / revise_plan / approve_plan. The SDK
+/* Input schemas (zod raw shapes) of the teammate's Orchestrate create_plan / revise_plan / approve_plan. The SDK
    validates a call against them before any handler runs; the handler input types are inferred from the same shapes. */
 
 /** A heading of the plan text that holds this item's part of the plan (its text goes into the item's brief). */
@@ -79,8 +79,8 @@ export const CREATE_PLAN_SHAPE = {
   effects: EFFECTS,
   confirmNew: CONFIRM_NEW,
 };
-/** The lead's `create_plan`: the plan shape plus the objective; no `goalId` opens a new goal, `goalId` plans inside the open one. */
-export const CREATE_LEAD_PLAN_SHAPE = {
+/** The teammate's `create_plan`: the plan shape plus the objective; no `goalId` opens a new goal, `goalId` plans inside the open one. */
+export const CREATE_TEAMMATE_PLAN_SHAPE = {
   objective: z.string().min(1).max(2000).describe("What the owner wants, in the owner's terms"),
   goalId: TASK_ID.optional().describe(
     "Plan inside this open goal (re-plan after a reject or an expiry)",
@@ -149,6 +149,6 @@ export const APPROVE_PLAN_SHAPE = { planId: PLAN_ID, version: VERSION };
 
 /** Parsed inputs, one per tool. */
 type Input<S extends z.ZodRawShape> = z.infer<z.ZodObject<S>>;
-export type CreateLeadPlanInput = Input<typeof CREATE_LEAD_PLAN_SHAPE>;
+export type CreateTeammatePlanInput = Input<typeof CREATE_TEAMMATE_PLAN_SHAPE>;
 export type ProposeRevisionInput = Input<typeof PROPOSE_REVISION_SHAPE>;
 export type ApprovePlanInput = Input<typeof APPROVE_PLAN_SHAPE>;

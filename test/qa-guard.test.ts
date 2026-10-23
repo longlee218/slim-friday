@@ -12,14 +12,14 @@ import {
   WRITE_TOOL_NAME,
 } from "../src/tools/sdk-tool-names";
 import { addLocation, makeEnv } from "./helpers";
-import { leadHarness, until } from "./lead-harness";
+import { teammateHarness, until } from "./teammate-harness";
 
-/** Run one owner message through the lead (the foreground role) and return the SDK options of its run. */
-async function leadOptions(setup?: (env: ReturnType<typeof makeEnv>) => void) {
+/** Run one owner message through the teammate (the foreground role) and return the SDK options of its run. */
+async function teammateOptions(setup?: (env: ReturnType<typeof makeEnv>) => void) {
   const env = makeEnv();
   setup?.(env);
   let opts: any;
-  const h = leadHarness(async (c) => {
+  const h = teammateHarness(async (c) => {
     opts = c.options;
     return "ok";
   }, env);
@@ -28,24 +28,24 @@ async function leadOptions(setup?: (env: ReturnType<typeof makeEnv>) => void) {
   return { env, opts };
 }
 
-test("lead reads nothing outside its own dirs (outside paths, home dotfiles); no shell, no writes, no questions", async () => {
-  const { env, opts } = await leadOptions();
+test("teammate reads nothing outside its own dirs (outside paths, home dotfiles); no shell, no writes, no questions", async () => {
+  const { env, opts } = await teammateOptions();
   const location = realpathSync(env.location);
   const can = opts.canUseTool as (t: string, i: any, o: any) => Promise<any>;
-  // The lead runs in the workspace's neutral dir: it reads the registered locations through a scout, not itself.
+  // The teammate runs in the workspace's neutral dir: it reads the registered locations through a scout, not itself.
   expect(opts.cwd).toBe(workspacePaths(env.home).workspace("main").cwd);
   expect((await can(READ_TOOL_NAME, { file_path: join(opts.cwd, "a.txt") }, {})).behavior).toBe(
     "allow",
   );
   expect((await can(READ_TOOL_NAME, { file_path: "/etc/hosts" }, {})).behavior).toBe("deny");
   expect((await can(GREP_TOOL_NAME, { pattern: "x", path: "/Users" }, {})).behavior).toBe("deny");
-  // The lead has no shell capability and cannot change files.
+  // The teammate has no shell capability and cannot change files.
   expect(opts.tools).not.toContain(BASH_TOOL_NAME);
   expect((await can(BASH_TOOL_NAME, { command: "ls" }, {})).behavior).toBe("deny");
   expect(
     (await can(WRITE_TOOL_NAME, { file_path: join(location, "z"), content: "" }, {})).behavior,
   ).toBe("deny");
-  // No gateway in a lead run: the question tool is unavailable (it asks through Orchestrate ask_owner).
+  // No gateway in a teammate run: the question tool is unavailable (it asks through Orchestrate ask_owner).
   expect((await can(ASK_USER_QUESTION_TOOL_NAME, { questions: [] }, {})).behavior).toBe("deny");
 });
 
@@ -57,8 +57,8 @@ test("Agent tool: allowed when the stage lists it (legacy Task name too), else t
   expect(d({ prompt: "p" }, AGENT_TOOL_NAME, { writePaths: [], allowTools: [] })).toBe("ask");
 });
 
-test("lead with several locations uses the neutral cwd and lists no CLAUDE.md hint", async () => {
-  const { env, opts } = await leadOptions((e) => {
+test("teammate with several locations uses the neutral cwd and lists no CLAUDE.md hint", async () => {
+  const { env, opts } = await teammateOptions((e) => {
     const b = addLocation(e.home, "b"); // workspaces/main/locations/b/location
     writeFileSync(join(b, "CLAUDE.md"), "rules");
   });
@@ -68,9 +68,9 @@ test("lead with several locations uses the neutral cwd and lists no CLAUDE.md hi
   expect(prompt).not.toContain("first]");
   expect(opts.settingSources).toEqual([]);
   expect([...(opts.skills as string[])].sort()).toEqual([
-    "friday:lead-orchestration",
+    "friday:teammate-orchestration",
     "superpowers:brainstorming",
-  ]); // only the lead's method skill and brainstorming: no location skills, no bundled SDK skills
+  ]); // only the teammate's method skill and brainstorming: no location skills, no bundled SDK skills
 });
 
 /* Interrupt-steer plan, Task 3: the abort fence only denies new tools; it never undoes a finished one. */
@@ -82,7 +82,7 @@ import { buildToolPermissions, RUN_STOPPED_REASON } from "../src/runtime/tool-pe
 const fenceInput = (runSignal: AbortSignal, gateway?: any) => ({
   turnId: "t",
   threadId: "th",
-  guard: guardFor(getRole("lead"), { readPaths: ["/ws/location"] }),
+  guard: guardFor(getRole("chief-of-staff"), { readPaths: ["/ws/location"] }),
   runSignal,
   gateway,
 });
@@ -165,7 +165,7 @@ test("guard decision observer sees allow / deny, cannot change them, and a throw
   const base = {
     turnId: "t",
     threadId: "th",
-    guard: guardFor(getRole("lead"), { readPaths: ["/ws/location"] }),
+    guard: guardFor(getRole("chief-of-staff"), { readPaths: ["/ws/location"] }),
   };
   const call = (p: string, id: string) =>
     ({

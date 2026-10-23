@@ -13,7 +13,7 @@ export interface AgedItem {
 /**
  * Goal items in `ready`, `running` or `waiting_user` whose age exceeds `maxAgeMs` at `now`. The clock:
  * - started item: the FIRST turn start at or after the item's newest `retry` event (0 when it never was retried).
- *   Automatic resumes add turns but never move the MIN; a lead `Orchestrate retry` writes a newer `retry` event (and an answer that resumed a `waiting_user` item a newer `answer` event with `afterTurn`), so the clock resets.
+ *   Automatic resumes add turns but never move the MIN; a teammate `Orchestrate retry` writes a newer `retry` event (and an answer that resumed a `waiting_user` item a newer `answer` event with `afterTurn`), so the clock resets.
  * - never-started item (or retried and not started yet): `owned_tasks.last_progress_at`. The status move to `ready` stamps it
  *   and nothing else writes it while the item is not running. If a future change writes it for waiting items, the
  *   slot-wait clock resets silently (a test pins this).

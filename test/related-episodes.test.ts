@@ -5,7 +5,7 @@ import { indexSummary } from "../src/memory/index/memory-index";
 import { RELATED_HEADING, relatedEpisodesBlock } from "../src/memory/related-episodes";
 import { openDb } from "../src/storage/db";
 import { getThreadSummary, saveSummary } from "../src/storage/thread-summary-store";
-import { leadHarness, until } from "./lead-harness";
+import { teammateHarness, until } from "./teammate-harness";
 
 /* Related-episodes block: real db and real FTS index, no model. */
 
@@ -106,20 +106,20 @@ test("text in an abstract cannot break out of the data framing", () => {
   expect(b.split("\n")[1]?.startsWith("- ")).toBe(true);
 });
 
-test("only the lead path builds the block (workers never import it)", () => {
+test("only the teammate path builds the block (workers never import it)", () => {
   const importers = new Bun.Glob("**/*.ts");
   const found: string[] = [];
   for (const f of importers.scanSync("src"))
     if (readFileSync(`src/${f}`, "utf8").includes("related-episodes")) found.push(f);
   expect(found.sort()).toEqual([
     "memory/related-episodes.ts",
-    "orchestrator/lead/lead-user-turn.ts",
+    "orchestrator/teammate/teammate-user-turn.ts",
   ]);
 });
 
-test("lead run: an owner message carries the block, a worker prompt and the next unrelated message do not", async () => {
+test("teammate run: an owner message carries the block, a worker prompt and the next unrelated message do not", async () => {
   const prompts: { kind: string; prompt: string }[] = [];
-  const h = leadHarness(async (c) => {
+  const h = teammateHarness(async (c) => {
     prompts.push({ kind: c.kind, prompt: c.prompt });
     if (c.kind === "worker") {
       await c.report("result", { title: "T", status: "COMPLETED", summary: "ok" });
@@ -148,13 +148,15 @@ test("lead run: an owner message carries the block, a worker prompt and the next
   indexSummary(h.env.db, getThreadSummary(h.env.db, "old")!);
   await h.send("run the grafana dashboards");
   await until(() => prompts.some((p) => p.kind === "worker"));
-  const lead = prompts.find((p) => p.kind === "lead")!;
-  expect(lead.prompt).toContain(RELATED_HEADING);
-  expect(lead.prompt.indexOf(RELATED_HEADING)).toBeLessThan(lead.prompt.indexOf("<owner_message>"));
+  const teammate = prompts.find((p) => p.kind === "teammate")!;
+  expect(teammate.prompt).toContain(RELATED_HEADING);
+  expect(teammate.prompt.indexOf(RELATED_HEADING)).toBeLessThan(
+    teammate.prompt.indexOf("<owner_message>"),
+  );
   expect(prompts.find((p) => p.kind === "worker")!.prompt).not.toContain(RELATED_HEADING);
   // The announce wake-up of the same thread is not an owner message: no block.
-  await until(() => prompts.filter((p) => p.kind === "lead").length >= 2);
-  expect(prompts.filter((p) => p.kind === "lead")[1]!.prompt).not.toContain(RELATED_HEADING);
+  await until(() => prompts.filter((p) => p.kind === "teammate").length >= 2);
+  expect(prompts.filter((p) => p.kind === "teammate")[1]!.prompt).not.toContain(RELATED_HEADING);
 });
 
 test("empty owner text = no block", () => {

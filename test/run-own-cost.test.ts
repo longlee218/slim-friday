@@ -7,7 +7,7 @@ import { makeEnv } from "./helpers";
 const turn = (db: ReturnType<typeof makeEnv>["db"], id: string, session: string | null) =>
   db
     .query(
-      "INSERT INTO turns (id, thread_id, source, location, status, started_at, session_id, role) VALUES (?, 't', 'test', '*', 'done', 1, ?, 'lead')",
+      "INSERT INTO turns (id, thread_id, source, location, status, started_at, session_id, role) VALUES (?, 't', 'test', '*', 'done', 1, ?, 'chief-of-staff')",
     )
     .run(id, session);
 

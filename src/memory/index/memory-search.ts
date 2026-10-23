@@ -47,8 +47,8 @@ export function origSnippet(snip: string, folded: string, orig: string): string 
   const core = snip.replace(/^\.\.\./, "").replace(/\.\.\.$/, "");
   const at = core === "" ? -1 : folded.indexOf(core);
   const text = at >= 0 ? orig.slice(at, at + core.length) : orig;
-  const lead = at > 0 ? "..." : "";
-  return (lead + text).replace(/\s+/g, " ").trim().slice(0, SNIPPET_CHARS);
+  const teammate = at > 0 ? "..." : "";
+  return (teammate + text).replace(/\s+/g, " ").trim().slice(0, SNIPPET_CHARS);
 }
 
 /**

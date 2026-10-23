@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { REPORT_IMAGE_MAX_BYTES } from "../src/artifacts/artifact-limits";
-import type { LeadThreadCtx } from "../src/orchestrator/lead/lead-runtime";
+import type { TeammateThreadCtx } from "../src/orchestrator/teammate/teammate-runtime";
 import { postReportImages } from "../src/orchestrator/worker/post-report-images";
 import { checkReportImages } from "../src/orchestrator/worker/report-images";
 
@@ -64,7 +64,7 @@ test("postReportImages sends a URL as a link and a file as an attachment", async
         sent.push({ text, image: opts?.image?.name });
       },
     },
-  } as unknown as LeadThreadCtx;
+  } as unknown as TeammateThreadCtx;
   await postReportImages(ctx, [
     { name: "x.png", url: "https://cdn.example.com/x.png" },
     { name: "a.png", path: a },
@@ -110,7 +110,7 @@ test("postReportImages posts each file once as an attachment; a failing post is 
         if (opts?.image) posted.push({ name: opts.image.name, size: opts.image.bytes.length });
       },
     },
-  } as unknown as LeadThreadCtx;
+  } as unknown as TeammateThreadCtx;
   await postReportImages(ctx, [
     { name: "a.png", path: a },
     { name: "b.png", path: b },

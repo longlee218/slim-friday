@@ -40,7 +40,7 @@ function world() {
     workspace: "ws1",
     channel: "ch1",
     threadId: TH,
-    role: "lead",
+    role: "chief-of-staff",
     locations: [{ name: "repo", path: repo }],
   };
   const port = createDbEffectPort({

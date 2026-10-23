@@ -5,7 +5,7 @@ import {
   isTransientError,
 } from "../src/runtime/failure-class";
 
-/* The pure failure classifier: transient (same session resumes), real (held for the lead), owner stop (cancel). */
+/* The pure failure classifier: transient (same session resumes), real (held for the teammate), owner stop (cancel). */
 
 const cases: [string, FailureInput, "transient" | "real" | "owner_stop", string][] = [
   [

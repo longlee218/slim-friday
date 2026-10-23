@@ -6,7 +6,7 @@ import {
 import { ORCHESTRATE_TOOL } from "../../mcp/orchestration/tools/OrchestrateTool/constants";
 import { excerpt } from "../../observability/logger";
 import { GRANT_TOOL, grantRowId } from "../../policy/load-envelope";
-import { LEAD_ROLE } from "../../roles/builtin/lead-role";
+import { CHIEF_OF_STAFF_ROLE } from "../../roles/builtin/chief-of-staff-role";
 import { appendEffect } from "../../storage/effect-log-store";
 import { insertOwnedTask } from "../../storage/owned-task-store";
 import { appendEvent } from "../../storage/thread-event-store";
@@ -31,11 +31,11 @@ export function createDispatchWriter(
       insertOwnedTask(db, {
         id: goalId,
         threadId,
-        ownerRole: LEAD_ROLE.name,
+        ownerRole: CHIEF_OF_STAFF_ROLE.name,
         status: "open",
         scope: excerpt(x.intent, SCOPE_CHARS),
         correlationId,
-        structureOwner: "lead", // DIRECT / DELEGATE: the lead owns the items
+        structureOwner: "teammate", // DIRECT / DELEGATE: the teammate owns the items
       });
       const itemIds = x.items.map((it) => {
         const id = crypto.randomUUID();
@@ -69,7 +69,7 @@ export function createDispatchWriter(
             role: it.role,
             strategy: x.strategy,
             reason: x.reason,
-            by: "lead",
+            by: "teammate",
             tool: ORCHESTRATE_TOOL,
             action: ORCHESTRATE_ACTION_DISPATCH,
           },
@@ -79,7 +79,7 @@ export function createDispatchWriter(
         threadId,
         goalId,
         tool: orchestrateAudit(ORCHESTRATE_ACTION_DISPATCH),
-        scope: "lead tool call",
+        scope: "teammate tool call",
         grantedBy: "role",
         result: JSON.stringify({ ok: true, goalId, itemIds }),
       });

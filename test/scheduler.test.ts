@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import { MAX_RUNNING_PER_THREAD as CAP, PRIORITY_AGING_MS } from "../src/config/lead-caps";
+import { MAX_RUNNING_PER_THREAD as CAP, PRIORITY_AGING_MS } from "../src/config/teammate-caps";
 import { pickDispatchable, type RoleCaps } from "../src/orchestrator/worker/scheduler";
-import { itemRow } from "./lead-fake-port";
+import { itemRow } from "./teammate-fake-port";
 
 // Pure scheduler: which ready items start now. Roles: dev = writer, scout = free.
 const caps = (role: string | null): RoleCaps => ({ writer: role === "dev" });

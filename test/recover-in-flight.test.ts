@@ -28,14 +28,14 @@ test("running task at boot -> one recovered_after_restart event, task waits for 
   linkTurn(env.db, "rc-turn", "rc-task");
   // An event claimed by a consumer turn that is still `running` when the process died.
   insertTurn(env.db, {
-    id: "rc-lead",
+    id: "rc-teammate",
     threadId: "rc-th",
     source: "t",
     location: "r",
     role: "developer",
   });
   appendEvent(env.db, { id: "rc-e1", threadId: "rc-th", kind: "result", payload: {} });
-  env.db.query("UPDATE thread_events SET claimed_by = ? WHERE id = ?").run("rc-lead", "rc-e1");
+  env.db.query("UPDATE thread_events SET claimed_by = ? WHERE id = ?").run("rc-teammate", "rc-e1");
 
   const report = recoverInFlight(env.db);
 
@@ -88,7 +88,7 @@ function runningItem(env: ReturnType<typeof makeEnv>, attempt: number) {
   insertOwnedTask(env.db, {
     id: "g",
     threadId: "th",
-    ownerRole: "lead",
+    ownerRole: "chief-of-staff",
     status: "open",
     scope: "g",
     correlationId: "c",

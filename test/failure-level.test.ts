@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { refusalLevel, toolDoneLevel } from "../src/observability/failure-level";
 
-test("a refused lead call warns, an expected refusal and a success stay info", () => {
+test("a refused teammate call warns, an expected refusal and a success stay info", () => {
   expect(refusalLevel(false, "BAD_TASK")).toBe("warn");
   expect(refusalLevel(false, "NO_DEFAULT_PROJECTS_DIR")).toBe("warn");
   for (const c of ["ENDED", "UNCLEAR", "TIMEOUT", "GOAL_NOT_OPEN"])

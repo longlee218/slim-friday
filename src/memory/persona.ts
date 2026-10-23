@@ -104,7 +104,7 @@ const PERSONA_FILES = [
 ] as const;
 
 /**
- * The persona block of a lead or control run, as XML data boundaries: `<owner_files>` with one `<file name="…">` per
+ * The persona block of a teammate or control run, as XML data boundaries: `<owner_files>` with one `<file name="…">` per
  * non-empty AGENTS.md, IDENTITY.md, SOUL.md, USER.md (the owner's own text, headings kept as written), then `<team>`
  * (`team`, built by code: roster and locations) when given. The owner files come first: they change less often than
  * the team (a new location), so the cached prefix lasts longer. Per file the first non-empty of channel, workspace,

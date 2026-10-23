@@ -127,7 +127,7 @@ const REPO_CONCEPT: Record<string, RegExp> = {
 
 /**
  * Tool names retired by the action-tool merge (phase 4): the planner's seven tools became `Plan` actions and the
- * worker's two report tools `Report` actions; the lead's eleven tools became `Orchestrate` actions (`TaskStatus` is
+ * worker's two report tools `Report` actions; the teammate's eleven tools became `Orchestrate` actions (`TaskStatus` is
  * retired as a storage type above). Banned in src and test (the docs are updated by the docs phase).
  */
 const TOOLS: Record<string, RegExp> = Object.fromEntries(
@@ -154,7 +154,7 @@ const TOOLS: Record<string, RegExp> = Object.fromEntries(
   ].map((p) => [`retired tool ${p.join("")}`, new RegExp(`\\b${p.join("")}\\b`)]),
 );
 
-/** Planner removal (2026-10-22): the lead writes plans; no planner role, rolling waves or auto-applied revisions. */
+/** Planner removal (2026-10-22): the teammate writes plans; no planner role, rolling waves or auto-applied revisions. */
 const PLANNER: Record<string, RegExp> = Object.fromEntries(
   [
     ["MAX", "_WAVES"],
@@ -210,7 +210,7 @@ const TASK_ID_OK = [
   "artifact-store.ts",
   "artifact-list-store.ts", // taskStoreArtifacts: the files a task saved
   "dispatch-ready.ts", // writes the outbox event of a dispatched task
-  // task_messages.task_id: the item a lead <-> worker message belongs to (team messages, 2026-10-23)
+  // task_messages.task_id: the item a teammate <-> worker message belongs to (team messages, 2026-10-23)
   "messages.ts",
   "task-message-store.ts",
   "task-message-fts-store.ts",
@@ -232,15 +232,15 @@ test("src and test hold no retired message / turn / task name", () => {
   );
   expect(files.length).toBeGreaterThan(100);
   const hits: string[] = [];
-  // The lead's status tool is named like the retired type; its name constant (and the lead test that calls it) is the allowed place.
+  // The teammate's status tool is named like the retired type; its name constant (and the teammate test that calls it) is the allowed place.
   for (const f of files)
     for (const [name, re] of Object.entries(RETIRED))
       if (
         re.test(f.text) &&
         !(
           name === "storage status type" &&
-          ["TaskStatusTool/constants.ts", "tool-names.test.ts", "lead-runtime.test.ts"].some((ok) =>
-            f.file.endsWith(ok),
+          ["TaskStatusTool/constants.ts", "tool-names.test.ts", "teammate-runtime.test.ts"].some(
+            (ok) => f.file.endsWith(ok),
           )
         )
       )
@@ -269,7 +269,7 @@ test("docs hold no retired file or symbol name (changelog history excepted)", ()
   const hits: string[] = [];
   for (const d of docs) {
     const text = readFileSync(join("docs", d), "utf8");
-    // The lead's `TaskStatus` tool shares its name with the retired storage type: docs may name the tool.
+    // The teammate's `TaskStatus` tool shares its name with the retired storage type: docs may name the tool.
     for (const [name, re] of Object.entries(SYMBOLS))
       if (re.test(text) && name !== "storage status type") hits.push(`docs/${d}: ${name}`);
   }
@@ -334,4 +334,47 @@ test("app-owned skills (`.agents/skills/**/*.md`, local lock entries) name no re
     for (const [name, re] of Object.entries(TOOLS)) if (re.test(text)) hits.push(`${f}: ${name}`);
   }
   expect(hits).toEqual([]);
+});
+
+/**
+ * The role `lead` is renamed (persistent teammates phase 00): the engine is `teammate`, the default role `chief-of-staff`.
+ * Built from parts so this file does not hold the name. English words (`leading`, `leads`) do not match. Exempt: the
+ * migration tests that seed the old values, and `plans/...` paths in docs (plan history).
+ */
+const OLD_LEAD = new RegExp(
+  [`\\b${"le"}ad\\b`, `\\b${"Le"}ad[A-Z]`, `${"LE"}AD_`, `\\b${"le"}ad-`, `\\b${"le"}ad[A-Z]`].join(
+    "|",
+  ),
+);
+const OLD_LEAD_EXEMPT = [
+  "migration-0007-backfill.test.ts",
+  "migration-0011.test.ts",
+  "migration-0012.test.ts",
+  "migration-0015-retire-planner.test.ts",
+  "migration-0020-rename-lead.test.ts",
+  "retired-naming-scan.test.ts",
+];
+
+test("src, test, living docs and app-owned skills hold no `lead` role or engine name", () => {
+  const code = [...sources("src"), ...sources("test")].filter(
+    (f) => !OLD_LEAD_EXEMPT.some((e) => f.file.endsWith(e)),
+  );
+  const docs = [
+    "CLAUDE.md",
+    "AGENTS.md",
+    ...readdirSync("docs")
+      .filter((f) => f.endsWith(".md") && !f.startsWith("project-changelog"))
+      .map((f) => join("docs", f)),
+  ];
+  const local = Object.entries(readSkillsLock().skills).filter(([, e]) => e.sourceType === "local");
+  const skills = local.flatMap(([n]) => markdown(join(".agents", "skills", n)));
+  const texts = [
+    ...code,
+    ...[...docs, ...skills].map((file) => ({
+      file,
+      text: readFileSync(file, "utf8").replace(/plans\/\S+/g, ""),
+    })),
+  ];
+  expect(texts.length).toBeGreaterThan(100);
+  expect(texts.filter((f) => OLD_LEAD.test(f.text)).map((f) => f.file)).toEqual([]);
 });

@@ -14,12 +14,12 @@ import {
 import { getOwnedTask } from "../../storage/owned-task-store";
 import { markStartDelivered } from "../../storage/thread-event-store";
 import { goalRoute } from "../budget/task-budget";
-import type { LeadRuntime, LeadThreadCtx } from "../lead/lead-runtime";
 import { ensureBriefMessage } from "../messages/brief-message";
 import { earlierSteps } from "../messages/earlier-steps";
 import { afterVerify } from "../plan/goal-verify";
 import type { RoleRunInput } from "../run/role-run-types";
 import { runTurn } from "../run/run-turn";
+import type { TeammateRuntime, TeammateThreadCtx } from "../teammate/teammate-runtime";
 import { expectedDelivery } from "../turns/completion";
 import { type FailureVerdict, workerFailurePolicy } from "./failure-policy";
 import { cancelDependents, settleGoal } from "./goal-settle";
@@ -39,8 +39,8 @@ const log = logger.child({ module: "worker-run" });
  * Takes its global run slot first: returns false (nothing touched, the item stays ready) when the cap is reached.
  */
 export async function startWorker(
-  rt: LeadRuntime,
-  ctx: LeadThreadCtx,
+  rt: TeammateRuntime,
+  ctx: TeammateThreadCtx,
   threadId: string,
   item: ItemRow,
   after: (announce?: boolean, delayMs?: number) => void,
@@ -60,8 +60,8 @@ export async function startWorker(
     }
     const goalId = item.parentId ?? item.id;
     const role = getRole(getOwnedTask(db, item.id)?.ownerAgentId ?? "");
-    // A first start or a lead retry sends the brief (or the resume prompt); an automatic resume and an answer to the
-    // item's own question are no new dispatch (neither can loop: the owner or the lead paced them).
+    // A first start or a teammate retry sends the brief (or the resume prompt); an automatic resume and an answer to the
+    // item's own question are no new dispatch (neither can loop: the owner or the teammate paced them).
     ensureBriefMessage(db, item); // the brief is the first message of the item's thread
     const start = startInput(db, item);
     if (!start.auto && !start.answer) bumpDispatch(db, item.id);
@@ -176,11 +176,11 @@ export async function startWorker(
                 images.length,
                 sink.files?.length ?? 0,
               );
-              // A held item (blocked) keeps its dependents waiting for the lead; only an item that truly failed
+              // A held item (blocked) keeps its dependents waiting for the teammate; only an item that truly failed
               // (a crash of the run itself, no retry possible) cancels them: they can never start.
               if (getItem(db, item.id)?.status === "failed") cancelDependents(db, item.id);
               settleGoal(db, goalId);
-              // `/stop` ended it: the result is recorded, the lead is not woken. A blocker wakes the lead now, not after the batch window.
+              // `/stop` ended it: the result is recorded, the teammate is not woken. A blocker wakes the teammate now, not after the batch window.
               after(!ownerStopped, sink.blocker ? 0 : undefined);
             },
           },

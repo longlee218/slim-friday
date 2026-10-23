@@ -1,18 +1,18 @@
 import type { Database } from "bun:sqlite";
 import { afterEach, expect, test } from "bun:test";
 import { z } from "zod";
-import { PLAN_MAX_CRITERIA, PLAN_MAX_ITEMS } from "../src/config/lead-caps";
 import { PLAN_GOAL_BUDGET_MAX_USD } from "../src/config/model-routing";
 import { MAX_FIX_LOOPS } from "../src/config/resilience-caps";
+import { PLAN_MAX_CRITERIA, PLAN_MAX_ITEMS } from "../src/config/teammate-caps";
 import { renderDigest } from "../src/ingress/digest-copy";
 import { createDbEffectPort } from "../src/orchestrator/goal/effect-port-db";
-import { handleRetry } from "../src/orchestrator/lead/lead-retry-handler";
 import { messageRef } from "../src/orchestrator/messages/message-ref";
 import { postItemMessage } from "../src/orchestrator/messages/task-messages";
 import { afterVerify } from "../src/orchestrator/plan/goal-verify";
 import { approveVersion, createPlan } from "../src/orchestrator/plan/plan-lifecycle";
 import { revisePlan } from "../src/orchestrator/plan/plan-revision";
 import { CREATE_PLAN_SHAPE } from "../src/orchestrator/plan/plan-schemas";
+import { handleRetry } from "../src/orchestrator/teammate/teammate-retry-handler";
 import { digestFacts } from "../src/orchestrator/worker/digest-facts";
 import type { FailureVerdict } from "../src/orchestrator/worker/failure-policy";
 import { cancelDependents, settleGoal } from "../src/orchestrator/worker/goal-settle";
@@ -200,8 +200,8 @@ test("max 2 fix loops: the third failed verify is held with VERIFY_LOOP_CAP, no 
   const ev = listUndelivered(db, TH).find((e) => e.kind === "failure" && (e.payload as any).code);
   expect(ev?.payload).toMatchObject({ code: "VERIFY_LOOP_CAP", key: "verify-3" });
   expect((ev?.payload as any)?.error).toContain("Fix: ask the owner"); // the fix rides in the event
-  expect(getOwnedTask(db, goalId)?.status).toBe("open"); // held for the lead, goal not settled
-  // The lead may not retry it: the owner decides.
+  expect(getOwnedTask(db, goalId)?.status).toBe("open"); // held for the teammate, goal not settled
+  // The teammate may not retry it: the owner decides.
   const port = createDbEffectPort({
     db,
     threadId: TH,
@@ -212,7 +212,7 @@ test("max 2 fix loops: the third failed verify is held with VERIFY_LOOP_CAP, no 
       post: async () => {},
     },
   });
-  const ctx = { port, threadId: TH, leadTurnId: "lt", inputId: "r1", run: { dispatched: 0 } };
+  const ctx = { port, threadId: TH, teammateTurnId: "lt", inputId: "r1", run: { dispatched: 0 } };
   expect(await handleRetry(ctx, { taskId: id, note: "again" })).toMatchObject({
     ok: false,
     code: "VERIFY_LOOP_CAP",
@@ -344,7 +344,7 @@ test("a revision cannot add verify-N / fix-N either; fixtures stays legal", () =
   ).toMatchObject({ ok: true });
 });
 
-/** The lead's retry context over a real db port. */
+/** The teammate's retry context over a real db port. */
 const retryCtx = () => ({
   port: createDbEffectPort({
     db,
@@ -357,7 +357,7 @@ const retryCtx = () => ({
     },
   }),
   threadId: TH,
-  leadTurnId: "lt",
+  teammateTurnId: "lt",
   inputId: "r2",
   run: { dispatched: 0 },
 });

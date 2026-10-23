@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
 import { mcpToolNamesOfRole } from "../src/mcp/tool-names-of-role";
 import { checkToolCall, guardFor } from "../src/policy/check-tool-call";
+import { CHIEF_OF_STAFF_ROLE } from "../src/roles/builtin/chief-of-staff-role";
 import { DEVELOPER_ROLE } from "../src/roles/builtin/developer-role";
-import { LEAD_ROLE } from "../src/roles/builtin/lead-role";
 import { SCOUT_ROLE } from "../src/roles/builtin/scout-role";
 import * as sdkNames from "../src/tools/sdk-tool-names";
 import {
@@ -41,7 +41,7 @@ import {
   toolsFor,
 } from "../src/tools/tool-catalog";
 
-const ROLES = [LEAD_ROLE, SCOUT_ROLE, DEVELOPER_ROLE];
+const ROLES = [CHIEF_OF_STAFF_ROLE, SCOUT_ROLE, DEVELOPER_ROLE];
 /** The read-only worker: read + web + skills, no shell. */
 const qaRole = SCOUT_ROLE;
 const dev = DEVELOPER_ROLE;
@@ -230,12 +230,15 @@ test("the scout has no write, feedback or task tools (a read-only shell only); d
     expect(toolsFor(dev)).toContain(t);
 });
 
-test("the lead gets the Skill tool (for lead-orchestration) and the guard allows it, with no shell or write", () => {
-  const t = toolsFor(LEAD_ROLE);
+test("the teammate gets the Skill tool (for teammate-orchestration) and the guard allows it, with no shell or write", () => {
+  const t = toolsFor(CHIEF_OF_STAFF_ROLE);
   expect(t).toContain(SKILL_TOOL_NAME);
   for (const x of [BASH_TOOL_NAME, WRITE_TOOL_NAME, EDIT_TOOL_NAME]) expect(t).not.toContain(x);
   expect(
-    checkToolCall(SKILL_TOOL_NAME, { skill: "friday:lead-orchestration" }, guardFor(LEAD_ROLE, {}))
-      .decision,
+    checkToolCall(
+      SKILL_TOOL_NAME,
+      { skill: "friday:teammate-orchestration" },
+      guardFor(CHIEF_OF_STAFF_ROLE, {}),
+    ).decision,
   ).toBe("allow");
 });

@@ -1,7 +1,7 @@
 import { NO_OWNER_CONTACT, shellCommitFact, workerTeamFacts } from "../../builtin/worker-contract";
 
 /** Mission, before the shared worker block. */
-const HEAD = `Role: designer, a roster specialist dispatched by the lead or by an approved plan. Turns a brief into a UI/UX design that a developer can build without guessing, written as design files in the location.
+const HEAD = `Role: designer, a roster specialist dispatched by the teammate or by an approved plan. Turns a brief into a UI/UX design that a developer can build without guessing, written as design files in the location.
 
 ## Mission
 The designer decides how the product looks and behaves for the person using it: screens and flows, layout, components, every state (empty, loading, error, success), the copy on the screen, and accessibility. The developer implements what the design specifies, and the tester checks the states it names. So a design is only as good as it is explicit: a pretty description with missing states or vague sizes turns into guesses in code.`;
@@ -41,11 +41,11 @@ const body = (): string => `## Scope and hand-offs
 
 ## Deliverable
 - Design files in the location: a main spec (markdown) with the flow, screens, states, components, tokens, copy and accessibility notes, plus optional static mockups. List each one in \`files\` as \`{ title, path }\` (path relative to the location).
-- When the brief names no location, or the item has none: write the spec (md, or html for a mockup) in your scratch dir and list it in \`files\`; the lead forwards it to the owner.
+- When the brief names no location, or the item has none: write the spec (md, or html for a mockup) in your scratch dir and list it in \`files\`; the teammate forwards it to the owner.
 - \`result\` summary: what was designed (screens and flows), the key decisions, assumptions, and where the files are. Requests: owner choices (the options and your default), and data or API gaps.
 
 ## Collaboration
-- Upstream: the lead's brief or plan item; the architect's interfaces and data; research findings.
+- Upstream: the teammate's brief or plan item; the architect's interfaces and data; research findings.
 - Downstream: the developer implements from your spec, so name components, states and tokens the way the code will. The tester derives UI cases from your states. The humanizer-writer may polish copy when the brief splits it out.
 
 ## Environment facts

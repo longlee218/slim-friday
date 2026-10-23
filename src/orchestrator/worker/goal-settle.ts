@@ -26,7 +26,7 @@ export function cancelDependents(db: Database, itemId: string): void {
 
 /**
  * Cancel every `pending` item that waits for a dependency which ended `failed` or `cancelled`: it can never start (a plan
- * released or dropped the dependency, or a cancel did not cascade). One `failure` event per item tells the lead.
+ * released or dropped the dependency, or a cancel did not cascade). One `failure` event per item tells the teammate.
  * Returns the keys cancelled.
  */
 export function cancelDeadWaiters(db: Database, goalId: string): string[] {

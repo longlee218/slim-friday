@@ -1,7 +1,7 @@
-import { CHAIN_CAP, DISPATCHES_PER_RUN } from "../../config/lead-caps";
+import { CHAIN_CAP, DISPATCHES_PER_RUN } from "../../config/teammate-caps";
 import type { Caps, GoalState } from "./caps";
 
-/* Pure policy of `Orchestrate create_plan`: may the lead store a plan now? Same caps as a dispatch (a plan is one start). */
+/* Pure policy of `Orchestrate create_plan`: may the teammate store a plan now? Same caps as a dispatch (a plan is one start). */
 
 /** Refusal codes, checked in this order. */
 type PlanRequestRefusal = "ONE_PER_RUN" | "CHAIN_CAP" | "GOAL_OPEN" | "BAD_TASK";
@@ -27,7 +27,10 @@ export function checkPlanRequest(
   caps: Caps,
 ): PlanRequestCheck {
   if (caps.dispatchedThisRun >= DISPATCHES_PER_RUN)
-    return refuse("ONE_PER_RUN", "One dispatch or plan request per lead run: wait for the result.");
+    return refuse(
+      "ONE_PER_RUN",
+      "One dispatch or plan request per teammate run: wait for the result.",
+    );
   if (req.goalId && req.goalId !== state.openGoalId)
     return refuse(
       "BAD_TASK",

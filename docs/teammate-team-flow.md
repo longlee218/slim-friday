@@ -1,7 +1,5 @@
 # Chief-of-staff Team Flow (diagrams)
 
-> Code names still use `lead` until the rename phase (`plans/261023-1139-persistent-teammates/phase-00-rename-lead-to-teammate.md`).
-
 Current code after the planner removal (2026-10-22). The chief-of-staff writes the plan itself; no planner role, no rolling waves. Source of truth: the code; prose in [system-architecture.md](system-architecture.md#chief-of-staff-orchestration). Plan: `plans/261022-1748-remove-planner-lead-plans/`.
 
 ## Contents
@@ -58,7 +56,7 @@ stateDiagram-v2
 ```
 
 - Item states (`pending`, `ready`, `running`, `waiting_user`, `blocked` = held, `completed`, `failed`, `cancelled`): [system-architecture.md, Goal and item model](system-architecture.md#goal-and-item-model).
-- Structure owner: `lead` for DIRECT / DELEGATE, `plan` for PLAN (set at `create_plan`). Code refuses the other path's writes.
+- Structure owner: `teammate` for DIRECT / DELEGATE, `plan` for PLAN (set at `create_plan`). Code refuses the other path's writes.
 - An empty PLAN goal (no items, no valid or approved version) is cancelled by the plan-expiry sweep after `2 x PENDING_PLAN_MAX_AGE_MS`.
 
 ## 3. Plan, revision and re-plan (same goal)

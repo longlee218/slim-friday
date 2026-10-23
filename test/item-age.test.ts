@@ -5,8 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ITEM_MAX_AGE_MS, STALE_AFTER_MS } from "../src/config/resilience-caps";
 import { createRetryPort } from "../src/orchestrator/goal/effect-port-retry";
-import type { LeadRuntime } from "../src/orchestrator/lead/lead-runtime";
 import { registerRun, runOfTask } from "../src/orchestrator/run/live-runs";
+import type { TeammateRuntime } from "../src/orchestrator/teammate/teammate-runtime";
 import { createRunLimiter } from "../src/orchestrator/turns/run-limiter";
 import {
   applyFailurePolicy,
@@ -38,10 +38,10 @@ afterEach(() => {
   db?.close();
 });
 
-const rtOf = (): { rt: LeadRuntime; woken: string[] } => {
+const rtOf = (): { rt: TeammateRuntime; woken: string[] } => {
   const woken: string[] = [];
   return {
-    rt: { deps: { db }, announce: (t: string) => void woken.push(t) } as unknown as LeadRuntime,
+    rt: { deps: { db }, announce: (t: string) => void woken.push(t) } as unknown as TeammateRuntime,
     woken,
   };
 };
@@ -52,7 +52,7 @@ function setup(status: string, turnAt: number[] = [], database?: Database) {
   insertOwnedTask(db, {
     id: "g",
     threadId: "th",
-    ownerRole: "lead",
+    ownerRole: "chief-of-staff",
     status: "open",
     scope: "g",
     correlationId: "c",
@@ -242,7 +242,7 @@ test("a held item cannot be started by anything but Orchestrate retry: a stale r
   const full = {
     deps: { db, limiter },
     relay: createQuestionRelay(db, () => {}),
-  } as unknown as LeadRuntime;
+  } as unknown as TeammateRuntime;
   expect(await startWorker(full, {} as never, "th", stale, () => {})).toBe(true); // skipped, nothing to retry later
   expect(limiter.active()).toBe(0); // slot given back
   expect(db.query("SELECT COUNT(*) AS n FROM turns WHERE owned_task_id = 'it'").get()).toEqual({
@@ -260,7 +260,7 @@ test("E-L11: a second hold of the same dispatch writes its own failure event", (
   setup("ready");
   const { rt, woken } = rtOf();
   expect(sweepItemAge(rt, T0 + 9 * H)).toBe(1);
-  // The lead retried (no new dispatch yet) and the item aged again: held a second time.
+  // The teammate retried (no new dispatch yet) and the item aged again: held a second time.
   moveTaskTo(db, "it", "ready");
   db.query("UPDATE owned_tasks SET result_kind = NULL, last_progress_at = ? WHERE id = 'it'").run(
     T0,

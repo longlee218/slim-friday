@@ -29,7 +29,7 @@ const actionsOf = (mod: Record<string, unknown>): string[] =>
 
 /** Skill folder -> the tool whose actions its `references/actions.md` documents. */
 const ACTION_TOOLS: Record<string, string[]> = {
-  "lead-orchestration": actionsOf(orchestrateNames),
+  "teammate-orchestration": actionsOf(orchestrateNames),
   "worker-reporting": actionsOf(reportNames),
 };
 
@@ -74,7 +74,7 @@ test("every action heading in a skill's references/actions.md is a real action, 
     expect(headings).toEqual(known as string[]);
     seen.push(d);
   }
-  expect(seen).toEqual(expect.arrayContaining(["lead-orchestration"]));
+  expect(seen).toEqual(expect.arrayContaining(["teammate-orchestration"]));
 });
 
 test("team-protocol names every TaskBoard action; worker skills never tell a worker to SaveArtifact", () => {

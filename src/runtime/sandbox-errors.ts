@@ -1,7 +1,7 @@
-/* A worker's OS sandbox is required (`failIfUnavailable`): when it cannot start, the run must fail loudly with a code the lead
+/* A worker's OS sandbox is required (`failIfUnavailable`): when it cannot start, the run must fail loudly with a code the teammate
    can read, never hang, retry in a loop or fall back to an unsandboxed shell. */
 
-/** Code of the failure; it leads the message the lead receives in the `failure` event. */
+/** Code of the failure; it leads the message the teammate receives in the `failure` event. */
 export const SANDBOX_UNAVAILABLE = "SANDBOX_UNAVAILABLE";
 
 /** Error text of the SDK / CLI when the required sandbox did not start (macOS Seatbelt, Linux bubblewrap, missing deps). */

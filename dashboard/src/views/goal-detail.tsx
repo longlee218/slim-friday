@@ -75,7 +75,7 @@ export function GoalDetail({ id, run }: { id: string; run: string | null }) {
             </div>
             <dl className="facts-line">
               <div><dt>Items</dt><dd>{goal.done}/{goal.items}</dd></div>
-              <div><dt>Cost</dt><dd>{usd(goal.worker_cost + goal.lead_cost)}</dd><small>lead {usd(goal.lead_cost)}</small></div>
+              <div><dt>Cost</dt><dd>{usd(goal.worker_cost + goal.teammate_cost)}</dd><small>teammate {usd(goal.teammate_cost)}</small></div>
               <div><dt>Runs</dt><dd>{turns.length}</dd></div>
               <div><dt>SDK turns</dt><dd>{turns.reduce((s, t) => s + (t.sdk_turns ?? 0), 0)}</dd></div>
               <div><dt>Tool calls</dt><dd>{toolCalls}</dd>{toolErrors > 0 && <small className="bad-text">{toolErrors} failed</small>}</div>

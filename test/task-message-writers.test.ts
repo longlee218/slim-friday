@@ -2,11 +2,11 @@ import type { Database } from "bun:sqlite";
 import { afterEach, expect, test } from "bun:test";
 import { createReportTool } from "../src/mcp/orchestration/tools/ReportTool/report-tool";
 import { createDbEffectPort } from "../src/orchestrator/goal/effect-port-db";
-import { handleDispatch } from "../src/orchestrator/lead/lead-handlers";
 import { ensureBriefMessage } from "../src/orchestrator/messages/brief-message";
 import { messageRef } from "../src/orchestrator/messages/message-ref";
 import { postItemMessage } from "../src/orchestrator/messages/task-messages";
 import { insertItem } from "../src/orchestrator/plan/verify-items";
+import { handleDispatch } from "../src/orchestrator/teammate/teammate-handlers";
 import { createQuestionRelay } from "../src/orchestrator/worker/question-relay";
 import type { ReportSink } from "../src/orchestrator/worker/report-sink";
 import { resumeWaiting } from "../src/orchestrator/worker/resume-waiting";
@@ -16,7 +16,7 @@ import { listTaskMessages } from "../src/storage/task-message-store";
 import { listUndelivered } from "../src/storage/thread-event-store";
 import { moveTaskTo } from "../src/tasks/task-resolver";
 
-/* The writers of the lead <-> worker exchange: every step lands as a task message; events point to it. */
+/* The writers of the teammate <-> worker exchange: every step lands as a task message; events point to it. */
 
 const TH = "th1";
 let db: Database;
@@ -36,7 +36,7 @@ async function setup(steer: "queued" | "none" = "queued") {
     },
   });
   const d = (await handleDispatch(
-    { port, threadId: TH, leadTurnId: "lt", inputId: "d", run: { dispatched: 0 } },
+    { port, threadId: TH, teammateTurnId: "lt", inputId: "d", run: { dispatched: 0 } },
     {
       strategy: "DELEGATE",
       small: true,
@@ -57,13 +57,13 @@ test("brief: written once per text, re-written only when the brief changes", asy
   const item = () => getItem(db, a) as NonNullable<ReturnType<typeof getItem>>;
   expect(ensureBriefMessage(db, item())).toBeNumber();
   expect(ensureBriefMessage(db, item())).toBeUndefined();
-  expect(msgs(a)).toEqual(["brief:lead"]);
+  expect(msgs(a)).toEqual(["brief:teammate"]);
   db.query("UPDATE owned_tasks SET brief = 'second brief' WHERE id = ?").run(a);
   ensureBriefMessage(db, item());
   expect(listTaskMessages(db, a).map((m) => m.text)).toEqual(["first brief", "second brief"]);
 });
 
-test("question -> lead answer (reply_to) with the event pointing to the messages", async () => {
+test("question -> teammate answer (reply_to) with the event pointing to the messages", async () => {
   const { goalId, a } = await setup();
   const relay = createQuestionRelay(db, () => {}, 5000);
   const ask = relay.forWorker({ threadId: TH, goalId, itemId: a, turnId: "u1", role: "developer" })(
@@ -83,10 +83,10 @@ test("question -> lead answer (reply_to) with the event pointing to the messages
   expect(ans).toMatchObject({ kind: "answer", author: "owner", replyTo: q?.id });
 });
 
-test("lead steer: a taken steer is a message, a steer to an ended task is not", async () => {
+test("teammate steer: a taken steer is a message, a steer to an ended task is not", async () => {
   const { port, a } = await setup();
   expect(port.steer(a, "use the cache")).toBe("queued");
-  expect(msgs(a)).toEqual(["steer:lead"]);
+  expect(msgs(a)).toEqual(["steer:teammate"]);
   const none = await setup("none");
   expect(none.port.steer(none.a, "late")).toBe("ended");
   expect(msgs(none.a)).toEqual([]);
@@ -111,7 +111,7 @@ test("retry note is a steer message; the retry event points to it", async () => 
   setResultKind(db, a, "FAILED");
   expect(port.retry(a, "check the lockfile")).toBe("ok");
   const [m] = listTaskMessages(db, a);
-  expect(m).toMatchObject({ kind: "steer", author: "lead", text: "check the lockfile" });
+  expect(m).toMatchObject({ kind: "steer", author: "teammate", text: "check the lockfile" });
   expect(listUndelivered(db, TH).find((e) => e.kind === "retry")?.payload).toMatchObject({
     messageId: messageRef(m?.id as number),
   });

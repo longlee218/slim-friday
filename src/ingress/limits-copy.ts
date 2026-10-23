@@ -10,14 +10,14 @@ import { SUBAGENT_CAPABILITIES } from "../tools/tool-catalog";
 /** Constant names per section (the section title is wording, the names are the code's own). */
 export const LIMIT_GROUPS = {
   pools: [
-    "LEAD_POOL_MAX",
-    "LEAD_WAITING_MAX",
+    "TEAMMATE_POOL_MAX",
+    "TEAMMATE_WAITING_MAX",
     "WORKER_POOL_MAX",
     "MAX_RUNNING_PER_THREAD",
     "WORKER_SLOT_NOTICE_MS",
     "WORKER_SLOT_RETRY_MS",
-    "LEAD_QUEUE_PER_THREAD",
-    "LEAD_DEBOUNCE_MS",
+    "TEAMMATE_QUEUE_PER_THREAD",
+    "TEAMMATE_DEBOUNCE_MS",
   ],
   budgets: [
     "TASK_BUDGET_USD",
@@ -51,8 +51,8 @@ export const LIMIT_GROUPS = {
 
 /** Live counters of the process (from the limiters and the db), read at the moment of the command. */
 export interface LiveState {
-  leadUsed: number;
-  leadWaiting: number;
+  teammateUsed: number;
+  teammateWaiting: number;
   workerUsed: number;
   /** Ready items kept waiting by a full worker pool. */
   readyWaiting: number;
@@ -156,10 +156,10 @@ function liveSection(
   const more = live.running.length - shown.length;
   return [
     t(language, "limits.live"),
-    t(language, "limits.leadPool", {
-      used: live.leadUsed,
-      cap: cap("LEAD_POOL_MAX"),
-      waiting: live.leadWaiting,
+    t(language, "limits.teammatePool", {
+      used: live.teammateUsed,
+      cap: cap("TEAMMATE_POOL_MAX"),
+      waiting: live.teammateWaiting,
     }),
     t(language, "limits.workerSlots", { used: live.workerUsed, cap: cap("WORKER_POOL_MAX") }),
     t(language, "limits.readyWaiting", { count: live.readyWaiting }),

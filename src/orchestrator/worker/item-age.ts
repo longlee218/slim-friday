@@ -4,14 +4,14 @@ import { agedItems } from "../../storage/item-age-store";
 import { getItem, setResultKind } from "../../storage/owned-item-store";
 import { appendEvent, holdCount } from "../../storage/thread-event-store";
 import { moveTaskTo } from "../../tasks/task-resolver";
-import type { LeadRuntime } from "../lead/lead-runtime";
 import { AUTHOR_SYSTEM } from "../messages/message-kinds";
 import { messageRef } from "../messages/message-ref";
 import { postItemMessage } from "../messages/task-messages";
 import { runOfTask } from "../run/live-runs";
+import type { TeammateRuntime } from "../teammate/teammate-runtime";
 import { clearHold } from "./resume-backoff";
 
-/* The item age limit: a goal item older than `ITEM_MAX_AGE_MS` (1 man-day) is held for the lead, who retries it (a fresh
+/* The item age limit: a goal item older than `ITEM_MAX_AGE_MS` (1 man-day) is held for the teammate, who retries it (a fresh
    window) or cancels it. A live run is aborted with cause `item_age` (the failure policy holds it as a REAL failure, no
    auto-resume); an item with no live run (ready, backoff, waiting for the owner) is held right here. */
 
@@ -20,7 +20,7 @@ const log = logger.child({ module: "item-age" });
 
 /** One sweep at `now`: abort or hold every item past the limit. Returns how many items it acted on. */
 export function sweepItemAge(
-  rt: LeadRuntime,
+  rt: TeammateRuntime,
   now = Date.now(),
   maxAgeMs = ITEM_MAX_AGE_MS,
 ): number {
@@ -47,7 +47,7 @@ export function sweepItemAge(
       id,
       AUTHOR_SYSTEM,
       "note",
-      `The app held this item: it ran past the age limit (${ageHours} h without a result). Waiting for the lead to retry or cancel.`,
+      `The app held this item: it ran past the age limit (${ageHours} h without a result). Waiting for the teammate to retry or cancel.`,
     );
     appendEvent(db, {
       id: `failure:${id}:${item.dispatchCount}:${holdCount(db, id)}`, // the count: a second hold is its own event
@@ -55,7 +55,7 @@ export function sweepItemAge(
       taskId: item.parentId,
       itemId: id,
       kind: "failure",
-      // Same shape as the end event of a held run (worker-end-event.ts), so the lead reads both alike.
+      // Same shape as the end event of a held run (worker-end-event.ts), so the teammate reads both alike.
       payload: {
         ...(messageId && { messageId: messageRef(messageId) }),
         key: item.itemKey,

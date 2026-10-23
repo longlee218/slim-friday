@@ -28,7 +28,7 @@ const ID_PREFIX_LEN = summaryPath("").length;
 const threadOfHit = (id: string): string => id.slice(ID_PREFIX_LEN, id.lastIndexOf("@"));
 
 /**
- * Per-turn "related earlier threads" block of the lead: the episode abstracts of the run's channel that best match the
+ * Per-turn "related earlier threads" block of the teammate: the episode abstracts of the run's channel that best match the
  * owner's text, from the FTS index only (no model call, no vectors).
  * Rules: no channel = nothing; the owner text needs `INJECT_MIN_TERMS` searchable terms; an episode must share that
  * many terms; the current thread's own episode is skipped; at most `INJECT_MAX_HITS` lines and `INJECT_MAX_CHARS`
@@ -70,7 +70,7 @@ export function relatedEpisodesBlock(
         EPISODE_ABSTRACT_CHARS,
       );
       // Shared-term rule: BM25 over OR terms returns one-word matches too. Terms are counted as whole TOKENS (same
-      // split and fold as the query) of the text that is SHOWN (title + abstract), so what the lead reads always
+      // split and fold as the query) of the text that is SHOWN (title + abstract), so what the teammate reads always
       // explains why the line is there ("ai" never matches "main"; a term found only deep in the summary does not count).
       const shown = new Set(queryTerms(`${label} ${abstract}`, Number.MAX_SAFE_INTEGER, Infinity));
       if (terms.filter((t) => shown.has(t)).length < INJECT_MIN_TERMS) continue;

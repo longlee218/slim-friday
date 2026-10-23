@@ -108,7 +108,7 @@ export const OPEN_ITEM = "('pending', 'ready', 'running', 'waiting_user', 'block
 
 /**
  * Id of the thread's newest goal of `ownerRole` (a goal = a row without a parent) with status `open` and at least
- * one unfinished item, or no item yet but created after `pendingPlansSince` (a PLAN goal whose plan waits for the owner or was rejected: the lead
+ * one unfinished item, or no item yet but created after `pendingPlansSince` (a PLAN goal whose plan waits for the owner or was rejected: the teammate
  * re-plans in it; older than the limit it is closed by the expiry sweep), or a plan waiting for the owner created after `pendingPlansSince`.
  */
 export function openGoalId(
@@ -174,7 +174,7 @@ export function bumpAttempt(db: Database, id: string): number {
   return getItem(db, id)?.attempt ?? 0;
 }
 
-/** Give an item a fresh automatic-resume budget (the lead's `Orchestrate retry`). */
+/** Give an item a fresh automatic-resume budget (the teammate's `Orchestrate retry`). */
 export function resetAttempt(db: Database, id: string): void {
   db.query("UPDATE owned_tasks SET attempt = 0 WHERE id = ?").run(id);
 }
@@ -196,7 +196,7 @@ export function runningGoalItems(db: Database): ItemRow[] {
 
 /**
  * A held item: any `blocked` item (a failed run, a budget hit, BLOCKED / NEEDS_PLANNING). It is stopped and waits for the
- * lead's `Orchestrate retry` or `Orchestrate cancel`; `resultKind` tells why (FAILED = a failure, else the worker's own report).
+ * teammate's `Orchestrate retry` or `Orchestrate cancel`; `resultKind` tells why (FAILED = a failure, else the worker's own report).
  */
 export const isHeld = (it: Pick<ItemRow, "status">): boolean => it.status === "blocked";
 

@@ -2,7 +2,7 @@ import { CREATE_PULL_REQUEST_TOOL } from "../../mcp/effects/tools/CreatePullRequ
 import { GIT_PUSH_TOOL } from "../../mcp/effects/tools/GitPushTool/constants";
 import { MERGE_BRANCH_TOOL } from "../../mcp/effects/tools/MergeBranchTool/constants";
 
-/* Types and limits of a work plan. A plan is DATA: the lead writes it through its tools, code validates it, the owner
+/* Types and limits of a work plan. A plan is DATA: the teammate writes it through its tools, code validates it, the owner
    approves it once, and the approved plan IS the envelope the run stays inside. */
 
 /** Risk classes of an item (R4 is never planned: it needs the owner at the moment of the act). */

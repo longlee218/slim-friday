@@ -10,11 +10,11 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
-import { REGISTER_LOCATION_SHAPE } from "../src/orchestrator/lead/lead-schemas";
+import { REGISTER_LOCATION_SHAPE } from "../src/orchestrator/teammate/teammate-schemas";
 import { defaultProjectPath, slugify } from "../src/workspaces/default-project-path";
 import { loadWorkspaces } from "../src/workspaces/workspace-registry";
 import { makeEnv, tempDirs } from "./helpers";
-import { type Call, leadHarness, until } from "./lead-harness";
+import { type Call, teammateHarness, until } from "./teammate-harness";
 
 /* register_location create:true without a path: the new project goes under the channel's (else the workspace's) default projectsDir. */
 
@@ -46,12 +46,12 @@ function setDirs(env: ReturnType<typeof makeEnv>, dirs: { ws?: string; channel?:
   writeFileSync(file, Bun.YAML.stringify(doc));
 }
 
-/** Run one register_location call as the lead and return its reply. */
+/** Run one register_location call as the teammate and return its reply. */
 async function register(env: ReturnType<typeof makeEnv>, input: object, say: string) {
   let reg: any;
-  const h = leadHarness(
+  const h = teammateHarness(
     async (c: Call) => {
-      if (c.kind === "lead") reg = await c.orchestrate("register_location", input);
+      if (c.kind === "teammate") reg = await c.orchestrate("register_location", input);
       return "ok";
     },
     env,

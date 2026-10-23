@@ -8,7 +8,7 @@ import { TASK_BOARD_ACTIONS } from "../src/mcp/orchestration/tools/TaskBoardTool
 
 const names = (table: { name: string }[]) => table.map((a) => a.name).sort();
 
-test("Orchestrate (lead) holds the 13 spec actions, set_title included", () => {
+test("Orchestrate (teammate) holds the 13 spec actions, set_title included", () => {
   expect(names(ORCHESTRATE_ACTIONS)).toEqual(
     [
       "dispatch",
@@ -37,7 +37,7 @@ test("Report (worker) holds the 3 spec actions", () => {
 });
 
 test("a run without a rename port is not offered set_title, and calling it is BAD_ACTION", async () => {
-  const tool = createOrchestrateTool({ lead: {} as never, titleCalls: { n: 0 } });
+  const tool = createOrchestrateTool({ teammate: {} as never, titleCalls: { n: 0 } });
   expect(tool.description).not.toContain("set_title");
   const r = await tool.handler({ action: "set_title", params: {} } as never, {});
   expect(JSON.parse((r.content[0] as { text: string }).text)).toMatchObject({ code: "BAD_ACTION" });

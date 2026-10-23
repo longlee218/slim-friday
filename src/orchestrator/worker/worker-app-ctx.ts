@@ -4,11 +4,11 @@ import type { OwnerLanguage } from "../../ingress/user-copy";
 import { spawnRunner } from "../../locations/git-run";
 import { ownerConfirm } from "../../owner-approval/owner-confirm";
 import type { DispatchEnvelope } from "../../policy/envelope";
-import type { LeadRuntime, LeadThreadCtx } from "../lead/lead-runtime";
-import { artifactCtx, locationRefs } from "../lead/thread-tool-ctx";
 import { messageRef } from "../messages/message-ref";
 import { postTaskMessage } from "../messages/task-messages";
 import type { RoleRunInput } from "../run/role-run-types";
+import type { TeammateRuntime, TeammateThreadCtx } from "../teammate/teammate-runtime";
+import { artifactCtx, locationRefs } from "../teammate/thread-tool-ctx";
 import type { ReportSink } from "./report-sink";
 import { setProgress, withWaiting } from "./run-activity";
 
@@ -27,12 +27,12 @@ interface WorkerToolScope {
 }
 
 /**
- * The ctx parts of a worker's MCP tools; its role's `mcpTools` picks which it gets (a worker has no `lead` part, so
- * it can never hold a lead tool).
+ * The ctx parts of a worker's MCP tools; its role's `mcpTools` picks which it gets (a worker has no `teammate` part, so
+ * it can never hold a teammate tool).
  */
 export function workerAppCtx(
-  rt: LeadRuntime,
-  ctx: LeadThreadCtx,
+  rt: TeammateRuntime,
+  ctx: TeammateThreadCtx,
   s: WorkerToolScope,
 ): NonNullable<RoleRunInput["appCtx"]> {
   const { db } = rt.deps;

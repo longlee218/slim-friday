@@ -3,7 +3,6 @@ import { readFileSync } from "node:fs";
 import { PLACEHOLDER } from "../src/config/agent-config";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { makeEnv, TEST_CHANNEL } from "./helpers";
-import { sleep, until, workersDone } from "./lead-harness";
 import {
   forceText,
   loadResearchCases,
@@ -13,16 +12,17 @@ import {
   type Verdict,
   verdictOf,
 } from "./researcher-eval-support";
+import { sleep, until, workersDone } from "./teammate-harness";
 
 /*
  * PAID opt-in eval of the researcher (web research): runs only with RESEARCHER_EVAL=1 (alias SCOUT_EVAL=1, the name before
  * the scout/researcher split) and a real CLAUDE_CODE_OAUTH_TOKEN (never by default). Each case sends one research question
- * to a fresh db, the REAL lead and the REAL researcher (web calls included). Scored per case: the researcher completed, its
+ * to a fresh db, the REAL teammate and the REAL researcher (web calls included). Scored per case: the researcher completed, its
  * report cites at least one URL, and each cited URL resolves (HTTP < 400). Cost and latency are printed. A report, not a
  * gate: `RESEARCHER_EVAL_MIN` (default 0.7) is the pass rate of cases that completed with at least one resolving URL, over
- * the DISPATCHED cases; `RESEARCHER_EVAL_ONLY` (a case id prefix, e.g. `quick`) limits the run. A lead answer without a
+ * the DISPATCHED cases; `RESEARCHER_EVAL_ONLY` (a case id prefix, e.g. `quick`) limits the run. A teammate answer without a
  * worker is `routed-direct` (fine for an `expect: "either"` case) or MISS (a case with `expect: "dispatch"`); the dispatch
- * rate is reported apart from the pass rate. `RESEARCHER_EVAL_FORCE=1` makes the first message ask the lead for a research
+ * rate is reported apart from the pass rate. `RESEARCHER_EVAL_FORCE=1` makes the first message ask the teammate for a research
  * worker, so researcher quality is measured independently of routing. Each RESEARCHER_EVAL_* env has a SCOUT_EVAL_* alias.
  * Compare search setups by running twice: with and without the hosted search key in the environment.
  */
@@ -46,7 +46,7 @@ async function resolves(url: string): Promise<boolean> {
   }
 }
 
-describe.skipIf(!live)("researcher set (real lead and researcher)", () => {
+describe.skipIf(!live)("researcher set (real teammate and researcher)", () => {
   test("researchers complete, cite resolving URLs, within cost and time", async () => {
     const { query } = await import("@anthropic-ai/claude-agent-sdk");
     const only = evalEnv("_ONLY") ?? "";
@@ -70,15 +70,15 @@ describe.skipIf(!live)("researcher set (real lead and researcher)", () => {
         threadId: `eval-${c.id}`,
         text: force ? forceText(c.text) : c.text,
       });
-      // The lead may answer alone (no dispatch): give a dispatch 60 s to appear, else skip the worker wait.
+      // The teammate may answer alone (no dispatch): give a dispatch 60 s to appear, else skip the worker wait.
       const dispatched = await until(
-        () => !!env.db.query("SELECT 1 FROM turns WHERE role != 'lead'").get(),
+        () => !!env.db.query("SELECT 1 FROM turns WHERE role != 'chief-of-staff'").get(),
         60_000,
       ).then(
         () => true,
         () => false,
       );
-      // The researcher starts after the lead's run: wait for it, then for every run to end.
+      // The researcher starts after the teammate's run: wait for it, then for every run to end.
       if (dispatched) await workersDone(env.db, 600_000).catch(() => {});
       await until(
         () => !env.db.query("SELECT 1 FROM turns WHERE status = 'running'").get(),
@@ -95,7 +95,7 @@ describe.skipIf(!live)("researcher set (real lead and researcher)", () => {
       const line = `${verdict} ${c.id}: dispatched=${dispatched} completed=${out.completed} urls=${ok}/${urls.length} $${out.costUsd.toFixed(3)} ${Math.round(out.durationMs / 1000)}s`;
       lines.push(line);
       process.stderr.write(`${line}\n`); // streamed per case: a long run shows progress
-      // No db.close(): the lead's announcer timers of this handler may still fire and read the db ("closed database"
+      // No db.close(): the teammate's announcer timers of this handler may still fire and read the db ("closed database"
       // would fail the whole file). The temp home is removed after the file by the preload.
     }
     const s = summarize(rows);

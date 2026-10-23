@@ -6,13 +6,13 @@ import { ROLES } from "../src/roles/role-registry";
 import type { RoleDefinition } from "../src/roles/role-types";
 import { insertTurn } from "../src/storage/run-store";
 import { initMsg, makeEnv, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
-import { devLeadQuery, workersDone } from "./lead-harness";
+import { devTeammateQuery, workersDone } from "./teammate-harness";
 
 /** A role invented in the test: data only, no engine code behind it (read-only, foreground). */
 const PROBE: RoleDefinition = {
   name: "probe-reviewer",
   whenToUse: "test only",
-  kind: "lead",
+  kind: "teammate",
   limits: { maxAsk: 3, maxTurns: 20 },
   subagents: { parallel: 3, depth: 1 },
   sideEffects: "none",
@@ -34,7 +34,7 @@ async function runProbe(role: RoleDefinition) {
       threadId: "th",
       source: "test",
       location: "location",
-      role: "lead",
+      role: "chief-of-staff",
     });
     const res = await runRole(
       {
@@ -95,8 +95,8 @@ test("a dev worker is a role run by the same engine: its turn leaves a runs row"
   await createTurnHandler({
     db: env.db,
     config: env.config,
-    queryFn: devLeadQuery(queryFn),
-    leadTiming: { debounceMs: 10, announceWindowMs: 20 },
+    queryFn: devTeammateQuery(queryFn),
+    teammateTiming: { debounceMs: 10, announceWindowMs: 20 },
   })({
     source: "t",
     channelId: TEST_CHANNEL,
@@ -107,7 +107,7 @@ test("a dev worker is a role run by the same engine: its turn leaves a runs row"
   await workersDone(env.db);
   const task = env.db
     .query<{ id: string; role: string }, [string]>(
-      "SELECT id, role FROM turns WHERE thread_id = ? AND role != 'lead'",
+      "SELECT id, role FROM turns WHERE thread_id = ? AND role != 'chief-of-staff'",
     )
     .get("th-dev");
   expect(task?.role).toBe("developer");

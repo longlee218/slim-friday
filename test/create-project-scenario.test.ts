@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createProject } from "../src/workspaces/create-project";
 import { makeEnv, tempDirs } from "./helpers";
-import { type Call, leadHarness, until } from "./lead-harness";
+import { type Call, teammateHarness, until } from "./teammate-harness";
 
 /* Orchestrate register_location with create: true. The temp dir stands in for $HOME (os.homedir reads HOME); git identity from env. */
 
@@ -33,7 +33,7 @@ afterEach(() => {
   Object.assign(process.env, SAVED);
 });
 
-/** Lead script: ask_owner select (the answer is the path), then register_location create, then dispatch to the new location. */
+/** Teammate script: ask_owner select (the answer is the path), then register_location create, then dispatch to the new location. */
 function createFlow(_path: string, out: { ask?: any; reg?: any; dispatch?: any }) {
   return async (c: Call) => {
     if (c.kind === "worker") {
@@ -74,7 +74,7 @@ test("answer is the approval: created, committed, registered, dispatchable in th
   const path = join(base, "newapp");
   const out: { ask?: any; reg?: any; dispatch?: any } = {};
   let asked = 0;
-  const h = leadHarness(createFlow(path, out), env, {
+  const h = teammateHarness(createFlow(path, out), env, {
     askChoice: async () => {
       asked++;
       return "~/newapp";
@@ -95,9 +95,10 @@ test("path the owner never wrote or chose is refused and nothing is created", as
   const env = makeEnv();
   const path = join(base, "sneaky");
   let reg: any;
-  const h = leadHarness(
+  const h = teammateHarness(
     async (c: Call) => {
-      if (c.kind === "lead") reg = await c.orchestrate("register_location", { path, create: true });
+      if (c.kind === "teammate")
+        reg = await c.orchestrate("register_location", { path, create: true });
       return "ok";
     },
     env,
@@ -113,9 +114,10 @@ test("the owner's message alone is enough for an owner-typed path (no ask_owner)
   const env = makeEnv();
   const path = join(base, "msgonly");
   let reg: any;
-  const h = leadHarness(
+  const h = teammateHarness(
     async (c: Call) => {
-      if (c.kind === "lead") reg = await c.orchestrate("register_location", { path, create: true });
+      if (c.kind === "teammate")
+        reg = await c.orchestrate("register_location", { path, create: true });
       return "ok";
     },
     env,
@@ -133,9 +135,9 @@ test("a failed or repeated create does not block the next one in the run", async
   const b = join(base, "b");
   const replies: any[] = [];
   const answers = [a, b];
-  const h = leadHarness(
+  const h = teammateHarness(
     async (c: Call) => {
-      if (c.kind === "lead") {
+      if (c.kind === "teammate") {
         for (const p of [a, b]) {
           await c.orchestrate("ask_owner", {
             kind: "select",

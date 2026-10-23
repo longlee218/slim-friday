@@ -7,7 +7,7 @@ import { lastMessageOf } from "../../storage/task-message-store";
 import { appendEvent } from "../../storage/thread-event-store";
 import { closePendingPlans } from "../../storage/work-plan-store";
 import { moveTaskTo } from "../../tasks/task-resolver";
-import { AUTHOR_LEAD } from "../messages/message-kinds";
+import { AUTHOR_TEAMMATE } from "../messages/message-kinds";
 import { messageRef } from "../messages/message-ref";
 import { postItemMessage } from "../messages/task-messages";
 import { runOfTask } from "../run/live-runs";
@@ -36,7 +36,7 @@ import { createTaskPort } from "./effect-port-tasks";
 
 /* The real EffectPort: db reads and writes are here; the IO that needs Discord or a live run is injected. */
 
-/** IO the db cannot do itself (wired by the lead runner). */
+/** IO the db cannot do itself (wired by the teammate runner). */
 export interface PortIo {
   /** Push text into a task's live run: the steer registry's `steerTask` result (`none` = no run takes it). */
   steerTask(taskId: string, text: string): "queued" | "held" | "full" | "none";
@@ -46,7 +46,7 @@ export interface PortIo {
   post(p: Post): Promise<void>;
 }
 
-/** What the port is built from (per lead run). */
+/** What the port is built from (per teammate run). */
 export interface PortDeps {
   db: Database;
   threadId: string;
@@ -58,7 +58,7 @@ export interface PortDeps {
   artifacts?: ArtifactToolCtx;
 }
 
-/** Create the db-backed port of one lead run on one thread. */
+/** Create the db-backed port of one teammate run on one thread. */
 export function createDbEffectPort(d: PortDeps): EffectPort {
   const { db, threadId } = d;
   const mine = (id: string): boolean => threadOfTask(db, id) === threadId;
@@ -86,7 +86,7 @@ export function createDbEffectPort(d: PortDeps): EffectPort {
         ...(e.goalId && { goalId: e.goalId }),
         ...(e.itemId && { itemId: e.itemId }),
         tool: e.tool,
-        scope: e.scope ?? "lead tool call",
+        scope: e.scope ?? "teammate tool call",
         grantedBy: e.grantedBy ?? "role",
         result: e.reply,
         ...(e.createdAt !== undefined && { createdAt: e.createdAt }),
@@ -129,14 +129,15 @@ export function createDbEffectPort(d: PortDeps): EffectPort {
     appendEvent: (e) => appendEvent(db, { ...e, threadId }),
     steer: (taskId, text): SteerReply => {
       if (pendingQuestionOf(db, taskId) && d.io.answerPending?.(taskId, text)) return "answered";
-      // A `waiting_user` item has no run: the lead's answer re-queues it (the lead's own answer event is no news).
-      if (resumeWaiting(db, taskId, text, "lead")) return "resumed";
+      // A `waiting_user` item has no run: the teammate's answer re-queues it (the teammate's own answer event is no news).
+      if (resumeWaiting(db, taskId, text, "teammate")) return "resumed";
       const r = d.io.steerTask(taskId, text);
-      if (r === "queued" || r === "held") postItemMessage(db, taskId, AUTHOR_LEAD, "steer", text); // only a steer that was taken
+      if (r === "queued" || r === "held")
+        postItemMessage(db, taskId, AUTHOR_TEAMMATE, "steer", text); // only a steer that was taken
       return r === "none" ? "ended" : r;
     },
     cancel: (taskId) => {
-      const held = cancelHeld(db, taskId); // a held failure the lead gives up: failed + dependents cancelled
+      const held = cancelHeld(db, taskId); // a held failure the teammate gives up: failed + dependents cancelled
       if (held) return held;
       const { all, moved } = markCancelled(taskId);
       abortRuns(all);

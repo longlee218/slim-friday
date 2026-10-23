@@ -1,0 +1,89 @@
+import { describe, expect, test } from "bun:test";
+import { PLACEHOLDER } from "../src/config/agent-config";
+import { createTurnHandler } from "../src/orchestrator/handle-message";
+import { initMsg, makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
+import { isTeammateRun } from "./mcp-run-probe";
+import { decisionOf, loadGolden, matches } from "./teammate-golden-support";
+import { sleep, until } from "./teammate-harness";
+
+/*
+ * PAID opt-in eval of the teammate: runs only with TEAMMATE_EVAL=1 and a real CLAUDE_CODE_OAUTH_TOKEN (never by default).
+ * Each case sends one owner message to a fresh db and the REAL teammate; worker and planner runs are faked (no paid worker
+ * run). The teammate's recorded decision (effect_log + owned_tasks) is scored against the expected strategy and roles.
+ * A report, not a gate: the owner runs it after a teammate prompt or model change. `TEAMMATE_EVAL_MIN` (default 0.8) is the pass rate; `TEAMMATE_EVAL_ONLY` (a case id prefix, e.g. `research`) limits the run.
+ * `TEAMMATE_EVAL_REPEAT=N` (default 1) runs every case N times and prints pass k/N per case, so an unstable case shows; the
+ * score is the mean pass rate over all runs.
+ */
+const token = process.env.CLAUDE_CODE_OAUTH_TOKEN;
+const live = process.env.TEAMMATE_EVAL === "1" && !!token && token !== PLACEHOLDER;
+if (!live)
+  process.stderr.write(
+    "SKIP teammate golden eval: needs TEAMMATE_EVAL=1 and a real CLAUDE_CODE_OAUTH_TOKEN\n",
+  );
+
+describe.skipIf(!live)("teammate golden set (real teammate, fake workers)", () => {
+  test("the teammate's decisions match the expected strategy and roles", async () => {
+    const { query } = await import("@anthropic-ai/claude-agent-sdk");
+    const misses: string[] = [];
+    const only = process.env.TEAMMATE_EVAL_ONLY ?? "";
+    const cases = loadGolden().filter((c) => c.id.startsWith(only));
+    const repeat = Math.max(1, Number(process.env.TEAMMATE_EVAL_REPEAT ?? 1));
+    const passes = new Map<string, number>(); // case id -> passing runs
+    for (const [i, c] of cases.flatMap((c) =>
+      Array.from({ length: repeat }, (_, r) => [r, c] as const),
+    )) {
+      const env = makeEnv({ CLAUDE_CODE_OAUTH_TOKEN: token!, TIMEOUT_MS: "90000" });
+      // Teammate runs go to the real SDK; any other run (worker, planner) is a stub that ends at once.
+      const queryFn = (a: { prompt: unknown; options?: { mcpServers?: object } }) =>
+        isTeammateRun(a.options)
+          ? query(a as never)
+          : (async function* () {
+              yield initMsg;
+              yield resultMsg({ result: "stub", total_cost_usd: 0 });
+            })();
+      const handle = createTurnHandler({
+        db: env.db,
+        config: env.config,
+        queryFn: queryFn as never,
+        // No announce wake: a stub worker's end must not start a second paid teammate run.
+        teammateTiming: { announceWindowMs: 3_600_000 },
+        post: async () => {},
+      });
+      await handle({
+        source: "test",
+        channelId: TEST_CHANNEL,
+        userId: "owner",
+        threadId: `eval-${c.id}-${i}`,
+        text: c.text,
+      });
+      // The teammate run starts after the queue's debounce: wait for its turn row, then for it to end.
+      await until(
+        () => !!env.db.query("SELECT 1 FROM turns WHERE role = 'chief-of-staff'").get(),
+        30_000,
+      );
+      await until(
+        () =>
+          !env.db
+            .query("SELECT 1 FROM turns WHERE role = 'chief-of-staff' AND status = 'running'")
+            .get(),
+        120_000,
+      );
+      await sleep(500); // writes of the last tool call settle
+      const got = decisionOf(env.db);
+      if (!matches(c, got))
+        misses.push(
+          `${c.id}#${i}: expected ${c.strategy}[${c.roles}] got ${got.strategy}[${got.roles}]`,
+        );
+      else passes.set(c.id, (passes.get(c.id) ?? 0) + 1);
+      env.db.close();
+    }
+    const total = cases.length * repeat;
+    const perCase = cases.map((c) => `${c.id}: ${passes.get(c.id) ?? 0}/${repeat}`).join("\n");
+    process.stderr.write(
+      `teammate golden: ${total - misses.length}/${total} (repeat ${repeat})\n${perCase}\n${misses.join("\n")}\n`,
+    );
+    expect(1 - misses.length / total).toBeGreaterThanOrEqual(
+      Number(process.env.TEAMMATE_EVAL_MIN ?? 0.8),
+    );
+  }, 3_600_000);
+});

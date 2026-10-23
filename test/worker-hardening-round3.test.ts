@@ -15,7 +15,7 @@ import { SANDBOX_UNAVAILABLE, SandboxUnavailableError } from "../src/runtime/san
 import { sdkEnv } from "../src/runtime/sdk-env";
 import { workerSandbox } from "../src/runtime/worker-sandbox";
 import { makeEnv, resultMsg } from "./helpers";
-import { leadHarness, until } from "./lead-harness";
+import { teammateHarness, until } from "./teammate-harness";
 import { cleanupTmp, tmpRoot } from "./tmp-dirs";
 
 afterAll(cleanupTmp);
@@ -162,9 +162,9 @@ test("a sandbox that cannot start fails the run with SANDBOX_UNAVAILABLE (thrown
   expect(other).not.toBeInstanceOf(SandboxUnavailableError);
 });
 
-test("the lead hears a `failure` event naming SANDBOX_UNAVAILABLE; the worker is not retried", async () => {
+test("the teammate hears a `failure` event naming SANDBOX_UNAVAILABLE; the worker is not retried", async () => {
   let announced = "";
-  const h = leadHarness(async (c) => {
+  const h = teammateHarness(async (c) => {
     if (c.kind === "worker") throw new Error("sandbox-exec: sandbox could not be started");
     if (c.prompt.includes("<owner_message>")) {
       await c.orchestrate("dispatch", {

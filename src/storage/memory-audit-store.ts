@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite";
 
-/* Audit trail of the lead's memory writes (`memory_audit`). Rows carry a bullet hash, never text. SQL lives here only. */
+/* Audit trail of the teammate's memory writes (`memory_audit`). Rows carry a bullet hash, never text. SQL lives here only. */
 
 /** What a write did. */
 export type MemoryAuditAction = "save" | "edit_delete" | "edit_replace";

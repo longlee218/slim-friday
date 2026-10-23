@@ -6,7 +6,7 @@ import {
 } from "../config/memory-caps";
 import { logEvent, logger } from "../observability/logger";
 import { errText, redactText } from "../observability/redact";
-import { LEAD_ROLE } from "../roles/builtin/lead-role";
+import { CHIEF_OF_STAFF_ROLE } from "../roles/builtin/chief-of-staff-role";
 import { EPISODE_SYSTEM } from "../roles/prompts/memory-prompts";
 import { type IdleThread, idleThreads, threadFacts } from "../storage/episode-store";
 import {
@@ -42,14 +42,14 @@ export interface IdleEpisodeDeps {
   signal?: AbortSignal;
   /**
    * Threads to leave alone for now (thread id -> `lastTurnStartedAt` when it failed or had no new facts): a thread that
-   * keeps failing or has nothing to say must not hold the batch slots of newer ones. A new lead turn lifts it. Kept by
+   * keeps failing or has nothing to say must not hold the batch slots of newer ones. A new teammate turn lifts it. Kept by
    * the caller for the life of the process; a fresh map per call when absent.
    */
   skip?: Map<string, number>;
 }
 
 /**
- * Summary text of one idle thread. A compaction summary written inside or after the newest lead turn already covers
+ * Summary text of one idle thread. A compaction summary written inside or after the newest teammate turn already covers
  * it: reused, no model call (`reused`). Otherwise one model call over the earlier episode plus the db facts since; a model
  * error or an empty reply falls back to the facts text itself (extractive, so a failing model cannot make the
  * same threads eligible forever). Returns "aborted" when the call was aborted by
@@ -61,7 +61,7 @@ async function summaryOf(
 ): Promise<{ text: string; reused: boolean } | "aborted" | "empty"> {
   if (t.summary !== "" && t.episodeAt >= t.lastTurnStartedAt)
     return { text: t.summary, reused: true };
-  const facts = threadFacts(d.db, t.threadId, LEAD_ROLE.name, t.episodeAt);
+  const facts = threadFacts(d.db, t.threadId, CHIEF_OF_STAFF_ROLE.name, t.episodeAt);
   if (facts === "") return "empty";
   // The earlier episode (when any) leads the input, so the new text keeps what it said; the newest end is kept when clipped.
   const before = t.summary ? `Earlier episode:\n${t.summary}\n\n` : "";
@@ -79,10 +79,10 @@ async function summaryOf(
 }
 
 /**
- * Write the episode of every idle thread (lead idle for `EPISODE_IDLE_MS`, nothing running, new lead work since the
+ * Write the episode of every idle thread (teammate idle for `EPISODE_IDLE_MS`, nothing running, new teammate work since the
  * last episode), at most `EPISODE_MAX_PER_TICK` per call, oldest first, one after the other. Saves through
  * `saveSummary` (redacted, abstract, topics; logs `memory.episode`) and indexes the row. A thread that fails is
- * logged and skipped. A thread with no mapped channel is skipped (no row, no model call). A thread that fails or has no new facts goes on the `skip` map until its next lead turn. Returns how many episodes were written. Never throws.
+ * logged and skipped. A thread with no mapped channel is skipped (no row, no model call). A thread that fails or has no new facts goes on the `skip` map until its next teammate turn. Returns how many episodes were written. Never throws.
  */
 export async function writeIdleEpisodes(d: IdleEpisodeDeps): Promise<number> {
   const now = d.now?.() ?? Date.now();
@@ -96,7 +96,7 @@ export async function writeIdleEpisodes(d: IdleEpisodeDeps): Promise<number> {
     // Over-fetch by the skip list, so skipped threads never use up the batch.
     const threads = idleThreads(
       d.db,
-      LEAD_ROLE.name,
+      CHIEF_OF_STAFF_ROLE.name,
       now - EPISODE_IDLE_MS,
       EPISODE_MAX_PER_TICK + skip.size,
     )

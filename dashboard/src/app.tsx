@@ -60,7 +60,7 @@ export function App() {
     const ms = WINDOWS.find(([k]) => k === win)![1];
     return ms ? Date.now() - ms : 0;
   }, [win]);
-  const meta = useApi<{ db: string; leadCostCumulative: boolean }>("meta");
+  const meta = useApi<{ db: string; teammateCostCumulative: boolean }>("meta");
   const [section = "goals", id] = route.parts;
   const run = route.query.get("run");
   const timeless = section === "prompts";
@@ -108,10 +108,10 @@ export function App() {
             )}
           </div>
           <div className={`content${section === "prompts" ? " wide" : ""}`}>
-            {section === "cost" && meta.data?.leadCostCumulative && (
+            {section === "cost" && meta.data?.teammateCostCumulative && (
               <p className="note" role="note">
                 <Icon name="warn" size={14} />
-                Lead cost reads high: runs before 2026-10-22 18:31 store the session total. They age out with the db retention.
+                Teammate cost reads high: runs before 2026-10-22 18:31 store the session total. They age out with the db retention.
               </p>
             )}
             {section === "goals" && (id ? <GoalDetail id={id} run={run} /> : <GoalsList />)}

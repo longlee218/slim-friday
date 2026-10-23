@@ -188,7 +188,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     maxTurnsHit: outcome === "max_turns",
     durationMs: Date.now() - startedAt,
   });
-  // Every role with skills, the lead too (not only workers): its skill calls must be visible in the log.
+  // Every role with skills, the teammate too (not only workers): its skill calls must be visible in the log.
   // Preloaded skills are already in the system prompt (never called), so they are not counted as available.
   const preloaded = new Set(role.preloadSkills ?? []);
   const callable = sk.skills.filter((s) => !preloaded.has(s));

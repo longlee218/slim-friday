@@ -1,4 +1,4 @@
-import { CHAIN_CAP, DELEGATE_MAX } from "../../config/lead-caps";
+import { CHAIN_CAP, DELEGATE_MAX } from "../../config/teammate-caps";
 import {
   ORCHESTRATE_ACTION_ADD,
   orchestrateRef,
@@ -10,7 +10,7 @@ import { assertStructureOwner } from "../plan/structure-owner";
 import type { PolicyEnv } from "./caps";
 import type { ItemDraft } from "./dispatch-policy";
 
-/* Pure policy of `Orchestrate add` and `Orchestrate update`: whether code allows a change to the lead's open goal.
+/* Pure policy of `Orchestrate add` and `Orchestrate update`: whether code allows a change to the teammate's open goal.
    No db, no clock. The first failing rule wins, in the order below. */
 
 /** Statuses of an item that ended without a result: nothing may wait for it. */
@@ -80,7 +80,7 @@ function checkWho(env: PolicyEnv, role?: string, location?: string): Refusal | u
   return undefined;
 }
 
-/** `Orchestrate add`: the item the lead wants in the goal -> the draft to write, or a refusal. */
+/** `Orchestrate add`: the item the teammate wants in the goal -> the draft to write, or a refusal. */
 export function checkAdd(
   f: GoalView,
   a: Omit<ItemDraft, "status">,
@@ -102,7 +102,7 @@ export function checkAdd(
     return fail(
       no(
         "NEEDS_PLAN",
-        `A goal the lead builds holds up to ${DELEGATE_MAX} tasks: a bigger one needs a plan (call Orchestrate create_plan).`,
+        `A goal the teammate builds holds up to ${DELEGATE_MAX} tasks: a bigger one needs a plan (call Orchestrate create_plan).`,
       ),
     );
   if (f.chainCount + 1 > CHAIN_CAP)

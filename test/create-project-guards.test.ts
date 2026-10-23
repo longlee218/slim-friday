@@ -11,14 +11,14 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
-import type { LeadPlace } from "../src/orchestrator/lead/lead-call";
-import { handleRegisterLocation } from "../src/orchestrator/lead/lead-location-handler";
+import type { TeammatePlace } from "../src/orchestrator/teammate/teammate-call";
+import { handleRegisterLocation } from "../src/orchestrator/teammate/teammate-location-handler";
 import { createWorkspaceDir } from "../src/providers/discord/setup/workspace-template";
 import { createProject } from "../src/workspaces/create-project";
 import { inspectLocation } from "../src/workspaces/location-candidate";
 import { registerLocation } from "../src/workspaces/register-location";
 import { tempDirs } from "./helpers";
-import { FakePort, leadCtx } from "./lead-fake-port";
+import { FakePort, teammateCtx } from "./teammate-fake-port";
 
 /* Guards of `register_location create: true` not covered by create-project-scenario.test.ts: a path inside an existing
    location, a git failure rolls back only what the call made, a NUL byte, and an announce run never creates. */
@@ -121,7 +121,7 @@ test("a path that appears between the guard and mkdir (not empty) is PATH_EXISTS
 
 test("a create that cannot be registered removes the dir it made", async () => {
   const port = new FakePort();
-  const ctx = leadCtx(port);
+  const ctx = teammateCtx(port);
   const target = join(base, "orphan");
   // No workspace "w" exists, so the register step fails after the project was created.
   ctx.place = {
@@ -132,7 +132,7 @@ test("a create that cannot be registered removes the dir it made", async () => {
     trigger: "owner",
     ownerText: `make ${target}`,
     refresh: () => {},
-  } as LeadPlace;
+  } as TeammatePlace;
   ctx.run.ownerAnswers = [target];
   const r = await handleRegisterLocation(ctx, { path: target, create: true }, base);
   expect(r).toMatchObject({ ok: false });
@@ -148,7 +148,7 @@ test("a path with a NUL byte is BAD_PATH and nothing is created", async () => {
 
 test("an announce run (worker text) with create: true is NOT_OWNER_TURN: nothing asked, nothing created", async () => {
   const port = new FakePort();
-  const ctx = leadCtx(port);
+  const ctx = teammateCtx(port);
   const target = join(base, "fromworker");
   ctx.place = {
     home,
@@ -159,7 +159,7 @@ test("an announce run (worker text) with create: true is NOT_OWNER_TURN: nothing
     // The worker's text names the path: only the trigger check may refuse it (the owner-words check would pass).
     ownerText: `create ${target}`,
     refresh: () => {},
-  } as LeadPlace;
+  } as TeammatePlace;
   const r = await handleRegisterLocation(ctx, { path: target, create: true }, base);
   expect(r).toMatchObject({ ok: false, code: "NOT_OWNER_TURN" });
   expect(port.asked).toEqual([]);

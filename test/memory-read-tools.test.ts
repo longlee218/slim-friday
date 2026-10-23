@@ -228,7 +228,7 @@ test("get output is clipped and redacted; summary uses its own cap", async () =>
 test("guard allows the 3 tools, denies unknown memory tools; all roles get the server; prompt unchanged", () => {
   const s = setup();
   for (const name of [MEMORY_SEARCH_TOOL, MEMORY_GET_TOOL, MEMORY_EXPAND_TOOL])
-    for (const role of ["lead", "developer"] as const)
+    for (const role of ["chief-of-staff", "developer"] as const)
       expect(
         checkToolCall(mcpToolName(MEMORY_MCP_SERVER, name), {}, guardFor(getRole(role), {}))
           .decision,
@@ -240,7 +240,7 @@ test("guard allows the 3 tools, denies unknown memory tools; all roles get the s
       guardFor(getRole("developer"), {}),
     ).decision,
   ).toBe("deny");
-  expect(Object.keys(buildServers(getRole("lead"), { memory: s.ctx }))).toContain(
+  expect(Object.keys(buildServers(getRole("chief-of-staff"), { memory: s.ctx }))).toContain(
     MEMORY_MCP_SERVER,
   );
   s.put(

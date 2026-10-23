@@ -36,7 +36,7 @@ function turn(
 function task(db: Database, id: string, status: string, at: number, parent: string | null = null) {
   db.query(
     `INSERT INTO owned_tasks (id, thread_id, owner_role, status, correlation_id, created_at, last_progress_at, parent_id)
-     VALUES (?, 't', 'lead', ?, 'c', ?, ?, ?)`,
+     VALUES (?, 't', 'chief-of-staff', ?, 'c', ?, ?, ?)`,
   ).run(id, status, at, at, parent);
 }
 
@@ -79,7 +79,7 @@ test("old finished history goes; recent rows and work in progress stay", () => {
       db
         .query(
           `INSERT INTO task_messages (thread_id, goal_id, task_id, author, kind, text, created_at)
-           VALUES ('t', ?, ?, 'lead', 'brief', 'x', ?)`,
+           VALUES ('t', ?, ?, 'teammate', 'brief', 'x', ?)`,
         )
         .run(goal, item, OLD).lastInsertRowid,
     );

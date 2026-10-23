@@ -5,14 +5,14 @@ import { ROLES } from "../roles/role-registry";
 
 /** Limit files: every `typeof number` export is a limit. A new limit file = one line here. */
 const LIMIT_MODULES = [
-  "./lead-caps",
+  "./teammate-caps",
   "./run-caps",
   "./resilience-caps",
   "./memory-caps",
   "./message-caps",
   "./viewer-config",
   "./model-routing",
-  "../orchestrator/lead/lead-limits",
+  "../orchestrator/teammate/teammate-limits",
   "../orchestrator/budget/task-budget",
   "../runtime/run-supervisor",
   "../artifacts/artifact-limits",

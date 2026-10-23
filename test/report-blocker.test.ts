@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { createReportTool } from "../src/mcp/orchestration/tools/ReportTool/report-tool";
-import { createAnnouncer } from "../src/orchestrator/lead/lead-events";
+import { createAnnouncer } from "../src/orchestrator/teammate/teammate-events";
 import type { ReportSink } from "../src/orchestrator/worker/report-sink";
 import { resumeWaiting } from "../src/orchestrator/worker/resume-waiting";
 import { openDb } from "../src/storage/db";
@@ -8,10 +8,10 @@ import { getItem, isHeld, setResultKind } from "../src/storage/owned-item-store"
 import { insertOwnedTask } from "../src/storage/owned-task-store";
 import { appendEvent, listUndelivered } from "../src/storage/thread-event-store";
 import { moveTaskTo } from "../src/tasks/task-resolver";
-import { leadHarness, sleep, until, workersDone } from "./lead-harness";
+import { sleep, teammateHarness, until, workersDone } from "./teammate-harness";
 
-/* `Report blocker`: the run says what blocks it and what it needs; the task is held (blocked, BLOCKED), the lead is woken
-   at once with reason + needs, and the OWNER's reply to the lead's ask about it resumes the same session. */
+/* `Report blocker`: the run says what blocks it and what it needs; the task is held (blocked, BLOCKED), the teammate is woken
+   at once with reason + needs, and the OWNER's reply to the teammate's ask about it resumes the same session. */
 
 const callReport = async (sink: ReportSink | undefined, action: string, params: object) => {
   const tool = createReportTool({ sink });
@@ -46,16 +46,16 @@ test("blocker: bad needs is BAD_PARAMS with the params; a run with no report sin
   });
 });
 
-test("end to end: the worker's blocker holds the item, the lead is told reason + needs at once", async () => {
-  let leadSawBlocker = "";
-  const h = leadHarness(async (c) => {
+test("end to end: the worker's blocker holds the item, the teammate is told reason + needs at once", async () => {
+  let teammateSawBlocker = "";
+  const h = teammateHarness(async (c) => {
     if (c.kind === "worker") {
       const r = await c.report("blocker", { reason: "need the staging key", needs: "access" });
       expect(r).toMatchObject({ ok: true });
       return "stopping";
     }
     if (c.prompt.includes("<events>")) {
-      leadSawBlocker = c.prompt;
+      teammateSawBlocker = c.prompt;
       return "will ask the owner";
     }
     await c.orchestrate("dispatch", {
@@ -83,19 +83,19 @@ test("end to end: the worker's blocker holds the item, the lead is told reason +
   const row = getItem(h.env.db, item.id)!;
   expect(row).toMatchObject({ status: "blocked", resultKind: "BLOCKED" });
   expect(isHeld(row)).toBe(true); // counts as held for the digest and the escalation
-  await until(() => leadSawBlocker !== "", 8000);
-  expect(leadSawBlocker).toContain("blocked");
-  expect(leadSawBlocker).toContain("access");
-  expect(leadSawBlocker).toContain("need the staging key");
+  await until(() => teammateSawBlocker !== "", 8000);
+  expect(teammateSawBlocker).toContain("blocked");
+  expect(teammateSawBlocker).toContain("access");
+  expect(teammateSawBlocker).toContain("need the staging key");
 }, 20_000);
 
-test("the owner's reply resumes a blocker-held item; a failure hold and the lead's own text do not", () => {
+test("the owner's reply resumes a blocker-held item; a failure hold and the teammate's own text do not", () => {
   const db = openDb(":memory:");
   const mk = (id: string, kind: "BLOCKED" | "FAILED") => {
     insertOwnedTask(db, {
       id: `g${id}`,
       threadId: "t",
-      ownerRole: "lead",
+      ownerRole: "chief-of-staff",
       status: "open",
       scope: "g",
       correlationId: "c",
@@ -117,7 +117,7 @@ test("the owner's reply resumes a blocker-held item; a failure hold and the lead
   };
   mk("blk", "BLOCKED");
   mk("fail", "FAILED");
-  expect(resumeWaiting(db, "blk", "here is the key", "lead")).toBe(false);
+  expect(resumeWaiting(db, "blk", "here is the key", "teammate")).toBe(false);
   expect(resumeWaiting(db, "fail", "try again", "owner")).toBe(false);
   expect(getItem(db, "fail")?.status).toBe("blocked");
   expect(resumeWaiting(db, "blk", "here is the key", "owner")).toBe(true);

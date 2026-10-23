@@ -14,7 +14,7 @@ test("installedPublisherPlugins: every locked skill with a dir on disk, grouped 
     for (const s of p.skills) expect(pluginNameOf(lock.skills[s]?.source ?? "")).toBe(p.plugin);
 });
 
-test("dev lists every skill of each publisher pack it uses (so worktree and finishing skills load); the lead only lead-orchestration", () => {
+test("dev lists every skill of each publisher pack it uses (so worktree and finishing skills load); the teammate only teammate-orchestration", () => {
   const locked = Object.entries(readSkillsLock().skills).filter(
     ([, e]) => !e.source.endsWith("/friday"),
   );
@@ -28,9 +28,9 @@ test("dev lists every skill of each publisher pack it uses (so worktree and fini
     "diagnosing-superpowers",
     "security-and-hardening",
     "wcag-audit-patterns",
-    "writing-plans", // the lead writes the plan; a developer item has it in the brief
+    "writing-plans", // the teammate writes the plan; a developer item has it in the brief
     "using-superpowers", // replaced by the app-owned, preloaded using-skills
-    "brainstorming", // the lead alone talks to the human
+    "brainstorming", // the teammate alone talks to the human
   ]);
   const publisher = locked
     .filter(([n, e]) => devSources.has(e.source) && !dropped.has(n))
@@ -39,10 +39,10 @@ test("dev lists every skill of each publisher pack it uses (so worktree and fini
   expect([...(ROLES.developer?.skills ?? [])].sort()).toEqual(
     [...publisher, "worker-reporting", "using-skills", "team-protocol"].sort(),
   );
-  expect(ROLES.lead?.skills).toEqual(["lead-orchestration", "brainstorming"]);
+  expect(ROLES["chief-of-staff"]?.skills).toEqual(["teammate-orchestration", "brainstorming"]);
 });
 
-test("limits live in the role: dev asks up to 6; the lead has no ask capability", () => {
+test("limits live in the role: dev asks up to 6; the teammate has no ask capability", () => {
   expect(ROLES.developer?.limits.maxAsk).toBe(6);
-  expect(ROLES.lead?.limits.maxAsk).toBe(0);
+  expect(ROLES["chief-of-staff"]?.limits.maxAsk).toBe(0);
 });

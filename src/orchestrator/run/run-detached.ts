@@ -40,7 +40,7 @@ export interface DetachedOpts {
   failurePolicy?: (res: FlowResult, status: string) => boolean;
   /**
    * Called last, once the run ended and its slot is free (end event, goal settle, next item). `crash` = the run crashed or
-   * was force-closed (error text); `ownerStopped` = the owner's `/stop` aborted it (its end must not wake the lead).
+   * was force-closed (error text); `ownerStopped` = the owner's `/stop` aborted it (its end must not wake the teammate).
    */
   onSettled: (crash?: string, ownerStopped?: boolean) => void;
 }
@@ -48,7 +48,7 @@ export interface DetachedOpts {
 /**
  * Run the role in the background and return at once: the run is registered as a task run, its turn is closed when it
  * ends; a crash is logged, closes the turn row, settles the item (stored report kept, else the failure policy) and
- * reaches the lead as a `failure` event. A run that ignores its abort is force-closed by the reaper the same way
+ * reaches the teammate as a `failure` event. A run that ignores its abort is force-closed by the reaper the same way
  * (`forceClose`). Never throws.
  */
 export function runDetached(deps: DispatchDeps, input: RoleRunInput, o: DetachedOpts): void {
@@ -68,7 +68,7 @@ export function runDetached(deps: DispatchDeps, input: RoleRunInput, o: Detached
     ac,
     forceClose: () => {
       if (finalized) return;
-      // The run may still write: keep its location claimed (the lead hears it in the failure, and again if it stays stuck).
+      // The run may still write: keep its location claimed (the teammate hears it in the failure, and again if it stays stuck).
       if (o.writer)
         releaseZombie = claimZombieLocation(o.location, {
           threadId,

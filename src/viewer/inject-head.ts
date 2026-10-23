@@ -1,8 +1,8 @@
 /** Leading noise a doctype may follow: BOM, whitespace and comments (none of them change the parser's mode). */
-const LEAD = String.raw`(?:﻿|\s|<!--[\s\S]*?-->)*`;
+const TEAMMATE = String.raw`(?:﻿|\s|<!--[\s\S]*?-->)*`;
 
 /** The artifact's own doctype (case-insensitive) after the leading noise: match = everything up to and including it. */
-const DOCTYPE = new RegExp(`^${LEAD}<!doctype[^>]*>`, "i");
+const DOCTYPE = new RegExp(`^${TEAMMATE}<!doctype[^>]*>`, "i");
 
 /** Optional `<html ...>` then optional `<head ...>` right after the doctype (only whitespace and comments between). */
 const HTML_HEAD =

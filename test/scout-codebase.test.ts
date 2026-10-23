@@ -35,5 +35,5 @@ test("citesExpected: a path:line of an expected path passes, absolute paths incl
   expect(citesExpected("`src/config/resilience-caps.ts:5`", exp)).toBe(true);
   expect(citesExpected("/Users/x/repo/src/config/resilience-caps.ts:5", exp)).toBe(true);
   expect(citesExpected("src/config/resilience-caps.ts", exp)).toBe(false);
-  expect(citesExpected("src/config/lead-caps.ts:3", exp)).toBe(false);
+  expect(citesExpected("src/config/teammate-caps.ts:3", exp)).toBe(false);
 });

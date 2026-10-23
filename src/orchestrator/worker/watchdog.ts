@@ -1,19 +1,19 @@
 import { STALE_AFTER_MS } from "../../config/resilience-caps";
 import { logEvent, logger } from "../../observability/logger";
-import type { LeadRuntime } from "../lead/lead-runtime";
 import { AUTHOR_SYSTEM } from "../messages/message-kinds";
 import { postItemMessage } from "../messages/task-messages";
 import { type LiveRun, liveWorkers } from "../run/live-runs";
+import type { TeammateRuntime } from "../teammate/teammate-runtime";
 
 /* The watchdog: a worker run with no sign of life (tool start, Report progress, run start) for longer than its threshold
-   is stuck; it is aborted (cause `stale`). A run waiting on the owner or the lead by
+   is stuck; it is aborted (cause `stale`). A run waiting on the owner or the teammate by
    design is never stale. The failure policy (failure-policy.ts) reads the abort as a transient failure: the item resumes. */
 
 /** Logger of this module. */
 const log = logger.child({ module: "watchdog" });
 
 /**
- * Pure: the runs that are stale at `now`. Only worker runs count (never the lead's); a waiting run and a run already
+ * Pure: the runs that are stale at `now`. Only worker runs count (never the teammate's); a waiting run and a run already
  * aborted (by anyone) are skipped. `staleAfterOf` gives the threshold (ms) of a run.
  */
 export function pickStale(
@@ -35,11 +35,11 @@ export function pickStale(
 const staleAfterAny = (): number => STALE_AFTER_MS;
 
 /**
- * One sweep: abort every stale worker run (cause `stale`). No event here: the failure policy resumes the item (the lead does
- * nothing) and, only when the resumes are used up, the held item's `failure` event tells the lead. Returns the aborted runs.
+ * One sweep: abort every stale worker run (cause `stale`). No event here: the failure policy resumes the item (the teammate does
+ * nothing) and, only when the resumes are used up, the held item's `failure` event tells the teammate. Returns the aborted runs.
  */
 export function sweepStale(
-  rt: LeadRuntime,
+  rt: TeammateRuntime,
   now = Date.now(),
   staleAfterOf: (run: LiveRun) => number = staleAfterAny,
 ): LiveRun[] {
@@ -48,7 +48,7 @@ export function sweepStale(
     run.abortCause = "stale"; // before the abort: the run's end reads the cause
     run.ac.abort();
     const idleMinutes = Math.round((now - run.lastActivityAt) / 60_000);
-    // A system note in the item's thread: the resumed run (and the lead) can see why the run was cut.
+    // A system note in the item's thread: the resumed run (and the teammate) can see why the run was cut.
     if (run.taskId)
       postItemMessage(
         rt.deps.db,

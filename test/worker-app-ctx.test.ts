@@ -2,8 +2,11 @@ import { afterEach, expect, test } from "bun:test";
 import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { LeadRuntime, LeadThreadCtx } from "../src/orchestrator/lead/lead-runtime";
 import type { RoleRunInput } from "../src/orchestrator/run/role-run-types";
+import type {
+  TeammateRuntime,
+  TeammateThreadCtx,
+} from "../src/orchestrator/teammate/teammate-runtime";
 import { checkReportFiles } from "../src/orchestrator/worker/report-files";
 import { workerAppCtx } from "../src/orchestrator/worker/worker-app-ctx";
 import { listTaskMessages } from "../src/storage/task-message-store";
@@ -35,8 +38,8 @@ function world() {
     },
   ]);
   const itemId = byKey(db, goalId, "a").id;
-  const rt = { deps: { db, config: { agentHome: env.home } } } as unknown as LeadRuntime;
-  const ctx = { workspace: "ws1", channel: "ch1", locations: [] } as unknown as LeadThreadCtx;
+  const rt = { deps: { db, config: { agentHome: env.home } } } as unknown as TeammateRuntime;
+  const ctx = { workspace: "ws1", channel: "ch1", locations: [] } as unknown as TeammateThreadCtx;
   /** The tool ctx of one run (turn) of the item. */
   const run = (turnId: string) =>
     (

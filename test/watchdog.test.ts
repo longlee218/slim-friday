@@ -1,8 +1,8 @@
 import type { Database } from "bun:sqlite";
 import { afterEach, expect, spyOn, test } from "bun:test";
 import { STALE_AFTER_MS, SWEEP_TICK_MS } from "../src/config/resilience-caps";
-import type { LeadRuntime } from "../src/orchestrator/lead/lead-runtime";
 import { type LiveRun, registerRun } from "../src/orchestrator/run/live-runs";
+import type { TeammateRuntime } from "../src/orchestrator/teammate/teammate-runtime";
 import { startResilienceSweeper } from "../src/orchestrator/worker/resilience-sweeper";
 import { setWaiting, touch } from "../src/orchestrator/worker/run-activity";
 import { pickStale, sweepStale } from "../src/orchestrator/worker/watchdog";
@@ -10,7 +10,7 @@ import { openDb } from "../src/storage/db";
 import { insertOwnedTask } from "../src/storage/owned-task-store";
 import { listUndelivered } from "../src/storage/thread-event-store";
 
-/* The watchdog: pure pick (idle > threshold, skips waiting and lead), the sweep (abort cause, no event: the failure policy resumes the item). */
+/* The watchdog: pure pick (idle > threshold, skips waiting and teammate), the sweep (abort cause, no event: the failure policy resumes the item). */
 
 let db: Database;
 const settles: (() => void)[] = [];
@@ -32,13 +32,13 @@ const run = (over: Partial<LiveRun>): LiveRun => ({
 });
 const after = () => STALE_AFTER_MS;
 
-test("pickStale: a worker idle longer than the threshold; not at the threshold, not waiting, not lead, not twice", () => {
+test("pickStale: a worker idle longer than the threshold; not at the threshold, not waiting, not teammate, not twice", () => {
   const now = 10_000_000;
   const idle = run({ key: "a", lastActivityAt: now - STALE_AFTER_MS - 1 });
   expect(pickStale([idle], now, after)).toEqual([idle]);
   expect(pickStale([run({ lastActivityAt: now - STALE_AFTER_MS })], now, after)).toEqual([]);
   expect(pickStale([{ ...idle, waitingCount: 1 }], now, after)).toEqual([]);
-  expect(pickStale([{ ...idle, kind: "lead" }], now, after)).toEqual([]);
+  expect(pickStale([{ ...idle, kind: "teammate" }], now, after)).toEqual([]);
   expect(pickStale([{ ...idle, abortCause: "stale" }], now, after)).toEqual([]);
   // Already aborted by anyone else (/stop, shutdown, replaced): skipped.
   const stopped = new AbortController();
@@ -74,7 +74,7 @@ function setup(id: string) {
   const rt = {
     deps: { db },
     announce: (t: string) => void woken.push(t),
-  } as unknown as LeadRuntime;
+  } as unknown as TeammateRuntime;
   return { ac, rt, woken };
 }
 
@@ -86,7 +86,7 @@ test("sweepStale: aborts a stale run (cause stale) with no timeout event and no 
   expect(hit).toHaveLength(1);
   expect(ac.signal.aborted).toBe(true);
   expect(hit[0]?.abortCause).toBe("stale");
-  expect(listUndelivered(db, "th1")).toHaveLength(0); // the lead does nothing: code resumes the item
+  expect(listUndelivered(db, "th1")).toHaveLength(0); // the teammate does nothing: code resumes the item
   expect(woken).toEqual([]);
   expect(sweepStale(rt, t + 1000)).toHaveLength(0);
 });

@@ -16,7 +16,7 @@ import { similarOpenWork } from "./task-reads";
 
 /* The task-tool methods of the db-backed EffectPort. */
 
-/** Task methods of one lead run on one thread. */
+/** Task methods of one teammate run on one thread. */
 export function createTaskPort(db: Database, threadId: string, correlationId?: string): TaskPort {
   const mine = (id: string): boolean => threadOfTask(db, id) === threadId;
   return {
@@ -56,7 +56,7 @@ export function createTaskPort(db: Database, threadId: string, correlationId?: s
             key: it.key,
             role: it.role,
             strategy: "DELEGATE",
-            by: "lead",
+            by: "teammate",
             tool: ORCHESTRATE_TOOL,
             action: ORCHESTRATE_ACTION_ADD,
           },
@@ -67,7 +67,7 @@ export function createTaskPort(db: Database, threadId: string, correlationId?: s
           goalId: w.goalId,
           itemId: id,
           tool: orchestrateAudit(ORCHESTRATE_ACTION_ADD),
-          scope: "lead tool call",
+          scope: "teammate tool call",
           grantedBy: "role",
           result: JSON.stringify({ ok: true, goalId: w.goalId, itemId: id, status: it.status }), // = the first reply, for a replay
         });

@@ -21,7 +21,7 @@ import { lastMessageOf } from "../src/storage/task-message-store";
 import { listUndelivered } from "../src/storage/thread-event-store";
 import { loadWorkspaces } from "../src/workspaces/workspace-registry";
 import { BRIEF, makeEnv, resultMsg, stubGateway } from "./helpers";
-import { sleep, until } from "./lead-harness";
+import { sleep, until } from "./teammate-harness";
 
 /* Group C: crash paths of a detached goal-item run (E-M4, E-M5, E-M7), the question relay (E-M6), the cancel race (E-L12). */
 
@@ -55,7 +55,7 @@ function startItem(o: {
   insertOwnedTask(db, {
     id: `g${seq}`,
     threadId,
-    ownerRole: "lead",
+    ownerRole: "chief-of-staff",
     status: "open",
     scope: "g",
     correlationId: "c",
@@ -208,7 +208,7 @@ test("E-M7: an aborted run that never exits is force-closed after the grace: ite
 });
 
 test("E-L12: emitEndEvent announces a cancelled-but-COMPLETED result, a plain cancel stays silent", () => {
-  // The real race (lead cancel and /stop against a report) is in phase1-review-fixes.test.ts; this is the event rule.
+  // The real race (teammate cancel and /stop against a report) is in phase1-review-fixes.test.ts; this is the event rule.
   const r = startItem({});
   return until(() => r.limiter.active() === 0).then(() => {
     r.db.query("DELETE FROM thread_events").run();
@@ -344,7 +344,7 @@ test("a crash after a report with files keeps the files on a result message", ()
   insertOwnedTask(db, {
     id: "cg",
     threadId: "cth",
-    ownerRole: "lead",
+    ownerRole: "chief-of-staff",
     status: "open",
     scope: "g",
     correlationId: "c",

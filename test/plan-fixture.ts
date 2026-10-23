@@ -1,7 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { expect } from "bun:test";
-import { PLAN_MAX_ITEMS } from "../src/config/lead-caps";
 import { PLAN_GOAL_BUDGET_MAX_USD } from "../src/config/model-routing";
+import { PLAN_MAX_ITEMS } from "../src/config/teammate-caps";
 import { postItemMessage } from "../src/orchestrator/messages/task-messages";
 import { approveVersion, createPlan } from "../src/orchestrator/plan/plan-lifecycle";
 import { openDb } from "../src/storage/db";
@@ -40,7 +40,7 @@ export function openPlanGoal(
   insertOwnedTask(db, {
     id: goalId,
     threadId,
-    ownerRole: "lead",
+    ownerRole: "chief-of-staff",
     status: "open",
     scope: objective,
     correlationId: goalId,

@@ -46,7 +46,7 @@ export function agentRunOnce(p: OnceParts) {
       // The owner's text (behind the fresh-session prefix; a resume or re-run adds none). The supervisor's re-run note
       // heads the prompt: it is about this attempt, so it belongs in the turn, not in the role's standing system prompt.
       prompt: `${rerunNote(route?.internalHint)}${
-        resumeId ? i.text : withPrefix(prefix, i.text, role.kind !== "lead")
+        resumeId ? i.text : withPrefix(prefix, i.text, role.kind !== "teammate")
       }`,
       steer: role.streaming ? deps.steer?.hook(i.threadId) : undefined,
       turnId: i.turnId,
@@ -67,12 +67,12 @@ export function agentRunOnce(p: OnceParts) {
               trackSummary: role.kind !== "worker",
               threadTitle: titlePort,
               onIssue: (e) => supervisor.observe({ kind: "trusted_tool_issue", ...e }),
-              // Lead runs only: a worker's compaction writes no memory (the hooks are not even registered).
+              // Teammate runs only: a worker's compaction writes no memory (the hooks are not even registered).
               onCompacted: deps.memoryJobs && ((req) => deps.memoryJobs?.flushAfterCompaction(req)),
             }),
       onControlEvent: (e) => supervisor.observe(e),
       onProgress: (text) => setProgressNote(i.turnId, text),
-      // Every tool start of a worker run is a heartbeat for the watchdog (the lead run has no watchdog).
+      // Every tool start of a worker run is a heartbeat for the watchdog (the teammate run has no watchdog).
       onToolStart: role.kind === "worker" ? () => touch(db, i.turnId) : undefined,
       skillsWorkspace: i.workspace, // curated skills of this workspace (never location content)
       guard: guardFor(role, {

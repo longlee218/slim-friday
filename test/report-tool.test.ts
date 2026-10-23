@@ -12,7 +12,7 @@ import { ROLES } from "../src/roles/role-registry";
 import { FULL_CTX, toolsByServer } from "./mcp-ctx-fixture";
 
 /* The worker's `Report` tool: `progress` feeds the run's progress port, `result` fills the sink (refusals as before);
-   worker roles only (the lead has no ctx part). */
+   worker roles only (the teammate has no ctx part). */
 
 /** Call the tool; returns the parsed reply and the error flag. */
 async function call(t: ReturnType<typeof createReportTool>, action: string, params: object) {
@@ -64,18 +64,18 @@ test("result stores the first report; a second is ALREADY_REPORTED; files need a
   expect(noFiles.code).toBe("INVALID_FILES");
 });
 
-test("worker roles hold Report when the run has a progress port or a sink; the lead never does", () => {
+test("worker roles hold Report when the run has a progress port or a sink; the teammate never does", () => {
   for (const supply of [{ progress: () => {} }, { reportSink: {} }])
     for (const n of ["developer", "scout", "tester"])
       expect(toolsByServer(buildServers(ROLES[n]!, supply))[ORCHESTRATION_MCP_SERVER]).toContain(
         REPORT_TOOL,
       );
   expect(
-    toolsByServer(buildServers(ROLES.lead!, { ...FULL_CTX, progress: undefined }))[
+    toolsByServer(buildServers(ROLES["chief-of-staff"]!, { ...FULL_CTX, progress: undefined }))[
       ORCHESTRATION_MCP_SERVER
     ] ?? [],
   ).not.toContain(REPORT_TOOL);
-  expect(ROLES.lead?.mcpTools).not.toContain(REPORT_TOOL);
+  expect(ROLES["chief-of-staff"]?.mcpTools).not.toContain(REPORT_TOOL);
 });
 
 test("the guard allows Report for every worker role and denies it for the others", () => {

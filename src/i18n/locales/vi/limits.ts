@@ -12,7 +12,7 @@ export const viLimits: Record<keyof typeof enLimits, string> = {
   "limits.subagents": "**Subagent được phép dùng**",
   "limits.other": "**Khác**",
   "limits.live": "**Hiện tại**",
-  "limits.leadPool": "- Lead pool: đang dùng {used}/{cap}, {waiting} thread đang chờ",
+  "limits.teammatePool": "- Teammate pool: đang dùng {used}/{cap}, {waiting} thread đang chờ",
   "limits.workerSlots": "- Worker slot: đang dùng {used}/{cap}",
   "limits.readyWaiting": "- Việc đã sẵn sàng nhưng đang chờ slot: {count}",
   "limits.threadRunning": "- <#{threadId}>: {count} việc đang chạy",

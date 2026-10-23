@@ -34,7 +34,7 @@ export const OWNER_MESSAGE_LABEL = "Owner message:";
 
 /**
  * The prompt of a run: the owner's text, behind the one-time prefix when there is one. Never stored anywhere else.
- * `label` false = the text already carries its own owner-message marker (the lead's `<owner_message>`), so none is added.
+ * `label` false = the text already carries its own owner-message marker (the teammate's `<owner_message>`), so none is added.
  */
 export const withPrefix = (prefix: string, text: string, label = true): string =>
   prefix ? `${prefix}\n\n${label ? `${OWNER_MESSAGE_LABEL}\n` : ""}${text}` : text;

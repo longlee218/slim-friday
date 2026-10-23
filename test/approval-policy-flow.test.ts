@@ -6,7 +6,7 @@ import { GIT_PUSH_TOOL } from "../src/mcp/effects/tools/GitPushTool/constants";
 import { EFFECTS_MCP_SERVER, mcpToolName } from "../src/mcp/mcp-tool-names";
 import { parseMessageCommand } from "../src/orchestrator/message-commands";
 import { addLocation, makeEnv } from "./helpers";
-import { leadHarness, until } from "./lead-harness";
+import { teammateHarness, until } from "./teammate-harness";
 import { cleanupTmp, tmpRoot } from "./tmp-dirs";
 
 afterAll(cleanupTmp);
@@ -31,7 +31,7 @@ test("plan approved -> DeletePaths in the envelope (trash, no question); outside
   const confirms: string[] = [];
   let ownerAnswer = true;
   const seen: Record<string, unknown> = {};
-  const h = leadHarness(
+  const h = teammateHarness(
     async (c) => {
       if (c.kind === "worker") {
         if (c.prompt.includes("Acceptance criteria:")) {
@@ -145,7 +145,7 @@ test("plan approved -> DeletePaths in the envelope (trash, no question); outside
 test("the dispatch lists effect grants: one owner question, No = nothing starts, Yes = the grant is stored for the workers", async () => {
   const answers = ["No", "Yes"];
   const questions: string[] = [];
-  const h = leadHarness(
+  const h = teammateHarness(
     async (c) => {
       if (c.kind === "worker") return "worker done";
       if (c.prompt.includes("<owner_message>\nship it")) {

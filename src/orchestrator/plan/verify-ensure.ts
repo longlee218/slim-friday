@@ -50,7 +50,7 @@ export function ensureVerify(
   const places: (string | null)[] = writerAt.length ? writerAt : [lastAt ?? null];
   const objective = taskScope(db, a.goalId) ?? "the goal";
   let next = nextNumber(items, VERIFY_KEY);
-  const added: string[] = []; // new verify items of this call: told to the lead once
+  const added: string[] = []; // new verify items of this call: told to the teammate once
   for (const location of places) {
     const brief = verifyBrief(
       objective,

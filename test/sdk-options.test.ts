@@ -2,23 +2,23 @@ import { afterEach, expect, spyOn, test } from "bun:test";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import { SONNET_MODEL } from "../src/config/model-ids";
 import { guardFor } from "../src/policy/check-tool-call";
+import { CHIEF_OF_STAFF_ROLE } from "../src/roles/builtin/chief-of-staff-role";
 import { DEVELOPER_ROLE } from "../src/roles/builtin/developer-role";
-import { LEAD_ROLE } from "../src/roles/builtin/lead-role";
 import { getRole } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
 import { SEND_MESSAGE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { makeEnv, resultMsg } from "./helpers";
 
 /**
- * BEHAVIOR LOCK: the SDK options `runAgent` passes to `query` for the two roles (lead, dev). Functions are
+ * BEHAVIOR LOCK: the SDK options `runAgent` passes to `query` for the two roles (teammate, dev). Functions are
  * compared by presence, not identity; per-run values (cwd, env, abort controller) are asserted apart.
  */
 
-type Kind = "lead" | "dev";
+type Kind = "teammate" | "dev";
 
 /** Config limits are fixed so timeout and budget assertions are exact. */
 const ENV = {
-  CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat-test", // real Anthropic login: the lead may use auto mode
+  CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat-test", // real Anthropic login: the teammate may use auto mode
   MAX_BUDGET_USD: "3",
 };
 
@@ -54,11 +54,11 @@ async function capture(kind: Kind) {
     queryFn: queryFn as never,
   };
   const scope = { readPaths: [env.location], writePaths: [] };
-  if (kind === "lead") {
+  if (kind === "teammate") {
     await runAgent({
       ...base,
-      role: getRole("lead"),
-      guard: guardFor(getRole("lead"), scope),
+      role: getRole("chief-of-staff"),
+      guard: guardFor(getRole("chief-of-staff"), scope),
     });
   } else {
     await runAgent({
@@ -92,7 +92,7 @@ function normalize(o: Options, home: string) {
   };
 }
 
-const KINDS: Kind[] = ["lead", "dev"];
+const KINDS: Kind[] = ["teammate", "dev"];
 
 for (const kind of KINDS) {
   test(`options lock: ${kind} options snapshot`, async () => {
@@ -102,51 +102,53 @@ for (const kind of KINDS) {
 }
 
 test("options lock: tools, mcp servers, permission mode per role", async () => {
-  const lead = await capture("lead");
+  const teammate = await capture("teammate");
   const dev = await capture("dev");
-  // Built-in tools: the lead is read only; dev has the code set.
-  expect(lead.o.tools).toEqual(["Read", "Glob", "Grep", "LSP", "Skill"]); // read only + Skill (lead-orchestration): no web, no shell, no subagents
-  expect(lead.o.tools).not.toContain(SEND_MESSAGE_TOOL_NAME); // the lead dispatches through its tools only
+  // Built-in tools: the teammate is read only; dev has the code set.
+  expect(teammate.o.tools).toEqual(["Read", "Glob", "Grep", "LSP", "Skill"]); // read only + Skill (teammate-orchestration): no web, no shell, no subagents
+  expect(teammate.o.tools).not.toContain(SEND_MESSAGE_TOOL_NAME); // the teammate dispatches through its tools only
   expect(dev.o.tools).toContain("Write");
   expect(dev.o.tools).toContain("AskUserQuestion"); // the plan approval is an ask
   expect(dev.o.tools).not.toContain("ExitPlanMode"); // no plan mode, no plan gate
-  expect(lead.o.tools).not.toContain("Write");
-  // MCP: none from `runAgent` itself (the lead's own server is passed by the lead runner); dev gets none (git and gh
+  expect(teammate.o.tools).not.toContain("Write");
+  // MCP: none from `runAgent` itself (the teammate's own server is passed by the teammate runner); dev gets none (git and gh
   // run in the shell); no GitHub server anywhere.
-  expect(lead.o.mcpServers).toEqual({});
+  expect(teammate.o.mcpServers).toEqual({});
   expect(dev.o.mcpServers).toEqual({});
-  // dev: bypass from the first token; the lead: auto mode (classifier).
+  // dev: bypass from the first token; the teammate: auto mode (classifier).
   expect(dev.o.permissionMode).toBe("bypassPermissions");
   expect(dev.o.allowDangerouslySkipPermissions).toBe(true);
-  expect(lead.o.permissionMode).toBe("auto");
-  expect(lead.o.allowDangerouslySkipPermissions).toBeUndefined();
+  expect(teammate.o.permissionMode).toBe("auto");
+  expect(teammate.o.allowDangerouslySkipPermissions).toBeUndefined();
   // Never any filesystem settings; strict MCP config.
-  for (const r of [lead, dev]) {
+  for (const r of [teammate, dev]) {
     expect(r.o.settingSources).toEqual([]);
     expect(r.o.strictMcpConfig).toBe(true);
     expect(typeof r.o.canUseTool).toBe("function");
   }
   // No app-defined subagents: the SDK's built-in one is what the Agent tool starts.
-  for (const r of [lead, dev]) expect("agents" in r.o).toBe(false);
+  for (const r of [teammate, dev]) expect("agents" in r.o).toBe(false);
 });
 
 test("options lock: model and limits per role, no run timeout", async () => {
-  const lead = await capture("lead");
+  const teammate = await capture("teammate");
   const dev = await capture("dev");
-  expect(lead.o.model).toBe(SONNET_MODEL);
+  expect(teammate.o.model).toBe(SONNET_MODEL);
   expect(dev.o.model).toBe(SONNET_MODEL);
-  expect(lead.o.maxTurns).toBe(LEAD_ROLE.limits.maxTurns);
+  expect(teammate.o.maxTurns).toBe(CHIEF_OF_STAFF_ROLE.limits.maxTurns);
   expect(dev.o.maxTurns).toBe(DEVELOPER_ROLE.limits.maxTurns);
   // Env depth = the role's `subagents.depth`.
-  expect(lead.o.env?.CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH).toBe(String(LEAD_ROLE.subagents.depth));
+  expect(teammate.o.env?.CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH).toBe(
+    String(CHIEF_OF_STAFF_ROLE.subagents.depth),
+  );
   expect(dev.o.env?.CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH).toBe(
     String(DEVELOPER_ROLE.subagents.depth),
   );
-  // Per-role budget (lead, dev) capped by MAX_BUDGET_USD=3.
-  expect(lead.o.maxBudgetUsd).toBe(LEAD_ROLE.budgetUsd);
+  // Per-role budget (teammate, dev) capped by MAX_BUDGET_USD=3.
+  expect(teammate.o.maxBudgetUsd).toBe(CHIEF_OF_STAFF_ROLE.budgetUsd);
   expect(dev.o.maxBudgetUsd).toBe(3);
   // No run timeout: no timer is armed for the run (owner decision).
-  for (const r of [lead, dev]) expect(r.delays).toEqual([]);
+  for (const r of [teammate, dev]) expect(r.delays).toEqual([]);
 });
 
 test("options lock: per-run values", async () => {

@@ -2,9 +2,9 @@ import type { Database } from "bun:sqlite";
 import { afterEach, expect, test } from "bun:test";
 import { DIGEST_FLOOR_MS } from "../src/config/resilience-caps";
 import type { ViewerConfig } from "../src/config/viewer-config";
-import type { LeadRuntime } from "../src/orchestrator/lead/lead-runtime";
 import { planUrlOfGoal, syncPlanArtifacts } from "../src/orchestrator/plan/plan-artifact";
 import { approveVersion, createPlan, rejectVersion } from "../src/orchestrator/plan/plan-lifecycle";
+import type { TeammateRuntime } from "../src/orchestrator/teammate/teammate-runtime";
 import { createCheckIn } from "../src/orchestrator/worker/check-in";
 import { digestFacts, factsKey } from "../src/orchestrator/worker/digest-facts";
 import { listByGoal } from "../src/storage/artifact-store";
@@ -85,7 +85,7 @@ test("the digest key ignores the signed link: a new secret or TTL with the same 
           notify: async (text: string) => void posts.push(text),
         },
       }),
-    }) as unknown as LeadRuntime;
+    }) as unknown as TeammateRuntime;
   const tick = createCheckIn();
   await tick(mk(VIEWER), 10_000_000 - DIGEST_FLOOR_MS); // first sight is silent
   await tick(mk(VIEWER), 10_000_000);
@@ -125,7 +125,7 @@ test("a revision that changes only a brief is a digest change: the plan version 
     ctxOf: () => ({
       message: { text: "hi", language: "en", notify: async (t: string) => void posts.push(t) },
     }),
-  } as unknown as LeadRuntime;
+  } as unknown as TeammateRuntime;
   const tick = createCheckIn();
   await tick(rt, 10_000_000 - DIGEST_FLOOR_MS); // first sight is silent
   await tick(rt, 10_000_000);

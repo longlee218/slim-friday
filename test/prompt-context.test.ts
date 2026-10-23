@@ -25,14 +25,14 @@ function setup() {
   return { env, p };
 }
 
-test("lead order: owner files, then TEAM; no memory (user turn), no registry, no ledger; BOOTSTRAP never", () => {
+test("teammate order: owner files, then TEAM; no memory (user turn), no registry, no ledger; BOOTSTRAP never", () => {
   const { env } = setup();
   const logs = captureLogs();
   const out = buildPromptContext({
     agentHome: env.home,
     workspace: "main",
     channel: CH,
-    kind: "lead",
+    kind: "teammate",
     team: "TEAM_MARK",
     registry: "REGISTRY_MARK",
     ledger: "LEDGER_MARK",
@@ -41,7 +41,7 @@ test("lead order: owner files, then TEAM; no memory (user turn), no registry, no
   const all = out.join("\n\n");
   const at = (m: string) => all.indexOf(m);
   expect(at("AGENTS_MARK")).toBeLessThan(at("TEAM_MARK"));
-  expect(all).not.toContain("ROOT_MARK"); // the lead's memory rides in its user turn (lead-memory.ts)
+  expect(all).not.toContain("ROOT_MARK"); // the teammate's memory rides in its user turn (teammate-memory.ts)
   expect(all).not.toContain("CHANNEL_MARK");
   expect(all).not.toContain("REGISTRY_MARK");
   expect(all).not.toContain("LEDGER_MARK");
@@ -98,7 +98,7 @@ test("empty blocks dropped; no CLAUDE.md fields in the size event", () => {
   expect(Object.keys(ev).filter((k) => /claudemd/i.test(k))).toEqual([]);
 });
 
-test("whole role prompts: every worker kind carries root + channel blocks, never a location block; the lead and control have none in the system prompt", () => {
+test("whole role prompts: every worker kind carries root + channel blocks, never a location block; the teammate and control have none in the system prompt", () => {
   const { env, p } = setup();
   // Retired layers still on disk (workspace and location MEMORY.md) are never read.
   const legacyLocation = join(p.workspace("main").locations, "api");
@@ -118,8 +118,8 @@ test("whole role prompts: every worker kind carries root + channel blocks, never
     expect(text).not.toContain("LOCATION_MARK");
     expect(text).not.toContain("WSLAYER_MARK");
   }
-  // The lead: memory is sent in its user turn on change (lead-memory.ts), never in the system prompt.
-  expect(prompt("lead")).not.toContain("ROOT_MARK");
+  // The teammate: memory is sent in its user turn on change (teammate-memory.ts), never in the system prompt.
+  expect(prompt("chief-of-staff")).not.toContain("ROOT_MARK");
   // Control channel (no workspace): no memory block at all.
   const control = buildPromptPreview(getRole("discord-manager"), { agentHome: env.home }).text;
   expect(control).not.toContain("### root");

@@ -104,7 +104,7 @@ function withinReadPaths(key: string, value: string, roots: string[], cwd?: stri
     return !(isAbsolute(value) || value.startsWith("~") || value.split(/[\\/]/).includes(".."));
   }
   if (!isAbsolute(value) && (value.split(/[\\/]/).includes("..") || !cwd)) return false;
-  // Relative paths resolve against the cwd: a symlink inside a location cannot lead out of the granted dirs.
+  // Relative paths resolve against the cwd: a symlink inside a location cannot teammate out of the granted dirs.
   let real: string;
   try {
     real = resolveReal(isAbsolute(value) ? value : resolve(cwd as string, value));

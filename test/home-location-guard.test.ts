@@ -31,7 +31,7 @@ const [homeLoc] = loadLocations(
 );
 
 /** Guard of one role run in workspace `main` with the $HOME location. */
-const guard = (role: "developer" | "lead") => {
+const guard = (role: "developer" | "chief-of-staff") => {
   const r = getRole(role);
   const s = roleScope(
     config,
@@ -48,8 +48,11 @@ const guard = (role: "developer" | "lead") => {
   );
   return guardFor(r, s.guard);
 };
-const decide = (role: "developer" | "lead", tool: string, input: Record<string, unknown>) =>
-  checkToolCall(tool, input, guard(role)).decision;
+const decide = (
+  role: "developer" | "chief-of-staff",
+  tool: string,
+  input: Record<string, unknown>,
+) => checkToolCall(tool, input, guard(role)).decision;
 
 test("registry: $HOME accepted, strict ancestors rejected, AGENT_HOME inside rule unchanged", () => {
   expect(homeLoc?.path).toBe(home);
@@ -67,7 +70,7 @@ test("registry: $HOME accepted, strict ancestors rejected, AGENT_HOME inside rul
   expect(got).toEqual([]);
 });
 
-for (const role of ["developer", "lead"] as const) {
+for (const role of ["developer", "chief-of-staff"] as const) {
   test(`${role} with a $HOME location: agent home is unreadable`, () => {
     expect(decide(role, "Read", { file_path: join(agentHome, ".env") })).toBe("deny");
     expect(decide(role, "Read", { file_path: join(agentHome, "data", "agent.db") })).toBe("deny");
@@ -86,6 +89,6 @@ test("dev: agent home unwritable (the shell is bounded by the sandbox), own dirs
   ).toBe("allow");
 });
 
-test("lead: files of its own workspace cwd/ stay readable", () => {
-  expect(decide("lead", "Read", { file_path: join(ws.cwd, "a.txt") })).toBe("allow");
+test("teammate: files of its own workspace cwd/ stay readable", () => {
+  expect(decide("chief-of-staff", "Read", { file_path: join(ws.cwd, "a.txt") })).toBe("allow");
 });

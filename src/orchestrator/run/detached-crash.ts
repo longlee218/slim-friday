@@ -13,7 +13,7 @@ import type { ReportFile } from "../worker/report-files";
 
 /* Crash path of a detached worker run (the run threw, its close step threw, or the reaper gave up on it): the turn row
    is closed and the item never stays `running` with no live run. A stored report is kept; otherwise the failure policy
-   decides (transient = resume, anything else = held for the lead). */
+   decides (transient = resume, anything else = held for the teammate). */
 
 /** Logger of this module. */
 const log = logger.child({ module: "detached-crash" });
@@ -73,7 +73,7 @@ export function recoverCrashedRun(db: Database, run: CrashRun, err: unknown): bo
   return goalItem;
 }
 
-/** The crash event of a run whose item has no end event (a standalone task, or no item row): the lead still hears of it. */
+/** The crash event of a run whose item has no end event (a standalone task, or no item row): the teammate still hears of it. */
 export function appendCrashEvent(db: Database, run: CrashRun, err: unknown): void {
   tryLog(log, "failure event append failed", () => {
     const item = getItem(db, run.taskId);

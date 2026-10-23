@@ -17,12 +17,12 @@ export function workspacePaths(agentHome: string) {
     soul: join(agentHome, "SOUL.md"),
     /** Owner operating notes, owner profile (preferences), root memory, owner guide (never injected). */
     agents: join(agentHome, "AGENTS.md"),
-    /** Generated snapshot of the lead's TEAM.md (roster and caps), rewritten at every start; for the owner to read, never read by a run. */
+    /** Generated snapshot of the teammate's TEAM.md (roster and caps), rewritten at every start; for the owner to read, never read by a run. */
     team: join(agentHome, "TEAM.md"),
     user: join(agentHome, "USER.md"),
     memory: join(agentHome, "MEMORY.md"),
     bootstrap: join(agentHome, "BOOTSTRAP.md"),
-    /** Full text of a long owner attachment, per thread (read-only for the lead). */
+    /** Full text of a long owner attachment, per thread (read-only for the teammate). */
     attachments: (threadKey: string) => join(agentHome, "tmp", "attachments", threadKey),
     /** Backups of the home (persona file backups). */
     backups: join(agentHome, "backups"),
@@ -67,7 +67,7 @@ export function workspacePaths(agentHome: string) {
           const croot = join(root, "channels", channelName);
           return {
             root: croot,
-            /** Channel memory: the one agent memory (lead writes, lead and workers read). */
+            /** Channel memory: the one agent memory (teammate writes, teammate and workers read). */
             memory: join(croot, "MEMORY.md"),
             /** Optional persona files: a non-empty one overrides the space's (then the root's). */
             agents: join(croot, "AGENTS.md"),

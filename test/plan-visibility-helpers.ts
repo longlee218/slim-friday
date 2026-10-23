@@ -2,12 +2,12 @@ import type { Database } from "bun:sqlite";
 import { createPlanPort } from "../src/orchestrator/goal/effect-port-plan";
 import type { RevisionDiff } from "../src/orchestrator/plan/plan-revised";
 import type {
-  CreateLeadPlanInput,
+  CreateTeammatePlanInput,
   ProposeRevisionInput,
 } from "../src/orchestrator/plan/plan-schemas";
 import { ENV, type item, TH } from "./plan-fixture";
 
-/** The world of a lead plan call: the db, the goal and the side effects the lead handler runs after a stored version. */
+/** The world of a teammate plan call: the db, the goal and the side effects the teammate handler runs after a stored version. */
 export interface PlanApp {
   db: Database;
   goalId: string;
@@ -30,16 +30,16 @@ const portOf = (app: PlanApp) =>
     locations: ENV.locations,
   }));
 
-/** `Orchestrate create_plan` as the lead handler runs it: the port write, then the artifact sync and the owner line. */
+/** `Orchestrate create_plan` as the teammate handler runs it: the port write, then the artifact sync and the owner line. */
 export function createPlanFor(
   app: PlanApp,
-  input: Omit<CreateLeadPlanInput, "objective" | "goalId"> & { objective?: string },
+  input: Omit<CreateTeammatePlanInput, "objective" | "goalId"> & { objective?: string },
 ) {
   const w = portOf(app).createPlan({
     objective: "build it",
     goalId: app.goalId,
     ...input,
-  } as CreateLeadPlanInput);
+  } as CreateTeammatePlanInput);
   if (w.ok) {
     app.onVersion?.();
     if (w.diff) app.notify?.(w.diff);
@@ -47,7 +47,7 @@ export function createPlanFor(
   return w;
 }
 
-/** `Orchestrate revise_plan` as the lead handler runs it: the port write, then the artifact sync. */
+/** `Orchestrate revise_plan` as the teammate handler runs it: the port write, then the artifact sync. */
 export function revisePlanFor(app: PlanApp, input: ProposeRevisionInput) {
   const { planId, baseVersion, reason, ...edit } = input;
   const w = portOf(app).revisePlan({ planId, baseVersion, reason, edit });
@@ -55,7 +55,7 @@ export function revisePlanFor(app: PlanApp, input: ProposeRevisionInput) {
   return w;
 }
 
-/** One lead plan call on `app`: a revision of v1 (`add`, `cancel`) or, with `replan`, a new plan. */
+/** One teammate plan call on `app`: a revision of v1 (`add`, `cancel`) or, with `replan`, a new plan. */
 export function createPlanHandlerFor(
   app: PlanApp,
   planId: string,

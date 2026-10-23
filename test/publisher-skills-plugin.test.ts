@@ -43,8 +43,8 @@ const DEV_DROPPED = new Set([
   "diagnosing-superpowers",
   "security-and-hardening",
   "wcag-audit-patterns",
-  "brainstorming", // the lead alone talks to the human
-  "writing-plans", // the lead writes the plan; a developer item has it in the brief
+  "brainstorming", // the teammate alone talks to the human
+  "writing-plans", // the teammate writes the plan; a developer item has it in the brief
 ]);
 const DEV_INSTALLED = PUBLISHER.filter(
   ([n, e]) => devSources.has(e.source) && !DEV_DROPPED.has(n),
@@ -203,7 +203,7 @@ test("the workspace dir (extra) gets its own plugin next to the publisher one; s
   only.cleanup();
 });
 
-test("dev loads its publisher pack skills but the two dropped by D8, the lead only its method skill; a role without `skills` loads none", () => {
+test("dev loads its publisher pack skills but the two dropped by D8, the teammate only its method skill; a role without `skills` loads none", () => {
   const names = (role: RoleDefinition) => {
     const r = buildRoleSkills(role, "main", homeWith());
     r.cleanup();
@@ -217,8 +217,8 @@ test("dev loads its publisher pack skills but the two dropped by D8, the lead on
       "friday:team-protocol",
     ].sort(),
   );
-  expect(names(ROLES.lead as RoleDefinition)).toEqual([
-    "friday:lead-orchestration",
+  expect(names(ROLES["chief-of-staff"] as RoleDefinition)).toEqual([
+    "friday:teammate-orchestration",
     "superpowers:brainstorming",
   ]);
   expect(names({ ...(ROLES.developer as RoleDefinition), skills: undefined })).toEqual([]);

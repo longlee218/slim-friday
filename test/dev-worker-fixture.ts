@@ -3,19 +3,19 @@ import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { createRunLimiter } from "../src/orchestrator/turns/run-limiter";
 import type { ApprovalGateway } from "../src/owner-approval/approval-types";
 import { type makeEnv, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
-import { devLeadQuery, leadHarness, workersDone } from "./lead-harness";
 import { isWorkerRun } from "./mcp-run-probe";
+import { devTeammateQuery, teammateHarness, workersDone } from "./teammate-harness";
 
-/** What a dev worker run exposes to a test: its SDK options and the owner's reply of the start message (the lead's). */
+/** What a dev worker run exposes to a test: its SDK options and the owner's reply of the start message (the teammate's). */
 export interface DevRun {
   /** SDK options of every worker run, in start order. */
   runs: any[];
-  /** The lead's reply to the start message (a worker's own text is never posted). */
+  /** The teammate's reply to the start message (a worker's own text is never posted). */
   reply: string | undefined;
 }
 
 /**
- * Send `text` through the real handler over a fake `query` (a fake lead dispatches it to the developer) and wait until the detached worker
+ * Send `text` through the real handler over a fake `query` (a fake teammate dispatches it to the developer) and wait until the detached worker
  * ended. `probe` runs inside the worker (options alive: plugin dirs exist), before its result.
  */
 export async function runDevWorker(
@@ -31,14 +31,14 @@ export async function runDevWorker(
       if (isWorker) await opts.probe?.(a.options);
       yield resultMsg({ result: "done" });
     })()) as never;
-  const queryFn = devLeadQuery(inner);
+  const queryFn = devTeammateQuery(inner);
   const handle = createTurnHandler({
     db: env.db,
     config: env.config,
     approvals: opts.gw ?? stubGateway(),
     limiter: createRunLimiter(10),
     queryFn,
-    leadTiming: { debounceMs: 10, announceWindowMs: 20 },
+    teammateTiming: { debounceMs: 10, announceWindowMs: 20 },
   });
   const posts: string[] = [];
   const out = await handle({
@@ -56,16 +56,16 @@ export async function runDevWorker(
 }
 
 /**
- * Start a worker of `role` through the lead (any role, e.g. the scout): the fake lead
+ * Start a worker of `role` through the teammate (any role, e.g. the scout): the fake teammate
  * dispatches it once, the worker runs `probe` with its options (alive: plugin dirs exist) and throws when `fail`.
  */
-export async function runWorkerViaLead(
+export async function runWorkerViaTeammate(
   env: ReturnType<typeof makeEnv>,
   role: string,
   opts: { probe?: (o: any) => Promise<void>; fail?: boolean } = {},
 ): Promise<any[]> {
   const runs: any[] = [];
-  const h = leadHarness(async (c) => {
+  const h = teammateHarness(async (c) => {
     if (c.kind === "worker") {
       runs.push(c.options);
       await opts.probe?.(c.options);

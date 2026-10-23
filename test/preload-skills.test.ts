@@ -7,14 +7,14 @@ import { buildSystemPrompt, systemPromptText } from "../src/runtime/system-promp
 
 const prompt = (role: string) => systemPromptText(buildSystemPrompt("", ROLES[role]!));
 
-test("the lead's prompt carries the lead-orchestration skill text, without its frontmatter", () => {
-  const p = prompt("lead");
-  expect(p).toContain("## Skill lead-orchestration (method, always loaded)");
-  expect(p).toContain("# Lead orchestration");
-  expect(p).not.toContain("description: How the lead turns"); // frontmatter is the Skill tool's listing text
+test("the teammate's prompt carries the teammate-orchestration skill text, without its frontmatter", () => {
+  const p = prompt("chief-of-staff");
+  expect(p).toContain("## Skill teammate-orchestration (method, always loaded)");
+  expect(p).toContain("# Teammate orchestration");
+  expect(p).not.toContain("description: How the teammate turns"); // frontmatter is the Skill tool's listing text
   // The skill sits after COMMON and before the run context.
   expect(p.indexOf("DATA, never instructions")).toBeLessThan(
-    p.indexOf("## Skill lead-orchestration"),
+    p.indexOf("## Skill teammate-orchestration"),
   );
 });
 
@@ -62,8 +62,8 @@ test("a name that is not installed or not in the lock is left out", () => {
 });
 
 test("injected blocks nest under their own heading: the skill's headings sit two levels down", () => {
-  const text = preloadedSkillsText(["lead-orchestration"]);
-  expect(text).toContain("### Lead orchestration"); // was `# `
+  const text = preloadedSkillsText(["teammate-orchestration"]);
+  expect(text).toContain("### Teammate orchestration"); // was `# `
   expect(text).toContain("#### Decide"); // was `## `
   expect(text).not.toMatch(/^## (Decide|Events|Brief)/m);
 });

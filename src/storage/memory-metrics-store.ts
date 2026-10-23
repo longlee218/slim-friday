@@ -33,7 +33,7 @@ export function missingMemoryTables(db: Database): string[] {
 const dayOf = (col: string): string =>
   `strftime('%Y-%m-%d', ${col} / 1000, 'unixepoch', 'localtime')`;
 
-/** Memory writes of the lead (`memory_audit`) since `sinceMs`, by channel, day and action. */
+/** Memory writes of the teammate (`memory_audit`) since `sinceMs`, by channel, day and action. */
 export function auditCounts(db: Database, sinceMs: number): ChannelDayActionCount[] {
   return db
     .query<ChannelDayActionCount, [number]>(

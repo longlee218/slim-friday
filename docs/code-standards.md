@@ -1,7 +1,5 @@
 # Code Standards
 
-> Code names still use `lead` until the rename phase (`plans/261023-1139-persistent-teammates/phase-00-rename-lead-to-teammate.md`).
-
 Last updated: 2026-10-19 (action tools, phase 4, uncommitted; file counts refreshed. Before: 2026-10-16, cleanup phases 1-6 and 5c: Drizzle baseline, MCP regroup by purpose, role `kind` and `mcpTools`, `src/policy` and `src/owner-approval`, orchestrator split). Module map: [codebase-summary.md](codebase-summary.md). Runtime design: [system-architecture.md](system-architecture.md).
 
 ## Stack
@@ -17,19 +15,19 @@ bun run format              # Biome format (2 spaces, width 100)
 bun run lint                # Biome lint and format check
 bun run start               # start the bot (reads .env)
 bun run db:generate         # drizzle-kit generate: after a schema edit
-bun run metrics:lead        # chief-of-staff decisions, refusals, envelope blocks, cost (read-only db)
+bun run metrics:teammate        # chief-of-staff decisions, refusals, envelope blocks, cost (read-only db)
 bun run bootstrap:discord   # create the ops channels
 ```
 
 ## Design Rules
-1. **Code is a generic engine; roles are data.** The engine (`src/orchestrator/{lead,worker,run,goal}/`) reads role fields (`kind`, `capabilities`, `streaming`, `limits`, `budgetUsd`) and never a role name (`test/engine-layering.test.ts`).
+1. **Code is a generic engine; roles are data.** The engine (`src/orchestrator/{teammate,worker,run,goal}/`) reads role fields (`kind`, `capabilities`, `streaming`, `limits`, `budgetUsd`) and never a role name (`test/engine-layering.test.ts`).
 2. **One role run = one agent run.** No stages, no plan mode, no gates. How the agent works (brainstorm, plan, ask for approval, implement, deliver) comes from skills and prompt text.
 3. **Skills and subagents are data.**
    - Publisher skills come from `.agents/skills/` and `skills-lock.json`. A role lists the names it uses in `skills: string[]`.
    - Subagents are the SDK built-in `Agent` tool. The app defines no subagent types.
    - Adding or removing a skill is a data change. A skill name in code is a bug.
 4. **Tools are data.** An MCP tool is one folder, one manifest line, and its name in the `mcpTools` of each role that may use it. A tool adapter is thin; the logic lives in a domain module (see [MCP Tools](#mcp-tools)).
-5. **Limits live in the role file.** `MAX_ASK`, `MAX_TURNS` and `BUDGET_USD` are named constants at the top of `src/roles/builtin/<role>-role.ts`. The task ceiling `TASK_BUDGET_USD` lives only in `src/config/model-routing.ts`. Other run-wide caps are constants only in the config limit files (`lead-caps.ts`, `run-caps.ts`, `resilience-caps.ts`, `model-routing.ts`) or `orchestrator/lead/lead-limits.ts`. Every limit is documented in [limits-and-stop-conditions.md](limits-and-stop-conditions.md): adding or changing a number without its `<!-- limit:NAME=VALUE -->` marker fails `test/limits-doc-drift.test.ts`.
+5. **Limits live in the role file.** `MAX_ASK`, `MAX_TURNS` and `BUDGET_USD` are named constants at the top of `src/roles/builtin/<role>-role.ts`. The task ceiling `TASK_BUDGET_USD` lives only in `src/config/model-routing.ts`. Other run-wide caps are constants only in the config limit files (`teammate-caps.ts`, `run-caps.ts`, `resilience-caps.ts`, `model-routing.ts`) or `orchestrator/teammate/teammate-limits.ts`. Every limit is documented in [limits-and-stop-conditions.md](limits-and-stop-conditions.md): adding or changing a number without its `<!-- limit:NAME=VALUE -->` marker fails `test/limits-doc-drift.test.ts`.
 6. **Guard layers, by run kind.**
    - `src/policy/` deny list: every run. It returns allow, ask or deny per tool call; hard denies are never approvable.
    - Envelope (`src/policy/envelope*.ts`): dispatched workers only. R2/R3 work goes only through the effect tools; their Bash is not parsed, the OS sandbox (`src/runtime/worker-sandbox.ts`) bounds it.
@@ -40,7 +38,7 @@ bun run bootstrap:discord   # create the ops channels
    - `roles/` never imports `orchestrator/`.
    - Files outside `src/mcp/` import it only through constants, tool names and manifest types (`test/mcp-layering.test.ts`).
    - `src/orchestrator` has no runtime import cycle and never imports `providers/discord/setup/` (`test/no-import-cycles-orchestrator.test.ts`).
-9. **Chief-of-staff policy is code constants and typed actions.** Caps live in `src/config/lead-caps.ts`; dispatch shape rules in `src/orchestrator/strategy/dispatch-policy.ts`. Chief-of-staff tools are typed actions; their handlers check state, caps and compare-and-set. The chief-of-staff starts only roles with `dispatchable: true`. Only a `kind: "worker"` role owns tasks.
+9. **Chief-of-staff policy is code constants and typed actions.** Caps live in `src/config/teammate-caps.ts`; dispatch shape rules in `src/orchestrator/strategy/dispatch-policy.ts`. Chief-of-staff tools are typed actions; their handlers check state, caps and compare-and-set. The chief-of-staff starts only roles with `dispatchable: true`. Only a `kind: "worker"` role owns tasks.
 10. **Effects go through the effect port.** Each state change of a chief-of-staff or effect tool is one atomic write (`src/orchestrator/goal/effect-port*.ts`, `effect_log` row). Handlers never write the database directly; tests use the fake port.
 11. **The chief-of-staff plans; developers execute.** The chief-of-staff writes a plan with `Orchestrate create_plan` / `revise_plan`, code validates it (`src/orchestrator/plan/validate-plan.ts`), and the owner approves each version through `Orchestrate approve_plan`. There is no planner role (removed 2026-10-22).
 
@@ -50,11 +48,11 @@ Folders under `src/orchestrator/`:
 | Folder | Files | Holds |
 |---|---|---|
 | top level | 5 | `handle-message.ts` (entry), `handler-services.ts`, `handler-types.ts`, `message-commands.ts`, `reply.ts` |
-| `lead/` | 25 | teammate queue and run, chief-of-staff tool handlers and schemas, chief-of-staff events and announce |
+| `teammate/` | 25 | teammate queue and run, chief-of-staff tool handlers and schemas, chief-of-staff events and announce |
 | `worker/` | 27 | worker run, dispatch-ready, question relay, result file, run report, goal settle, recovery |
 | `run/` | 19 | `runTurn` (`run-turn.ts`), role run, role scope, `answer-output.ts`, live-run registry, stop tree, control scope |
 | `goal/` | 10 | effect port (db, plan and query adapters); task reads and the duplicate match (`task-reads.ts`, `task-match.ts`) |
-| `strategy/` | 5 | `dispatch-policy.ts`, `plan-policy.ts`, `lead-context-block.ts`, `caps` helpers |
+| `strategy/` | 5 | `dispatch-policy.ts`, `plan-policy.ts`, `teammate-context-block.ts`, `caps` helpers |
 | `plan/` | 18 | plan types and schemas, validator, lifecycle and revision, materialize into items, verify and fix items, plan artifacts and side effects |
 | `effects/` | 10 | effect tool logic (`delete-paths*`, `git-push`, `merge-branch`, `pull-request`), trash store and purge, effect tool names |
 | `budget/` | 4 | chief-of-staff budget, task budget, budget-stop reply |
@@ -90,7 +88,7 @@ Folders under `src/orchestrator/`:
 - Refusals: `BAD_PARAMS` (the action's param names and types plus one example), `BAD_ACTION` (the action list), `ACTION_UNAVAILABLE` (the run lacks what the action needs). The tool description is built from the table: one line per action, `name: param:type, optional?:type`, no prose. Meaning lives in the role skill.
 - Folder `src/mcp/<server>/tools/<Name>Tool/`: `constants.ts` (tool name only), `action-names.ts` (action name constants; kept apart because the tool-name scan reads every string in `constants.ts` as a tool name), `prompt.ts` (one-line intro), `<name>-actions.ts` (the table: each row binds an existing handler), `<name>-tool.ts` (about 10 lines). `action-names.ts` may be imported from outside `src/mcp` like `constants.ts` (`test/mcp-layering.test.ts`).
 - A tool-level `ctx` part can be missing for one action only (`Report`: no progress port): that action refuses with `ACTION_UNAVAILABLE`, the other still works. An action can also be left out of the table per run (`Orchestrate`: `set_title` only with a thread rename port).
-- `Orchestrate` audit: `leadCall` takes the action; the idempotency key, the thread event payload (`tool`, `action`) and the `lead.decision` log carry both, and the `effect_log` tool column holds `Orchestrate.<action>` (read by `metrics:lead`). Prose names a call `Orchestrate <action>` (`orchestrateRef`).
+- `Orchestrate` audit: `teammateCall` takes the action; the idempotency key, the thread event payload (`tool`, `action`) and the `teammate.decision` log carry both, and the `effect_log` tool column holds `Orchestrate.<action>` (read by `metrics:teammate`). Prose names a call `Orchestrate <action>` (`orchestrateRef`).
 - Retired tool names (`ReportProgress`, `ReportResult`, `GetProjectContext`, `GetAgentCapabilities`, `CreatePlan`, `ValidatePlan`, `ProposePlanRevision`, `GetExecutionProgress`, `AnalyzeBlockers`, and the chief-of-staff's `DispatchAgent`, `SteerTask`, `RetryTask`, `CancelTask`, `ForwardResult`, `AskOwner`, `RequestPlan`, `ApprovePlan`, `SetThreadTitle`, `RegisterLocation`) are banned in `src` and `test` (`test/retired-naming-scan.test.ts`). Tests: `test/action-tool.test.ts`.
 
 ## File Organization
@@ -104,12 +102,12 @@ Folders under `src/orchestrator/`:
 - **FTS5:** `memory_fts`, `artifacts_fts` and `task_messages_fts` are hand-written custom migrations (`0001_memory_fts.sql`, `0003_artifacts_fts.sql`, `0018_task_messages_fts.sql`). `drizzle-kit` does not generate it.
 - **Baseline:** one baseline (`0000_baseline`), no upgrade path. A database that has tables but no `__drizzle_migrations` is refused at start (`src/storage/db.ts`). Reset steps: [discord-setup.md, First start and reset](discord-setup.md#first-start-and-reset).
 - **SQL location:** SQL lives in `src/storage/*-store.ts`; stores take the database handle. `test/no-sql-in-orchestrator.test.ts` enforces this under `src/orchestrator/`.
-  - Known exceptions outside `src/storage/`: the read-only report `src/observability/lead-metrics.ts` and one query in `src/lifecycle/startup.ts` (held tasks). Move them into a store when next touched.
+  - Known exceptions outside `src/storage/`: the read-only report `src/observability/teammate-metrics.ts` and one query in `src/lifecycle/startup.ts` (held tasks). Move them into a store when next touched.
 
 ## Environment and Config
 - Env is read only in `src/config/`. The one reader is `readProcessEnv()` (`src/config/process-env.ts`). Test: `test/no-process-env-outside-config.test.ts`.
 - Config is the zod schema in `src/config/agent-config.ts`. Each schema key must be classified in `src/config/data/child-env-deny.yaml` (test: `test/child-env-deny.test.ts`).
-- Fixed values live in code: model ids in `src/config/model-ids.ts`, routing in `src/config/model-routing.ts`, chief-of-staff caps in `src/config/lead-caps.ts`.
+- Fixed values live in code: model ids in `src/config/model-ids.ts`, routing in `src/config/model-routing.ts`, chief-of-staff caps in `src/config/teammate-caps.ts`.
 - Variable list: [system-architecture.md, Environment and Limits](system-architecture.md#environment-and-limits).
 
 ## Logging
@@ -156,7 +154,7 @@ Scan tests read `src/` (and `docs/` where noted) on every `bun test` run. A viol
 ## Testing
 - **Framework:** `bun test` (`bun:test` `expect`). Run one file with `bun test test/<area>.test.ts`.
 - **Naming:** `test/<area>.test.ts`. Live tests are named `*.smoke.test.ts` or `*.live.test.ts` and skip without credentials.
-- **Opt-in (paid):** the chief-of-staff golden set runs only with `LEAD_EVAL=1` and a real token; the researcher research eval only with `RESEARCHER_EVAL=1` (alias `SCOUT_EVAL=1`) and the scout codebase eval only with `SCOUT_CODE_EVAL=1`, each with a real token. Live SDK checks run only with their own gate variable. Never run them in a routine gate.
+- **Opt-in (paid):** the chief-of-staff golden set runs only with `TEAMMATE_EVAL=1` and a real token; the researcher research eval only with `RESEARCHER_EVAL=1` (alias `SCOUT_EVAL=1`) and the scout codebase eval only with `SCOUT_CODE_EVAL=1`, each with a real token. Live SDK checks run only with their own gate variable. Never run them in a routine gate.
 - **Fakes:** a fake `query` for SDK options; an in-memory SQLite for storage; a fake effect port for the orchestrator; fake Discord message objects.
 - **Scan tests** (see above) run in the normal suite.
 - **No sleeps for concurrency tests:** wait on a deferred promise or a callback.

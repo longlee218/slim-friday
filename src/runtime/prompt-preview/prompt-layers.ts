@@ -23,7 +23,7 @@ export interface PreviewInput {
   /** Workspace of the run; omitted = a placeholder one (its persona files fall back to the root ones). Ignored for the control role. */
   workspace?: string;
   channel?: string;
-  /** Locations of the channel (TEAM.md for the lead, registry for a worker). */
+  /** Locations of the channel (TEAM.md for the teammate, registry for a worker). */
   locations?: Location[];
 }
 
@@ -49,14 +49,14 @@ function personaLayers(persona: string): PromptLayer[] {
 
 /**
  * The system prompt of a role exactly as a run assembles it: the extra context comes from the real `runExtraContext`
- * (persona, TEAM.md, worker memory, registry; the lead's memory and title note are in its user turn, not here), the final text from the real `buildSystemPrompt`. The layers are
+ * (persona, TEAM.md, worker memory, registry; the teammate's memory and title note are in its user turn, not here), the final text from the real `buildSystemPrompt`. The layers are
  * labeled by matching each context block with the piece that produced it; an unmatched block is kept as "context".
  */
 export function buildPromptPreview(role: RoleDefinition, i: PreviewInput): PromptPreview {
   const control = role.kind === "control";
   const workspace = control ? undefined : (i.workspace ?? PLACEHOLDER_WORKSPACE);
   const locations = i.locations ?? [];
-  const team = role.kind === "lead" ? buildTeamMd({ locations }) : undefined;
+  const team = role.kind === "teammate" ? buildTeamMd({ locations }) : undefined;
   const blocks = runExtraContext({
     config: { agentHome: i.agentHome } as AgentConfig,
     i: { workspace, channel: i.channel, team, threadId: "preview" } as RoleRunInput,

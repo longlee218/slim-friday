@@ -69,7 +69,7 @@ export async function sendReply(
   }
 }
 
-/** Post a finished result as an attached file (`fileName`: from its title) with a short label (the lead adds its own summary). */
+/** Post a finished result as an attached file (`fileName`: from its title) with a short label (the teammate adds its own summary). */
 export async function sendResultFile(
   channel: SendableChannels,
   text: string,

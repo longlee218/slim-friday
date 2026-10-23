@@ -3,16 +3,16 @@ import { afterEach, expect, test } from "bun:test";
 import { z } from "zod";
 import { createOrchestrateTool } from "../src/mcp/orchestration/tools/OrchestrateTool/orchestrate-tool";
 import { createDbEffectPort } from "../src/orchestrator/goal/effect-port-db";
-import { type LeadToolContext, leadCall } from "../src/orchestrator/lead/lead-call";
-import { handleDispatch } from "../src/orchestrator/lead/lead-handlers";
-import { handleAdd, handleUpdate } from "../src/orchestrator/lead/lead-task-handlers";
-import { ADD_ITEM_SHAPE } from "../src/orchestrator/lead/task-schemas";
+import { ADD_ITEM_SHAPE } from "../src/orchestrator/teammate/task-schemas";
+import { type TeammateToolContext, teammateCall } from "../src/orchestrator/teammate/teammate-call";
+import { handleDispatch } from "../src/orchestrator/teammate/teammate-handlers";
+import { handleAdd, handleUpdate } from "../src/orchestrator/teammate/teammate-task-handlers";
 import { openDb } from "../src/storage/db";
 import { getItem } from "../src/storage/owned-item-store";
 import { TH } from "./plan-fixture";
 
 /* Task rules 2, 4, 5, 6 of phase 4 (refusals and edges not covered by task-tools.test.ts): dead dependencies,
-   the subject / priority / role params as BAD_PARAMS, and the idempotency key of a lead call. */
+   the subject / priority / role params as BAD_PARAMS, and the idempotency key of a teammate call. */
 
 let db: Database;
 afterEach(() => {
@@ -20,7 +20,7 @@ afterEach(() => {
   db = undefined as never;
 });
 
-/** Real db port on thread TH; `ctx()` builds a lead ctx with a new input id per call. */
+/** Real db port on thread TH; `ctx()` builds a teammate ctx with a new input id per call. */
 function setup() {
   db = openDb(":memory:");
   const port = createDbEffectPort({
@@ -34,10 +34,10 @@ function setup() {
     },
   });
   let n = 0;
-  const ctx = (): LeadToolContext => ({
+  const ctx = (): TeammateToolContext => ({
     port,
     threadId: TH,
-    leadTurnId: `lt${++n}`,
+    teammateTurnId: `lt${++n}`,
     inputId: `in${++n}`,
     run: { dispatched: 0 },
   });
@@ -46,7 +46,7 @@ function setup() {
 
 /** A DIRECT goal with one item `main` (subject and brief share no word with the adds used below). */
 async function openGoal(
-  ctx: () => LeadToolContext,
+  ctx: () => TeammateToolContext,
   subject = "Main work",
   brief = "Main work item",
 ) {
@@ -68,8 +68,8 @@ const addArgs = (key: string, over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-/** Tool with no lead ctx: BAD_PARAMS is answered before any handler runs. */
-const tool = createOrchestrateTool({ lead: {} as never, titleCalls: { n: 0 } });
+/** Tool with no teammate ctx: BAD_PARAMS is answered before any handler runs. */
+const tool = createOrchestrateTool({ teammate: {} as never, titleCalls: { n: 0 } });
 const callTool = async (action: string, params: object) => {
   const r = await tool.handler({ action, params } as never, {});
   return JSON.parse((r.content[0] as { text: string }).text) as { code: string; message: string };
@@ -164,7 +164,7 @@ test("rule 4: a priority set by update is stored on a task that has not started"
   expect(getItem(db, g.itemIds[0] as string)?.priority).toBe(0);
 });
 
-test("idempotency key of a lead call holds the action: two actions with the same args both act; a repeat of one acts once", async () => {
+test("idempotency key of a teammate call holds the action: two actions with the same args both act; a repeat of one acts once", async () => {
   const s = setup();
   const c = { ...s.ctx(), inputId: "in-fixed" };
   let runs = 0;
@@ -173,14 +173,14 @@ test("idempotency key of a lead call holds the action: two actions with the same
     return { reply: { ok: true as const } };
   };
   const args = { taskId: "same" };
-  await leadCall(c, "steer", args, act);
-  await leadCall(c, "cancel", args, act);
+  await teammateCall(c, "steer", args, act);
+  await teammateCall(c, "cancel", args, act);
   expect(runs).toBe(2);
-  await leadCall(c, "cancel", args, act);
+  await teammateCall(c, "cancel", args, act);
   expect(runs).toBe(2);
 });
 
-test("a repeated identical add in one lead turn writes one task", async () => {
+test("a repeated identical add in one teammate turn writes one task", async () => {
   const s = setup();
   await openGoal(s.ctx);
   const c = { ...s.ctx(), inputId: "in-fixed" };

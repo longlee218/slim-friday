@@ -47,7 +47,7 @@ export function renderTaskThread(db: Database, item: ItemRow, opts: RenderOpts =
   const briefLine = brief
     ? line(brief, dataText(brief.text), false)
     : item.brief
-      ? `[brief] lead: ${dataText(item.brief)}`
+      ? `[brief] teammate: ${dataText(item.brief)}`
       : "";
   const rest = all.filter((m) => m.kind !== "brief");
   // Newest first until the budget is spent: the latest steer or answer is worth more than an old note.

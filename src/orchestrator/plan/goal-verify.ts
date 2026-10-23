@@ -23,7 +23,7 @@ import { fixesAt, insertItem, isVerifyKey, isWriter, nextNumber, numberOf } from
 
 /* The capped fix loop (verify-ensure.ts appends the verify items). A verify the tester ran and reported FAILED supersedes
    itself: the code appends `fix-N` (role and location of the location's last writer) and the next `verify-M` behind it, at
-   most MAX_FIX_LOOPS times PER LOCATION; the next failed verify of that location stays held for the lead (code
+   most MAX_FIX_LOOPS times PER LOCATION; the next failed verify of that location stays held for the teammate (code
    VERIFY_LOOP_CAP). Numbers are one growing sequence per kind, the loop count is the fix items of the location: no schema. */
 
 /** Chars of the failed verify's excerpt carried into the fix brief. */
@@ -33,14 +33,14 @@ const FAILED_CHECKS_CHARS = 600;
 const lastWriter = (items: readonly ItemRow[], location: string | null): ItemRow | undefined =>
   items.findLast((i) => isWriter(i) && (!location || i.location === location));
 
-/** What the lead does about each stop: the fix line carried in the event (the lead reads no reference file). */
+/** What the teammate does about each stop: the fix line carried in the event (the teammate reads no reference file). */
 const STOP_FIX: Record<string, string> = {
   VERIFY_LOOP_CAP: `ask the owner how to go on, or ${orchestrateRef(ORCHESTRATE_ACTION_CANCEL)} the verify`,
   OVER_BUDGET: `tell the owner the budget is spent, or ${orchestrateRef(ORCHESTRATE_ACTION_CANCEL)} the verify`,
   NO_WRITER: `tell the owner no item can fix that location, then ${orchestrateRef(ORCHESTRATE_ACTION_CANCEL)} the verify`,
 };
 
-/** A `failure` event with a code and its fix line, so the lead sees why the loop stopped and what to do. */
+/** A `failure` event with a code and its fix line, so the teammate sees why the loop stopped and what to do. */
 function stopEvent(db: Database, it: ItemRow, code: string, cause: string): false {
   appendEvent(db, {
     id: `verify_stop:${it.id}`,
@@ -60,7 +60,7 @@ function stopEvent(db: Database, it: ItemRow, code: string, cause: string): fals
 
 /**
  * A goal item just ended its run. When it is a verify the tester ran and reported FAILED (the failure policy held it with
- * cause `worker_failed`; a verify that crashed or hit its budget is an ordinary hold for the lead), start the next loop for
+ * cause `worker_failed`; a verify that crashed or hit its budget is an ordinary hold for the teammate), start the next loop for
  * ITS location: verify -> cancelled (superseded), `fix-N` ready, `verify-M` waiting for the fix (N and M = the next free
  * numbers). A newer verify of the same location (a plan revision added one) covers it: it is cancelled and no loop starts.
  * The cancel moves the item out of `blocked`, so a repeated call (after a restart) is a no-op. Returns true when it started
@@ -96,7 +96,7 @@ export function afterVerify(
     return stopEvent(db, it, "VERIFY_LOOP_CAP", `verify failed after ${MAX_FIX_LOOPS} fix loops`);
   if (goalOverBudget(db, goalId)) return stopEvent(db, it, "OVER_BUDGET", "budget");
   const writer = lastWriter(items, it.location);
-  // A writer whose location left the workspace cannot be fixed in: the lead decides.
+  // A writer whose location left the workspace cannot be fixed in: the teammate decides.
   if (!writer?.ownerRole || (locations && !locations.some((l) => l.name === writer.location)))
     return stopEvent(db, it, "NO_WRITER", "no item of the goal changes files");
   const failed = clip(redactText(it.resultExcerpt ?? ""), FAILED_CHECKS_CHARS);
@@ -104,7 +104,7 @@ export function afterVerify(
   const report = lastMessageOf(db, it.id, "result");
   const fixKey = `${FIX_KEY}-${nextNumber(items, FIX_KEY)}`;
   return db.transaction(() => {
-    if (!moveTaskTo(db, it.id, "cancelled")) return false; // not held any more: the lead decided first
+    if (!moveTaskTo(db, it.id, "cancelled")) return false; // not held any more: the teammate decided first
     insertItem(db, goalId, {
       key: fixKey,
       subject: "Fix the failed checks",

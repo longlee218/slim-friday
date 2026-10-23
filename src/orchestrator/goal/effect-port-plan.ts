@@ -8,7 +8,7 @@ import {
   taskBoardRef,
 } from "../../mcp/orchestration/tools/TaskBoardTool/action-names";
 import { excerpt } from "../../observability/logger";
-import { LEAD_ROLE } from "../../roles/builtin/lead-role";
+import { CHIEF_OF_STAFF_ROLE } from "../../roles/builtin/chief-of-staff-role";
 import { planAskSince } from "../../storage/effect-log-store";
 import {
   insertOwnedTask,
@@ -28,7 +28,7 @@ import type { EffectPort, PlanWriteResult } from "./effect-port";
 import { openGoalIdOf } from "./effect-port-queries";
 import { duplicateRefusal, similarOpenWork } from "./task-reads";
 
-/* The plan methods of the db-backed EffectPort: store the lead's plan, read a plan for the owner, record the owner's decision. */
+/* The plan methods of the db-backed EffectPort: store the teammate's plan, read a plan for the owner, record the owner's decision. */
 
 type PlanMethods = Pick<
   EffectPort,
@@ -40,7 +40,7 @@ class Refusal {
   constructor(readonly fail: { code: string; message: string }) {}
 }
 
-/** Plan methods of one lead run on one thread. */
+/** Plan methods of one teammate run on one thread. */
 export function createPlanPort(
   db: Database,
   threadId: string,
@@ -73,13 +73,13 @@ export function createPlanPort(
             insertOwnedTask(db, {
               id: goalId,
               threadId,
-              ownerRole: LEAD_ROLE.name,
+              ownerRole: CHIEF_OF_STAFF_ROLE.name,
               status: "open",
               scope: excerpt(i.objective, SCOPE_CHARS),
               correlationId: corr,
               structureOwner: "plan",
             });
-          } else setStructureOwner(db, goalId, "plan"); // a plan inside a lead goal: the structure moves lead -> plan
+          } else setStructureOwner(db, goalId, "plan"); // a plan inside a teammate goal: the structure moves teammate -> plan
           const prior = latestPlan(db, planIdOfGoal(db, goalId) ?? "");
           const r = createPlan(db, {
             goalId,
@@ -152,7 +152,7 @@ export function createPlanPort(
               message: `Goal ${row.goalId} is not this thread's open goal: the plan cannot start. ${taskBoardRef(TASK_BOARD_ACTION_LIST)}; then ${orchestrateRef(ORCHESTRATE_ACTION_CREATE_PLAN)} with the open goal's id, or without goalId for a fresh plan.`,
             }
           : approvalBlocker(db, row);
-      // An ask that ended without a decision is not repeated until the lead revises the version or the owner writes.
+      // An ask that ended without a decision is not repeated until the teammate revises the version or the owner writes.
       const askedOutcome = planAskSince(db, planId, version, lastOwnerMessageAt(db, threadId));
       return {
         planId,
@@ -170,7 +170,7 @@ export function createPlanPort(
       const planId = goalId && planIdOfGoal(db, goalId);
       const row = planId ? latestPlan(db, planId) : undefined;
       if (!row || row.status !== "valid") return undefined;
-      // Asked already without a decision (timeout, typed answer, budget): the lead may talk to the owner freely again.
+      // Asked already without a decision (timeout, typed answer, budget): the teammate may talk to the owner freely again.
       if (planAskSince(db, row.id, row.version, lastOwnerMessageAt(db, threadId))) return undefined;
       return { planId: row.id, version: row.version };
     },

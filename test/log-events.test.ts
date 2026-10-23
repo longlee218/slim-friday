@@ -141,7 +141,7 @@ test("a run logs run.started and run.finished with the task's correlation fields
       runAgent({
         prompt: "q",
         turnId: "T1",
-        role: getRole("lead"),
+        role: getRole("chief-of-staff"),
         cwd: env.home,
         config: env.config,
         db: env.db,
@@ -152,12 +152,12 @@ test("a run logs run.started and run.finished with the task's correlation fields
   stop();
   const events = lines.map((l) => l.event);
   expect(events).toEqual([
-    "skills.plugin_built", // the lead loads its method skill and brainstorming (two plugins)
+    "skills.plugin_built", // the teammate loads its method skill and brainstorming (two plugins)
     "skills.plugin_built",
     "run.started",
     "permission.mode",
     "run.finished",
-    "skills.used", // the lead logs its skill use too
+    "skills.used", // the teammate logs its skill use too
   ]);
   expect(lines[2]).toMatchObject({
     taskId: "T1",

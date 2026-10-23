@@ -17,7 +17,7 @@ afterEach(() => {
 
 const researcher = ROLES.researcher as RoleDefinition;
 const scout = ROLES.scout as RoleDefinition;
-const lead = ROLES.lead as RoleDefinition;
+const teammate = ROLES["chief-of-staff"] as RoleDefinition;
 
 test("no key (unset or placeholder): the Firecrawl server is not built", () => {
   delete process.env[KEY];
@@ -35,7 +35,7 @@ test("with a key: the researcher gets the hosted server over http, key in the he
   });
   expect(FIRECRAWL_MCP_URL).not.toContain("fc-");
   // A role that lists no Firecrawl tool never connects to it (the scout does code lookups since the split).
-  expect(buildServers(lead, {})[FIRECRAWL_MCP_SERVER]).toBeUndefined();
+  expect(buildServers(teammate, {})[FIRECRAWL_MCP_SERVER]).toBeUndefined();
   expect(buildServers(scout, {})[FIRECRAWL_MCP_SERVER]).toBeUndefined();
 });
 
@@ -54,7 +54,7 @@ test("guard: the researcher may call its listed Firecrawl tools only; other role
       checkToolCall(mcpToolName(FIRECRAWL_MCP_SERVER, denied), {}, guardFor(researcher, scope))
         .decision,
     ).toBe("deny");
-  expect(checkToolCall(search, {}, guardFor(lead, scope)).decision).toBe("deny");
+  expect(checkToolCall(search, {}, guardFor(teammate, scope)).decision).toBe("deny");
   expect(checkToolCall(search, {}, guardFor(scout, scope)).decision).toBe("deny");
 });
 

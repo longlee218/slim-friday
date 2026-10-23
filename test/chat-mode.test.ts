@@ -26,7 +26,7 @@ import { titlePortFor } from "../src/roles/prompts/thread-title-note";
 import { getSession } from "../src/storage/session-store";
 import { getThreadSummary } from "../src/storage/thread-summary-store";
 import { makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
-import { until } from "./lead-harness";
+import { until } from "./teammate-harness";
 
 const OWNER = "111";
 const BOT = "999";
@@ -189,10 +189,10 @@ test("titlePortFor: no rename port when threadId === channelId", () => {
 });
 
 /**
- * Real turn handler over a fake `query`; the test channel is a chat channel of `main` and the lead (the foreground role)
+ * Real turn handler over a fake `query`; the test channel is a chat channel of `main` and the teammate (the foreground role)
  * answers inline through `notify`.
  */
-/** `script` runs inside each fake model call (the lead run and the flush one-shot alike) and may return the reply text. */
+/** `script` runs inside each fake model call (the teammate run and the flush one-shot alike) and may return the reply text. */
 function turnHarness(script?: (options: any) => Promise<string | undefined>) {
   const env = makeEnv();
   const ws = env.paths.workspace("main");
@@ -218,10 +218,10 @@ function turnHarness(script?: (options: any) => Promise<string | undefined>) {
     db: env.db,
     config: env.config,
     queryFn,
-    leadTiming: { debounceMs: 10, announceWindowMs: 20 },
+    teammateTiming: { debounceMs: 10, announceWindowMs: 20 },
     threadTitle: { rename: async () => "renamed" as const },
   });
-  /** Send one owner message and wait for the lead's posted reply. */
+  /** Send one owner message and wait for the teammate's posted reply. */
   const send = async (text: string) => {
     const n = posts.length;
     await handle({
@@ -259,7 +259,7 @@ test("a compaction in a chat channel flushes into the channel journal, keyed by 
   const flushJson = '{"items":[{"kind":"decision","text":"Chat decisions go to the journal."}]}';
   const { env, calls, send, handle } = turnHarness(async (options) => {
     if (options.systemPrompt === FLUSH_SYSTEM) return flushJson; // the flush one-shot
-    // The lead run compacts: fire the SDK hooks the run registered, like the real SDK does.
+    // The teammate run compacts: fire the SDK hooks the run registered, like the real SDK does.
     const sig = { signal: new AbortController().signal };
     const transcript = join(env.home, "t.jsonl");
     writeFileSync(

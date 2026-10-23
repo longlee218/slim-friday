@@ -17,7 +17,7 @@ export interface BulletRef {
 /**
  * The bullet of a MEMORY.md text that `clean` (sanitized text, no date) most resembles, or null: token Jaccard >=
  * SIMILAR (the dream and work-item threshold). Only bullets inside the kind sections count (the only ones
- * `MemoryEdit` may change), so a refusal always names a bullet the lead can edit. Equal normalized text scores 1.
+ * `MemoryEdit` may change), so a refusal always names a bullet the teammate can edit. Equal normalized text scores 1.
  */
 export function findSimilarBullet(text: string, clean: string): BulletRef | null {
   // Too short to judge (fewer than MIN_TOKENS content words): never a near-duplicate.

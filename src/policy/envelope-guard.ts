@@ -7,7 +7,7 @@ import { classifyToolCall } from "./classify-tool-call";
 import type { EffectTool } from "./risk-types";
 
 /* The envelope gate of `checkToolCall`: a worker run with an envelope. Fail closed: what the envelope does not cover is
-   denied with `OUT_OF_ENVELOPE`, and the worker reports BLOCKED so the lead can ask for an amendment. */
+   denied with `OUT_OF_ENVELOPE`, and the worker reports BLOCKED so the teammate can ask for an amendment. */
 
 /** Reason of a call outside the envelope (never echoes the call). */
 const OUTSIDE = (why: string): Decision => ({

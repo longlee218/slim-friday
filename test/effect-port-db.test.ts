@@ -1,15 +1,15 @@
 import type { Database } from "bun:sqlite";
 import { afterEach, expect, test } from "bun:test";
 import { createDbEffectPort, type PortIo } from "../src/orchestrator/goal/effect-port-db";
+import { boardList } from "../src/orchestrator/messages/task-board-reads";
+import { postItemMessage } from "../src/orchestrator/messages/task-messages";
 import {
   handleAskOwner,
   handleCancel,
   handleDispatch,
   handleForward,
-} from "../src/orchestrator/lead/lead-handlers";
-import type { DispatchInput } from "../src/orchestrator/lead/lead-schemas";
-import { boardList } from "../src/orchestrator/messages/task-board-reads";
-import { postItemMessage } from "../src/orchestrator/messages/task-messages";
+} from "../src/orchestrator/teammate/teammate-handlers";
+import type { DispatchInput } from "../src/orchestrator/teammate/teammate-schemas";
 import { openDb } from "../src/storage/db";
 import { getOwnedTask } from "../src/storage/owned-task-store";
 import { appendEvent, listUndelivered } from "../src/storage/thread-event-store";
@@ -38,7 +38,7 @@ function setup(io: Partial<PortIo> = {}) {
   const ctx = (turn = "lt1") => ({
     port,
     threadId: TH,
-    leadTurnId: turn,
+    teammateTurnId: turn,
     run: { dispatched: 0 },
     inputId: turn,
   });
@@ -237,7 +237,7 @@ test("supersedes must be this thread's own open goal: a foreign goal is refused 
   const ctxOther = {
     port: other,
     threadId: "other",
-    leadTurnId: "x",
+    teammateTurnId: "x",
     inputId: "x",
     run: { dispatched: 0 },
   };
@@ -266,7 +266,7 @@ test("the board list is a read: fresh after a cancel, and it leaves no audit row
   expect(count("SELECT COUNT(*) AS n FROM thread_events") - events).toBe(1);
 });
 
-test("a re-run of the same lead input (a retry) does not post or ask twice; a refused dispatch is not replayed", async () => {
+test("a re-run of the same teammate input (a retry) does not post or ask twice; a refused dispatch is not replayed", async () => {
   const posts: unknown[] = [];
   let asks = 0;
   const { port, ctx } = setup({
@@ -285,7 +285,7 @@ test("a re-run of the same lead input (a retry) does not post or ask twice; a re
   const id = port.state().items[0]?.id as string;
   db.query("UPDATE owned_tasks SET result_excerpt = 'x' WHERE id = ?").run(id);
   postItemMessage(db, id, "developer", "result", "# T\n\nfull report"); // forward verbatim posts the result message
-  const rerun = { ...run1, leadTurnId: "lt-rerun", run: { dispatched: 0 } }; // same inputId
+  const rerun = { ...run1, teammateTurnId: "lt-rerun", run: { dispatched: 0 } }; // same inputId
   for (const c of [run1, rerun]) {
     await handleForward(c, { taskId: id, mode: "verbatim" });
     await handleAskOwner(c, { question: "q?", kind: "select", options: ["y", "n"] });
@@ -301,7 +301,7 @@ test("a re-run of the same lead input (a retry) does not post or ask twice; a re
   expect(await handleDispatch(c2, again)).toMatchObject({ code: "GOAL_OPEN" });
   moveTaskTo(db, id, "running");
   moveTaskTo(db, id, "completed");
-  // The same work again within the window is a suspect; the lead says it is new.
+  // The same work again within the window is a suspect; the teammate says it is new.
   expect(
     await handleDispatch({ ...c2, run: { dispatched: 0 } }, { ...again, confirmNew: true }),
   ).toMatchObject({

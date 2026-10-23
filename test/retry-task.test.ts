@@ -2,8 +2,8 @@ import type { Database } from "bun:sqlite";
 import { afterEach, expect, test } from "bun:test";
 import { GOAL_BUDGET_USD } from "../src/orchestrator/budget/task-budget";
 import { createDbEffectPort } from "../src/orchestrator/goal/effect-port-db";
-import { handleCancel, handleDispatch } from "../src/orchestrator/lead/lead-handlers";
-import { handleRetry } from "../src/orchestrator/lead/lead-retry-handler";
+import { handleCancel, handleDispatch } from "../src/orchestrator/teammate/teammate-handlers";
+import { handleRetry } from "../src/orchestrator/teammate/teammate-retry-handler";
 import { openDb } from "../src/storage/db";
 import { getItem, setResultKind } from "../src/storage/owned-item-store";
 import { getOwnedTask, linkTurn } from "../src/storage/owned-task-store";
@@ -34,7 +34,7 @@ async function held() {
   const ctx = (n: string) => ({
     port,
     threadId: TH,
-    leadTurnId: `lt-${n}`,
+    teammateTurnId: `lt-${n}`,
     inputId: n,
     run: { dispatched: 0 },
   });
@@ -64,7 +64,11 @@ test("Orchestrate retry: held -> ready, fresh resume budget, a retry event names
   expect(r).toMatchObject({ ok: true, retried: a });
   expect(getItem(db, a)).toMatchObject({ status: "ready", attempt: 0 });
   const ev = listUndelivered(db, TH).find((e) => e.kind === "retry");
-  expect(ev?.payload).toMatchObject({ note: "use the other branch", afterTurn: "tn", by: "lead" });
+  expect(ev?.payload).toMatchObject({
+    note: "use the other branch",
+    afterTurn: "tn",
+    by: "teammate",
+  });
   // A replay of the same call is one effect.
   expect(await handleRetry(ctx("r1"), { taskId: a, note: "use the other branch" })).toEqual(r);
 });

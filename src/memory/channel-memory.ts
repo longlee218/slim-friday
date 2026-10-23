@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { workspacePaths } from "../config/workspace-paths";
 import { neutralizePromptTags } from "../text/neutralize-prompt-tags";
 
-/** `AGENT_HOME/workspaces/<ws>/channels/<channel>/MEMORY.md`: the agent's one memory file (the lead writes it). */
+/** `AGENT_HOME/workspaces/<ws>/channels/<channel>/MEMORY.md`: the agent's one memory file (the teammate writes it). */
 export const channelMemoryFile = (agentHome: string, ws: string, channel: string): string =>
   workspacePaths(agentHome).workspace(ws).channel(channel).memory;
 
@@ -24,7 +24,7 @@ export interface MemoryLayers {
   channel: string;
 }
 
-/** Read the layers (root, channel) for workspace `ws`: lead and workers alike. Pure. */
+/** Read the layers (root, channel) for workspace `ws`: teammate and workers alike. Pure. */
 export function readMemoryLayers(
   agentHome: string,
   ws: string,
@@ -48,11 +48,11 @@ export function formatMemoryContext(l: MemoryLayers, channel: string | undefined
 }
 
 /**
- * The lead's memory block for its user turn: `<memory replaces="earlier memory blocks">` with one `<file scope="…">` per
+ * The teammate's memory block for its user turn: `<memory replaces="earlier memory blocks">` with one `<file scope="…">` per
  * non-empty layer. The newest block in a session is the whole memory: the attribute tells the model to drop older ones.
  * Always a block (an emptied memory must replace the earlier one).
  */
-export function formatLeadMemoryBlock(l: MemoryLayers, channel: string | undefined): string {
+export function formatTeammateMemoryBlock(l: MemoryLayers, channel: string | undefined): string {
   const files = [
     l.root && `<file scope="root">\n${neutralizePromptTags(l.root)}\n</file>`,
     l.channel &&
@@ -66,7 +66,7 @@ export function formatLeadMemoryBlock(l: MemoryLayers, channel: string | undefin
   ].join("\n");
 }
 
-/** Read the layers and format them (the prompt block of a lead or worker run). */
+/** Read the layers and format them (the prompt block of a teammate or worker run). */
 export const buildMemoryContext = (
   agentHome: string,
   ws: string,

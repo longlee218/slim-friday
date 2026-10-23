@@ -3,7 +3,7 @@ import { REPORT_TOOL } from "../src/mcp/orchestration/tools/ReportTool/constants
 
 /*
  * Test probes over the `options` a fake `query` receives: which kind of run it is, told by the MCP tools its servers
- * hold (a lead holds Orchestrate, a worker Report result).
+ * hold (a teammate holds Orchestrate, a worker Report result).
  */
 
 type Registered = Record<string, { handler: (a: unknown, e: unknown) => Promise<any> }>;
@@ -22,8 +22,8 @@ export const toolOf = (options: any, name: string) =>
 /** True when the run holds the tool `name`. */
 export const hasTool = (options: any, name: string): boolean => !!toolOf(options, name);
 
-/** A lead run (holds the lead's Orchestrate). */
-export const isLeadRun = (options: any): boolean => hasTool(options, ORCHESTRATE_TOOL);
+/** A teammate run (holds the teammate's Orchestrate). */
+export const isTeammateRun = (options: any): boolean => hasTool(options, ORCHESTRATE_TOOL);
 
 /** A dispatched worker run (holds Report result). */
 export const isWorkerRun = (options: any): boolean => hasTool(options, REPORT_TOOL);

@@ -7,13 +7,13 @@ import { lastEventOfItem } from "../../storage/thread-event-store";
 import { renderTaskThread } from "../messages/task-thread-render";
 
 /* What a worker start sends: the item's task thread on a first start, or the fixed resume prompt (same SDK session) plus
-   the thread after an interruption or a lead retry. A session that cannot be resumed falls back to the thread plus one line. */
+   the thread after an interruption or a teammate retry. A session that cannot be resumed falls back to the thread plus one line. */
 
 /**
  * Prompt of a resumed run (fixed text; the model verifies state before repeating a step). The second sentence is
  * load-bearing: the SDK gives a tool call cut by an abort or restart an error result that reads like a refusal
  * ("interrupted", "rejected by the user"). A live run once reported its web searches as "denied by the user" after a
- * restart and the lead relayed that false claim to the owner; a real denial is logged and named by the app instead.
+ * restart and the teammate relayed that false claim to the owner; a real denial is logged and named by the app instead.
  */
 export const RESUME_PROMPT =
   "You were interrupted. The last tool call may or may not have run. Check state (files, effect log) before repeating a step. " +
@@ -34,9 +34,9 @@ export interface StartInput {
   text: string;
   /** Session to resume (with the cwd of the turn that owns it, when recorded); absent = a fresh session. */
   resume?: { sessionId: string; cwd?: string };
-  /** An automatic resume (not a first start or a lead retry): it does not count toward the dispatch breaker. */
+  /** An automatic resume (not a first start or a teammate retry): it does not count toward the dispatch breaker. */
   auto: boolean;
-  /** The start carries an answer to the item's own question (owner reply or lead Orchestrate steer): no retry loop, so it is no dispatch for the breaker either. */
+  /** The start carries an answer to the item's own question (owner reply or teammate Orchestrate steer): no retry loop, so it is no dispatch for the breaker either. */
   answer?: true;
 }
 
@@ -67,7 +67,7 @@ interface PendingNote {
 }
 
 /**
- * The newest `retry` event (the lead's note) or `answer` event (the owner's answer to a `waiting_user` item) that no run
+ * The newest `retry` event (the teammate's note) or `answer` event (the owner's answer to a `waiting_user` item) that no run
  * has consumed yet (its `afterTurn` is the newest turn), or undefined. An `answer` with no `afterTurn` (a live worker
  * question) never matches.
  */
@@ -87,7 +87,7 @@ export function hasPendingAnswer(db: Database, itemId: string): boolean {
 
 /**
  * How `item` starts now. A first start sends the item's task thread (the brief and what was said since). A continuation
- * (an automatic resume: `attempt > 0`, or a lead retry not yet consumed) resumes the session its newest turn recorded,
+ * (an automatic resume: `attempt > 0`, or a teammate retry not yet consumed) resumes the session its newest turn recorded,
  * with the effects block and the thread, messages since the last run marked new; without a session (or after a failed
  * resume, which clears it) the thread goes again with `FALLBACK_LINE`.
  */

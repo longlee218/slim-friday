@@ -12,9 +12,9 @@ export interface SessionRow {
   model?: string | null;
   /** Compaction cycle of the thread when the session started (see `setSession`). */
   generation?: number;
-  /** `role` = a role's thread session; `lead` = a lead session (a lead never resumes a `role` one). */
+  /** `role` = a role's thread session; `teammate` = a teammate session (a teammate never resumes a `role` one). */
   kind?: string;
-  /** Lead sessions: `<cycle>:<hash>` of the last memory block sent in this session (null = none). */
+  /** Teammate sessions: `<cycle>:<hash>` of the last memory block sent in this session (null = none). */
   memory_mark?: string | null;
 }
 

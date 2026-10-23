@@ -183,8 +183,8 @@ test("the guard allows exactly the artifact tools of the role's mcpTools", () =>
       ]);
     }
   }
-  // The lead alone saves; every other role reads.
-  expect(ROLES.lead?.mcpTools).toEqual(expect.arrayContaining([...ARTIFACT_TOOLS]));
+  // The teammate alone saves; every other role reads.
+  expect(ROLES["chief-of-staff"]?.mcpTools).toEqual(expect.arrayContaining([...ARTIFACT_TOOLS]));
   for (const n of ["scout", "developer", "tester"])
     expect(ROLES[n]?.mcpTools).toEqual(expect.arrayContaining([...ARTIFACT_READ_TOOLS]));
 });

@@ -7,25 +7,25 @@ import { ownerConfirm } from "../owner-approval/owner-confirm";
 import { purgeThreadTrash } from "./effects/purge-trash";
 import { createHandlerServices } from "./handler-services";
 import type { TurnHandlerDeps } from "./handler-types";
-import { closeThreadAsk } from "./lead/pending-asks";
 import { parseMessageCommand } from "./message-commands";
+import { closeThreadAsk } from "./teammate/pending-asks";
 import { statusFacts } from "./turns/status-snapshot";
 import { reportCrash, stopCommand } from "./turns/turn-admission";
 import { turnLogContext } from "./turns/turn-tracker";
 import type { RecoveryReport } from "./worker/recover-in-flight";
 
 /**
- * Build `handleMessage`: Discord-free entry. Commands (`/stop`, `/status`, `/purge`) are answered by app code. Every other owner message goes to the thread's lead (queue): the handler
- * returns nothing and the lead posts its own reply, so the owner hears one voice.
+ * Build `handleMessage`: Discord-free entry. Commands (`/stop`, `/status`, `/purge`) are answered by app code. Every other owner message goes to the thread's teammate (queue): the handler
+ * returns nothing and the teammate posts its own reply, so the owner hears one voice.
  */
 export function createTurnHandler(deps: TurnHandlerDeps) {
   const { config } = deps;
   const log = logger.child({ module: "handle-message" });
-  const { tracker, memoryJobs, dispatchDeps, lead, inline, shutdown } = createHandlerServices(
+  const { tracker, memoryJobs, dispatchDeps, teammate, inline, shutdown } = createHandlerServices(
     deps,
     log,
   );
-  /** Handle one message and return the reply text to post (undefined = the lead answers on its own). */
+  /** Handle one message and return the reply text to post (undefined = the teammate answers on its own). */
   const run = async (message: InboundMessage): Promise<string | undefined> => {
     const { threadId } = message;
     const parsed = parseMessageCommand(message.text);
@@ -34,7 +34,7 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
       return stopCommand({
         db: deps.db,
         message,
-        leadQueue: { stop: lead.stopThread, busy: lead.queue.busy },
+        teammateQueue: { stop: teammate.stopThread, busy: teammate.queue.busy },
         steer: dispatchDeps.steer,
       });
     }
@@ -59,16 +59,16 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
       logEvent(log, "task.refused", { reason: "drain", reply: DRAIN_REPLY });
       return renderUserNotice({ kind: "failure", cause: "drain" }, messageLanguage(message));
     }
-    const ctx = lead.remember(message);
+    const ctx = teammate.remember(message);
     if ("refusal" in ctx) return ctx.refusal;
-    // A reply to the question message of a waiting task resumes that task; any other message goes to the lead.
-    // The owner sees at once that the answer reached the task (the lead may take a while to speak).
-    if (lead.answerReply(message))
+    // A reply to the question message of a waiting task resumes that task; any other message goes to the teammate.
+    // The owner sees at once that the answer reached the task (the teammate may take a while to speak).
+    if (teammate.answerReply(message))
       return renderUserNotice({ kind: "steer", state: "resumed" }, messageLanguage(message));
-    // A plain message while the lead waits on its own question is the answer to it (the lead run would otherwise stay
+    // A plain message while the teammate waits on its own question is the answer to it (the teammate run would otherwise stay
     // blocked on the question and this message would queue behind it).
     if (closeThreadAsk(threadId, message.text)) return undefined;
-    lead.submit(message);
+    teammate.submit(message);
     return undefined;
   };
   const handleMessage = (message: InboundMessage): Promise<string | undefined> =>
@@ -93,7 +93,7 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
   handleMessage.memoryJobs = memoryJobs; // tests await its drain
   handleMessage.abortAll = shutdown.abortAll;
   handleMessage.drain = shutdown.drain;
-  /** Boot: wake the lead of the threads the recovery found work for. */
-  handleMessage.wake = (report: RecoveryReport) => lead.wake(report);
+  /** Boot: wake the teammate of the threads the recovery found work for. */
+  handleMessage.wake = (report: RecoveryReport) => teammate.wake(report);
   return handleMessage;
 }

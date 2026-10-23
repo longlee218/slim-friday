@@ -8,11 +8,11 @@ import { messageRef } from "../messages/message-ref";
 import { postTaskMessage } from "../messages/task-messages";
 import { setWaiting } from "./run-activity";
 
-/* Worker question relay: a lead-dispatched worker never asks the owner itself. Its AskUserQuestion becomes a `question`
-   event (the lead reads it in an announce run) and the worker waits until the lead answers it (Orchestrate steer) or relays
+/* Worker question relay: a teammate-dispatched worker never asks the owner itself. Its AskUserQuestion becomes a `question`
+   event (the teammate reads it in an announce run) and the worker waits until the teammate answers it (Orchestrate steer) or relays
    it to the owner (Orchestrate ask_owner). The wait is bounded; nobody answering ends the run's ask like an owner timeout. */
 
-/** Chars of a question kept in the event (the lead reads it whole in the announce block: `QUESTION_LINE_CHARS`). */
+/** Chars of a question kept in the event (the teammate reads it whole in the announce block: `QUESTION_LINE_CHARS`). */
 const QUESTION_CHARS = 2000;
 
 /** One worker waiting for an answer. */
@@ -21,7 +21,7 @@ interface Waiting {
   resolve: (answers: Record<string, string> | undefined) => void;
 }
 
-/** The relay of a process: workers wait here, the lead's tools answer. */
+/** The relay of a process: workers wait here, the teammate's tools answer. */
 export interface QuestionRelay {
   /** Build the `askRelay` of one worker run (`itemId` = its owned task). */
   forWorker(w: {
@@ -33,7 +33,7 @@ export interface QuestionRelay {
     role: string;
   }): (questions: AskQuestion[]) => Promise<Record<string, string> | undefined>;
   /** Hand an answer to the worker waiting on `itemId`; false when none waits. `by` = who wrote it (the message author). */
-  answer(itemId: string, text: string, by?: "lead" | "owner"): boolean;
+  answer(itemId: string, text: string, by?: "teammate" | "owner"): boolean;
   /** Ends the wait of one turn with no answer (its run ended): a stale wait never answers or clears a later run's. */
   release(turnId: string): void;
   /** Ends every wait of one thread with no answer (`/stop`): a late answer finds nobody waiting. */
@@ -42,7 +42,7 @@ export interface QuestionRelay {
   abortAll(): void;
 }
 
-/** Build the relay. `onQuestion` wakes the lead (announce) after the event is written. */
+/** Build the relay. `onQuestion` wakes the teammate (announce) after the event is written. */
 export function createQuestionRelay(
   db: Database,
   onQuestion: (threadId: string) => void,
@@ -76,7 +76,7 @@ export function createQuestionRelay(
         };
         waiting.set(w.turnId, entry);
         const text = questions.map((q) => q.question).join("\n");
-        // The full question is a message; the event keeps the short text so the lead decides without a read.
+        // The full question is a message; the event keeps the short text so the teammate decides without a read.
         const messageId = postTaskMessage(db, {
           threadId: w.threadId,
           goalId: w.goalId,
@@ -99,7 +99,7 @@ export function createQuestionRelay(
         });
         onQuestion(w.threadId);
       }),
-    answer(itemId, text, by = "lead") {
+    answer(itemId, text, by = "teammate") {
       const w = [...waiting.values()].reverse().find((e) => e.itemId === itemId); // newest wait of the item
       if (!w) return false;
       const messageId = postTaskMessage(db, {
@@ -123,7 +123,7 @@ export function createQuestionRelay(
           by,
         },
       });
-      // Every question of the call gets the one answer (the lead answers the whole ask).
+      // Every question of the call gets the one answer (the teammate answers the whole ask).
       w.resolve(Object.fromEntries(w.questions.map((q) => [q.question, text])));
       return true;
     },
