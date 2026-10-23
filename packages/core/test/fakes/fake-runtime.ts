@@ -21,8 +21,12 @@ export class FakeSession implements BotSession {
     public spec: BotRuntimeSpec,
   ) {}
 
+  /** Called after each send; a test uses it to script the bot's reply. */
+  onSend?: (session: FakeSession, turn: InboundTurn) => void;
+
   send(turn: InboundTurn): void {
     this.sent.push(turn);
+    this.onSend?.(this, turn);
   }
   emit(e: RuntimeEvent): void {
     if (this.waiter) {
@@ -69,15 +73,25 @@ export class FakeRuntime implements AgentRuntime {
   opened: FakeSession[] = [];
   resumed: { sessionId: string; session: FakeSession }[] = [];
   private n = 0;
+  /** Copied to every new session as its `onSend`. */
+  onTurn?: (session: FakeSession, turn: InboundTurn) => void;
 
   async open(spec: BotRuntimeSpec): Promise<FakeSession> {
     const s = new FakeSession(`s${++this.n}`, spec);
+    s.onSend = this.onTurn;
     this.opened.push(s);
     return s;
   }
   async resume(sessionId: string, spec: BotRuntimeSpec): Promise<FakeSession> {
     const s = new FakeSession(sessionId, spec);
+    s.onSend = this.onTurn;
     this.resumed.push({ sessionId, session: s });
+    return s;
+  }
+  /** The n-th opened session; throws when the test expected one that was never opened. */
+  nth(n: number): FakeSession {
+    const s = this.opened[n];
+    if (!s) throw new Error(`session ${n} was not opened`);
     return s;
   }
   /** Every session created so far, in order. */

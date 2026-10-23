@@ -27,6 +27,8 @@ export interface ToolSpec {
 export interface RuntimeToolCall {
   tool: string;
   input: Record<string, unknown>;
+  /** The background task that makes the call, when it is not the bot itself. */
+  taskId?: string;
 }
 
 /** A tool call placed in the system: who calls, from which conversation. */
