@@ -35,6 +35,7 @@ prefixes:
   - BUDGET_ # stray budget vars from the shell never reach the child
   - COMPACT_WINDOW_ # the window is set per role by the app only
   - FRIDAY_
+  - VIEWER_ # the retired artifact viewer: a stale .env may still hold its HMAC secret
   - ANTHROPIC_ # provider vars are set again by the app for the child
 
 # Schema keys that are on purpose NOT denied (the agent may see them). None today.

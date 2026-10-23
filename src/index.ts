@@ -20,6 +20,7 @@ async function main(): Promise<void> {
     return fail(errText(err));
   }
   const ac = new AbortController();
+  let crashed = false;
   for (const sig of ["SIGINT", "SIGTERM"] as const) {
     process.on(sig, () => {
       logEvent(log, "app.shutdown", { reason: sig });
@@ -30,6 +31,7 @@ async function main(): Promise<void> {
   for (const ev of ["unhandledRejection", "uncaughtException"] as const) {
     process.on(ev, (e) => {
       log.error({ err: errText(e) }, ev);
+      crashed = true;
       ac.abort();
     });
   }
@@ -38,7 +40,7 @@ async function main(): Promise<void> {
   } catch (err) {
     return fail(errText(err));
   }
-  process.exit(0);
+  process.exit(crashed ? 1 : 0);
 }
 
 void main();

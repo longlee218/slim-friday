@@ -89,8 +89,12 @@ test("boots with only a credential: creates the persona files, logs engine.absen
     if (readLogLines(logFile).some((l) => l.msg === "engine.absent")) break;
     await Bun.sleep(100);
   }
+  // The process must stay up with no signal (a pending promise alone does not hold Bun's loop).
+  await Bun.sleep(1500);
+  expect(proc.exitCode).toBeNull();
   proc.kill("SIGTERM");
   expect(await proc.exited).toBe(0);
+  expect(readLogLines(logFile).some((l) => l.event === "app.shutdown")).toBe(true);
   const p = workspacePaths(home);
   for (const f of [p.identity, p.soul, p.user, p.memory, p.agents, p.bootstrap])
     expect(existsSync(f)).toBe(true);

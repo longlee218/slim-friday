@@ -32,8 +32,12 @@ export async function bootFriday(opts: BootOptions): Promise<void> {
   ];
   logEvent(log, "engine.absent", { reason: "rebuild in progress", agentHome });
   opts.onReady?.();
+  // A pending promise does not keep Bun's event loop alive and the sweeper timers are unref'd:
+  // a ref'd timer holds the process up until the signal aborts.
+  const keepAlive = setInterval(() => {}, 2 ** 30);
   if (!signal.aborted)
     await new Promise<void>((r) => signal.addEventListener("abort", () => r(), { once: true }));
+  clearInterval(keepAlive);
   // Each step is isolated so one failure cannot skip closing the db.
   for (const stop of stops) {
     try {

@@ -1,11 +1,12 @@
 # Limits and Stop Conditions
 
+> **Status (2026-10-24, after plan 1):** the old goal / item / plan engine this page describes was removed; the rows and rules below that mention it are historical until plans 2-6 rewrite them. Kept and current: sandbox, policy guard, effect tools, memory, presets.
+
 Single source of every limit and stop condition of the app. Other docs link here and do not repeat numbers.
 
 - Value cells hold a raw `<!-- limit:NAME=VALUE -->` marker (ms, USD, bytes, counts) and a human form. `test/limits-doc-drift.test.ts` compares each marker with the code: every exported number of the limit files and every role field must have a marker, and a marker must match the code value.
 - Rows without a marker are informational and NOT drift-checked: the Model column of the roles table, retention, approval click, Discord output, the memory note and journal guards, other tools' limits and one-shot budgets. Every marked value is checked, and the test also fails when the doc has fewer markers than the code has limits.
-- `/limits [role]` (owner only, private reply, `limits.md` file when long) shows these values read from code at runtime (`collectLimits` in `src/config/limits-report.ts`, the same scan as the drift test) plus the live pool state. Owner live checklist: [discord-setup.md](discord-setup.md#limits-pools-and-subagents-owner-live-checklist).
-- Limit files: `src/config/teammate-caps.ts`, `src/config/run-caps.ts`, `src/config/resilience-caps.ts`, `src/config/memory-caps.ts`, `src/config/model-routing.ts`, `src/orchestrator/teammate/teammate-limits.ts`, and the role files in `config/presets/*/preset.yaml`. Pools are code constants, no env.
+- Limit files: `src/config/teammate-caps.ts`, `src/config/run-caps.ts`, `src/config/resilience-caps.ts`, `src/config/memory-caps.ts`, `src/config/model-routing.ts`, and the role files in `config/presets/*/preset.yaml`. Pools are code constants, no env.
 
 ## Definitions
 

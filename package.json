@@ -5,7 +5,6 @@
   "type": "module",
   "scripts": {
     "start": "bun run src/index.ts",
-    "bootstrap:discord": "bun run src/providers/discord/setup/bootstrap-discord-cli.ts",
     "db:generate": "drizzle-kit generate",
     "metrics:skills": "bun run scripts/metrics-skills.ts",
     "test": "bun test",

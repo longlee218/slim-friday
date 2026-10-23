@@ -1,5 +1,7 @@
 # Code Standards
 
+> **Status (2026-10-24, after plan 1):** the old goal / item / plan engine this page describes was removed; the rows and rules below that mention it are historical until plans 2-6 rewrite them. Kept and current: sandbox, policy guard, effect tools, memory, presets.
+
 Last updated: 2026-10-19 (action tools, phase 4, uncommitted; file counts refreshed. Before: 2026-10-16, cleanup phases 1-6 and 5c: Drizzle baseline, MCP regroup by purpose, role `kind` and `mcpTools`, `src/policy` and `src/owner-approval`, orchestrator split). Module map: [codebase-summary.md](codebase-summary.md). Runtime design: [system-architecture.md](system-architecture.md).
 
 ## Stack
@@ -15,8 +17,6 @@ bun run format              # Biome format (2 spaces, width 100)
 bun run lint                # Biome lint and format check
 bun run start               # start the bot (reads .env)
 bun run db:generate         # drizzle-kit generate: after a schema edit
-bun run metrics:teammate        # chief-of-staff decisions, refusals, envelope blocks, cost (read-only db)
-bun run bootstrap:discord   # create the ops channels
 ```
 
 ## Design Rules
@@ -34,35 +34,8 @@ bun run bootstrap:discord   # create the ops channels
    - Do not add app-side Bash parsing or a shell allowlist: the sandbox is the shell boundary.
 7. **Fail closed for owner decisions.** An owner question with no answer means "do not run". A missing or invalid config refuses startup.
 8. **Layering** (test-enforced):
-   - `orchestrator/thread/` never imports `runtime/`.
-   - `roles/` never imports `orchestrator/`.
    - Files outside `src/mcp/` import it only through constants, tool names and manifest types (`test/mcp-layering.test.ts`).
-   - `src/orchestrator` has no runtime import cycle and never imports `providers/discord/setup/` (`test/no-import-cycles-orchestrator.test.ts`).
-9. **Chief-of-staff policy is code constants and typed actions.** Caps live in `src/config/teammate-caps.ts`; dispatch shape rules in `src/orchestrator/strategy/dispatch-policy.ts`. Chief-of-staff tools are typed actions; their handlers check state, caps and compare-and-set. The chief-of-staff starts only roles with `dispatchable: true`. Only a `kind: "worker"` role owns tasks.
-10. **Effects go through the effect port.** Each state change of a chief-of-staff or effect tool is one atomic write (`src/orchestrator/goal/effect-port*.ts`, `effect_log` row). Handlers never write the database directly; tests use the fake port.
-11. **The chief-of-staff plans; developers execute.** The chief-of-staff writes a plan with `Orchestrate create_plan` / `revise_plan`, code validates it (`src/orchestrator/plan/validate-plan.ts`), and the owner approves each version through `Orchestrate approve_plan`. There is no planner role (removed 2026-10-22).
 
-## Orchestrator Layout
-Folders under `src/orchestrator/`:
-
-| Folder | Files | Holds |
-|---|---|---|
-| top level | 5 | `handle-message.ts` (entry), `handler-services.ts`, `handler-types.ts`, `message-commands.ts`, `reply.ts` |
-| `teammate/` | 25 | teammate queue and run, chief-of-staff tool handlers and schemas, chief-of-staff events and announce |
-| `worker/` | 27 | worker run, dispatch-ready, question relay, result file, run report, goal settle, recovery |
-| `run/` | 19 | `runTurn` (`run-turn.ts`), role run, role scope, `answer-output.ts`, live-run registry, stop tree, control scope |
-| `goal/` | 10 | effect port (db, plan and query adapters); task reads and the duplicate match (`task-reads.ts`, `task-match.ts`) |
-| `strategy/` | 5 | `dispatch-policy.ts`, `plan-policy.ts`, `teammate-context-block.ts`, `caps` helpers |
-| `plan/` | 18 | plan types and schemas, validator, lifecycle and revision, materialize into items, verify and fix items, plan artifacts and side effects |
-| `effects/` | 10 | effect tool logic (`delete-paths*`, `git-push`, `merge-branch`, `pull-request`), trash store and purge, effect tool names |
-| `budget/` | 4 | chief-of-staff budget, task budget, budget-stop reply |
-| `events/` | 1 | thread outbox types |
-| `thread/` | 1 | thread state (derived) |
-| `turns/` | 17 | turn rows, completion (`Report result` + `effect_log`), run limiter, steer, status snapshot, progress notes |
-
-- The memory flush after a compaction (`compaction-flush.ts`, `memory-jobs.ts`) is in `src/memory/`, not in the orchestrator.
-- Owned-task state machine and contracts are in `src/tasks/`.
-- Effect tool names are constants in `src/orchestrator/effects/effect-tool-names.ts` (`EFFECT_TOOL_NAMES`). A new effect tool needs: a risk class in `src/policy/classify-tool-call.ts`, a grant rule in `src/policy/check-envelope.ts`, a test in `test/effect-tools-scope.test.ts`, and a line in the developer shell rules (`DEVELOPER_SHELL_RULES`) if a shell command is the same act.
 
 ## Roles
 - One folder per role: `config/presets/<name>/{preset.yaml,prompt.md}` (loaded into a `RoleDefinition` by `src/presets/`). Shared prompt text sits in `config/presets/_partials/`; other prompt pieces in `src/roles/prompts/` (`team-md.ts`, `memory-prompts.ts`).
@@ -72,7 +45,7 @@ Folders under `src/orchestrator/`:
 - Config as data: roles stay TypeScript objects. Roles as files plus a resolver is closed (owner decision, 2026-10-12). Keep role data flat so the move stays possible.
 
 ## MCP Tools
-- Five in-process servers, listed in `src/mcp/manifests.ts`: `memory`, `artifacts`, `orchestration`, `effects`, `discord-admin` (the `plan` server was removed 2026-10-22; plan actions are `Orchestrate` rows). `orchestration` holds `Orchestrate` (chief-of-staff), `Report` (workers) and `TaskBoard` (read only, thread-scoped; reads live in `src/orchestrator/messages/`). Each server has `src/mcp/<server>/server.ts` (manifest) and tools in `src/mcp/<server>/tools/`.
+- In-process servers listed in `src/mcp/manifests.ts`: `memory`, `effects` (plus the external `playwright` and `firecrawl` servers).
 - Tool folder: `src/mcp/<server>/tools/<Name>Tool/` (PascalCase folder). Files are kebab-case:
   - `constants.ts`: leaf data with the `<NAME>_TOOL` name constant. It imports only leaf files (two memory tools import `src/memory/memory-limits.ts`).
   - `prompt.ts`: the tool description.
@@ -86,9 +59,6 @@ Folders under `src/orchestrator/`:
 - An action tool is one MCP tool per caller with the input `{ action, params }` (`Report` for workers, `Orchestrate` for the chief-of-staff). New capabilities are born as actions, not as tools.
 - The shared helper is `src/mcp/action-tool/`: `defineAction` (name, zod schema, example, handler) and `createActionTool` (the tool from a table). `action` is a `z.enum` of the table's names; `params` is a loose record, so no action schema sits in the tool definition. The handler checks `params` against the action's own schema.
 - Refusals: `BAD_PARAMS` (the action's param names and types plus one example), `BAD_ACTION` (the action list), `ACTION_UNAVAILABLE` (the run lacks what the action needs). The tool description is built from the table: one line per action, `name: param:type, optional?:type`, no prose. Meaning lives in the role skill.
-- Folder `src/mcp/<server>/tools/<Name>Tool/`: `constants.ts` (tool name only), `action-names.ts` (action name constants; kept apart because the tool-name scan reads every string in `constants.ts` as a tool name), `prompt.ts` (one-line intro), `<name>-actions.ts` (the table: each row binds an existing handler), `<name>-tool.ts` (about 10 lines). `action-names.ts` may be imported from outside `src/mcp` like `constants.ts` (`test/mcp-layering.test.ts`).
-- A tool-level `ctx` part can be missing for one action only (`Report`: no progress port): that action refuses with `ACTION_UNAVAILABLE`, the other still works. An action can also be left out of the table per run (`Orchestrate`: `set_title` only with a thread rename port).
-- `Orchestrate` audit: `teammateCall` takes the action; the idempotency key, the thread event payload (`tool`, `action`) and the `teammate.decision` log carry both, and the `effect_log` tool column holds `Orchestrate.<action>` (read by `metrics:teammate`). Prose names a call `Orchestrate <action>` (`orchestrateRef`).
 - Retired tool names (`ReportProgress`, `ReportResult`, `GetProjectContext`, `GetAgentCapabilities`, `CreatePlan`, `ValidatePlan`, `ProposePlanRevision`, `GetExecutionProgress`, `AnalyzeBlockers`, and the chief-of-staff's `DispatchAgent`, `SteerTask`, `RetryTask`, `CancelTask`, `ForwardResult`, `AskOwner`, `RequestPlan`, `ApprovePlan`, `SetThreadTitle`, `RegisterLocation`) are banned in `src` and `test` (`test/retired-naming-scan.test.ts`). Tests: `test/action-tool.test.ts`.
 
 ## File Organization
@@ -148,8 +118,6 @@ Scan tests read `src/` (and `docs/` where noted) on every `bun test` run. A viol
 6. **Owner questions:** developer workers use `AskUserQuestion`; the chief-of-staff uses `Orchestrate ask_owner`; each plan version is approved through `Orchestrate approve_plan` (the owner is asked once per version). Discord buttons are reused. Do not add a new Discord approval type for a plan, a finish step or a merge.
 7. **Owner-confirm buttons** (`src/owner-approval/owner-confirm.ts`) gate the costly or final acts in code: worker effects (`effect`), `/purge` (`purge_trash`), persona writes (`write_space_file`), space creation (`create_space_or_channel`). No answer or a timeout means "do not run".
 8. **Credentials:** read config only through the zod schema in `src/config/agent-config.ts`. No secret in code.
-9. **Git for the app:** `src/locations/git-cli.ts` runs git with argv, never a shell. The app never clones, fetches or pulls a location; the agent runs git in the owner's checkout.
-10. **Ownership:** each change touches one domain. Do not edit the files of a parallel task.
 
 ## Testing
 - **Framework:** `bun test` (`bun:test` `expect`). Run one file with `bun test test/<area>.test.ts`.

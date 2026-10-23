@@ -11,6 +11,11 @@ describe("child env deny list (config/data/child-env-deny.yaml)", () => {
     expect(unclassified).toEqual([]);
   });
 
+  test("the retired artifact-viewer vars stay denied (a stale .env may still set VIEWER_SECRET)", () => {
+    for (const k of ["VIEWER_SECRET", "VIEWER_BASE_URL", "VIEWER_PORT", "VIEWER_LINK_TTL_MS"])
+      expect(isChildEnvDenied(k)).toBe(true);
+  });
+
   test("the schema is read at all (a renamed export cannot make the check above vacuous)", () => {
     expect(ENV_SCHEMA_KEYS).toEqual(expect.arrayContaining(["DISCORD_TOKEN", "AGENT_HOME"]));
   });
