@@ -1,0 +1,3 @@
+# Default autonomy. Limits are not listed here: the core defaults apply.
+autonomy:
+  level: balanced

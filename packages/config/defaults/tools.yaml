@@ -1,0 +1,14 @@
+# Annotations of the built-in SDK tools. Read-only tools never ask; sandboxed tools are bounded by the OS sandbox.
+tools:
+  - { name: Read, annotations: { readOnlyHint: true } }
+  - { name: Grep, annotations: { readOnlyHint: true } }
+  - { name: Glob, annotations: { readOnlyHint: true } }
+  - { name: Write, sandboxed: true }
+  - { name: Edit, sandboxed: true }
+  - { name: NotebookEdit, sandboxed: true }
+  - { name: Bash, sandboxed: true }
+  - { name: WebFetch, annotations: { readOnlyHint: true, openWorldHint: true } }
+  - { name: WebSearch, annotations: { readOnlyHint: true, openWorldHint: true } }
+  # Starting a subagent or writing the todo list changes nothing; the subagent's own calls are decided one by one.
+  - { name: Agent, annotations: { readOnlyHint: true } }
+  - { name: TodoWrite, annotations: { readOnlyHint: true } }
