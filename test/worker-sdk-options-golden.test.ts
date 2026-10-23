@@ -59,7 +59,13 @@ async function capture(roleName: string) {
     null,
     2,
   );
-  return JSON.parse(json.replaceAll(home, "<home>").replaceAll(loc, "<loc>"));
+  // A plugin copy dir has a random suffix per run.
+  return JSON.parse(
+    json
+      .replaceAll(home, "<home>")
+      .replaceAll(loc, "<loc>")
+      .replace(/plugin-[A-Za-z0-9]+/g, "plugin-<id>"),
+  );
 }
 
 for (const name of ["developer", "scout", "tester", "researcher", "humanizer-writer"])
