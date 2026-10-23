@@ -13,6 +13,7 @@ import {
 } from "../src/orchestrator/worker/failure-policy";
 import { createQuestionRelay } from "../src/orchestrator/worker/question-relay";
 import { emitEndEvent } from "../src/orchestrator/worker/worker-end-event";
+import { getRole } from "../src/roles/role-registry";
 import type { ResultKind } from "../src/storage/owned-item-store";
 import { getItem } from "../src/storage/owned-item-store";
 import { insertOwnedTask, linkTurn } from "../src/storage/owned-task-store";
@@ -97,7 +98,7 @@ function startItem(o: {
       turnId,
       threadId,
       text: BRIEF,
-      role: "developer",
+      role: getRole("developer"),
       workspace: "main",
       locations,
       ac,

@@ -8,6 +8,7 @@ import type { AppCtxFactory } from "../../mcp/manifest-types";
 import type { MemoryJobs } from "../../memory/memory-jobs";
 import type { ApprovalGateway } from "../../owner-approval/approval-types";
 import type { DispatchEnvelope } from "../../policy/envelope";
+import type { RoleDefinition } from "../../roles/role-types";
 import type { QueryFn } from "../../runtime/run-agent";
 import type { AskQuestion } from "../../runtime/tool-permissions";
 import type { SessionRow } from "../../storage/session-store";
@@ -55,8 +56,8 @@ export interface RoleRunInput {
   turnId: string;
   threadId: string;
   text: string;
-  /** Role to run (registry name). */
-  role: string;
+  /** The role to run, resolved by the caller (a registry role, or a teammate's role built from its row). */
+  role: RoleDefinition;
   /** Workspace the run belongs to; every location lookup of the flow stays inside it. Absent = a control-channel run (no workspace, no location, no memory). */
   workspace?: string;
   /** Builds the app ctx parts of the MCP tools (teammate, report sink, plan, effects, admin) on every query() call; the role's `mcpTools` picks the tools. */
@@ -81,6 +82,8 @@ export interface RoleRunInput {
   existing?: SessionRow | null;
   /** Task ledger of the thread (idle thread only); empty = none. */
   ledger?: string;
+  /** A teammate's `<profile>` and `<teammates>` directory (system prompt, before the owner files); absent = the default chief-of-staff. */
+  teammatePrompt?: string;
   /** The teammate's TEAM.md (roster, locations, how to delegate): placed after AGENTS.md in its persona block. */
   team?: string;
   /** Envelope of a dispatched worker: its shell runs in the OS sandbox and every tool call is checked against it. Omitted = no envelope. */

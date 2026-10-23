@@ -101,7 +101,7 @@ async function runProbe(results: Record<string, unknown>[]) {
         turnId: "t1",
         threadId: "th",
         text: "hard question",
-        role: PROBE.name,
+        role: PROBE,
         workspace: "main",
         channelId: "c1",
         locations: [{ name: "location", path: env.location } as never],

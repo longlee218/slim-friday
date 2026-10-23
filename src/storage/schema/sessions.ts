@@ -22,4 +22,6 @@ export const sessions = sqliteTable("sessions", {
   kind: text().notNull().default("role"),
   /** Teammate sessions: `<compaction cycle>:<memory hash>` of the last memory block sent in this session (null = none sent). */
   memory_mark: text(),
+  /** Teammate sessions: hash of the config (model, tools, skills, preset) the session started with; a changed config starts a new session. */
+  config_mark: text(),
 });

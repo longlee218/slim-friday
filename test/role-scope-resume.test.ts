@@ -9,7 +9,7 @@ const input = (env: ReturnType<typeof makeEnv>, resumeCwd: string, locations = e
   turnId: "t1",
   threadId: "th",
   text: "x",
-  role: "developer",
+  role: getRole("developer"),
   workspace: "main",
   locations: locations
     ? [{ name: "location", workspace: "main", path: locations, description: "", git: true }]

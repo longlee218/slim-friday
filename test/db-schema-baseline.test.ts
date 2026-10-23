@@ -14,6 +14,21 @@ const cols = (db: Database, table: string): string[] =>
 
 /** Every table the stores use and the columns they read or write (dropped ones are asserted absent below). */
 const EXPECTED: Record<string, string[]> = {
+  teammates: [
+    "id",
+    "name",
+    "description",
+    "channel_id",
+    "preset",
+    "model",
+    "tools",
+    "skills",
+    "budget_usd",
+    "max_turns",
+    "created_at",
+    "updated_at",
+    "archived_at",
+  ],
   approvals: ["id", "turn_id", "tool", "summary", "decision", "requested_at", "decided_at"],
   artifacts: [
     "id",
@@ -111,6 +126,7 @@ const EXPECTED: Record<string, string[]> = {
     "generation",
     "kind",
     "memory_mark",
+    "config_mark",
   ],
   thread_events: [
     "seq",
@@ -163,6 +179,7 @@ const EXPECTED: Record<string, string[]> = {
   ],
   item_questions: ["message_id", "thread_id", "item_id", "created_at"],
   turns: [
+    "teammate_id",
     "id",
     "thread_id",
     "source",
@@ -257,7 +274,7 @@ test("reopening a file db is a no-op and a foreign db is refused", () => {
     a.close();
     const b = openDb(file);
     expect(b.query("SELECT thread_id FROM threads").all()).toHaveLength(1);
-    expect(b.query("SELECT COUNT(*) AS n FROM __drizzle_migrations").get()).toEqual({ n: 21 });
+    expect(b.query("SELECT COUNT(*) AS n FROM __drizzle_migrations").get()).toEqual({ n: 22 });
     b.close();
 
     const foreign = join(dir, "foreign.db");

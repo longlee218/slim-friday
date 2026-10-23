@@ -34,6 +34,8 @@ export const turns = sqliteTable(
     counts_toward_cap: integer().notNull().default(1),
     /** Owned task row this turn works on. */
     owned_task_id: text(),
+    /** Teammate that ran the turn (null = the default chief-of-staff or a worker). */
+    teammate_id: text(),
   },
   (t) => [
     index("idx_turns_thread").on(t.thread_id),
@@ -41,6 +43,7 @@ export const turns = sqliteTable(
     index("idx_turns_session").on(t.session_id),
     index("idx_turns_role_status").on(t.role, t.status),
     index("idx_turns_ended").on(t.ended_at),
+    index("idx_turns_teammate").on(t.teammate_id, t.started_at),
   ],
 );
 

@@ -10,8 +10,9 @@ import { errText } from "../../observability/redact";
 import { realOrSame } from "../../policy/paths";
 import { buildTeamMd } from "../../roles/prompts/team-md";
 import { titlePortFor } from "../../roles/prompts/thread-title-note";
-import { dispatchableWorkers, getRole } from "../../roles/role-registry";
+import { dispatchableWorkers } from "../../roles/role-registry";
 import { getSession } from "../../storage/session-store";
+import { resolveTeammate, type TeammateResolution } from "../../teammates/resolve-teammate";
 import { policyOf } from "../../tools/role-policy";
 import { createDbEffectPort } from "../goal/effect-port-db";
 import { planSideEffects } from "../plan/plan-side-effects";
@@ -48,6 +49,8 @@ function teammateOnce(
     /** What woke the teammate and, for an owner run, the owner's raw text (Orchestrate register_location's guard). */
     trigger: "owner" | "announce";
     ownerText?: string;
+    /** The channel's resolved teammate (a valid one: a refused row never reaches the run). */
+    resolved: Extract<TeammateResolution, { ok: true }>;
   },
 ): Promise<TeammateTurnResult> {
   const { deps } = rt;
@@ -55,12 +58,14 @@ function teammateOnce(
   const { threadId, ac } = o;
   const turnId = crypto.randomUUID();
   let memory: TeammateMemoryTurn | undefined; // set by `build`, read after the run
+  const row = "teammate" in o.resolved ? o.resolved.teammate : undefined;
+  const mark = "configMark" in o.resolved ? o.resolved.configMark : null;
   return runTurn("teammate", deps, {
     begin: {
       log,
       context: { taskId: turnId, mode: "teammate" },
       ids: { turnId, threadId, source: ctx.message.source },
-      turn: { location: "*", role: "chief-of-staff", brief: o.text },
+      turn: { location: "*", role: "chief-of-staff", brief: o.text, teammateId: row?.id },
     },
     // Built after the turn row exists: tools over a fresh port, the stored session, the run input.
     build: () => {
@@ -96,11 +101,15 @@ function teammateOnce(
           refresh: () => rt.refresh(threadId),
         },
       };
-      const role = getRole("chief-of-staff");
+      const role = o.resolved.role;
       const policy = policyOf(role);
       const model = role.model;
       const stored = getSession(db, threadId);
-      const existing = stored?.kind === "teammate" ? stored : null;
+      // A session resumes only under the config it was made with (model, tools, skills, preset): else a fresh one.
+      const sameKind = stored?.kind === "teammate" ? stored : null;
+      const existing = sameKind && (sameKind.config_mark ?? null) === mark ? sameKind : null;
+      if (sameKind && !existing)
+        logEvent(log, "teammate.session_rollover", { threadId, reason: "config" });
       const turn = buildTeammateUserTurn(db, {
         agentHome: deps.config.agentHome,
         ctx,
@@ -118,7 +127,7 @@ function teammateOnce(
           turnId,
           threadId,
           text: turn.text,
-          role: "chief-of-staff",
+          role,
           workspace: ctx.workspace,
           channel: ctx.channel,
           channelMode: ctx.channelMode,
@@ -129,10 +138,11 @@ function teammateOnce(
           // An owner message may start a plan (spec, plan, create_plan, approve_plan): more room than an announce run.
           ...(o.trigger === "owner" && {
             limitsOverride: {
-              maxTurns: TEAMMATE_OWNER_RUN_MAX_TURNS,
-              budgetUsd: TEAMMATE_OWNER_RUN_BUDGET_USD,
+              maxTurns: row?.maxTurns ?? TEAMMATE_OWNER_RUN_MAX_TURNS,
+              budgetUsd: row?.budgetUsd ?? TEAMMATE_OWNER_RUN_BUDGET_USD,
             },
           }),
+          ...("promptBlock" in o.resolved && { teammatePrompt: o.resolved.promptBlock }),
           ac,
           language,
           existing,
@@ -163,7 +173,12 @@ function teammateOnce(
           },
         },
         close: (res, t0) => ({
-          res: { ...res, sessionKind: "teammate", model: res.model ?? model },
+          res: {
+            ...res,
+            sessionKind: "teammate",
+            model: res.model ?? model,
+            ...(mark && { configMark: mark }),
+          },
           opts: { language, stopping: deps.stopping(), t0, location: "*" },
         }),
       };
@@ -210,6 +225,19 @@ export async function runTeammate(rt: TeammateRuntime, input: TeammateInput): Pr
     const batch = capNews(news);
     announced = [...batch.shown.map((e) => e.id), ...batch.coalesced];
     overflow = batch.more > 0;
+    const resolved = resolveTeammate(db, ctx.channelId);
+    if (!resolved.ok) {
+      // Fail closed: a row that cannot run never falls back to the default teammate.
+      logEvent(
+        log,
+        "teammate.refused",
+        { threadId, teammate: resolved.teammate.name, reason: resolved.reason },
+        "warn",
+      );
+      await post(`Teammate ${resolved.teammate.name} cannot run: ${resolved.reason}.`);
+      consumed = true;
+      return;
+    }
     const inputId = crypto.randomUUID();
     const out = await teammateOnce(rt, ctx, {
       threadId,
@@ -220,6 +248,7 @@ export async function runTeammate(rt: TeammateRuntime, input: TeammateInput): Pr
           : ownerMessageBlock(input.text ?? ""),
       ac,
       trigger: input.kind,
+      resolved,
       ...(input.kind === "owner" && input.text && { ownerText: input.text }),
     });
     if (out.outcome === "aborted") {

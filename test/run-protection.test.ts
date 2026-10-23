@@ -64,7 +64,7 @@ const scopeInput = (env: ReturnType<typeof makeEnv>) => ({
   turnId: "tm1",
   threadId: "th",
   text: "x",
-  role: "chief-of-staff",
+  role: getRole("chief-of-staff"),
   workspace: "main",
   locations: [
     { name: "location", workspace: "main", path: env.location, description: "", git: true },

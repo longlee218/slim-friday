@@ -76,13 +76,15 @@ export function insertTurn(
     brief?: string;
     /** How many hand-overs deep the task is (0 = owner-started). */
     hop?: number;
+    /** Teammate that runs it (a teammate channel); absent = the default chief-of-staff or a worker. */
+    teammateId?: string;
   },
 ): void {
   // Only background roles that change something count against the concurrency cap (see `countActiveCappedTasks`).
   const role = getRole(t.role);
   db.query(
-    `INSERT INTO turns (id, thread_id, source, location, status, started_at, brief, counts_toward_cap, role, kind, hop)
-     VALUES (?, ?, ?, ?, 'running', ?, ?, ?, ?, 'single', ?)`,
+    `INSERT INTO turns (id, thread_id, source, location, status, started_at, brief, counts_toward_cap, role, kind, hop, teammate_id)
+     VALUES (?, ?, ?, ?, 'running', ?, ?, ?, ?, 'single', ?, ?)`,
   ).run(
     t.id,
     t.threadId,
@@ -93,6 +95,7 @@ export function insertTurn(
     countsTowardCap(role) ? 1 : 0,
     role.name,
     t.hop ?? 0,
+    t.teammateId ?? null,
   );
 }
 

@@ -109,7 +109,7 @@ export async function startWorker(
           ...(start.resume && { resume: start.resume }), // same SDK session, same cwd as its first run
           onCwd: (cwd) => recordRunCwd(db, { turnId, threadId, goalId, itemId: item.id, cwd }),
           language,
-          role: role.name,
+          role,
           workspace: ctx.workspace,
           channel: ctx.channel,
           channelMode: ctx.channelMode,

@@ -11,6 +11,9 @@ export const TEAMMATE_OWNER_RUN_MAX_TURNS = 60;
 /** Budget (USD) of a teammate run started by an owner message. */
 export const TEAMMATE_OWNER_RUN_BUDGET_USD = 5;
 
+/** Most characters of the `<teammates>` directory in a teammate's system prompt (the other teammates' names and profiles); the rest is cut. */
+export const TEAMMATE_DIRECTORY_MAX_CHARS = 8000;
+
 /** Most dispatches in ONE teammate run. */
 export const DISPATCHES_PER_RUN = 1;
 

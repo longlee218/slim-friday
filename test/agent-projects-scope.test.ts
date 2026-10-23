@@ -31,7 +31,7 @@ for (const roleName of ["developer", "scout"]) {
         turnId: "t1",
         threadId: "th",
         text: "x",
-        role: roleName,
+        role: getRole(roleName),
         workspace: "main",
         locations: [loc("mine", mine)],
         ac: new AbortController(),

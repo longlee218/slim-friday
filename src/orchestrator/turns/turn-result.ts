@@ -42,6 +42,8 @@ export interface FlowResult
   skipThreadSession?: true;
   /** The session is the teammate's (stored with `kind='teammate'` and the model): set by the teammate runner only. */
   sessionKind?: "teammate";
+  /** Teammate sessions: hash of the config the session started with (see `teammates/config-mark.ts`). */
+  configMark?: string;
   /** Model that answered (stored with the session). */
   model?: string;
 }
@@ -90,6 +92,7 @@ export function finishRun(
       location: res.location ?? "*",
       cwd: res.cwd,
       ...(res.sessionKind && { kind: res.sessionKind, model: res.model }),
+      configMark: res.configMark,
     });
     logEvent(log, "session.saved", { location: res.location ?? "*", sessionId: res.sessionId });
   }

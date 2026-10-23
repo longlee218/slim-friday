@@ -5,6 +5,7 @@ import type { DispatchDeps } from "../src/orchestrator/run/role-run-types";
 import { runDetached } from "../src/orchestrator/run/run-turn";
 import { stopThreadTree } from "../src/orchestrator/run/stop-thread-tree";
 import { createRunLimiter } from "../src/orchestrator/turns/run-limiter";
+import { getRole } from "../src/roles/role-registry";
 import { insertTurn } from "../src/storage/run-store";
 import { listUndelivered } from "../src/storage/thread-event-store";
 import { loadWorkspaces } from "../src/workspaces/workspace-registry";
@@ -48,7 +49,7 @@ function start(
       turnId,
       threadId,
       text: BRIEF,
-      role: "developer",
+      role: getRole("developer"),
       workspace: "main",
       locations,
       ac: new AbortController(),

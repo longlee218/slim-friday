@@ -3,7 +3,6 @@ import { renderUserNotice } from "../../ingress/user-copy";
 import { setLogContext } from "../../observability/logger";
 import { firstPromptPrefix } from "../../roles/prompts/first-prompt-prefix";
 import { titlePortFor } from "../../roles/prompts/thread-title-note";
-import { getRole } from "../../roles/role-registry";
 import { ownedTaskOfTurn } from "../../storage/owned-task-store";
 import { ceilingRefusal, withSpent } from "../budget/task-budget";
 import { clearProgressNote } from "../turns/progress-notes";
@@ -27,7 +26,7 @@ export type { RoleRunInput, RoleRunnerDeps };
  */
 export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<FlowResult> {
   const { db, config, approvals } = deps;
-  const registered = getRole(run.role);
+  const registered = run.role;
   const role = run.limitsOverride
     ? {
         ...registered,
@@ -55,7 +54,7 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
   setLogContext({
     sessionKey: sessionKeyOf({
       threadId: i.threadId,
-      role: run.role,
+      role: run.role.name,
       taskId: ownedTaskOfTurn(db, i.turnId),
     }),
   });

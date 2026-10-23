@@ -68,6 +68,8 @@ export function beginTurn(
     brief?: string;
     role: string;
     hop?: number;
+    /** Teammate that runs the turn (a teammate channel). */
+    teammateId?: string;
     /** Owned task this turn continues (worker roles only; a non-worker role never links). */
     ownedTaskId?: string;
   },
@@ -82,6 +84,7 @@ export function beginTurn(
       brief: t.brief,
       role: t.role,
       hop: t.hop,
+      teammateId: t.teammateId,
     });
     // Only a worker role works on an owned task: non-worker answers (and the side lane) never link.
     if (getRole(t.role).kind === "worker")

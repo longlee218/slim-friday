@@ -108,7 +108,7 @@ export function createControlRoleRun(deps: ControlRunDeps): ControlRun {
               channelId,
               channelMode: "chat",
               text: prompt,
-              role: role.name,
+              role,
               locations: [],
               ac,
               language,

@@ -24,7 +24,7 @@ export function runExtraContext(p: {
   if (i.workspace === undefined)
     return [buildPersonaContext(config.agentHome).text].filter(Boolean);
   const worker = role.kind === "worker";
-  return buildPromptContext({
+  const context = buildPromptContext({
     agentHome: config.agentHome,
     workspace: i.workspace,
     channel: i.channel,
@@ -34,4 +34,6 @@ export function runExtraContext(p: {
     locationRules: worker ? buildLocationRulesContext(s.scope) : "",
     ledger: i.ledger,
   });
+  // A teammate's profile and directory come first: the persona files below are its private instructions.
+  return i.teammatePrompt ? [i.teammatePrompt, ...context] : context;
 }

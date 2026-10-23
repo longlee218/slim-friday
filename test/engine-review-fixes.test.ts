@@ -3,6 +3,7 @@ import { TASK_BUDGET_USD } from "../src/config/model-routing";
 import { runRole } from "../src/orchestrator/run/run-role";
 import { finishRun } from "../src/orchestrator/turns/turn-result";
 import { DEVELOPER_ROLE } from "../src/roles/builtin/developer-role";
+import { getRole } from "../src/roles/role-registry";
 import { insertRun } from "../src/storage/run-metrics-store";
 import { insertTurn } from "../src/storage/run-store";
 import { addLocation, clearWorkspaces, makeEnv, resultMsg, stubGateway } from "./helpers";
@@ -49,7 +50,7 @@ async function runDev(env: ReturnType<typeof makeEnv>, turnId: string) {
       threadId: "th",
       language: "en",
       text: "continue",
-      role: "developer",
+      role: getRole("developer"),
       workspace: "main",
       locations: [{ name: "location", path: env.location } as never],
       ac: new AbortController(),
@@ -180,7 +181,7 @@ test("a thrown run does not leave a run row 'running': the runs row carries the 
       turnId: "t1",
       threadId: "th",
       text: "x",
-      role: "chief-of-staff",
+      role: getRole("chief-of-staff"),
       workspace: "main",
       locations: [{ name: "location", path: env.location } as never],
       ac: new AbortController(),
@@ -207,7 +208,7 @@ async function runResumed(env: ReturnType<typeof makeEnv>, cwd: string, onStarte
       threadId: "th",
       language: "en",
       text: "continue",
-      role: "developer",
+      role: getRole("developer"),
       workspace: "main",
       locations: [{ name: "location", path: env.location } as never],
       ac: new AbortController(),

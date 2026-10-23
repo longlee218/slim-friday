@@ -1,12 +1,16 @@
 import { existsSync, mkdirSync, realpathSync } from "node:fs";
 import type { AgentConfig } from "../../config/agent-config";
 import { workspacePaths } from "../../config/workspace-paths";
+import { logEvent, logger } from "../../observability/logger";
 import { isInside, realOrSame } from "../../policy/paths";
 import type { RoleDefinition } from "../../roles/role-types";
 import { policyOf } from "../../tools/role-policy";
 import { controlScope } from "./control-scope";
 import type { RoleRunInput } from "./role-run-types";
 import type { RoleScope } from "./role-scope-types";
+
+/** Logger of this module. */
+const log = logger.child({ module: "role-scope" });
 
 /* Where a role run works and what it may touch, from role DATA (capabilities, kind) and the run input. */
 
@@ -69,6 +73,9 @@ export function roleScope(config: AgentConfig, i: RoleRunInput, role: RoleDefini
       pinned?.path ??
       (storedOk ? stored.cwd : locations.length > 1 ? dirs.cwd : (locations[0]?.path ?? dirs.cwd));
     if (stored && stored.cwd === cwd) sessionId = stored.session_id;
+    // The stored session was keyed by another cwd (locations changed): this run starts a fresh one. Say so.
+    else if (stored && role.kind === "teammate")
+      logEvent(log, "teammate.session_rollover", { threadId: i.threadId, reason: "cwd" });
   }
   const others = pinned ? [] : locations.map((r) => r.path).filter((p) => p !== cwd);
   const policy = policyOf(role);

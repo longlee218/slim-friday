@@ -380,7 +380,7 @@ test("every role run registers the PreCompact and PostCompact hooks", async () =
         turnId: "t1",
         threadId: "th",
         text: "hi",
-        role: probe.name,
+        role: probe,
         workspace: "main",
         locations: [{ name: "location", path: env.location } as never],
         ac: new AbortController(),

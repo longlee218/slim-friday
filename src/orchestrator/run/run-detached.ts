@@ -64,7 +64,7 @@ export function runDetached(deps: DispatchDeps, input: RoleRunInput, o: Detached
     taskId: o.taskId,
     threadId,
     turnId,
-    role,
+    role: role.name,
     ac,
     forceClose: () => {
       if (finalized) return;

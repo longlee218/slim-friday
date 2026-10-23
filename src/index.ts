@@ -29,6 +29,7 @@ import { createOpsLog } from "./providers/discord/setup/ops-log";
 import { warnIfBotAdministrator } from "./providers/discord/setup/ready-checks";
 import { warnOpsChannelsInWorkspaces } from "./providers/discord/setup/warn-ops-channels";
 import { openDb } from "./storage/db";
+import { archiveOrphanTeammates } from "./teammates/teammate-orphan-check";
 import { appRoots } from "./viewer/viewer-roots";
 import { startViewer } from "./viewer/viewer-server";
 
@@ -69,6 +70,12 @@ async function main(): Promise<void> {
   // running owned task is announced by a `recovered_after_restart` event, stale event claims are released.
   const recovery = recoverInFlight(db);
   await runStartupHygiene(db, config.agentHome);
+  // A teammate whose channel left every workspace.yaml is archived (the row stays for the history).
+  const orphans = archiveOrphanTeammates(
+    db,
+    boot.workspaces.flatMap((w) => w.channels),
+  );
+  if (orphans.length) logEvent(log, "teammates.orphans_archived", { names: orphans }, "warn");
   // The artifact viewer (read-only, 127.0.0.1) runs only when VIEWER_SECRET and VIEWER_BASE_URL are set; a taken port is fatal.
   let viewer: ReturnType<typeof startViewer> | undefined;
   if (config.viewer) {

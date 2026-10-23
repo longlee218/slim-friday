@@ -112,7 +112,7 @@ test("no-workspace scope: control dir, no write path, AGENT_HOME denied but work
       turnId: "t",
       threadId: "c",
       text: "hi",
-      role: NAME,
+      role: getRole(NAME),
       locations: [],
       ac: new AbortController(),
     },

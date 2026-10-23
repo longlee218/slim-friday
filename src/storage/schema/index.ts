@@ -9,5 +9,6 @@ export * from "./metrics";
 export * from "./plans";
 export * from "./sessions";
 export * from "./tasks";
+export * from "./teammates";
 export * from "./threads";
 export * from "./turns";

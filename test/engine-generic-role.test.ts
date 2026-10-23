@@ -52,7 +52,7 @@ async function runProbe(role: RoleDefinition) {
         turnId: "t1",
         threadId: "th",
         text: "review it",
-        role: role.name,
+        role,
         workspace: "main",
         locations: [{ name: "location", path: env.location } as never],
         ac: new AbortController(),
