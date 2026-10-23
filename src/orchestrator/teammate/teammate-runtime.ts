@@ -1,6 +1,7 @@
 import type { ImageAttachment, InboundMessage } from "../../ingress/inbound-message";
 import type { ReportLink } from "../../ingress/report-links";
 import type { Location } from "../../locations/location-registry";
+import type { PeerIntent, PeerResult, PeerSender } from "../../teammates/peer/send-peer-message";
 import type { DispatchDeps } from "../run/role-run-types";
 import type { QuestionRelay } from "../worker/question-relay";
 
@@ -29,6 +30,11 @@ export interface TeammateRuntime {
   /** Wake the teammate for new news of the thread (batched by the announcer; `delayMs` 0 = now, for urgent news such as a blocker). */
   announce(threadId: string, delayMs?: number): void;
   relay: QuestionRelay;
+  /** Send a peer message for a run of this process (`MessageTeammate`); absent in a runtime built without the peer wiring. */
+  peerSend?: (
+    from: PeerSender,
+    m: { to: string; text: string; intent: PeerIntent; replyTo?: number },
+  ) => Promise<PeerResult>;
 }
 
 /** Post text into the thread; a failure is returned to the caller as a rejected promise. */

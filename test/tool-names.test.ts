@@ -70,6 +70,7 @@ test("MCP server and tool names are the real wire names", () => {
     memory: ["MemoryEdit", "MemoryExpand", "MemoryGet", "MemorySave", "MemorySearch"],
     orchestration: ["Orchestrate", "Report", "TaskBoard"],
     effects: ["CreatePullRequest", "DeletePaths", "GitPush", "MergeBranch"],
+    teammates: ["MessageTeammate"],
   });
 });
 

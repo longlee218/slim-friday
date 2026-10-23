@@ -23,6 +23,8 @@ export interface TurnHandlerDeps {
   threadTitle?: ThreadTitlePort;
   /** Posts into a thread by id: the teammate's boot wake (a restart) has no owner message to answer through. Omitted = that wake is skipped. */
   post?: (threadId: string, text: string) => Promise<void>;
+  /** Open a new thread in a teammate channel (a peer request to a task-mode teammate); returns its id. */
+  openThread?: (channelId: string, name: string) => Promise<string>;
   /** Timing knobs of the teammate queue (tests shorten the owner debounce and the announce batch). */
   teammateTiming?: { debounceMs?: number; announceWindowMs?: number };
 }

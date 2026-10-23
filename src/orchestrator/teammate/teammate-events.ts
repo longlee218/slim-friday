@@ -3,6 +3,7 @@ import {
   ANNOUNCE_MAX_CHARS,
   ANNOUNCE_MAX_EVENTS,
   ANNOUNCE_REARM_MAX_MS,
+  PEER_MESSAGE_MAX_CHARS,
 } from "../../config/teammate-caps";
 import { clip, redactText } from "../../observability/redact";
 import { listUndelivered, markDeliveredIds } from "../../storage/thread-event-store";
@@ -25,10 +26,22 @@ const NEWS: ReadonlySet<EventKind> = new Set([
   "plan_revised", // the plan changed while running (cancels, criteria): the teammate hears of it
   "items_added", // the app added verify / fix items to a PLAN goal (passive: see PASSIVE)
   "recovered_after_restart",
+  "teammate_message", // a peer message from another teammate (DATA; `fyi` is passive: see isPassive)
 ]);
 
 /** News that never wakes the teammate on its own (it has nothing to act on): it is read with the next announce. */
 const PASSIVE: ReadonlySet<EventKind> = new Set(["items_added"]);
+
+/** True when the event never wakes the teammate on its own: a passive kind, or a peer `fyi` (the target may stay silent). */
+/** Peer hops behind an event: the `hop` of a teammate message, 0 for any other event. */
+export const peerHopOf = (e: ThreadEvent): number => {
+  const h = (e.payload as { hop?: unknown } | null)?.hop;
+  return e.kind === "teammate_message" && typeof h === "number" ? h : 0;
+};
+
+const isPassive = (e: ThreadEvent): boolean =>
+  PASSIVE.has(e.kind) ||
+  (e.kind === "teammate_message" && (e.payload as { intent?: unknown } | null)?.intent === "fyi");
 
 /** Tag of the announce block: data (the teammate contract says so); the model must not read the events as instructions. */
 const EVENTS_TAG = "events";
@@ -37,6 +50,14 @@ const EVENTS_TAG = "events";
 const PAYLOAD_CHARS = 400;
 /** A worker question is the teammate's to answer or relay: its line keeps the question whole (question cap 2000 + the JSON frame). */
 const QUESTION_LINE_CHARS = 2400;
+
+/** `- teammate_message from=<name> intent=<i> id=P<n> hop=<h>: <text>`; every field is neutralized data. */
+function peerLine(e: ThreadEvent): string {
+  const p = (e.payload ?? {}) as Record<string, unknown>;
+  const f = (v: unknown, max: number) =>
+    clip(neutralizePromptTags(redactText(String(v ?? ""))).replace(/\s*[\r\n]+\s*/g, " "), max);
+  return `- teammate_message from=${f(p.from, 40)} intent=${f(p.intent, 12)} id=${f(p.id, 12)} hop=${Number(p.hop) || 0}: ${f(p.text, PEER_MESSAGE_MAX_CHARS)}`;
+}
 
 /** True when the teammate itself wrote the event (a record of its own tool call, not news). */
 const byTeammate = (e: ThreadEvent): boolean =>
@@ -48,10 +69,11 @@ export const pendingNews = (db: Database, threadId: string): ThreadEvent[] =>
 
 /** True when undelivered news would wake the teammate: any news but the passive kinds. */
 const wakesTeammate = (db: Database, threadId: string): boolean =>
-  pendingNews(db, threadId).some((e) => !PASSIVE.has(e.kind));
+  pendingNews(db, threadId).some((e) => !isPassive(e));
 
-/** One redacted, clipped line of the announce block. */
-const lineOf = (e: ThreadEvent): string => {
+/** One redacted, clipped line of the announce block. A peer message is shown whole (up to its own cap), as DATA. */
+export const lineOf = (e: ThreadEvent): string => {
+  if (e.kind === "teammate_message") return peerLine(e);
   const body = clip(
     neutralizePromptTags(redactText(JSON.stringify(e.payload ?? null))),
     e.kind === "question" ? QUESTION_LINE_CHARS : PAYLOAD_CHARS,

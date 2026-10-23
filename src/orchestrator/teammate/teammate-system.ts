@@ -2,8 +2,16 @@ import { TEAMMATE_POOL_MAX, TEAMMATE_WAITING_MAX } from "../../config/run-caps";
 import type { InboundMessage } from "../../ingress/inbound-message";
 import { messageLanguage, renderUserNotice } from "../../ingress/user-copy";
 import { logEvent, logger } from "../../observability/logger";
-import { getThread } from "../../storage/thread-store";
+import { errText } from "../../observability/redact";
+import { unpostedPeerMessages } from "../../storage/peer-message-store";
+import { getThread, recordBotThread } from "../../storage/thread-store";
+import {
+  flushPeerOutbox,
+  type PeerSendDeps,
+  sendPeerMessage,
+} from "../../teammates/peer/send-peer-message";
 import { channelLocations, selectWorkspace } from "../../workspaces/task-workspace";
+import { loadWorkspaces } from "../../workspaces/workspace-registry";
 import type { DispatchDeps } from "../run/role-run-types";
 import { createRunLimiter } from "../turns/run-limiter";
 import { dispatchReady } from "../worker/dispatch-ready";
@@ -45,6 +53,8 @@ export interface TeammateSystem {
 export function createTeammateSystem(o: {
   deps: DispatchDeps;
   post?: (threadId: string, text: string) => Promise<void>;
+  /** Open a new thread in a channel (a peer request to a task-mode teammate); returns its id. */
+  openThread?: (channelId: string, name: string) => Promise<string>;
   /** Keep a teammate run in the shutdown drain. */
   track?: (run: Promise<void>) => void;
   announceWindowMs?: number;
@@ -91,6 +101,33 @@ export function createTeammateSystem(o: {
     announce: (threadId, delayMs) => announcer?.notify(threadId, delayMs),
     relay,
   };
+  /** Peer messages: where a NEW conversation with a teammate lands, how lines are posted, who is woken. */
+  const peerDeps: PeerSendDeps = {
+    db: deps.db,
+    now: Date.now,
+    post: (threadId, text) =>
+      o.post ? o.post(threadId, text) : Promise.reject(new Error("no post")),
+    announce: (threadId) => announcer?.notify(threadId),
+    newTargetThread: async (target, sender) => {
+      const home = deps.config.agentHome;
+      const ws = loadWorkspaces(home).workspaces.find((w) =>
+        w.channelDefs.some((c) => c.id === target.channelId),
+      );
+      const mode = ws?.channelDefs.find((c) => c.id === target.channelId)?.mode;
+      if (!ws || !mode) throw new Error(`channel of ${target.name} is not mapped to a space`);
+      // Chat mode: the channel is the thread (needs a row so a boot wake can rebuild its facts). Task mode: a new thread.
+      if (mode === "chat") {
+        recordBotThread(deps.db, target.channelId, target.channelId, ws.name, "");
+        return target.channelId;
+      }
+      if (!o.openThread) throw new Error("cannot open a thread");
+      const name = `from ${sender}`.slice(0, 90);
+      const id = await o.openThread(target.channelId, name);
+      recordBotThread(deps.db, id, target.channelId, ws.name, name);
+      return id;
+    },
+  };
+  rt.peerSend = (from, m) => sendPeerMessage(peerDeps, from, m);
   /** Per thread: announces the full teammate pool dropped in a row (the re-arm delay grows with it; a teammate run of the thread resets it). */
   const dropStreak = new Map<string, number>();
   const queue = createTeammateQueue({
@@ -154,6 +191,11 @@ export function createTeammateSystem(o: {
     },
     answerReply: (message) => answerReply(rt, message),
     wake(report) {
+      try {
+        void flushPeerOutbox(peerDeps, unpostedPeerMessages(deps.db));
+      } catch (err) {
+        logEvent(log, "peer.flush_failed", { err: errText(err) }, "warn");
+      }
       for (const threadId of report.threads) {
         logEvent(log, "teammate.wake", { threadId });
         for (const input of replayOwnerInputs(deps.db, threadId)) queue.push(input);

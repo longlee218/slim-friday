@@ -32,6 +32,7 @@ export function createHandlerServices(deps: TurnHandlerDeps, log: Logger) {
   const teammate = createTeammateSystem({
     deps: dispatchDeps,
     post: deps.post,
+    openThread: deps.openThread,
     ...deps.teammateTiming,
     track: (run) => void tracker.track(run.then(() => undefined)),
   });

@@ -23,6 +23,9 @@ export const EFFECTS_MCP_SERVER = "effects";
 /** Artifacts server: save, read, list and search the titled documents of the run's channel. */
 export const ARTIFACTS_MCP_SERVER = "artifacts";
 
+/** Teammates server: talk to the other teammates (`MessageTeammate`). */
+export const TEAMMATES_MCP_SERVER = "teammates";
+
 /** Firecrawl server (external, hosted): its tool names live in `src/mcp/firecrawl/tools/<Name>Tool/constants.ts`. */
 export const FIRECRAWL_MCP_SERVER = "firecrawl";
 

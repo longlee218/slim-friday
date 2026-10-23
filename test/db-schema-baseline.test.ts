@@ -130,6 +130,22 @@ const EXPECTED: Record<string, string[]> = {
     "memory_mark",
     "config_mark",
   ],
+  peer_messages: [
+    "id",
+    "delivery_key",
+    "from_teammate",
+    "to_teammate",
+    "intent",
+    "text",
+    "text_hash",
+    "reply_to",
+    "hop",
+    "source_thread",
+    "target_thread",
+    "echo_posted_at",
+    "inbound_posted_at",
+    "created_at",
+  ],
   thread_events: [
     "seq",
     "id",
@@ -276,7 +292,7 @@ test("reopening a file db is a no-op and a foreign db is refused", () => {
     a.close();
     const b = openDb(file);
     expect(b.query("SELECT thread_id FROM threads").all()).toHaveLength(1);
-    expect(b.query("SELECT COUNT(*) AS n FROM __drizzle_migrations").get()).toEqual({ n: 24 });
+    expect(b.query("SELECT COUNT(*) AS n FROM __drizzle_migrations").get()).toEqual({ n: 25 });
     b.close();
 
     const foreign = join(dir, "foreign.db");

@@ -23,6 +23,7 @@ import {
   mcpToolName,
   ORCHESTRATION_MCP_SERVER,
   PLAYWRIGHT_MCP_SERVER,
+  TEAMMATES_MCP_SERVER,
 } from "./mcp-tool-names";
 import { MEMORY_EDIT_TOOL } from "./memory/tools/MemoryEditTool/constants";
 import { MEMORY_EXPAND_TOOL } from "./memory/tools/MemoryExpandTool/constants";
@@ -33,6 +34,7 @@ import { ORCHESTRATE_TOOL } from "./orchestration/tools/OrchestrateTool/constant
 import { REPORT_TOOL } from "./orchestration/tools/ReportTool/constants";
 import { TASK_BOARD_TOOL } from "./orchestration/tools/TaskBoardTool/constants";
 import { PLAYWRIGHT_TOOLS } from "./playwright/playwright-tool-names";
+import { MESSAGE_TEAMMATE_TOOL } from "./teammates/tools/MessageTeammateTool/constants";
 
 /**
  * Server of every MCP tool, by bare tool name. Leaf data (imports only `constants.ts` files and server names, never
@@ -44,6 +46,7 @@ export const MCP_TOOL_SERVER: Readonly<Record<string, string>> = {
   [READ_ARTIFACT_TOOL]: ARTIFACTS_MCP_SERVER,
   [SAVE_ARTIFACT_TOOL]: ARTIFACTS_MCP_SERVER,
   [SEARCH_ARTIFACTS_TOOL]: ARTIFACTS_MCP_SERVER,
+  [MESSAGE_TEAMMATE_TOOL]: TEAMMATES_MCP_SERVER,
   [CREATE_PULL_REQUEST_TOOL]: EFFECTS_MCP_SERVER,
   [DELETE_PATHS_TOOL]: EFFECTS_MCP_SERVER,
   [GIT_PUSH_TOOL]: EFFECTS_MCP_SERVER,

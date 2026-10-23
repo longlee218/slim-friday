@@ -21,6 +21,7 @@ import { recoverInFlight } from "./orchestrator/worker/recover-in-flight";
 import { createDiscordApprovalGateway } from "./providers/discord/approval/discord-approval";
 import { createDiscordBot } from "./providers/discord/ingress/discord-bot";
 import { sendReply } from "./providers/discord/ingress/discord-message-handler";
+import { openPeerThread } from "./providers/discord/ingress/peer-thread";
 import { createThreadTitlePort } from "./providers/discord/ingress/thread-rename";
 import { syncChannelTopics } from "./providers/discord/setup/channel-topic";
 import { opsIds, readDiscordSetup } from "./providers/discord/setup/discord-setup-config";
@@ -105,6 +106,7 @@ async function main(): Promise<void> {
     teammatePool,
     threadTitle: createThreadTitlePort(() => botClient),
     // The teammate's boot wake has no owner message to answer through: post into the thread by id.
+    openThread: (channelId, name) => openPeerThread(botClient, channelId, name),
     post: async (threadId, text) => {
       const channel = await botClient?.channels.fetch(threadId);
       if (channel?.isSendable()) await sendReply(channel, text, threadLanguage(db, threadId));

@@ -22,6 +22,7 @@ import { ORCHESTRATE_TOOL } from "../mcp/orchestration/tools/OrchestrateTool/con
 import { REPORT_TOOL } from "../mcp/orchestration/tools/ReportTool/constants";
 import { TASK_BOARD_TOOL } from "../mcp/orchestration/tools/TaskBoardTool/constants";
 import { PLAYWRIGHT_TOOLS } from "../mcp/playwright/playwright-tool-names";
+import { MESSAGE_TEAMMATE_TOOL } from "../mcp/teammates/tools/MessageTeammateTool/constants";
 import type { RiskClass } from "../policy/risk-types";
 import type { ToolDecl, ToolNeed, ToolRunKind } from "./tool-decl";
 
@@ -64,6 +65,7 @@ export const MCP_TOOL_ENTRIES: readonly ToolDecl[] = [
   mcp(SEARCH_ARTIFACTS_TOOL, true, BOTH),
   mcp(ORCHESTRATE_TOOL, false, TEAMMATE),
   mcp(TASK_BOARD_TOOL, true, BOTH),
+  mcp(MESSAGE_TEAMMATE_TOOL, false, TEAMMATE),
   mcp(REPORT_TOOL, false, WORKER),
   mcp(DELETE_PATHS_TOOL, false, BOTH, { risk: "R2", ...EFFECT }),
   mcp(MERGE_BRANCH_TOOL, false, BOTH, { risk: "R2", ...EFFECT }),

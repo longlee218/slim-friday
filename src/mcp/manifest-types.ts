@@ -9,8 +9,19 @@ import type { TeammateToolContext } from "../orchestrator/teammate/teammate-call
 import type { ReportFilesCtx } from "../orchestrator/worker/report-files";
 import type { ReportSink } from "../orchestrator/worker/report-sink";
 import type { EffectsCtx } from "../policy/effect-context";
+import type { PeerIntent, PeerResult } from "../teammates/peer/send-peer-message";
 import type { ReadBudget } from "./memory/memory-read-shared";
 import type { TaskBoardCtx } from "./orchestration/tools/TaskBoardTool/task-board-ctx";
+
+/** What `MessageTeammate` needs of its run: one send (the sender, hop and turn are bound by the run). */
+export interface PeerCtx {
+  deliver(m: {
+    to: string;
+    text: string;
+    intent: PeerIntent;
+    replyTo?: number;
+  }): Promise<PeerResult>;
+}
 
 /**
  * Everything a run can bring to its MCP tools, as optional parts. A tool reads the part it needs; a run without that
@@ -35,6 +46,8 @@ export interface RunCtx {
   taskBoard?: TaskBoardCtx;
   /** Effect tools: the worker run's envelope, locations and owner gate. */
   effects?: EffectsCtx;
+  /** `MessageTeammate`: send to another teammate (the app applies the rules and delivers). Absent = no peer tool. */
+  peer?: PeerCtx;
   /** Artifact tools: the run's channel scope. Absent = no artifact tools. */
   artifacts?: ArtifactToolCtx;
   /** Per-server-instance read cap shared by the memory read tools (set by the memory manifest's `prepare`). */

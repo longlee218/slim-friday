@@ -29,6 +29,11 @@ const STEPS: [table: string, sql: string][] = [
     "DELETE FROM thread_events WHERE delivered_at IS NOT NULL AND created_at < $cutoff",
   ],
   ["effect_log", "DELETE FROM effect_log WHERE created_at < $cutoff"],
+  // Only fully posted peer messages: an unposted one is still owed to the outbox sweep.
+  [
+    "peer_messages",
+    "DELETE FROM peer_messages WHERE created_at < $cutoff AND echo_posted_at IS NOT NULL AND inbound_posted_at IS NOT NULL",
+  ],
   [
     "task_messages_fts",
     `DELETE FROM task_messages_fts WHERE message_id IN

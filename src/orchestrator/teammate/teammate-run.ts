@@ -20,7 +20,13 @@ import { registerRun } from "../run/live-runs";
 import { runTurn, type TeammateTurnResult } from "../run/run-turn";
 import { dispatchReady } from "../worker/dispatch-ready";
 import { teammateEffectsCtx } from "./teammate-effects-ctx";
-import { announceBlock, capNews, pendingNews, settleTeammateEvents } from "./teammate-events";
+import {
+  announceBlock,
+  capNews,
+  peerHopOf,
+  pendingNews,
+  settleTeammateEvents,
+} from "./teammate-events";
 import { failed, forgetBatch, rearm } from "./teammate-failure";
 import { createTeammateIo } from "./teammate-io";
 import { markTeammateMemorySent, type TeammateMemoryTurn } from "./teammate-memory";
@@ -51,6 +57,8 @@ function teammateOnce(
     ownerText?: string;
     /** The channel's resolved teammate (a valid one: a refused row never reaches the run). */
     resolved: Extract<TeammateResolution, { ok: true }>;
+    /** Peer hops behind this run (0 = the owner started it); a message it sends is hop + 1. */
+    hop: number;
   },
 ): Promise<TeammateTurnResult> {
   const { deps } = rt;
@@ -65,7 +73,13 @@ function teammateOnce(
       log,
       context: { taskId: turnId, mode: "teammate" },
       ids: { turnId, threadId, source: ctx.message.source },
-      turn: { location: "*", role: "chief-of-staff", brief: o.text, teammateId: row?.id },
+      turn: {
+        location: "*",
+        role: "chief-of-staff",
+        brief: o.text,
+        teammateId: row?.id,
+        hop: o.hop,
+      },
     },
     // Built after the turn row exists: tools over a fresh port, the stored session, the run input.
     build: () => {
@@ -153,6 +167,19 @@ function teammateOnce(
             return {
               teammate: toolCtx,
               taskBoard: { db, threadId },
+              // MessageTeammate: the sender is this run (its thread, teammate, hop and turn).
+              peer: {
+                deliver: (m) =>
+                  rt.peerSend?.(
+                    { thread: threadId, teammate: row?.name ?? null, hop: o.hop, turnId },
+                    m,
+                  ) ??
+                  Promise.resolve({
+                    ok: false,
+                    code: "UNAVAILABLE",
+                    message: "peer messages are off",
+                  }),
+              },
               artifacts: artifactCtx(rt, ctx, threadId, "chief-of-staff"), // the teammate reads and saves in its own channel
               ...(policy.scratch && { scratchDir }),
               // Effect tools ask the owner at every act (`ownerPerAct`): no goal envelope backs a teammate run.
@@ -251,6 +278,7 @@ export async function runTeammate(rt: TeammateRuntime, input: TeammateInput): Pr
       ac,
       trigger: input.kind,
       resolved,
+      hop: Math.max(0, ...batch.shown.map(peerHopOf)),
       ...(input.kind === "owner" && input.text && { ownerText: input.text }),
     });
     if (out.outcome === "aborted") {

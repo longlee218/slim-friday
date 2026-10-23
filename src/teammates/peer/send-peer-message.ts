@@ -7,7 +7,7 @@ import {
   PEER_SENDS_PER_HOUR,
 } from "../../config/teammate-caps";
 import { logEvent, logger } from "../../observability/logger";
-import { errText } from "../../observability/redact";
+import { errText, redactText } from "../../observability/redact";
 import {
   countPeerSends,
   hasRecentPeerRepeat,
@@ -34,7 +34,8 @@ export type PeerErrorCode =
   | "BAD_REPLY_TO"
   | "HOP_LIMIT"
   | "REPEAT"
-  | "RATE_LIMIT";
+  | "RATE_LIMIT"
+  | "UNAVAILABLE";
 
 /** Result of a send: the message number (`P42`), or a refusal the sender's model reads. */
 export type PeerResult =
@@ -74,14 +75,16 @@ const hashOf = (text: string): string =>
 const displayName = (name: string | null): string => name ?? "default";
 
 /** One-line form of a message for the echo and the inbound post. */
-const line = (arrow: string, who: string, intent: string, text: string): string =>
-  `${arrow} @${who} (${intent}): ${text.length > 1500 ? `${text.slice(0, 1500)}…` : text}`;
+const line = (arrow: string, who: string, intent: string, raw: string): string => {
+  const text = redactText(raw);
+  return `${arrow} @${who} (${intent}): ${text.length > 1500 ? `${text.slice(0, 1500)}…` : text}`;
+};
 
 /** The reply target: a message addressed to the sender FROM the target; its sender's thread gets the answer. */
-function replyThread(db: Database, replyTo: number, sender: string | null, target: string) {
+function repliedMessage(db: Database, replyTo: number, sender: string | null, target: string) {
   const m = peerMessageById(db, replyTo);
   const ok = m && m.toTeammate === displayName(sender) && displayName(m.fromTeammate) === target;
-  return ok ? m.sourceThread : undefined;
+  return ok ? m : undefined;
 }
 
 /**
@@ -100,19 +103,25 @@ export async function sendPeerMessage(
   const again = peerMessageByKey(d.db, key);
   if (again) return { ok: true, id: `P${again.id}`, duplicate: true };
 
-  if (m.to === from.teammate) return refuse("SELF", "A teammate cannot message itself.");
-  const target = teammateByName(d.db, m.to);
-  if (!target) return refuse("UNKNOWN_TEAMMATE", `No active teammate called \`${m.to}\`.`);
+  if (m.to === displayName(from.teammate))
+    return refuse("SELF", "A teammate cannot message itself.");
   if (m.text.length > PEER_MESSAGE_MAX_CHARS)
     return refuse("TOO_LONG", `A peer message is at most ${PEER_MESSAGE_MAX_CHARS} characters.`);
-  let thread: string | undefined;
+  // A reply goes to the thread the answered message came from: it also reaches the default teammate (no row, no channel).
+  let replied: PeerMessage | undefined;
   if (m.replyTo !== undefined) {
-    thread = replyThread(d.db, m.replyTo, from.teammate, m.to);
-    if (!thread)
+    replied = repliedMessage(d.db, m.replyTo, from.teammate, m.to);
+    if (!replied)
       return refuse("BAD_REPLY_TO", `P${m.replyTo} is not a message from \`${m.to}\` to you.`);
   }
+  const thread = replied?.sourceThread;
+  const target = teammateByName(d.db, m.to);
+  if (!target && !thread)
+    return refuse("UNKNOWN_TEAMMATE", `No active teammate called \`${m.to}\`.`);
   const hop = from.hop + 1;
-  if (hop > CHAIN_CAP && !(m.intent === "result" && thread))
+  // Only an answer to a request or question is exempt: two results answering each other must still hit the cap.
+  const answersAsk = replied && (replied.intent === "request" || replied.intent === "question");
+  if (hop > CHAIN_CAP && !(m.intent === "result" && answersAsk))
     return refuse("HOP_LIMIT", `This chain of peer messages is already ${CHAIN_CAP} deep.`);
   const now = d.now();
   if (
@@ -127,7 +136,8 @@ export async function sendPeerMessage(
     return refuse("RATE_LIMIT", `At most ${PEER_SENDS_PER_HOUR} peer messages per hour.`);
 
   // A thread failure is a tool error: nothing is written yet.
-  const targetThread = thread ?? (await d.newTargetThread(target, displayName(from.teammate)));
+  const targetThread =
+    thread ?? (target ? await d.newTargetThread(target, displayName(from.teammate)) : "");
   const sent = insertPeerMessage(
     d.db,
     {

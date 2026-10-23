@@ -35,7 +35,7 @@ test("catalog risk equals classifyToolCall; R2 or higher only for the effect too
 
 test("runKinds match what a worker ctx and a teammate ctx build", () => {
   const all = { ...getRole("developer"), mcpTools: ALL_TOOL_NAMES };
-  const workerCtx = { ...FULL_CTX, teammate: undefined, admin: undefined };
+  const workerCtx = { ...FULL_CTX, teammate: undefined, admin: undefined, peer: undefined };
   const teammateCtx = {
     ...FULL_CTX,
     reportSink: undefined,
