@@ -1,0 +1,11 @@
+{
+  "name": "@friday/store-sqlite",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "dependencies": {
+    "@friday/core": "workspace:*",
+    "drizzle-orm": "^0.45.4"
+  }
+}
