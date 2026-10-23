@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { isWorkerEnvDenied } from "../src/config/child-env-deny";
+import { isWorkerEnvDenied } from "../../src/floor/child-env-deny";
 
 /* The worker env scrub: secret-looking names never reach a worker's process. */
 
