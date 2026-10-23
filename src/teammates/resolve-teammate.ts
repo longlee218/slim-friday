@@ -2,7 +2,11 @@ import type { Database } from "bun:sqlite";
 import { CHIEF_OF_STAFF_ROLE } from "../roles/builtin/chief-of-staff-role";
 import { getRole } from "../roles/role-registry";
 import type { RoleDefinition } from "../roles/role-types";
-import { listActiveTeammates, teammateByChannel } from "../storage/teammate-store";
+import {
+  archivedTeammateByChannel,
+  listActiveTeammates,
+  teammateByChannel,
+} from "../storage/teammate-store";
 import { validateForKind } from "../tools/derive-tool-policy";
 import { toolIdsOf } from "../tools/role-policy";
 import { configMark } from "./config-mark";
@@ -25,7 +29,12 @@ export type TeammateResolution =
  */
 export function resolveTeammate(db: Database, channelId: string): TeammateResolution {
   const teammate = teammateByChannel(db, channelId);
-  if (!teammate) return { ok: true, role: getRole(CHIEF_OF_STAFF_ROLE.name) };
+  if (!teammate) {
+    // An archived teammate keeps its channel: it must not quietly turn into the default teammate.
+    const archived = archivedTeammateByChannel(db, channelId);
+    if (archived) return { ok: false, teammate: archived, reason: "it is archived" };
+    return { ok: true, role: getRole(CHIEF_OF_STAFF_ROLE.name) };
+  }
   let preset: RoleDefinition;
   try {
     preset = getRole(teammate.preset);

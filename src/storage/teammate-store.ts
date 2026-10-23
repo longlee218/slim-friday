@@ -62,6 +62,16 @@ export function teammateByChannel(db: Database, channelId: string): Teammate | u
   return r ? toTeammate(r) : undefined;
 }
 
+/** The newest ARCHIVED teammate of a channel, or undefined (the channel then runs nothing until a new teammate takes it). */
+export function archivedTeammateByChannel(db: Database, channelId: string): Teammate | undefined {
+  const r = db
+    .query<Row, [string]>(
+      `SELECT ${COLUMNS} FROM teammates WHERE channel_id = ? AND archived_at IS NOT NULL ORDER BY archived_at DESC LIMIT 1`,
+    )
+    .get(channelId);
+  return r ? toTeammate(r) : undefined;
+}
+
 /** The active teammate called `name`, or undefined. */
 export function teammateByName(db: Database, name: string): Teammate | undefined {
   const r = db

@@ -49,6 +49,16 @@ test("resolve: no row = the default role; a row = its overlay, mark and profile 
   expect(r.promptBlock).toContain("beta"); // directory lists the others
 });
 
+test("resolve: the channel of an archived teammate is refused, not handed to the default teammate", () => {
+  const db = openDb(":memory:");
+  const a = mk("alpha", "c1");
+  insertTeammate(db, a);
+  archiveTeammate(db, a.id);
+  expect(resolveTeammate(db, "c1")).toMatchObject({ ok: false, reason: "it is archived" });
+  insertTeammate(db, mk("alpha", "c1")); // a new teammate takes the channel back
+  expect(resolveTeammate(db, "c1")).toMatchObject({ ok: true, teammate: { name: "alpha" } });
+});
+
 test("resolve: an unknown preset or a tool no teammate may hold is refused (no fallback)", () => {
   const db = openDb(":memory:");
   insertTeammate(db, { ...mk("alpha", "c1"), preset: "nope" });
