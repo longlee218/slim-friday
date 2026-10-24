@@ -48,6 +48,13 @@ export class ClaudeRuntime implements AgentRuntime {
       scratchDir,
     });
     const run = (this.config.queryFn ?? query)({ prompt: queue.iterable, options });
-    return new ClaudeSession(id, queue, abort, run[Symbol.asyncIterator](), { [bot.id]: bot.name });
+    return new ClaudeSession(
+      id,
+      queue,
+      abort,
+      run[Symbol.asyncIterator](),
+      { [bot.id]: bot.name },
+      scratchDir,
+    );
   }
 }

@@ -1,6 +1,6 @@
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { BotSession, InboundTurn, RuntimeEvent } from "@friday/core";
-import { formatTurn } from "./format-turn";
+import { turnContent } from "./format-turn";
 import type { InputQueue } from "./input-queue";
 import { mapMessage } from "./map-message";
 
@@ -19,6 +19,8 @@ export class ClaudeSession implements BotSession {
     private readonly stream: AsyncIterator<SDKMessage>,
     /** Bot id to display name, for turn headers. */
     private readonly names: Record<string, string>,
+    /** The bot's scratch dir; files the user sent are copied under its `inbox/`. */
+    private readonly scratchDir: string,
   ) {
     this.stopSignal = new Promise((r) => {
       this.fireStop = () => r("stop");
@@ -29,7 +31,7 @@ export class ClaudeSession implements BotSession {
   /** Feed one turn to the bot. Dropped after `stop()`. */
   send(turn: InboundTurn): void {
     if (this.stopped) return;
-    this.queue.push(formatTurn(turn, this.names));
+    this.queue.push(turnContent(turn, this.names, this.scratchDir));
   }
 
   /** End the input, abort the SDK (its background tasks go with it) and end `events`. */

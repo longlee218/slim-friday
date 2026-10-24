@@ -15,6 +15,8 @@ export interface FakeQuery {
   options(): Options;
   /** Texts of the user messages the session fed in so far (drained in the background). */
   sent(): string[];
+  /** The raw `content` of each user message (a string, or content blocks when files came with it). */
+  sentContent(): unknown[];
 }
 
 /** Build a fake `query` for one session. */
@@ -25,6 +27,7 @@ export function fakeQuery(): FakeQuery {
     | undefined;
   let opts: Options | undefined;
   const sent: string[] = [];
+  const sentRaw: unknown[] = [];
 
   const push = (item: IteratorResult<SDKMessage> | Error) => {
     if (waiting) {
@@ -39,8 +42,11 @@ export function fakeQuery(): FakeQuery {
     opts = args.options;
     // Drain what the session feeds in, like the SDK does.
     void (async () => {
-      for await (const m of args.prompt)
-        sent.push(String((m.message as { content: unknown }).content));
+      for await (const m of args.prompt) {
+        const content = (m.message as { content: unknown }).content;
+        sentRaw.push(content);
+        sent.push(String(content));
+      }
     })();
     const it: AsyncGenerator<SDKMessage> = {
       next: () => {
@@ -70,5 +76,6 @@ export function fakeQuery(): FakeQuery {
     fail: (err) => push(err),
     options: () => opts as Options,
     sent: () => [...sent],
+    sentContent: () => [...sentRaw],
   };
 }

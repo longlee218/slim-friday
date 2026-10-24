@@ -1,11 +1,14 @@
 import type { SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 
+/** What a user message holds: plain text, or content blocks (text and images). */
+export type UserContent = SDKUserMessage["message"]["content"];
+
 /** The SDK's streaming prompt: a push queue the session feeds and the SDK consumes. */
 export interface InputQueue {
   /** Yields one user message per `push`, in order; ends after `close()` once drained. */
   iterable: AsyncIterable<SDKUserMessage>;
   /** Add a user message. Ignored after `close()`. */
-  push(text: string): void;
+  push(content: UserContent): void;
   /** End the stream (a waiting consumer wakes and finishes). */
   close(): void;
 }
@@ -30,11 +33,11 @@ export function createInputQueue(): InputQueue {
   }
   return {
     iterable: run(),
-    push(text) {
+    push(content) {
       if (closed) return;
       items.push({
         type: "user",
-        message: { role: "user", content: text },
+        message: { role: "user", content },
         parent_tool_use_id: null,
       });
       notify();
