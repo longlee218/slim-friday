@@ -130,7 +130,7 @@ test("notifyToast: desktop only, text cut to 90, click opens the chat", async ()
   expect(toast.custom).toHaveBeenCalledTimes(1);
   const [render_, opts] = toast.custom.mock.calls[0] as [(id: string) => React.ReactNode, object];
   expect(opts).toMatchObject({ duration: 3600 });
-  const view = render(<>{render_("t1")}</>);
+  const view = render(render_("t1"));
   expect(within(view.container).getByText("Dev")).toBeTruthy();
   expect(within(view.container).getByText("x".repeat(90)).textContent).toHaveLength(90);
   await userEvent.click(view.container.querySelector("button") as HTMLElement);
