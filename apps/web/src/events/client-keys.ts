@@ -16,7 +16,11 @@ export interface LiveRun {
 
 /** A closed card kept in the transcript as a receipt. */
 export type Receipt =
-  | { kind: "approval"; card: ApprovalCardDto; answer: "once" | "always" | "deny" | "elsewhere" }
+  | {
+      kind: "approval";
+      card: ApprovalCardDto;
+      answer: "once" | "always" | "deny" | "elsewhere" | null;
+    }
   | {
       kind: "question";
       card: QuestionCardDto;

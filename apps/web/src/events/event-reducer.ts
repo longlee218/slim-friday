@@ -17,7 +17,7 @@ export type CacheEffect =
   | { op: "runStep"; conversationId: string; botId: string; step: RunStepDto }
   | { op: "runTail"; conversationId: string; botId: string; label: string }
   | { op: "openApproval"; card: ApprovalCardDto }
-  | { op: "closeApproval"; cardId: string; answer: "once" | "always" | "deny" }
+  | { op: "closeApproval"; cardId: string; answer: "once" | "always" | "deny" | null }
   | { op: "openQuestion"; card: QuestionCardDto }
   | { op: "closeQuestion"; cardId: string; answer: QuestionAnswerDto | null }
   | { op: "setUnread"; conversationId: string; unread: number }

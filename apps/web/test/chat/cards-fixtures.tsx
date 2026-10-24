@@ -14,6 +14,7 @@ export const apprCard = (extra: Partial<ApprovalCardDto> = {}): ApprovalCardDto 
   scope: { repo: "friday", branch: "feat/x" },
   offerAlways: true,
   input: '{\n  "branch": "feat/x"\n}',
+  inputCut: false,
   ...extra,
 });
 

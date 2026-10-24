@@ -402,17 +402,15 @@ test("text keeps leading indentation and drops trailing whitespace", async () =>
   expect(mocks.send.mock.calls[0]?.[0].text).toBe("  code");
 });
 
-test("Retry that gets CONFLICT drops the temp message and its pending entry", async () => {
-  mocks.send.mockRejectedValueOnce(new Error("down"));
+test("a CONFLICT is a failed send, not a delivered one", async () => {
   mocks.send.mockRejectedValueOnce(Object.assign(new Error("used"), { code: "CONFLICT" }));
   const u = userEvent.setup();
   const qc = client();
   view(<Harness conversation={devConv} />, qc);
   await u.type(input(), "hi");
   await u.click(sendBtn());
-  await u.click(await screen.findByRole("button", { name: /^failed -\d+$/ }));
-  await waitFor(() => expect(screen.queryByRole("button", { name: /failed|sending/ })).toBeNull());
-  expect(ids(qc, "bot:dev")).toEqual([]);
+  expect(await screen.findByRole("button", { name: /^failed -\d+$/ })).toBeTruthy();
+  expect(ids(qc, "bot:dev")).toHaveLength(1);
 });
 
 test("a double click on Retry sends once", async () => {

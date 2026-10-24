@@ -57,6 +57,7 @@ export const approval = (
   summary: "run ls",
   scope: { command: "git push" },
   input: "{}",
+  inputCut: false,
   offerAlways: true,
   ...extra,
 });

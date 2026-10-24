@@ -1,22 +1,11 @@
 import { LoaderCircle, PenLine, Sparkle } from "lucide-react";
-import { useEffect, useState } from "react";
 import type { LiveRun } from "../../events/client-keys";
 import { formatDuration } from "../../lib/format";
 import { RunStepList } from "./run-step-list";
 import { runPhase } from "./run-steps";
+import { useNow } from "./use-now";
 
 const LABEL = { thinking: "Thinking", doing: "Working", writing: "Writing" } as const;
-
-/** Wall clock that ticks every second; `fixed` (tests) turns the timer off. */
-function useNow(fixed?: number): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (fixed !== undefined) return;
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, [fixed]);
-  return fixed ?? now;
-}
 
 /** A bot's turn in progress: phase header with elapsed time, the steps so far, the subagent tail. */
 export function RunBlock({ run, now }: { run: LiveRun; now?: number }) {

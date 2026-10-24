@@ -17,6 +17,8 @@ export const ApprovalCardDtoSchema = z.object({
   offerAlways: z.boolean(),
   /** The exact call a one-shot approval binds: the input as pretty JSON, cut when long. */
   input: z.string(),
+  /** True when `input` is cut: the owner did not see the whole call, so the card can only be denied. */
+  inputCut: z.boolean(),
 });
 export type ApprovalCardDto = z.infer<typeof ApprovalCardDtoSchema>;
 

@@ -1,7 +1,7 @@
 import type { ApprovalCardDto, BotStatusDto } from "@friday/contracts";
 import { CircleStop, MessageCircle } from "lucide-react";
 import { formatCost, formatDuration } from "../../lib/format";
-import { useNow } from "../chat/countdown";
+import { useNow } from "../chat/use-now";
 import { Avatar } from "../ui/avatar";
 import { IconButton } from "../ui/button";
 import { Pill } from "../ui/pill";

@@ -25,6 +25,9 @@ export const approvalsRouter = {
   ),
   answer: authed.approvals.answer.handler(async ({ input, context, errors }) => {
     const openedAt = await context.deps.surface.cards.openedAt(input.cardId);
+    // A call the owner did not see in full is never allowed (once or always); only a denial goes through.
+    if (input.answer !== "deny" && (await context.deps.surface.cards.inputCut(input.cardId)))
+      throw errors.BAD_REQUEST();
     const r = await context.deps.hub.answerCard(input.cardId, input.answer);
     if (r === "conflict") throw errors.CONFLICT();
     if (r === "not_found") throw errors.NOT_FOUND();

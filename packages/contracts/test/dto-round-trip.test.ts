@@ -69,6 +69,7 @@ const card = {
   scope: { cmd: "ls" },
   offerAlways: true,
   input: "{}",
+  inputCut: false,
 };
 const qcard = {
   cardId: "q1",
@@ -151,4 +152,9 @@ test("McpServerDto holds the spec, name, shipped and usedBy", () => {
   const s = { name: "gh", type: "http", url: "https://x", shipped: false, usedBy: ["ana"] };
   same(McpServerDtoSchema.parse(s), s);
   expect(McpServerDtoSchema.safeParse({ ...s, extra: 1 }).success).toBe(false);
+});
+
+test("approval.closed accepts a null answer (withdrawn)", () => {
+  const e = { type: "approval.closed", cardId: "c1", answer: null };
+  same(FridayEventSchema.parse(e), e);
 });

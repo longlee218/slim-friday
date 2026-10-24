@@ -106,6 +106,8 @@ export interface Store {
     append(m: StoredMessage): Promise<number>;
     /** Insert once per `(conversation, clientNonce)`; a repeat returns the first id with `replayed: true`. */
     appendOnce(m: StoredMessage, clientNonce: string): Promise<{ id: number; replayed: boolean }>;
+    /** The id stored for `(conversation, clientNonce)`, if any (a retry of a stored message). */
+    byNonce(c: ConversationId, clientNonce: string): Promise<number | undefined>;
     get(id: number): Promise<IndexedMessage | undefined>;
     /** Newest first. `before` is the id of the oldest message of the previous page. */
     page(c: ConversationId, f: { before?: number; limit: number }): Promise<IndexedMessage[]>;

@@ -7,7 +7,7 @@ export function ApprovalReceipt({ receipt }: { receipt: Receipt }) {
   if (receipt.kind !== "approval") return null;
   const { answer, card } = receipt;
   const deny = answer === "deny";
-  const neutral = answer === "elsewhere";
+  const neutral = answer === "elsewhere" || answer === null;
   const Icon = neutral ? CircleDashed : deny ? CircleX : CircleCheck;
   return (
     <div className={`ios-mini-appr done ${neutral ? "neutral" : deny ? "deny" : "allow"}`}>
@@ -16,7 +16,9 @@ export function ApprovalReceipt({ receipt }: { receipt: Receipt }) {
         <b>
           {answer === "elsewhere"
             ? "Answered on another device"
-            : `${deny ? "Denied" : "Allowed"}: ${card.tool}`}
+            : answer === null
+              ? "Withdrawn by the bot"
+              : `${deny ? "Denied" : "Allowed"}: ${card.tool}`}
         </b>
         <span>{scopeLine(card.scope)}</span>
       </div>

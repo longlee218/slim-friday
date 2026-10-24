@@ -3,11 +3,21 @@ import type { CardRow } from "@friday/core";
 import { flattenSummary } from "./flatten-summary";
 
 /** Longest tool input shown on an approval card, in code points. */
-const INPUT_MAX = 2000;
+const INPUT_MAX = 20000;
+
+/** The input as pretty JSON, split into code points (so a cut never splits a surrogate pair). */
+const inputPoints = (input: Record<string, unknown>): string[] => [
+  ...(JSON.stringify(input, null, 2) ?? "{}"),
+];
+
+/** Whether the card shows less than the whole input; such a card can only be denied (the call is not fully shown). */
+export function inputCut(input: Record<string, unknown>): boolean {
+  return inputPoints(input).length > INPUT_MAX;
+}
 
 /** The exact input a one-shot approval binds, as pretty JSON; cut by code points, saying how much was cut. */
 export function showInput(input: Record<string, unknown>): string {
-  const points = [...(JSON.stringify(input, null, 2) ?? "{}")];
+  const points = inputPoints(input);
   return points.length > INPUT_MAX
     ? `${points.slice(0, INPUT_MAX).join("")} [CUT: ${points.length - INPUT_MAX} more chars]`
     : points.join("");
@@ -27,6 +37,7 @@ export function toApprovalDto(card: CardRow, botName: string): ApprovalCardDto |
     scope: a.scope,
     offerAlways: a.offerAlways,
     input: showInput(a.input),
+    inputCut: inputCut(a.input),
   };
 }
 

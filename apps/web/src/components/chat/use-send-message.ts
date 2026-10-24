@@ -5,7 +5,6 @@ import { client } from "../../api/client";
 import { appendMessage } from "../../events/apply-messages";
 import { endRun, startRun } from "../../events/apply-runs";
 import {
-  dropTemp,
   type PendingSend,
   pendingKey,
   type SendPayload,
@@ -42,14 +41,10 @@ export function useSendMessage() {
         const { messageId } = await client.chat.send(p.payload);
         swapTemp(qc, p.payload.conversationId, tempId, messageId);
         setPending(qc, tempId, null);
-      } catch (e) {
-        if ((e as { code?: string } | null)?.code === "CONFLICT") {
-          // Uploads already claimed: an earlier try was delivered; the event brings the message.
-          dropTemp(qc, p.payload.conversationId, tempId);
-        } else {
-          for (const id of p.route.botIds) endRun(qc, p.payload.conversationId, id);
-          setPending(qc, tempId, { ...p, state: "failed" });
-        }
+      } catch {
+        // Any failure, CONFLICT included, is "Not sent"; a retry reuses the nonce and the engine replays.
+        for (const id of p.route.botIds) endRun(qc, p.payload.conversationId, id);
+        setPending(qc, tempId, { ...p, state: "failed" });
       }
       // A settled send is a good moment to forget entries whose temp message is gone.
       sweepPending(qc);

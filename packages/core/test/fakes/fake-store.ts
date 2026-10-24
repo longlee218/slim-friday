@@ -71,6 +71,8 @@ export class FakeStore implements Store {
       this.nonces.set(k, id);
       return { id, replayed: false };
     },
+    byNonce: async (c: ConversationId, clientNonce: string) =>
+      this.nonces.get(`${c}\u0000${clientNonce}`),
     get: async (id: number) => this.live().find((m) => m.id === id),
     page: async (c: ConversationId, f: { before?: number; limit: number }) =>
       this.live()

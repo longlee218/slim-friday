@@ -36,4 +36,5 @@ export const approvalCard = (cardId = "c1"): ApprovalCardDto => ({
   scope: {},
   offerAlways: true,
   input: "{}",
+  inputCut: false,
 });

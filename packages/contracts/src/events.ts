@@ -31,7 +31,8 @@ export const FridayEventSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("approval.closed"),
     cardId: z.string(),
-    answer: ApprovalAnswerSchema,
+    // null = withdrawn by the engine, nobody answered
+    answer: ApprovalAnswerSchema.nullable(),
   }),
   z.object({ type: z.literal("question.opened"), card: QuestionCardDtoSchema }),
   // null answer = timed out

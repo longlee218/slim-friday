@@ -1,6 +1,6 @@
 import type { ApprovalCardDto, QuestionCardDto } from "@friday/contracts";
 import type { ApprovalAnswer, CardRow, QuestionAnswer, Store } from "@friday/core";
-import { toApprovalDto, toQuestionDto } from "./card-dto";
+import { inputCut, toApprovalDto, toQuestionDto } from "./card-dto";
 import type { EventBus } from "./event-bus";
 
 /**
@@ -31,13 +31,13 @@ export class CardDesk {
     if (question) this.bus.publish({ type: "question.opened", card: question });
   }
 
-  /** Publish that a card was answered or withdrawn (a withdrawn question closes with no answer). */
+  /** Publish that a card was answered or withdrawn (a withdrawn card closes with no answer). */
   close(card: CardRow): void {
     if (card.kind === "approval")
       this.bus.publish({
         type: "approval.closed",
         cardId: card.id,
-        answer: (card.answer as ApprovalAnswer | undefined) ?? "deny",
+        answer: card.status === "withdrawn" ? null : ((card.answer as ApprovalAnswer) ?? null),
       });
     else
       this.bus.publish({
@@ -51,6 +51,12 @@ export class CardDesk {
   async openedAt(cardId: string): Promise<number | undefined> {
     const card = await this.store.cards.get(cardId);
     return card?.status === "open" ? card.createdAt : undefined;
+  }
+
+  /** Whether an approval card shows less than its whole input (same check as the DTO's `inputCut`). */
+  async inputCut(cardId: string): Promise<boolean> {
+    const a = (await this.store.cards.get(cardId))?.approval;
+    return a ? inputCut(a.input) : false;
   }
 
   /** Approval cards still open, from the db. */

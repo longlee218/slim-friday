@@ -51,4 +51,5 @@
 .appr-receipt .ok.neutral { background: transparent; color: var(--label-3); }
 .ios-mini-appr.done.neutral > svg { color: var(--label-3); }
 /* the exact tool input an approval binds (pretty JSON, cut by the engine) */
+.appr-cut { margin: 0 0 12px; color: var(--red); font-size: 12px; }
 .appr-input { margin: 0 0 12px; padding: 9px 11px; border-radius: 8px; background: var(--well); font-family: var(--mono); font-size: 12px; max-height: 180px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }

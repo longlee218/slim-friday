@@ -240,3 +240,55 @@ test("a failing handler removes the files rows and releases the upload", async (
   expect(store.fileMap.size).toBe(0);
   expect((await store.uploads.get("h"))?.state).toBe("pending");
 });
+
+test("a retry with a stored nonce replays before claiming uploads (no CONFLICT)", async () => {
+  await seed("n1");
+  const ids: number[] = [];
+  surface.onMessage(async (m) => {
+    handled.push(m);
+    const r = await store.messages.appendOnce(
+      {
+        conversationId: m.conversationId,
+        author: { kind: "user" },
+        text: m.text,
+        at: 1,
+        kind: "text",
+      },
+      m.clientNonce ?? "",
+    );
+    ids.push(r.id);
+    return r.id;
+  });
+  const first = await send(["n1"], { clientNonce: "k" });
+  const again = await send(["n1"], { clientNonce: "k" });
+  expect(again.messageId).toBe(first.messageId);
+  expect(handled).toHaveLength(2);
+  expect(handled[1]?.files).toEqual([]);
+  expect((await store.uploads.get("n1"))?.state).toBe("used");
+});
+
+test("a routing throw after the append keeps the files rows and the uploads used; the retry replays", async () => {
+  await seed("t1");
+  let fail = true;
+  surface.onMessage(async (m) => {
+    const r = await store.messages.appendOnce(
+      {
+        conversationId: m.conversationId,
+        author: { kind: "user" },
+        text: m.text,
+        at: 1,
+        kind: "text",
+      },
+      m.clientNonce ?? "",
+    );
+    if (fail) throw new Error("routing");
+    return r.id;
+  });
+  await expect(send(["t1"], { clientNonce: "k2" })).rejects.toThrow("routing");
+  expect(store.fileMap.size).toBe(1);
+  expect((await store.uploads.get("t1"))?.state).toBe("used");
+  fail = false;
+  const r = await send(["t1"], { clientNonce: "k2" });
+  expect(r.messageId).toBe((await store.messages.byNonce("bot:a", "k2")) ?? -1);
+  expect(store.fileMap.size).toBe(1);
+});

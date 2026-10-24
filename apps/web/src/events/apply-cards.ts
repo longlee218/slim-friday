@@ -25,14 +25,14 @@ function addReceipt(qc: QueryClient, cardId: string, receipt: Receipt): void {
 }
 
 /**
- * Moves an approval card from pending into receipts. A card in neither place is ignored,
+ * Moves an approval card from pending into receipts (answer null = withdrawn). A card in neither place is ignored,
  * so the owner's own answer and the `approval.closed` event give one receipt in any order.
  * `fallback` is the card on screen, used when it is no longer in the pending list.
  */
 export function closeApproval(
   qc: QueryClient,
   cardId: string,
-  answer: "once" | "always" | "deny" | "elsewhere",
+  answer: "once" | "always" | "deny" | "elsewhere" | null,
   fallback?: ApprovalCardDto,
 ): void {
   const key = orpc.approvals.pending.queryKey();

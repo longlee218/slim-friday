@@ -69,14 +69,6 @@ export function swapTemp(
   });
 }
 
-/** Removes the temp message without a trace (the send turned out to be delivered already). */
-export function dropTemp(qc: QueryClient, conversationId: string, tempId: number): void {
-  qc.setQueryData<Pages>(messagesKey(conversationId), (data) =>
-    data ? { ...data, pages: data.pages.map((p) => p.filter((m) => m.id !== tempId)) } : data,
-  );
-  setPending(qc, tempId, null);
-}
-
 /** Drops pending entries whose temp message is gone from the cache (refetch or resync replaced it). */
 export function sweepPending(qc: QueryClient): void {
   const cur = qc.getQueryData<Pending>(pendingKey) ?? {};

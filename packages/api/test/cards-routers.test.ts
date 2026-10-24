@@ -43,7 +43,9 @@ test("two concurrent approvals.answer: one ok, one CONFLICT, the card keeps the 
   expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
   const lost = results.find((r) => r.status === "rejected") as PromiseRejectedResult;
   expect(lost.reason).toMatchObject({ code: "CONFLICT" });
-  expect(h.store.cardMap.get(cardId)?.answer).toBe("once");
+  // The winner is whichever reached the stored card first; the card keeps that answer.
+  const winner = results.findIndex((r) => r.status === "fulfilled") === 0 ? "once" : "deny";
+  expect(h.store.cardMap.get(cardId)?.answer).toBe(winner);
   expect(await h.client.approvals.pending()).toEqual([]);
 });
 
@@ -88,4 +90,25 @@ test("an answer logs approval.answered with ids and latency, no text", async () 
   expect(logs).toEqual([
     { event: "approval.answered", cardId, kind: "approval", answer: "once", ms: 0 },
   ]);
+});
+
+test("approvals.answer refuses once and always on a card whose input is cut; deny goes through", async () => {
+  const h = engineHarness();
+  const { id: cardId } = await stored(h, {
+    approval: {
+      tool: "Bash",
+      input: { command: "x".repeat(30000) },
+      inputHash: "h",
+      summary: "long",
+      scope: {},
+      offerAlways: true,
+    },
+  });
+  expect((await h.client.approvals.pending())[0]?.inputCut).toBe(true);
+  for (const answer of ["once", "always"] as const)
+    await expect(h.client.approvals.answer({ cardId, answer })).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+    });
+  expect(h.store.cardMap.get(cardId)?.status).toBe("open");
+  expect(await h.client.approvals.answer({ cardId, answer: "deny" })).toEqual({ ok: true });
 });

@@ -45,24 +45,34 @@ export function ApprovalCard({ card, receipt }: { card: ApprovalCardDto; receipt
                   <Button disabled={busy} onClick={() => send("deny")}>
                     Deny
                   </Button>
-                  {card.offerAlways && (
+                  {card.offerAlways && !card.inputCut && (
                     <Button disabled={busy} onClick={() => send("always")}>
                       Always allow
                     </Button>
                   )}
-                  <Button variant="primary" disabled={busy} onClick={() => send("once")}>
-                    Allow once
-                  </Button>
+                  {!card.inputCut && (
+                    <Button variant="primary" disabled={busy} onClick={() => send("once")}>
+                      Allow once
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>
           </div>
           <CardReceiptLine
-            tone={r?.answer === "deny" ? "deny" : r?.answer === "elsewhere" ? "neutral" : "ok"}
+            tone={
+              r?.answer === "deny"
+                ? "deny"
+                : r?.answer === "elsewhere" || r?.answer === null
+                  ? "neutral"
+                  : "ok"
+            }
           >
             {r &&
               (r.answer === "elsewhere" ? (
                 "Answered on another device"
+              ) : r.answer === null ? (
+                "Withdrawn by the bot"
               ) : (
                 <>
                   {APPROVAL_VERB[r.answer]}: <b style={{ color: "var(--label)" }}>{r.card.tool}</b>{" "}

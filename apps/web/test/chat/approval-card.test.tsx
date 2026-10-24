@@ -173,3 +173,25 @@ test("elsewhere receipts are neutral, not green", () => {
   expect(b.container.querySelector(".ios-mini-appr.neutral")).toBeTruthy();
   expect(b.container.querySelector(".allow")).toBeNull();
 });
+
+test("a cut input shows the marker and only Deny", () => {
+  view(
+    <ApprovalCard
+      card={apprCard({ input: '{\n  "c": "yy" [CUT: 5 more chars]', inputCut: true })}
+    />,
+  );
+  expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual(["Deny"]);
+  expect(document.querySelector(".appr-input")?.textContent).toContain("[CUT: 5 more chars]");
+  expect(screen.getByText(/can only be denied/)).toBeTruthy();
+});
+
+test("a withdrawn approval shows a neutral receipt, not a denial", () => {
+  view(
+    <ApprovalCard
+      card={apprCard()}
+      receipt={{ kind: "approval", card: apprCard(), answer: null }}
+    />,
+  );
+  expect(screen.getByText("Withdrawn by the bot")).toBeTruthy();
+  expect(screen.queryByText(/denied/i)).toBeNull();
+});

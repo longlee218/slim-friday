@@ -73,6 +73,7 @@ test("a stored approval is published with the card's id and the exact input", ()
         scope: { cmd: "ls" },
         offerAlways: true,
         input: '{\n  "command": "ls"\n}',
+        inputCut: false,
       },
     },
   ]);
@@ -139,10 +140,25 @@ test("a long input is cut and says how much", async () => {
     ...card,
     approval: {
       ...(card.approval as NonNullable<CardRow["approval"]>),
-      input: { c: "y".repeat(3000) },
+      input: { c: "y".repeat(30000) },
     },
   });
-  const input = (await desk.pendingApprovals())[0]?.input ?? "";
-  expect(input).toMatch(/\[CUT: \d+ more chars\]$/);
-  expect(input.startsWith('{\n  "c": "yyy')).toBe(true);
+  const dto = (await desk.pendingApprovals())[0];
+  expect(dto?.input).toMatch(/\[CUT: \d+ more chars\]$/);
+  expect(dto?.input.startsWith('{\n  "c": "yyy')).toBe(true);
+  expect(dto?.inputCut).toBe(true);
+  expect(await desk.inputCut("c1")).toBe(true);
+});
+
+test("a whole input is not cut", async () => {
+  const { desk, store } = setup();
+  await store.cards.insert(approval("c1"));
+  expect((await desk.pendingApprovals())[0]?.inputCut).toBe(false);
+  expect(await desk.inputCut("c1")).toBe(false);
+});
+
+test("a withdrawn approval closes with no answer, not a denial", () => {
+  const { desk, events } = setup();
+  desk.close({ ...approval("c1"), status: "withdrawn" });
+  expect(events.at(-1)).toEqual({ type: "approval.closed", cardId: "c1", answer: null });
 });

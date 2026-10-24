@@ -14,7 +14,7 @@ export interface ApprovalSheetProps {
   onOpenChange: (open: boolean) => void;
 }
 
-/** Phone review sheet: the detail and full-width answers (Allow once, Always allow, Deny). */
+/** Phone review sheet: the detail and full-width answers (Allow once, Always allow, Deny; only Deny when the input is cut). */
 export function ApprovalSheet({ card, open, onOpenChange }: ApprovalSheetProps) {
   const answer = useAnswerApproval();
   const face = useBotFace(card.botId);
@@ -26,10 +26,12 @@ export function ApprovalSheet({ card, open, onOpenChange }: ApprovalSheetProps) 
       <Avatar src={face.src} name={card.botName} size={40} />
       <Dialog.Title render={(props) => <h3 {...props}>{approvalTitle(card)}</h3>} />
       <ApprovalDetail card={card} />
-      <Button variant="primary" disabled={busy} onClick={() => send("once")}>
-        Allow once
-      </Button>
-      {card.offerAlways && (
+      {!card.inputCut && (
+        <Button variant="primary" disabled={busy} onClick={() => send("once")}>
+          Allow once
+        </Button>
+      )}
+      {card.offerAlways && !card.inputCut && (
         <Button disabled={busy} onClick={() => send("always")}>
           Always allow
         </Button>

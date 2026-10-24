@@ -30,6 +30,13 @@ export function messageRepo(db: BunSQLiteDatabase): Store["messages"] {
       if (!first) throw new Error(`message with nonce ${clientNonce} vanished after a conflict`);
       return { id: first.id, replayed: true };
     },
+    async byNonce(c, clientNonce) {
+      return db
+        .select({ id: messages.id })
+        .from(messages)
+        .where(and(eq(messages.conversationId, c), eq(messages.clientNonce, clientNonce)))
+        .get()?.id;
+    },
     async get(id) {
       const r = db.select().from(messages).where(eq(messages.id, id)).get();
       return r && toIndexed(r);
