@@ -3,6 +3,8 @@ import type { ConversationId } from "../domain/conversation";
 import type { Author } from "../domain/message";
 import type { SendRequest, SendResult } from "../ports/messenger";
 import { clampBotMessage, nextHop } from "../routing/bot-messages";
+import { sendKeyFor } from "../runs/outcome-outbox";
+import { createRun } from "../runs/run-create";
 import type { RunExec } from "../runs/run-exec";
 import type { HubContext } from "./hub-context";
 import { errText } from "./hub-types";
@@ -17,19 +19,20 @@ export async function sendFromSession(
   // The run of this scope executing in this process; a send is accepted only while it is live.
   const exec = ctx.runs.get(sessionKey);
   if (!exec?.live) return { ok: false, error: "You can send a message only while you answer one." };
-  return deliver(ctx, exec, { ...exec.current, wakeId: exec.row.id }, req, true);
+  return deliver(ctx, exec, { ...exec.current, wakeId: exec.row.id }, req);
 }
 
 /**
- * Check one bot-to-bot message and wake its target. `cur` is the wake the sender is answering; `post` shows the
- * message in the channel under the sender's name (an automatic result is the bot's own text, already shown).
+ * Check one bot-to-bot message and wake its target. `cur` is the wake the sender is answering. The run is
+ * stored under `sendKeyFor` (this execution's count of identical sends), so the same call made again after a
+ * cut finds the first run (`replayed`) instead of waking the target twice. The automatic result of a finished
+ * run is not sent here (`returnOutcome`).
  */
 async function deliver(
   ctx: HubContext,
   entry: RunExec,
   cur: { conversationId: ConversationId; hop: number; wakeId: string },
   req: SendRequest,
-  post: boolean,
 ): Promise<SendResult> {
   const { store, clock } = ctx.deps;
   const fail = (error: string): SendResult => ({ ok: false, error });
@@ -66,16 +69,27 @@ async function deliver(
     );
 
   const author: Author = { kind: "bot", botId: entry.bot.id };
-  const outcome = await ctx.wake(target.id, conv.id, author, text, hop, {
-    intent: req.intent,
-    ...(req.handoff && { handoff: true }),
-    ...(parent && { chainId: parent.chainId }),
-    parentWakeId: cur.wakeId,
-    ...(returnsToSender && { exemptFromHops: true }),
+  const hash = `${target.id}|${req.intent}|${text}`;
+  const n = (entry.sendCounts.get(hash) ?? 0) + 1;
+  entry.sendCounts.set(hash, n);
+  const outcome = await createRun(ctx, {
+    botId: target.id,
+    conversationId: conv.id,
+    sender: author,
+    text,
+    hop,
+    opts: {
+      intent: req.intent,
+      ...(req.handoff && { handoff: true }),
+      ...(parent && { chainId: parent.chainId }),
+      parentWakeId: cur.wakeId,
+      ...(returnsToSender && { exemptFromHops: true }),
+    },
+    dedupeKey: await sendKeyFor(cur.wakeId, target.id, req.intent, text, n),
   });
   if (!outcome.ok) return fail(`Not delivered: the ${outcome.reason} limit is reached.`);
-  if (req.intent === "result") entry.sentResults.add(target.id);
-  if (post) {
+  // A replay was posted by the first call; the channel shows each send once.
+  if (!outcome.replayed) {
     // A relay is its own message kind; the surface shows the hand-off from its fields.
     const state = req.intent === "question" || req.intent === "status" ? req.intent : undefined;
     await postStored(ctx.deps, {
@@ -97,34 +111,9 @@ async function deliver(
   return {
     ok: true,
     wakeId: outcome.wakeId,
+    ...(outcome.replayed && { replayed: true }),
     note: req.handoff
       ? `Handed to ${target.name}. End this turn without narrating it; ${target.name} owns the step now.`
       : `Sent to ${target.name}. Delivery is asynchronous; an answer wakes you later as a new message. Continue independent work and send another update only if it adds something new.`,
   };
-}
-
-/**
- * A run woken by a request or question finished: its last text goes back to the sender as a result, unless the
- * bot already sent that sender a result in this run. A hand-off is never answered this way. A result delivered
- * sets `outcomeReturnedAt` (Task 11 re-sends the ones without it).
- */
-export async function returnOutcome(ctx: HubContext, e: RunExec): Promise<void> {
-  const w = await ctx.deps.store.wakes.get(e.row.id);
-  if (w?.sender.kind !== "bot" || w.handoff) return;
-  if (w.intent !== "request" && w.intent !== "question") return;
-  if (e.sentResults.has(w.sender.botId)) return;
-  const text = e.turnTexts.at(-1);
-  if (!text?.trim()) return;
-  const res = await deliver(
-    ctx,
-    e,
-    { conversationId: w.conversationId, hop: w.hop, wakeId: w.id },
-    { to: w.sender.botId, text, intent: "result" },
-    false,
-  );
-  if (!res.ok) ctx.deps.log?.warn({ error: res.error, wakeId: w.id }, "hub.result_not_returned");
-  else
-    await ctx.deps.store.wakes.transition(w.id, e.row.leaseFence, ["done"], {
-      outcomeReturnedAt: ctx.deps.clock.now(),
-    });
 }

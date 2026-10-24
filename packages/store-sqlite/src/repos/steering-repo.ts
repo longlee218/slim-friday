@@ -1,9 +1,12 @@
 import type { SteeringRow, Store } from "@friday/core";
-import { and, asc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNotNull, isNull } from "drizzle-orm";
 import type { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
-import { steering } from "../schema/engine-tables";
+import { steering, wakes } from "../schema/engine-tables";
 
 type Row = typeof steering.$inferSelect;
+
+/** Statuses of a run that has ended (it takes no more steering rows). */
+const ENDED = ["done", "failed", "interrupted", "cancelled", "blocked", "dropped", "expired"];
 
 /** Owner messages sent while a run was busy: held, bound to a wake, claimed by its turn. */
 export function steeringRepo(db: BunSQLiteDatabase): Store["steering"] {
@@ -103,6 +106,27 @@ export function steeringRepo(db: BunSQLiteDatabase): Store["steering"] {
     },
     async deleteForScope(scopeKey) {
       db.delete(steering).where(eq(steering.scopeKey, scopeKey)).run();
+    },
+    async endedRuns(limit, after) {
+      return db
+        .selectDistinct({ id: steering.wakeId })
+        .from(steering)
+        .innerJoin(wakes, eq(wakes.id, steering.wakeId))
+        .where(and(inArray(wakes.status, ENDED), after ? gt(steering.wakeId, after) : undefined))
+        .orderBy(asc(steering.wakeId))
+        .limit(limit)
+        .all()
+        .flatMap((r) => (r.id ? [r.id] : []));
+    },
+    async heldScopes(limit, after) {
+      return db
+        .selectDistinct({ key: steering.scopeKey })
+        .from(steering)
+        .where(and(isNull(steering.wakeId), after ? gt(steering.scopeKey, after) : undefined))
+        .orderBy(asc(steering.scopeKey))
+        .limit(limit)
+        .all()
+        .map((r) => r.key);
     },
   };
 }

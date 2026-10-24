@@ -2,6 +2,7 @@ import type { Bot } from "../domain/bot";
 import type { WakeRow } from "../domain/wake";
 import { type HubContext, tell } from "../hub/hub-context";
 import { errText } from "../hub/hub-types";
+import { returnOutcomeSafe } from "./outcome-outbox";
 import { settleSteering } from "./run-continuation";
 import { finishRun } from "./run-finish";
 import { backoffMs, classifyFailure } from "./run-rules";
@@ -94,6 +95,7 @@ export async function countCut(
   await store.attempts.finish(`${row.id}:${fence}`, "interrupted", now);
   await store.scopes.finished(row.scopeKey, now, Math.max(0, row.createdAt - 1));
   await settleSteering(ctx, row, "interrupted");
+  await returnOutcomeSafe(ctx, { ...row, ...patch });
   ctx.deps.log?.warn({ event: "wake.interrupted", wakeId: row.id, cuts }, "wake.interrupted");
   await tell(
     ctx,

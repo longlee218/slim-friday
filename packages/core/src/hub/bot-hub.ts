@@ -2,11 +2,12 @@ import { CORE_DEFAULTS } from "../config-defaults";
 import type { BotId } from "../domain/bot";
 import type { GroupId } from "../domain/group";
 import type { Author } from "../domain/message";
-import type { BotMessenger, SendRequest, SendResult } from "../ports/messenger";
 import type { QuestionAnswer } from "../domain/question";
+import type { BotMessenger, SendRequest, SendResult } from "../ports/messenger";
 import type { ApprovalAnswer, InboundMessage } from "../ports/surface";
-import { type AnswerCardResult, answerCard, remindWaitingCards } from "../runs/run-card-answer";
 import { ChainGuard } from "../routing/chain-guard";
+import { startOutcomeReconciler } from "../runs/outcome-reconciler";
+import { type AnswerCardResult, answerCard, remindWaitingCards } from "../runs/run-card-answer";
 import { abortRun, type RunExec } from "../runs/run-exec";
 import { InProcessHints } from "../runs/run-hints";
 import { intakeOwnerMessage } from "../runs/run-intake";
@@ -132,6 +133,14 @@ export class BotHub implements BotMessenger {
   /** Main sweep: one reminder for cards waiting longer than `cardReminderMs`; requeue runs whose card was answered. */
   sweepCards(): Promise<void> {
     return remindWaitingCards(this.ctx, this.deps.clock.now());
+  }
+
+  /**
+   * Main process: repair what a crash left (held runs, steering of ended runs, unreturned results) now and
+   * every `reconcileMs`. Returns the stop function.
+   */
+  startReconciler(): () => void {
+    return startOutcomeReconciler(this.ctx, this.ctx.limits);
   }
 
   /** Tell `onIdleClose` about scopes quiet for `idleCloseMs` (the app flushes their notes). */

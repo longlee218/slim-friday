@@ -1,10 +1,10 @@
 import type { WakeRow } from "../domain/wake";
-import { returnOutcome } from "../hub/bot-messaging";
 import type { HubContext } from "../hub/hub-context";
 import { type SessionScope, sessionScope } from "../hub/session-scope";
 import { checkUnfinished } from "../hub/ticket-wakes";
-import { settleCutSteering } from "./run-continuation";
+import { returnOutcomeSafe } from "./outcome-outbox";
 import { cardResume, parkAtClaim, parkRun, resumeCardId } from "./run-cards";
+import { settleCutSteering } from "./run-continuation";
 import { abortRun, newRunExec, type RunExec, untilStop } from "./run-exec";
 import { countCut, handleRunError } from "./run-failure";
 import { finishRun } from "./run-finish";
@@ -152,7 +152,6 @@ async function settle(ctx: HubContext, exec: RunExec, end: PumpEnd): Promise<voi
   const resultText = exec.turnTexts.at(-1);
   const done = { status: "done" as const, ...(resultText !== undefined && { resultText }) };
   if (!(await finishRun(ctx, row, fence, done))) return;
-  await returnOutcome(ctx, exec);
   await checkUnfinished(ctx, exec);
 }
 
@@ -168,6 +167,7 @@ async function cutShort(ctx: HubContext, exec: RunExec): Promise<void> {
     const patch = { status: "cancelled" as const, endedAt: now };
     if (!(await store.wakes.transition(row.id, row.leaseFence, ["running"], patch))) return;
     await store.scopes.finished(row.scopeKey, now, Math.max(0, row.createdAt - 1));
+    await returnOutcomeSafe(ctx, { ...row, ...patch });
   }
   await store.attempts.finish(`${row.id}:${row.leaseFence}`, "interrupted", now);
 }
@@ -189,5 +189,6 @@ async function dropRun(ctx: HubContext, row: WakeRow, fence: number): Promise<vo
   const patch = { status: "dropped" as const, endedAt: now };
   if (!(await store.wakes.transition(row.id, fence, ["running"], patch))) return;
   await store.attempts.finish(`${row.id}:${fence}`, "failed", now, "bot or conversation gone");
+  await returnOutcomeSafe(ctx, { ...row, ...patch });
   log?.warn({ event: "wake.dropped", wakeId: row.id, botId: row.targetBot }, "wake.dropped");
 }

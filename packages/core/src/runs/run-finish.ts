@@ -1,11 +1,12 @@
 import type { WakeRow } from "../domain/wake";
 import type { HubContext } from "../hub/hub-context";
+import { returnOutcomeSafe } from "./outcome-outbox";
 import { settleSteering } from "./run-continuation";
 
 /** How a run ended, as `finishRun` stores it. */
 export interface RunResult {
   status: "done" | "failed";
-  /** The bot's last text (kept for the delegating bot, Task 11 returns it). */
+  /** The bot's last text (returned to the bot that delegated the work). */
   resultText?: string;
   /** Why the run failed. */
   error?: string;
@@ -15,12 +16,12 @@ export interface RunResult {
  * Finish a run. The store has no transaction across repos, so the fence-guarded `transition` to done/failed
  * is the commit point: when it matches no row (another worker owns the run, or it was cancelled) nothing else
  * is written and false is returned. The follow-ups are idempotent and safe to repeat: attempt closed,
- * `scopes.finished`, steering settled (`settleSteering`: unanswered rows held, then a continuation run).
- * The outcome fields stay on the row for Task 11.
+ * `scopes.finished`, steering settled (`settleSteering`: unanswered rows held, then a continuation run), the
+ * outcome returned to the bot that delegated the work (`returnOutcome`, which never throws here).
  *
  * Crash order: after the transition and before the follow-ups the attempt stays `running` and the scope's
- * finish time is older (bookkeeping); steering rows stay bound to the ended run until the reconciler (Task 11)
- * runs `settleSteering` for them (no row is lost or answered twice).
+ * finish time is older (bookkeeping); steering rows stay bound to the ended run and the outcome stays
+ * unreturned until the reconciler (`outcome-reconciler.ts`) settles them (no row is lost or answered twice).
  */
 export async function finishRun(
   ctx: HubContext,
@@ -41,6 +42,7 @@ export async function finishRun(
   await store.scopes.finished(row.scopeKey, endedAt, Math.max(0, row.createdAt - 1));
   await settleSteering(ctx, row, r.status);
   const ended = (await store.wakes.get(row.id)) ?? { ...row, ...patch };
+  await returnOutcomeSafe(ctx, ended);
   if (r.status === "done") ctx.wakeLog.logDone(ended, endedAt);
   else log?.warn({ event: "wake.failed", wakeId: row.id, botId: row.targetBot }, "wake.failed");
   return true;

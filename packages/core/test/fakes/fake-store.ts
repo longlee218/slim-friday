@@ -17,6 +17,7 @@ import type {
   Ticket,
   TicketComment,
   UploadRow,
+  WakeCursor,
   WakeRow,
   WakeStatus,
 } from "../../src";
@@ -172,6 +173,19 @@ export class FakeStore implements Store {
     },
   };
   wakeMap = new Map<string, WakeRow>();
+  /** Copies of the rows that match, ordered by creation time then id, after the cursor, at most `limit`. */
+  private wakesAfter = (f: (w: WakeRow) => boolean, limit: number, after?: WakeCursor) =>
+    [...this.wakeMap.values()]
+      .filter(f)
+      .sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : 1))
+      .filter(
+        (w) =>
+          !after ||
+          w.createdAt > after.createdAt ||
+          (w.createdAt === after.createdAt && w.id > after.id),
+      )
+      .slice(0, limit)
+      .map((w) => ({ ...w }));
   wakes = {
     insert: async (w: WakeRow) => {
       this.wakeMap.set(w.id, { ...w });
@@ -205,6 +219,23 @@ export class FakeStore implements Store {
         }
       return n;
     },
+    pendingOutcomes: async (limit: number, after?: WakeCursor) =>
+      this.wakesAfter(
+        (w) =>
+          ["done", "failed", "interrupted", "cancelled", "expired", "dropped"].includes(w.status) &&
+          w.outcomeReturnedAt === undefined &&
+          w.sender.kind === "bot" &&
+          (w.intent === "request" || w.intent === "question") &&
+          !w.handoff,
+        limit,
+        after,
+      ),
+    staleHeld: async (holdUntil: number, before: number, limit: number, after?: WakeCursor) =>
+      this.wakesAfter(
+        (w) => w.status === "queued" && w.wakeAt === holdUntil && w.createdAt < before,
+        limit,
+        after,
+      ),
     insertDeduped: async (w: WakeRow) => {
       const existing =
         w.dedupeKey == null
@@ -349,6 +380,26 @@ export class FakeStore implements Store {
     deleteForScope: async (scopeKey: string) => {
       for (const r of this.steerRows((r) => r.scopeKey === scopeKey)) this.steerMap.delete(r.id);
     },
+    endedRuns: async (limit: number, after?: string) => {
+      const ended = ["done", "failed", "interrupted", "cancelled", "blocked", "dropped", "expired"];
+      const ids = new Set<string>();
+      for (const r of this.steerMap.values()) {
+        const status = r.wakeId ? this.wakeMap.get(r.wakeId)?.status : undefined;
+        if (r.wakeId && status && ended.includes(status) && (!after || r.wakeId > after))
+          ids.add(r.wakeId);
+      }
+      return [...ids].sort().slice(0, limit);
+    },
+    heldScopes: async (limit: number, after?: string) =>
+      [
+        ...new Set(
+          [...this.steerMap.values()]
+            .filter((r) => r.wakeId === undefined && (!after || r.scopeKey > after))
+            .map((r) => r.scopeKey),
+        ),
+      ]
+        .sort()
+        .slice(0, limit),
   };
   /** Cards by id. */
   cardMap = new Map<string, CardRow>();

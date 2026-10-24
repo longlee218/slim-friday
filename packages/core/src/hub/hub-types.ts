@@ -21,7 +21,12 @@ export const errText = (err: unknown): string => (err instanceof Error ? err.mes
 
 /** What became of a request to wake a bot. */
 export type WakeOutcome =
-  | { ok: true; wakeId: string }
+  | {
+      ok: true;
+      wakeId: string;
+      /** The dedupe key was already stored: this is the first call's run, no new run was made. */
+      replayed?: boolean;
+    }
   | { ok: false; reason: BlockReason | "gone" };
 
 /** Optional parts of a wake. */

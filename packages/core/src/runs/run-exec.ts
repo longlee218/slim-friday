@@ -1,4 +1,4 @@
-import type { Bot, BotId } from "../domain/bot";
+import type { Bot } from "../domain/bot";
 import type { CardRow } from "../domain/card";
 import type { ConversationId } from "../domain/conversation";
 import type { WakeRow } from "../domain/wake";
@@ -58,8 +58,8 @@ export interface RunExec {
   steps: RunTracker;
   /** Texts the bot said in this run, in order (the last one is its answer). */
   turnTexts: string[];
-  /** Bots this bot sent an explicit `result` in this run. */
-  sentResults: Set<BotId>;
+  /** Sends of this execution by content hash: how many identical messages were sent so far (key part `n`). */
+  sendCounts: Map<string, number>;
   /** A turn was sent (or a follow-up began) and has not ended. */
   turnOpen: boolean;
   /** A task ended after the last turn end: its follow-up turn is still to come. */
@@ -125,7 +125,7 @@ export function newRunExec(row: WakeRow, scope: SessionScope, now: number, taint
     turnTexts: [],
     firstRows: [],
     pushed: [],
-    sentResults: new Set(),
+    sendCounts: new Map(),
     turnOpen: false,
     followUp: false,
     taskDoneInTurn: false,

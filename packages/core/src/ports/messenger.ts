@@ -10,7 +10,15 @@ export interface SendRequest {
   handoff?: boolean;
 }
 
-export type SendResult = { ok: true; wakeId: string; note: string } | { ok: false; error: string };
+export type SendResult =
+  | {
+      ok: true;
+      wakeId: string;
+      note: string;
+      /** The same call was already delivered before (a re-run after a cut): no new run was created. */
+      replayed?: boolean;
+    }
+  | { ok: false; error: string };
 
 /** What a bot's tools use to reach another bot; the hub implements it. */
 export interface BotMessenger {

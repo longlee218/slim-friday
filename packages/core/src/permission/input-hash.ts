@@ -11,12 +11,16 @@ export function stableJson(v: unknown): string {
   return JSON.stringify(v) ?? "null";
 }
 
+/** sha256 (hex) of a text, by the standard Web Crypto digest (core cannot import node:crypto). */
+export async function sha256Hex(text: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 /**
  * The hash that names one exact tool call: sha256 (hex) of the tool name and its input as stable JSON. An
- * approval allows the call with this hash once. Async because it uses the standard Web Crypto digest.
+ * approval allows the call with this hash once.
  */
-export async function inputHash(tool: string, input: Record<string, unknown>): Promise<string> {
-  const bytes = new TextEncoder().encode(`${tool}\n${stableJson(input)}`);
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+export function inputHash(tool: string, input: Record<string, unknown>): Promise<string> {
+  return sha256Hex(`${tool}\n${stableJson(input)}`);
 }

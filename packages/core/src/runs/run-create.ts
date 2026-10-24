@@ -65,8 +65,8 @@ export async function createRun(ctx: HubContext, r: NewRun): Promise<WakeOutcome
   const added = await store.wakes.insertDeduped(row);
   if (!added.inserted) {
     const old = added.existing;
-    if (old.status !== "queued" || old.wakeAt !== HOLD_UNTIL) return outcomeOf(old);
-    return admitHeld(ctx, old, scope !== undefined, opts.exemptFromHops);
+    if (old.status !== "queued" || old.wakeAt !== HOLD_UNTIL) return replay(outcomeOf(old));
+    return replay(await admitHeld(ctx, old, scope !== undefined, opts.exemptFromHops));
   }
   ctx.wakeLog.stored(row);
   return admitHeld(ctx, row, scope !== undefined, opts.exemptFromHops);
@@ -132,6 +132,9 @@ export async function block(ctx: HubContext, row: WakeRow, reason: BlockReason):
   await ctx.wakeLog.blocked(row, reason);
   await notice(ctx, row.conversationId, reason);
 }
+
+/** Mark an accepted outcome as the answer of an earlier call with the same dedupe key. */
+const replay = (o: WakeOutcome): WakeOutcome => (o.ok ? { ...o, replayed: true } : o);
 
 /** The outcome of a run that already existed under the same dedupe key. */
 function outcomeOf(w: WakeRow): WakeOutcome {

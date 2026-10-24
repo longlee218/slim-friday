@@ -159,6 +159,7 @@ async function composeApp(deps: AppDeps, opened: Array<() => unknown>) {
 
   let stopped = false;
   const stopIdleSweep = startIdleSweep(botHub, clock, log);
+  const stopReconciler = botHub.startReconciler();
   const stopUploadSweeper = startUploadSweeper(engine, deps.files, log, () => clock.now());
   const daily = startDailyMaintenance({
     ...mem,
@@ -184,6 +185,7 @@ async function composeApp(deps: AppDeps, opened: Array<() => unknown>) {
       const dailyDone = daily.stop();
       stopWatching();
       stopIdleSweep();
+      stopReconciler();
       stopUploadSweeper();
       await botHub.stopAll();
       // A daily run may still use the index and the db.

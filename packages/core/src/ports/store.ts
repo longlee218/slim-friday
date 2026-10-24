@@ -56,6 +56,12 @@ export interface UploadRow {
 }
 
 /** Everything the engine persists. */
+/** Position in a list of wakes ordered by creation time then id: where the next batch read starts. */
+export interface WakeCursor {
+  createdAt: number;
+  id: string;
+}
+
 export interface Store {
   bots: { get(id: BotId): Promise<Bot | undefined>; list(): Promise<Bot[]> };
   groups: { get(id: GroupId): Promise<Group | undefined> };
@@ -194,6 +200,22 @@ export interface Store {
     renew(id: string, owner: string, fence: number, until: number): Promise<boolean>;
     /** Queued, leased, running and waiting_input rows of a scope, oldest first. */
     activeInScope(scopeKey: string): Promise<WakeRow[]>;
+    /**
+     * Finished runs whose outcome still has to go back to the bot that sent them: status done, failed,
+     * interrupted, cancelled, expired or dropped; sender a bot; intent request or question; not a hand-off;
+     * `outcomeReturnedAt` unset. Oldest first, at most `limit`, after the `after` position (a cursor).
+     */
+    pendingOutcomes(limit: number, after?: WakeCursor): Promise<WakeRow[]>;
+    /**
+     * Runs stored but never released: queued with `wakeAt` = `holdUntil`, created before `before` (a crash
+     * between insert and cap check). Oldest first, at most `limit`, after the `after` position.
+     */
+    staleHeld(
+      holdUntil: number,
+      before: number,
+      limit: number,
+      after?: WakeCursor,
+    ): Promise<WakeRow[]>;
   };
   /** Owner messages sent while a run is busy. */
   steering: SteeringPort;
