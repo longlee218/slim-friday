@@ -88,7 +88,7 @@ export const authPasskey = sqliteTable(
     userId: text("user_id")
       .notNull()
       .references(() => authUser.id, { onDelete: "cascade" }),
-    credentialId: text("credential_id").notNull(),
+    credentialID: text("credential_id").notNull(),
     counter: integer("counter").notNull(),
     deviceType: text("device_type").notNull(),
     backedUp: integer("backed_up", { mode: "boolean" }).notNull(),
@@ -98,7 +98,7 @@ export const authPasskey = sqliteTable(
   },
   (t) => [
     index("auth_passkey_user_id_idx").on(t.userId),
-    index("auth_passkey_credential_id_idx").on(t.credentialId),
+    index("auth_passkey_credential_id_idx").on(t.credentialID),
   ],
 );
 
