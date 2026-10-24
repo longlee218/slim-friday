@@ -32,23 +32,25 @@ function fakeRunner(
   populate: (repo: string) => void = () => {},
   cloneCode = 0,
   lsTree = "100644 blob aaa      10\tf",
+  lsTreeTruncated = false,
 ) {
   const calls: Call[] = [];
   const run: GitRunner = async (argv, env) => {
     calls.push({ argv, env });
     if (argv.includes("clone")) {
-      if (cloneCode !== 0) return { code: cloneCode, out: "", err: "fatal" };
+      if (cloneCode !== 0) return { code: cloneCode, out: "", err: "fatal", truncated: false };
       const repo = argv[argv.length - 1] as string;
       mkdirSync(join(repo, ".git"), { recursive: true });
       writeFileSync(join(repo, ".git", "big"), "x".repeat(100));
-      return { code: 0, out: "", err: "" };
+      return { code: 0, out: "", err: "", truncated: false };
     }
-    if (argv.includes("ls-tree")) return { code: 0, out: lsTree, err: "" };
+    if (argv.includes("ls-tree"))
+      return { code: 0, out: lsTree, err: "", truncated: lsTreeTruncated };
     if (argv.includes("checkout")) {
       populate(argv[argv.indexOf("-C") + 1] as string);
-      return { code: 0, out: "", err: "" };
+      return { code: 0, out: "", err: "", truncated: false };
     }
-    return { code: 0, out: "abc123\n", err: "" };
+    return { code: 0, out: "abc123\n", err: "", truncated: false };
   };
   return { run, calls };
 }
@@ -223,11 +225,32 @@ test("default runner: a hung command resolves at the timeout", async () => {
   const t = Date.now();
   const r = await defaultGitRunner(["sh", "-c", "sleep 30 & sleep 30"], {}, 200);
   expect(Date.now() - t).toBeLessThan(5000);
-  expect(r).toEqual({ code: -1, out: "", err: "timed out" });
+  expect(r).toEqual({ code: -1, out: "", err: "timed out", truncated: false });
 });
 
 test("default runner: output is capped at 64 KB", async () => {
   const r = await defaultGitRunner(["sh", "-c", "head -c 300000 /dev/zero | tr '\\0' x"], {}, 5000);
   expect(r.code).toBe(0);
   expect(r.out.length).toBe(64 * 1024);
+  expect(r.truncated).toBe(true);
+});
+
+test("default runner: a per-call cap raises the limit and small output is not truncated", async () => {
+  const r = await defaultGitRunner(
+    ["sh", "-c", "head -c 300000 /dev/zero | tr '\\0' x"],
+    {},
+    5000,
+    400_000,
+  );
+  expect(r.out.length).toBe(300_000);
+  expect(r.truncated).toBe(false);
+});
+
+test("a truncated ls-tree listing is refused before checkout, temp dir removed", async () => {
+  const f = fakeRunner(() => {}, 0, "100644 blob aaa 1\tf", true);
+  await expect(
+    cloneSkillSource("https://github.com/a/b", { tmpRoot, pathEnv: "/usr/bin", run: f.run }),
+  ).rejects.toThrow(Refused);
+  expect(f.calls.some((c) => c.argv.includes("checkout"))).toBe(false);
+  expect(readdirSync(tmpRoot)).toEqual([]);
 });

@@ -3,28 +3,37 @@ export type GitRunner = (
   argv: string[],
   env: Record<string, string>,
   timeoutMs: number,
-) => Promise<{ code: number; out: string; err: string }>;
+  maxOutputBytes?: number,
+) => Promise<{ code: number; out: string; err: string; truncated: boolean }>;
 
-/** Most bytes kept of one captured stream. */
-const OUT_CAP = 64 * 1024;
+/** Default most bytes kept of one captured stream. */
+export const DEFAULT_OUTPUT_CAP = 64 * 1024;
 
-/** Read a stream to the end but keep only the first `OUT_CAP` bytes (the rest is drained and dropped). */
-async function readCapped(stream: ReadableStream<Uint8Array>): Promise<string> {
+/** Read a stream to the end but keep only the first `cap` bytes (the rest is drained and dropped); flags the cut. */
+async function readCapped(
+  stream: ReadableStream<Uint8Array>,
+  cap: number,
+): Promise<{ text: string; cut: boolean }> {
   const chunks: Uint8Array[] = [];
   let size = 0;
   for await (const chunk of stream) {
-    if (size < OUT_CAP) chunks.push(chunk.subarray(0, OUT_CAP - size));
+    if (size < cap) chunks.push(chunk.subarray(0, cap - size));
     size += chunk.length;
   }
-  return Buffer.concat(chunks).toString("utf8");
+  return { text: Buffer.concat(chunks).toString("utf8"), cut: size > cap };
 }
 
 /**
  * The default runner: `Bun.spawn` in its own process group (so a grandchild such as `git-remote-https` dies with
- * it), output capped at 64 KB per stream. On timeout the group gets SIGTERM, then SIGKILL after 2 s, and the promise
+ * it), output capped (64 KB per stream unless the call asks for more, `truncated` says so). On timeout the group gets SIGTERM, then SIGKILL after 2 s, and the promise
  * resolves with code -1 whatever the pipes do: it never waits on a grandchild that holds them open.
  */
-export const defaultGitRunner: GitRunner = async (argv, env, timeoutMs) => {
+export const defaultGitRunner: GitRunner = async (
+  argv,
+  env,
+  timeoutMs,
+  maxOutputBytes = DEFAULT_OUTPUT_CAP,
+) => {
   const proc = Bun.spawn(argv, {
     env,
     stdout: "pipe",
@@ -50,16 +59,18 @@ export const defaultGitRunner: GitRunner = async (argv, env, timeoutMs) => {
   });
   const done = (async () => {
     const [out, err, code] = await Promise.all([
-      readCapped(proc.stdout),
-      readCapped(proc.stderr),
+      readCapped(proc.stdout, maxOutputBytes),
+      readCapped(proc.stderr, maxOutputBytes),
       proc.exited,
     ]);
-    return { code, out, err };
+    // The process is gone: its group id may be reused, so the pending SIGKILL must never fire.
+    clearTimeout(hardTimer);
+    return { code, out: out.text, err: err.text, truncated: out.cut || err.cut };
   })();
   done.catch(() => {});
   try {
     const r = await Promise.race([done, timedOut]);
-    if (r === "timeout") return { code: -1, out: "", err: "timed out" };
+    if (r === "timeout") return { code: -1, out: "", err: "timed out", truncated: false };
     return r;
   } finally {
     clearTimeout(timer);

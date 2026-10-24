@@ -10,6 +10,8 @@ export { defaultGitRunner };
 /** Largest clone (bytes of files, `.git` excluded) and file count the settings page accepts. */
 export const CLONE_MAX_BYTES = 50 * 1024 * 1024;
 export const CLONE_MAX_FILES = 5000;
+/** Most bytes of the `ls-tree` listing read (5000 entries are about 500 KB). */
+const TREE_LIST_CAP = 2 * 1024 * 1024;
 /** Time one git call may run before it is killed. */
 export const CLONE_TIMEOUT_MS = 60_000;
 
@@ -139,8 +141,12 @@ export async function cloneSkillSource(
       ["git", ...CLONE_GIT_ARGS, "-C", dir, "ls-tree", "-r", "-l", "HEAD"],
       env,
       CLONE_TIMEOUT_MS,
+      TREE_LIST_CAP,
     );
     if (tree.code !== 0) throw new Refused("git could not list the clone.", "source");
+    // A cut listing would undercount the tree, so it counts as over the cap.
+    if (tree.truncated)
+      throw new Refused(`The repo has more than ${CLONE_MAX_FILES} files.`, "source");
     checkTree(tree.out);
     const out = await run(
       ["git", ...CLONE_GIT_ARGS, "-C", dir, "checkout", "--quiet", "HEAD"],
