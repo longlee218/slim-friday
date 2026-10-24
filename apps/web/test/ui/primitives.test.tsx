@@ -1,0 +1,114 @@
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, test, vi } from "vitest";
+import { Avatar, AvatarStack } from "../../src/components/ui/avatar";
+import { Badge } from "../../src/components/ui/badge";
+import { BottomSheet, shouldDismissSheet } from "../../src/components/ui/bottom-sheet";
+import { Button, IconButton } from "../../src/components/ui/button";
+import { Kbd } from "../../src/components/ui/kbd";
+import { Pill } from "../../src/components/ui/pill";
+import { Sheet } from "../../src/components/ui/sheet";
+
+/** True when the element carries every listed class. */
+const has = (el: Element, ...cls: string[]) => cls.every((c) => el.classList.contains(c));
+
+describe("buttons", () => {
+  test("Button primary disabled has the disabled attribute and the prototype classes", () => {
+    render(
+      <Button variant="primary" disabled>
+        Go
+      </Button>,
+    );
+    const b = screen.getByRole("button", { name: "Go" });
+    expect((b as HTMLButtonElement).disabled).toBe(true);
+    expect(has(b, "btn", "primary")).toBe(true);
+  });
+  test("Button lg and danger map to prototype classes", () => {
+    render(
+      <Button variant="danger" size="lg">
+        Del
+      </Button>,
+    );
+    expect(has(screen.getByRole("button", { name: "Del" }), "btn", "danger", "lg")).toBe(true);
+  });
+  test("IconButton exposes its label and title", () => {
+    render(<IconButton label="Send" on />);
+    const b = screen.getByRole("button", { name: "Send" });
+    expect(b.getAttribute("title")).toBe("Send");
+    expect(has(b, "ib", "on")).toBe(true);
+  });
+});
+
+describe("avatars", () => {
+  test("Avatar falls back to the lead face", () => {
+    render(<Avatar name="Dev" />);
+    expect(screen.getByAltText("Dev").getAttribute("src")).toBe("/avatars/lead.webp");
+  });
+  test("Avatar working adds the arc and size", () => {
+    const { container } = render(<Avatar name="Dev" working size={40} />);
+    const av = container.querySelector(".av.working") as HTMLElement;
+    expect(av).not.toBeNull();
+    expect(av.style.width).toBe("40px");
+  });
+  test("AvatarStack shows max items", () => {
+    const items = [{ name: "A" }, { name: "B" }, { name: "C" }];
+    const { container } = render(<AvatarStack items={items} max={2} />);
+    expect(container.querySelectorAll(".stack .av").length).toBe(2);
+  });
+});
+
+describe("pills, badges, kbd", () => {
+  test("Pill tone class", () => {
+    render(<Pill tone="amber">Waiting</Pill>);
+    expect(has(screen.getByText("Waiting"), "pill", "amber")).toBe(true);
+  });
+  test("Badge shows count, tone and bump", () => {
+    render(<Badge tone="tint" count={3} bump />);
+    expect(has(screen.getByText("3"), "badge", "tint", "bump")).toBe(true);
+  });
+  test("Kbd renders a kbd element", () => {
+    render(<Kbd>K</Kbd>);
+    expect(screen.getByText("K").tagName).toBe("KBD");
+  });
+});
+
+describe("sheets", () => {
+  test("shouldDismissSheet past 110px", () => {
+    expect(shouldDismissSheet(110)).toBe(false);
+    expect(shouldDismissSheet(111)).toBe(true);
+  });
+  test("Sheet renders children when open and calls onOpenChange on Escape", async () => {
+    const onOpenChange = vi.fn();
+    render(
+      <Sheet open onOpenChange={onOpenChange}>
+        Hello sheet
+      </Sheet>,
+    );
+    expect(screen.getByText("Hello sheet").closest(".sheet")).not.toBeNull();
+    await userEvent.keyboard("{Escape}");
+    expect(onOpenChange).toHaveBeenCalledWith(false, expect.anything());
+  });
+  test("Sheet wide adds the wide class; closed renders nothing", () => {
+    const { rerender } = render(
+      <Sheet open wide onOpenChange={() => {}}>
+        x
+      </Sheet>,
+    );
+    expect(document.querySelector(".sheet.wide")).not.toBeNull();
+    rerender(
+      <Sheet open={false} onOpenChange={() => {}}>
+        x
+      </Sheet>,
+    );
+    expect(screen.queryByText("x")).toBeNull();
+  });
+  test("BottomSheet shows a grab handle", () => {
+    render(
+      <BottomSheet open onOpenChange={() => {}}>
+        Body
+      </BottomSheet>,
+    );
+    expect(document.querySelector(".bsheet .grab")).not.toBeNull();
+    expect(screen.getByText("Body")).toBeTruthy();
+  });
+});
