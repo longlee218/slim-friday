@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import {
   CORE_DEFAULTS,
   type CoreLimits,
+  EMPTY_MEMORY_NOTE,
   type Memory,
   type MemoryOwner,
   type MemorySearcher,
@@ -274,4 +275,41 @@ test("a turn after a compaction whose send fails sends the updated memory again 
   surface.deliver({ conversationId: "dc", text: "three" });
   await flush();
   expect(s.sent[2]?.botMemory).toContain("answers in Vietnamese");
+});
+
+test("after a compaction a memory emptied by the owner is reported as empty", async () => {
+  const { memory, texts } = fakeMemory();
+  texts.set("bot:editor", "## Facts\n- likes tea");
+  const { runtime, surface } = makeHub(memory);
+  surface.deliver({ conversationId: "dc", text: "one" });
+  await flush();
+  const s = runtime.nth(0);
+  s.emit({ type: "turn_end", costUsd: 0 });
+  texts.set("bot:editor", "");
+  s.emit({ type: "compacted" });
+  await flush();
+  surface.deliver({ conversationId: "dc", text: "two" });
+  await flush();
+  expect(s.sent[1]?.botMemory).toBe(EMPTY_MEMORY_NOTE);
+});
+
+test("after a compaction a failed memory read is not reported as an emptied memory", async () => {
+  const { memory, texts } = fakeMemory();
+  texts.set("bot:editor", "## Facts\n- likes tea");
+  let broken = false;
+  const flaky: Memory = {
+    ...memory,
+    read: async (o) => (broken ? Promise.reject(new Error("disk")) : memory.read(o)),
+  };
+  const { runtime, surface } = makeHub(flaky);
+  surface.deliver({ conversationId: "dc", text: "one" });
+  await flush();
+  const s = runtime.nth(0);
+  s.emit({ type: "turn_end", costUsd: 0 });
+  broken = true;
+  s.emit({ type: "compacted" });
+  await flush();
+  surface.deliver({ conversationId: "dc", text: "two" });
+  await flush();
+  expect(s.sent[1]?.botMemory).toBeUndefined();
 });

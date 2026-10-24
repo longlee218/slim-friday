@@ -25,6 +25,7 @@ import { dayOf, pumpEvents } from "./event-pump";
 import { changedGroupContext } from "./group-context";
 import { changedGroupMemory, promptMemory } from "./group-memory";
 import { type IdleCloseHook, reportIdleClose } from "./idle-close";
+import { EMPTY_MEMORY_NOTE } from "./memory-label";
 import { type PoolEntry, type QueuedWake, SessionPool } from "./session-pool";
 import { type ScopeBot, sessionScope } from "./session-scope";
 import {
@@ -453,16 +454,23 @@ export class BotHub implements BotMessenger {
   private async botMemoryAfterCompaction(entry: PoolEntry): Promise<string | undefined> {
     if (!entry.memoryStale) return undefined;
     entry.memoryStale = false;
+    const owner: MemoryOwner = { kind: "bot", botId: entry.bot.id };
     const text = await promptMemory(
       this.deps.memory,
-      { kind: "bot", botId: entry.bot.id },
+      owner,
       this.limits.memoryPromptChars,
       this.deps.log,
       entry.groupId ? GROUP_SESSION_KINDS : undefined,
     );
-    if (!text.trim() || text === entry.memoryShown) return undefined;
+    if (text === entry.memoryShown) return undefined;
+    // An empty text is also what a failed read gives: report an emptied memory only when the file really is empty.
+    if (!text.trim()) {
+      const raw = await this.deps.memory?.read(owner).catch(() => undefined);
+      if (raw === undefined || raw.trim()) return undefined;
+    }
     entry.memoryShown = text;
-    return text;
+    // An emptied memory is said so: the summary may still hold notes the owner removed.
+    return text.trim() ? text : EMPTY_MEMORY_NOTE;
   }
 
   /**
