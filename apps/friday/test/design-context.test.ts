@@ -111,3 +111,13 @@ test("sessionTools adds the design server only for a bot that names it", () => {
   const other = { ...bot(["mcp__design__BotDesign"]), id: "ann" };
   expect(Object.keys(forSpec(specOf(other)))).not.toContain("design");
 });
+
+test("the design scratch dir is the session's: <botId> direct, <botId>_<groupId> in a group", () => {
+  const { home, config } = setup();
+  const forSpec = designContextFor({ config, agentHome: home });
+  const run = async () => ({ code: 0, out: "" });
+  const ann = { ...bot([]), id: "ann" };
+  expect(forSpec(specOf(ann), run).scratchDir).toBe(join(home, "scratch", "ann"));
+  const group = { ...specOf(ann), groupId: "reelme", sessionKey: "ann@reelme" };
+  expect(forSpec(group, run).scratchDir).toBe(join(home, "scratch", "ann_reelme"));
+});

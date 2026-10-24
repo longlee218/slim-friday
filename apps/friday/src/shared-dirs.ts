@@ -16,6 +16,12 @@ export function sharedDirsFor(home: string, groupIdsOf: (botId: string) => strin
     });
 }
 
+/** The shared dirs of one session: a group session gets that group's only, the direct session every group's. */
+export function sessionSharedDirs(home: string, groupIdsOf: (botId: string) => string[]) {
+  return (botId: string, groupId?: string): string[] =>
+    sharedDirsFor(home, groupId ? () => [groupId] : groupIdsOf)(botId);
+}
+
 /** Tell the bot where its group folders are (appended to its instructions); unchanged without any. */
 export function withSharedDirs(bot: Bot, dirs: string[]): Bot {
   if (dirs.length === 0) return bot;

@@ -15,7 +15,7 @@ import { fridayExtraDirs } from "./friday-bot";
 import { memoryFlush } from "./memory-flush";
 import { logEvent, logger } from "./observability/logger";
 import { sessionTools } from "./session-tools";
-import { sharedDirsFor } from "./shared-dirs";
+import { sessionSharedDirs } from "./shared-dirs";
 import { skillDirs } from "./skills-dirs";
 import { type RuntimeParts, startApp } from "./start-app";
 
@@ -62,10 +62,7 @@ export async function startEngine(
         // A group session gets that group's shared dir only; the direct session every group's.
         extraDirsFor: (bot, groupId) => {
           const friday = fridayExtraDirs(TEMPLATES_DIR)(bot);
-          const shared = sharedDirsFor(
-            agentHome,
-            groupId ? () => [groupId] : parts.config.groupIdsOf,
-          )(bot.id);
+          const shared = sessionSharedDirs(agentHome, parts.config.groupIdsOf)(bot.id, groupId);
           return { write: [...friday.write, ...shared], read: friday.read };
         },
         mcpServers: () => parts.config.mcpServers(env).servers,

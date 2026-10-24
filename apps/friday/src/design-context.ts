@@ -10,6 +10,7 @@ import {
 import type { BotRuntimeSpec } from "@friday/core";
 import { isChildEnvDenied } from "@friday/runtime-claude";
 import { type DesignContext, type EffectsContext, GIT_HARDEN, GIT_RUN_ENV } from "@friday/tools";
+import { sessionScratchDir } from "./session-tools";
 import { skillDirs } from "./skills-dirs";
 
 /** What the design tools of every session are made from. */
@@ -28,7 +29,8 @@ export function designContextFor(deps: DesignDeps) {
     botId: spec.bot.id,
     agentHome,
     configDir: join(agentHome, "config"),
-    scratchDir: join(agentHome, "scratch", spec.bot.id),
+    // The session's own scratch dir (a group session has its own), as the runtime and the chat tools use.
+    scratchDir: sessionScratchDir(agentHome, spec),
     botDirs: [join(agentHome, "config", "bots"), join(DEFAULTS_DIR, "bots")],
     skillDirs: skillDirs(agentHome),
     reservedBotIds: RESERVED_BOT_IDS,
