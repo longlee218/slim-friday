@@ -9,6 +9,24 @@ const secret = z
   .transform((v) => v.trim() || undefined)
   .optional();
 
+/** Optional absolute http(s) URL that is exactly its own origin (no path, no trailing slash). */
+const originUrl = z
+  .string()
+  .trim()
+  .optional()
+  .refine(
+    (v) => {
+      if (!v) return true;
+      try {
+        const u = new URL(v);
+        return (u.protocol === "http:" || u.protocol === "https:") && u.origin === v;
+      } catch {
+        return false;
+      }
+    },
+    { message: "must be an origin like https://host" },
+  );
+
 /** Raw env schema. Discord vars are optional here; the bot entry enforces them (`startEngine`). */
 const envSchema = z.object({
   CLAUDE_CODE_OAUTH_TOKEN: secret,
@@ -31,6 +49,21 @@ const envSchema = z.object({
         .optional(),
     )
     .optional(),
+  /** Web API (Hono) port; it listens on 127.0.0.1 only. */
+  API_PORT: z.coerce.number().int().min(1).max(65535).default(8787),
+  /** Origin of the web app (CORS, passkey origin, trusted origin). */
+  WEB_ORIGIN: originUrl,
+  /** Public origin of this API (better-auth baseURL). */
+  PUBLIC_API_URL: originUrl,
+  /** better-auth signing secret, at least 32 chars when set. Never log. */
+  AUTH_SECRET: secret.refine((v) => v === undefined || v.length >= 32, {
+    message: "must be at least 32 characters",
+  }),
+  /** The one email allowed to sign in; compared lower-case. */
+  OWNER_EMAIL: z
+    .email()
+    .transform((v) => v.toLowerCase())
+    .optional(),
 });
 
 /** Names of the env variables the app itself reads: each must be classified in the runtime's child-env deny list. */
@@ -48,6 +81,16 @@ export interface AgentConfig {
   discordGuildId: string | undefined;
   agentHome: string;
   logLevel: string;
+  /** Web API port (default 8787). */
+  apiPort: number;
+  /** Web app origin; undefined when the web API is not configured (`startEngine` requires it). */
+  webOrigin?: string;
+  /** Public origin of the web API. */
+  publicApiUrl?: string;
+  /** better-auth secret. Never log. */
+  authSecret?: string;
+  /** The owner's login email, lower-cased. */
+  ownerEmail?: string;
 }
 
 /** True when a value is missing or the placeholder. */
@@ -81,5 +124,10 @@ export function loadConfig(
     discordGuildId: e.DISCORD_GUILD_ID,
     agentHome: e.AGENT_HOME,
     logLevel: e.LOG_LEVEL,
+    apiPort: e.API_PORT,
+    webOrigin: e.WEB_ORIGIN,
+    publicApiUrl: e.PUBLIC_API_URL,
+    authSecret: e.AUTH_SECRET,
+    ownerEmail: e.OWNER_EMAIL,
   };
 }

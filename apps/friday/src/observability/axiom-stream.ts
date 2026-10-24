@@ -9,6 +9,12 @@ export const AXIOM_FIELDS = [
   "intent",
   "hop",
   "status",
+  // web API metadata (never bodies or query strings)
+  "route",
+  "method",
+  "ms",
+  "via",
+  "reason",
   "blockReason",
   "queue_wait_ms",
   "first_response_ms",

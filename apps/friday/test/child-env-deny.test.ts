@@ -28,6 +28,7 @@ describe("child env deny list (config/data/child-env-deny.yaml)", () => {
       ...["CLAUDE_CODE_OAUTH_TOKEN", "AGENT_HOME", "LOG_LEVEL"],
       ...["DISCORD_TOKEN", "OWNER_DISCORD_ID", "DISCORD_GUILD_ID", "MODEL", "MEMORY_MODEL"],
       ...["GIT_AUTHOR", "MAX_TURNS", "MAX_BUDGET_USD", "TIMEOUT_MS", "MAX_CONCURRENT_RUNS"],
+      ...["API_PORT", "WEB_ORIGIN", "AUTH_SECRET", "OWNER_EMAIL", "PUBLIC_API_URL"],
       ...["MODEL_HAIKU", "MODEL_DEV", "BUDGET_DEV_USD", "COMPACT_WINDOW_DEV"],
       ...[
         "GITHUB_PERSONAL_ACCESS_TOKEN",

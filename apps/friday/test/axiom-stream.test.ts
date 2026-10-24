@@ -26,6 +26,26 @@ describe("axiom stream", () => {
     expect(AXIOM_FIELDS).not.toContain("text");
   });
 
+  test("an api.request line keeps route, method, status and ms, and drops text", () => {
+    const out = pickAxiomFields(
+      JSON.stringify({
+        event: "api.request",
+        route: "/rpc/x",
+        method: "POST",
+        status: 200,
+        ms: 3,
+        text: "secret",
+      }),
+    );
+    expect(out).toEqual({
+      event: "api.request",
+      route: "/rpc/x",
+      method: "POST",
+      status: 200,
+      ms: 3,
+    });
+  });
+
   test("write ingests the picked fields into the dataset", () => {
     const c = fakeClient();
     axiomStream(c, "ds").write(JSON.stringify({ event: "wake.done", wakeId: "w1", text: "no" }));
