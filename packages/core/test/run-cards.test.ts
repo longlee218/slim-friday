@@ -38,16 +38,69 @@ test("ask writes one card and parks the run, worker freed", async () => {
   expect([...h.store.attemptMap.values()].map((a) => a.status)).toEqual(["parked"]);
 });
 
+/** Make every card insert of the store wait a few ms (a slow db), so concurrent asks overlap. */
+function slowInserts(h: Hub) {
+  const insert = h.store.cards.insertIfNoneOpen;
+  h.store.cards.insertIfNoneOpen = async (g) => {
+    await Bun.sleep(5);
+    return insert(g);
+  };
+}
+
 test("second ask in the same step does not open a second card", async () => {
   const h = makeHub();
+  slowInserts(h);
   h.surface.deliver({ conversationId: "dc", text: "go" });
   await flush();
   const s = h.runtime.last();
+  // Both calls are in flight before either card is stored; nothing hangs.
   const [a, b] = await Promise.all([
     s.spec.decide(LS),
     s.spec.decide({ tool: "Bash", input: { command: "pwd" } }),
   ]);
   expect(a.behavior).toBe("park");
+  expect(b).toEqual({ behavior: "deny", reason: WAITING_TEXT });
+  expect(h.store.cardMap.size).toBe(1);
+  await flush();
+  expect(wakes(h)[0]?.status).toBe("waiting_input");
+});
+
+test("two concurrent question calls open one card group; the other is refused", async () => {
+  const h = makeHub();
+  slowInserts(h);
+  h.surface.deliver({ conversationId: "dc", text: "go" });
+  await flush();
+  const s = h.runtime.last();
+  const q = {
+    botId: "",
+    botName: "",
+    question: "Q?",
+    kind: "single" as const,
+    options: [],
+    allowText: true,
+  };
+  const [a, b] = await Promise.all([s.spec.ask?.([q, q]), s.spec.ask?.([q])]);
+  expect(a?.behavior).toBe("park");
+  expect(b).toEqual({ behavior: "refused", reason: WAITING_TEXT });
+  expect(h.store.cardMap.size).toBe(2);
+});
+
+test("a concurrent tool call while a question is being stored is denied, not carded", async () => {
+  const h = makeHub();
+  slowInserts(h);
+  h.surface.deliver({ conversationId: "dc", text: "go" });
+  await flush();
+  const s = h.runtime.last();
+  const q = {
+    botId: "",
+    botName: "",
+    question: "Q?",
+    kind: "single" as const,
+    options: [],
+    allowText: true,
+  };
+  const [a, b] = await Promise.all([s.spec.ask?.([q]), s.spec.decide(LS)]);
+  expect(a?.behavior).toBe("park");
   expect(b).toEqual({ behavior: "deny", reason: WAITING_TEXT });
   expect(h.store.cardMap.size).toBe(1);
 });
@@ -103,6 +156,16 @@ test("approve requeues and resume allows only the exact call once", async () => 
   // The one shot is spent: the same call again asks again.
   expect((await s.spec.decide(LS)).behavior).toBe("park");
   expect(h.store.cardMap.size).toBe(2);
+});
+
+test("parallel identical calls after approval: exactly one is allowed", async () => {
+  const h = await parked();
+  await h.hub.answerCard(h.cardId, "once");
+  await flush();
+  const s = h.runtime.last();
+  const ds = await Promise.all([s.spec.decide(LS), s.spec.decide(LS)]);
+  expect(ds.filter((d) => d.behavior === "allow")).toHaveLength(1);
+  expect(h.store.cardMap.get(h.cardId)?.status).toBe("used");
 });
 
 test("different input after approval asks again", async () => {
@@ -371,4 +434,52 @@ test("a question withdrawn while a task runs is refused with the withdrawn wordi
     behavior: "refused",
     reason: 'Your question "Pick" was withdrawn because the owner wrote something else instead.',
   });
+});
+
+const PUSH = {
+  name: "Push",
+  annotations: { destructiveHint: false, openWorldHint: true },
+  scopeKeys: ["repo"],
+};
+
+test("always stores the grant: the resumed call and the next same call need no card; audited", async () => {
+  const h = makeHub();
+  h.catalog.tools.push(PUSH);
+  h.editor.tools = ["Push"];
+  h.surface.deliver({ conversationId: "dc", text: "push" });
+  await flush();
+  const d = await h.runtime.last().spec.decide({ tool: "Push", input: { repo: "a" } });
+  await flush();
+  const id = d.behavior === "park" ? d.cardId : "";
+  expect(h.store.cardMap.get(id)?.approval?.offerAlways).toBe(true);
+  expect(await h.hub.answerCard(id, "always")).toBe("ok");
+  expect(h.store.grantList).toHaveLength(1);
+  expect(h.store.grantList[0]).toMatchObject({
+    botId: "editor",
+    tool: "Push",
+    scope: { repo: "a" },
+  });
+  expect(h.store.auditLog.at(-1)).toMatchObject({ tool: "Push", outcome: "ask", answer: "always" });
+  await flush();
+  const s = h.runtime.last();
+  expect(await s.spec.decide({ tool: "Push", input: { repo: "a" } })).toEqual({
+    behavior: "allow",
+  });
+  expect(await s.spec.decide({ tool: "Push", input: { repo: "a" } })).toEqual({
+    behavior: "allow",
+  });
+  expect(h.store.cardMap.size).toBe(1);
+});
+
+test("a forged always on a card without Always allow stores no grant but still allows the one shot", async () => {
+  const h = await parked();
+  expect(h.store.cardMap.get(h.cardId)?.approval?.offerAlways).toBe(false);
+  expect(await h.hub.answerCard(h.cardId, "always")).toBe("ok");
+  expect(h.store.grantList).toHaveLength(0);
+  expect(h.store.auditLog.at(-1)).toMatchObject({ outcome: "ask", answer: "always" });
+  await flush();
+  const s = h.runtime.last();
+  expect(s.sent[0]?.text).toBe(APPROVED);
+  expect(await s.spec.decide(LS)).toEqual({ behavior: "allow" });
+  expect((await s.spec.decide(LS)).behavior).toBe("park");
 });

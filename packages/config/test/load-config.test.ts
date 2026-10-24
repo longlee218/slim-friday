@@ -148,6 +148,16 @@ test("limits must be usable: counts are integers, timers fit a 32-bit timer", ()
   expect(ok.problems).toEqual([]);
 });
 
+test("the retired approvalTimeoutMs limit is ignored, not a load problem", () => {
+  const { snapshot, problems } = load(
+    userDir({ "settings.yaml": "limits:\n  approvalTimeoutMs: 600000\n  maxHops: 3\n" }),
+  );
+  expect(problems).toEqual([]);
+  expect(snapshot.limits.maxHops as number).toBe(3);
+  expect(snapshot.limits.idleCloseMs).toBe(CORE_DEFAULTS.idleCloseMs);
+  expect("approvalTimeoutMs" in snapshot.limits).toBe(false);
+});
+
 test("SOUL.md and USER.md go before every bot's instructions; the user dir wins over the shipped SOUL", () => {
   const dir = userDir({
     "bots/ann.md": bot("Ann", "Ann rules."),

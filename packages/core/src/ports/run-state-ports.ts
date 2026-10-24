@@ -28,6 +28,11 @@ export interface SteeringPort {
 export interface CardPort {
   /** Store a new card. */
   insert(c: CardRow): Promise<void>;
+  /**
+   * Store the cards of one ask (all of the same run) in one step, only when that run has no open card; false
+   * (nothing stored) when it has one. Two concurrent asks of a run never both open cards.
+   */
+  insertIfNoneOpen(group: CardRow[]): Promise<boolean>;
   /** One card by id. */
   get(id: string): Promise<CardRow | undefined>;
   /** Open cards, oldest first. */

@@ -78,6 +78,8 @@ export interface RunExec {
   live: boolean;
   /** Set when the run read untrusted input (spec "Taint flag"); the permission gate gets it. */
   tainted: boolean;
+  /** An ask of this run is storing its card or waiting for it (set synchronously; one ask per run at a time). */
+  asking: boolean;
   /** A card the run waits on with its session open (only while background tasks run, else it parks). */
   waiting?: CardWait;
   /** The approved call of a resumed run (input hash and card): allowed once, then spent. */
@@ -129,6 +131,7 @@ export function newRunExec(row: WakeRow, scope: SessionScope, now: number, taint
     taskDoneInTurn: false,
     live: true,
     tainted,
+    asking: false,
     firstTextSeen: false,
   };
   return exec;

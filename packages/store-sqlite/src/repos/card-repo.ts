@@ -10,23 +10,25 @@ export function cardRepo(db: BunSQLiteDatabase): Store["cards"] {
   const oldestFirst = [asc(cards.createdAt), asc(cards.id)];
   return {
     async insert(c) {
-      db.insert(cards)
-        .values({
-          id: c.id,
-          kind: c.kind,
-          wakeId: c.wakeId,
-          botId: c.botId,
-          conversationId: c.conversationId,
-          scopeKey: c.scopeKey,
-          approval: c.approval ? JSON.stringify(c.approval) : null,
-          question: c.question ? JSON.stringify(c.question) : null,
-          status: c.status,
-          answer: c.answer !== undefined ? JSON.stringify(c.answer) : null,
-          createdAt: c.createdAt,
-          answeredAt: c.answeredAt ?? null,
-          remindedAt: c.remindedAt ?? null,
-        })
-        .run();
+      db.insert(cards).values(toRow(c)).run();
+    },
+    async insertIfNoneOpen(group) {
+      const wakeId = group[0]?.wakeId;
+      if (wakeId === undefined) return false;
+      // IMMEDIATE: the check and the insert hold one write lock, so a run never gets two open card groups.
+      return db.transaction(
+        (tx) => {
+          const open = tx
+            .select({ id: cards.id })
+            .from(cards)
+            .where(and(eq(cards.wakeId, wakeId), eq(cards.status, "open")))
+            .get();
+          if (open) return false;
+          for (const c of group) tx.insert(cards).values(toRow(c)).run();
+          return true;
+        },
+        { behavior: "immediate" },
+      );
     },
     async get(id) {
       const r = db.select().from(cards).where(eq(cards.id, id)).get();
@@ -97,6 +99,25 @@ export function cardRepo(db: BunSQLiteDatabase): Store["cards"] {
     async markReminded(id, at) {
       db.update(cards).set({ remindedAt: at }).where(eq(cards.id, id)).run();
     },
+  };
+}
+
+/** A domain card as a row; JSON fields as text, absent fields as null. */
+function toRow(c: CardRow): typeof cards.$inferInsert {
+  return {
+    id: c.id,
+    kind: c.kind,
+    wakeId: c.wakeId,
+    botId: c.botId,
+    conversationId: c.conversationId,
+    scopeKey: c.scopeKey,
+    approval: c.approval ? JSON.stringify(c.approval) : null,
+    question: c.question ? JSON.stringify(c.question) : null,
+    status: c.status,
+    answer: c.answer !== undefined ? JSON.stringify(c.answer) : null,
+    createdAt: c.createdAt,
+    answeredAt: c.answeredAt ?? null,
+    remindedAt: c.remindedAt ?? null,
   };
 }
 

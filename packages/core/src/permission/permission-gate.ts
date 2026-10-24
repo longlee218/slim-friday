@@ -33,6 +33,14 @@ export interface GateContext {
   tainted: boolean;
   /** Input hash of the call the owner approved for this resumed run: that exact call is allowed. */
   oneShot?: string;
+  /**
+   * Called synchronously right before a card is stored: false when the run already has an ask in flight (the
+   * call is then denied with `WAITING_TEXT`). It marks the ask as pending, so a concurrent call of the same run
+   * never reaches the store.
+   */
+  reserve?: () => boolean;
+  /** Undoes `reserve` when no card was stored. */
+  release?: () => void;
 }
 
 /**
@@ -99,12 +107,6 @@ export class PermissionGate {
       await audit("approved by the owner");
       return { behavior: "allow" };
     }
-    // Only the first call of a step gets a card; the others wait for the next step.
-    const open = await store.cards.openForScope(ctx.scopeKey);
-    if (open.some((c) => c.wakeId === ctx.wakeId)) {
-      await audit(WAITING_TEXT);
-      return { behavior: "deny", reason: WAITING_TEXT };
-    }
     // "Always allow" only for a tool the catalog knows, with plain scope values (a "*" would become a wildcard grant).
     const offerAlways =
       verdict.outcome === "ask" &&
@@ -128,7 +130,17 @@ export class PermissionGate {
       status: "open",
       createdAt: clock.now(),
     };
-    await store.cards.insert(card);
+    // Only the first call of a step gets a card: a pending ask of the run (in this process) or an open card of
+    // the run (in the store, checked in the same write as the insert) denies the others.
+    if (ctx.reserve && !ctx.reserve()) {
+      await audit(WAITING_TEXT);
+      return { behavior: "deny", reason: WAITING_TEXT };
+    }
+    if (!(await store.cards.insertIfNoneOpen([card]))) {
+      ctx.release?.();
+      await audit(WAITING_TEXT);
+      return { behavior: "deny", reason: WAITING_TEXT };
+    }
     await audit(verdict.reason);
     // The card is stored first: a surface that fails to show it now shows it after a restart.
     try {

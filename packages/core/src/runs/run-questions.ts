@@ -16,8 +16,9 @@ export const askIdOf = (cardId: string): string => cardId.slice(0, cardId.lastIn
 /**
  * The questions of one `AskUserQuestion` call as stored cards, one per question, all shown at once. Each card
  * is then waited on in order: answered in place while background tasks run, else the run parks (on the card it
- * waits for) and every answer comes with the resume (`questionsResume`). A run that already waits on a card,
- * or a question withdrawn in place, is refused with the reason the bot reads.
+ * waits for) and every answer comes with the resume (`questionsResume`). A run with an ask in flight or an
+ * open card (the cards are stored together, only while the run has none), or a question withdrawn in place,
+ * is refused with the reason the bot reads.
  */
 export async function askInRun(
   ctx: HubContext,
@@ -26,37 +27,43 @@ export async function askInRun(
 ): Promise<AskResult> {
   const { store, clock, surface } = ctx.deps;
   const { row, bot } = exec;
-  if ((await store.cards.openForScope(row.scopeKey)).some((c) => c.wakeId === row.id))
-    return { behavior: "refused", reason: WAITING_TEXT };
-  const askId = `card-${crypto.randomUUID()}`;
-  const cards: CardRow[] = qs.map((q, i) => ({
-    id: `${askId}.${i}`,
-    kind: "question",
-    wakeId: row.id,
-    botId: bot.id,
-    conversationId: exec.current.conversationId,
-    scopeKey: row.scopeKey,
-    question: { ...q, botId: bot.id, botName: bot.name },
-    status: "open",
-    createdAt: clock.now(),
-  }));
-  for (const card of cards) await store.cards.insert(card);
-  for (const card of cards) {
-    try {
-      surface.showCard(card, bot.name);
-    } catch {
-      // The stored card is the truth; a restart shows it again.
+  // One ask per run at a time: the mark is set before any await, the store checks again in the insert.
+  if (exec.asking) return { behavior: "refused", reason: WAITING_TEXT };
+  exec.asking = true;
+  try {
+    const askId = `card-${crypto.randomUUID()}`;
+    const cards: CardRow[] = qs.map((q, i) => ({
+      id: `${askId}.${i}`,
+      kind: "question",
+      wakeId: row.id,
+      botId: bot.id,
+      conversationId: exec.current.conversationId,
+      scopeKey: row.scopeKey,
+      question: { ...q, botId: bot.id, botName: bot.name },
+      status: "open",
+      createdAt: clock.now(),
+    }));
+    if (!(await store.cards.insertIfNoneOpen(cards)))
+      return { behavior: "refused", reason: WAITING_TEXT };
+    for (const card of cards) {
+      try {
+        surface.showCard(card, bot.name);
+      } catch {
+        // The stored card is the truth; a restart shows it again.
+      }
     }
+    const answers: QuestionAnswer[] = [];
+    for (const card of cards) {
+      const r = await waitOrPark(ctx, exec, card.id);
+      if (r === "parked") return { behavior: "park", cardId: card.id };
+      if (r.status === "withdrawn" || !r.answer || typeof r.answer === "string")
+        return { behavior: "refused", reason: questionContinuation(r) };
+      answers.push(r.answer);
+    }
+    return { behavior: "answered", answers };
+  } finally {
+    exec.asking = false;
   }
-  const answers: QuestionAnswer[] = [];
-  for (const card of cards) {
-    const r = await waitOrPark(ctx, exec, card.id);
-    if (r === "parked") return { behavior: "park", cardId: card.id };
-    if (r.status === "withdrawn" || !r.answer || typeof r.answer === "string")
-      return { behavior: "refused", reason: questionContinuation(r) };
-    answers.push(r.answer);
-  }
-  return { behavior: "answered", answers };
 }
 
 /**

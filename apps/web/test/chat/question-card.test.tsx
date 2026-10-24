@@ -28,7 +28,7 @@ const YN = [
 ];
 
 /**
- * Copy of the server rule (packages/surface-web/src/valid-answer.ts); apps/web may only
+ * Copy of the server rule (`validCardAnswer` in packages/core/src/runs/run-card-answer.ts); apps/web may only
  * import @friday/contracts, so the rule is repeated here to prove the sent value is accepted.
  */
 function validAnswer(card: QuestionCardDto, a: { choices: string[]; text?: string }): boolean {

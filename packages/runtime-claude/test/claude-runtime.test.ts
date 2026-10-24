@@ -132,8 +132,17 @@ test("a stream failure rejects events with that error", async () => {
 test("the SDK's throw after our own abort (a park) ends the events without an error", async () => {
   const { fq, rt } = setup();
   const s = await rt.open(spec);
+  // Our controller fired (the session's own abort), then the SDK throws.
+  fq.options().abortController?.abort();
   fq.fail(new Error("Claude Code process aborted by user"));
   expect(await take(s.events, 1)).toEqual([]);
+});
+
+test("an abort error we did not cause is reported as it is", async () => {
+  const { fq, rt } = setup();
+  const s = await rt.open(spec);
+  fq.fail(new Error("Claude Code process aborted by user"));
+  await expect(take(s.events, 1)).rejects.toThrow("aborted by user");
 });
 
 test("stop aborts the SDK, ends the input and events, and a later send is dropped", async () => {

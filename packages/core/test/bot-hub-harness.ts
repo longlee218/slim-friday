@@ -47,11 +47,12 @@ export function makeHub(memory?: Memory, extra: Partial<BotHubDeps> = {}) {
   store.groupMap.set("g", group);
   store.convMap.set("gc", { id: "gc", kind: "group", groupId: "g" } satisfies Conversation);
   store.convMap.set("dc", { id: "dc", kind: "direct", botId: "editor" } satisfies Conversation);
+  const catalog = new FakeToolCatalog([]);
   const gate = new PermissionGate({
     store,
     surface,
     clock,
-    catalog: new FakeToolCatalog([]),
+    catalog,
     settings: () => ({ level: "balanced" }),
   });
   const hub = new BotHub({
@@ -65,7 +66,7 @@ export function makeHub(memory?: Memory, extra: Partial<BotHubDeps> = {}) {
     ...extra,
   });
   hub.start();
-  return { store, runtime, surface, clock, gate, hub, writer, editor, log };
+  return { store, runtime, surface, clock, gate, hub, writer, editor, log, catalog };
 }
 
 /** Move the fake clock by `ms` (due timers fire: scans, leases, watchdogs) and let the work they start settle. */

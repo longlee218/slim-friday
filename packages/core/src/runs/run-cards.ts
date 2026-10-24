@@ -11,9 +11,11 @@ import { questionsResume } from "./run-questions";
 import { holdOrContinue } from "./run-steering";
 
 /**
- * One tool call of a run through the permission gate. A park waits in place while background tasks run (the
- * answer is applied without a resume) and parks the run otherwise. An allow of the resumed run's approved call
- * spends the one shot (the card becomes `used`), so a second identical call asks again.
+ * One tool call of a run through the permission gate. The resumed run's approved call takes its one shot first:
+ * the hash matches, the shot is taken synchronously (a parallel identical call finds none) and counts only when
+ * the guarded `answered -> used` change succeeds; otherwise the call is a normal ask. A park waits in place
+ * while background tasks run (the answer is applied without a resume) and parks the run otherwise. One ask per
+ * run at a time: `reserve` marks it before its card is stored.
  */
 export async function decideInRun(
   ctx: HubContext,
@@ -22,6 +24,16 @@ export async function decideInRun(
 ): Promise<ToolDecision> {
   const { gate, store } = ctx.deps;
   const { row, bot } = exec;
+  let shot: string | undefined;
+  if (exec.oneShot) {
+    const hash = await inputHash(call.tool, call.input);
+    const s = exec.oneShot;
+    if (s?.hash === hash) {
+      delete exec.oneShot;
+      if (await store.cards.setStatus(s.cardId, "answered", "used")) shot = hash;
+    }
+  }
+  let mine = false;
   const d = await gate.decide(
     { tool: call.tool, input: call.input, botId: bot.id, conversationId: call.conversationId },
     bot.name,
@@ -29,16 +41,23 @@ export async function decideInRun(
       wakeId: row.id,
       scopeKey: row.scopeKey,
       tainted: exec.tainted,
-      ...(exec.oneShot && { oneShot: exec.oneShot.hash }),
+      ...(shot && { oneShot: shot }),
+      reserve: () => {
+        if (exec.asking) return false;
+        exec.asking = mine = true;
+        return true;
+      },
+      release: () => {
+        if (mine) exec.asking = mine = false;
+      },
     },
   );
-  const shot = exec.oneShot;
-  if (d.behavior === "allow" && shot && (await inputHash(call.tool, call.input)) === shot.hash) {
-    delete exec.oneShot;
-    await store.cards.setStatus(shot.cardId, "answered", "used");
+  if (d.behavior !== "park") {
+    if (mine) exec.asking = false;
+    return d;
   }
-  if (d.behavior !== "park") return d;
   const r = await waitOrPark(ctx, exec, d.cardId);
+  exec.asking = false;
   if (r === "parked") return d;
   const approved = r.status !== "withdrawn" && (r.answer === "once" || r.answer === "always");
   return approved ? { behavior: "allow" } : { behavior: "deny", reason: DENIAL_TEXT };

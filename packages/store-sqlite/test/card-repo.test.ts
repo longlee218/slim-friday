@@ -84,3 +84,20 @@ test("an answer by text keeps its message id and is found by it", async () => {
   expect(found.map((c) => [c.id, c.answeredMessageId])).toEqual([["c1", 42]]);
   expect((await s.cards.get("c2"))?.answeredMessageId).toBeUndefined();
 });
+
+test("insertIfNoneOpen stores a group only while the run has no open card; forWake lists a run's cards", async () => {
+  const s = open();
+  const group = [
+    { ...card, id: "g.0" },
+    { ...card, id: "g.1" },
+  ];
+  expect(await s.cards.insertIfNoneOpen(group)).toBe(true);
+  expect(await s.cards.insertIfNoneOpen([{ ...card, id: "other" }])).toBe(false);
+  expect((await s.cards.forWake("w1")).map((c) => c.id)).toEqual(["g.0", "g.1"]);
+  await s.cards.answer("g.0", "once", 2);
+  await s.cards.answer("g.1", "once", 2);
+  // No open card left: a new ask of the run may open one; another run is not affected.
+  expect(await s.cards.insertIfNoneOpen([{ ...card, id: "next" }])).toBe(true);
+  expect(await s.cards.insertIfNoneOpen([{ ...card, id: "x", wakeId: "w2" }])).toBe(true);
+  expect(await s.cards.insertIfNoneOpen([])).toBe(false);
+});

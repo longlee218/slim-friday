@@ -361,6 +361,14 @@ export class FakeStore implements Store {
     insert: async (c: CardRow) => {
       this.cardMap.set(c.id, { ...c });
     },
+    insertIfNoneOpen: async (group: CardRow[]) => {
+      const wakeId = group[0]?.wakeId;
+      if (wakeId === undefined) return false;
+      if ([...this.cardMap.values()].some((c) => c.wakeId === wakeId && c.status === "open"))
+        return false;
+      for (const c of group) this.cardMap.set(c.id, { ...c });
+      return true;
+    },
     get: async (id: string) => {
       const c = this.cardMap.get(id);
       return c && { ...c };

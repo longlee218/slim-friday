@@ -15,13 +15,22 @@ function limitSchema(key: string): z.ZodOptional<z.ZodNumber> {
   return (key.endsWith("Usd") ? n : n.int()).optional();
 }
 
-/** Every limit of `CORE_DEFAULTS` may be overridden by a usable number. */
-const limitsSchema = z.strictObject(
-  Object.fromEntries(Object.keys(CORE_DEFAULTS).map((k) => [k, limitSchema(k)])) as Record<
-    keyof CoreLimits,
-    z.ZodOptional<z.ZodNumber>
-  >,
-);
+/** Limit keys of older builds: still accepted (an old settings.yaml keeps loading) and dropped. */
+const RETIRED_LIMITS = {
+  /** Cards no longer expire (durable cards); the old approval timeout is ignored. */
+  approvalTimeoutMs: z.unknown().optional(),
+};
+
+/** Every limit of `CORE_DEFAULTS` may be overridden by a usable number; retired keys are ignored. */
+const limitsSchema = z
+  .strictObject({
+    ...(Object.fromEntries(Object.keys(CORE_DEFAULTS).map((k) => [k, limitSchema(k)])) as Record<
+      keyof CoreLimits,
+      z.ZodOptional<z.ZodNumber>
+    >),
+    ...RETIRED_LIMITS,
+  })
+  .transform(({ approvalTimeoutMs: _retired, ...limits }) => limits);
 
 /** The content of `settings.yaml`. */
 const settingsSchema = z.strictObject({
