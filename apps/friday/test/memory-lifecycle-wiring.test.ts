@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { BotRuntimeSpec, ConsolidateFn, MemoryOwner } from "@friday/core";
@@ -156,4 +156,22 @@ test("idle flush logs a full journal day instead of dropping the notes silently"
     log: { error() {}, warn: (_o: object, msg: string) => void warns.push(msg) },
   })({ botId: "friday", key: "friday", conversationIds: [c], since: 0 });
   expect(warns).toEqual(["memory.journal_full"]);
+});
+
+test("idle close of a group session writes into the group's journal", async () => {
+  const home = mkdtempSync(join(tmpdir(), "life-"));
+  const { parts } = await boot(home);
+  const c = await fridayChat(parts);
+  await say(parts, c, "we pick postgres for the ledger");
+  await say(parts, c, "and redis for the queue");
+  const changed: MemoryOwner[] = [];
+  await idleFlush({
+    store: parts.store,
+    memoryRoot: join(home, "memory"),
+    flushNotes: async () => ["team ledger uses postgres"],
+    memoryChanged: (o) => void changed.push(o),
+    log: { error() {}, warn() {} },
+  })({ botId: "friday", key: "friday@team", groupId: "team", conversationIds: [c], since: 0 });
+  expect(changed).toEqual([{ kind: "group", groupId: "team" }]);
+  expect(existsSync(join(home, "memory", "groups", "team", "journal"))).toBe(true);
 });

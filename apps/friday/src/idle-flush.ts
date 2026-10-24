@@ -25,7 +25,8 @@ const lineOf = (m: StoredMessage): string =>
 
 /**
  * The hub's `onIdleClose`: the messages of the closed session (its conversations, since it opened) go to
- * `flushNotes`, and the notes into the bot's journal for today as an `Idle flush` block. Fewer than 2 messages make
+ * `flushNotes`, and the notes into today's journal as an `Idle flush` block: the group's for a group session, else the
+ * bot's. Fewer than 2 messages make
  * no call. A failure is logged, never thrown.
  */
 export function idleFlush(deps: IdleFlushDeps) {
@@ -39,7 +40,9 @@ export function idleFlush(deps: IdleFlushDeps) {
       all.sort((a, b) => a.at - b.at);
       const transcript = all.map(lineOf).join("\n").slice(-MAX_TRANSCRIPT);
       const notes = await deps.flushNotes(transcript);
-      const owner: MemoryOwner = { kind: "bot", botId: e.botId };
+      const owner: MemoryOwner = e.groupId
+        ? { kind: "group", groupId: e.groupId }
+        : { kind: "bot", botId: e.botId };
       const r = appendJournal(deps.memoryRoot, owner, "Idle flush", notes, new Date());
       logJournalAppend(deps.log, e.botId, r, notes.length);
       if (r.status === "saved") deps.memoryChanged(owner);

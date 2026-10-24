@@ -1,5 +1,12 @@
 import { expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { BotRuntimeSpec } from "@friday/core";
@@ -32,4 +39,20 @@ test("a full journal day and a cut note are logged, not dropped silently", async
   mkdirSync(dir, { recursive: true });
   await memoryFlush(root, async () => ["a", "b"], log)(spec, "s");
   expect(warns[1]).toEqual({ o: { botId: "ann", dropped: 2 }, msg: "memory.journal_full" });
+});
+
+test("a group session's compaction notes land in the group's journal, not the bot's", async () => {
+  const root = mkdtempSync(join(tmpdir(), "flush-"));
+  const changed: unknown[] = [];
+  const groupSpec = { bot: { id: "ann" }, groupId: "team" } as unknown as BotRuntimeSpec;
+  await memoryFlush(
+    root,
+    async () => ["team deploys on fridays"],
+    { error() {}, warn() {} },
+    (o) => void changed.push(o),
+  )(groupSpec, "s");
+  const dir = join(root, "groups", "team", "journal");
+  expect(readFileSync(join(dir, readdirSync(dir)[0] ?? ""), "utf8")).toContain("team deploys");
+  expect(existsSync(join(root, "bots", "ann"))).toBe(false);
+  expect(changed).toEqual([{ kind: "group", groupId: "team" }]);
 });
