@@ -37,6 +37,13 @@ const BACKUPS_KEPT = 20;
 /** Section heading text → kind. */
 const KIND_OF = new Map(MEMORY_FILE_KINDS.map((k) => [`## ${KIND_HEADING[k]}`, k]));
 
+/** `<root>/bots/<id>` or `<root>/groups/<id>`; throws on an id that could leave the root. */
+export function ownerDir(root: string, owner: MemoryOwner): string {
+  const id = owner.kind === "bot" ? owner.botId : owner.groupId;
+  if (!ID.test(id)) throw new Error(`bad memory owner id: ${id}`);
+  return join(root, owner.kind === "bot" ? "bots" : "groups", id);
+}
+
 /** Local `YYYY-MM-DD`. */
 export const localDay = (d: Date): string =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -53,9 +60,7 @@ export class FileMemory implements Memory {
 
   /** Dir of an owner's files (bot or group), after checking the id. */
   dirOf(owner: MemoryOwner): string {
-    const id = owner.kind === "bot" ? owner.botId : owner.groupId;
-    if (!ID.test(id)) throw new Error(`bad memory owner id: ${id}`);
-    return join(this.root, owner.kind === "bot" ? "bots" : "groups", id);
+    return ownerDir(this.root, owner);
   }
 
   private fileOf(owner: MemoryOwner): string {
