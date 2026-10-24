@@ -10,9 +10,17 @@ import { useAnswerQuestion } from "./use-answer-card";
 import { useBotFace } from "./use-bot-face";
 import { useReceipt } from "./use-receipt";
 
+/** The option of a confirm card whose label is Yes or No (any case); its value is what the server accepts. */
+const confirmValue = (card: QuestionCardDto, word: "yes" | "no") =>
+  card.options.find((o) => o.label.trim().toLowerCase() === word)?.value;
+
 /** What the receipt says an answer was: option labels (and typed text), or Yes / No. */
 function answerText(card: QuestionCardDto, a: QuestionAnswerDto): string {
-  if (card.kind === "confirm") return a.choices[0] === "yes" ? "Yes" : "No";
+  if (card.kind === "confirm" && a.choices.length > 0) {
+    // The server stores the bot's own option value; map it back through the card, any case.
+    const hit = card.options.find((o) => o.value === a.choices[0]);
+    return hit?.label.trim().toLowerCase() === "no" ? "No" : "Yes";
+  }
   const label = (v: string) => card.options.find((o) => o.value === v)?.label ?? v;
   return [...a.choices.map(label), ...(a.text ? [a.text] : [])].join(", ");
 }
@@ -56,6 +64,8 @@ export function QuestionCard({ card, receipt }: { card: QuestionCardDto; receipt
     pick(value);
     if (!multi) setOther(false);
   };
+  const yes = confirmValue(card, "yes");
+  const no = confirmValue(card, "no");
   const send = () => {
     const typed = text.trim();
     answer.mutate({
@@ -108,15 +118,15 @@ export function QuestionCard({ card, receipt }: { card: QuestionCardDto; receipt
                   <div className="appr-actions">
                     <span className="left">You can change this later in the chat.</span>
                     <Button
-                      disabled={busy}
-                      onClick={() => answer.mutate({ card, choices: ["no"] })}
+                      disabled={busy || no === undefined}
+                      onClick={() => no !== undefined && answer.mutate({ card, choices: [no] })}
                     >
                       No
                     </Button>
                     <Button
                       variant="primary"
-                      disabled={busy}
-                      onClick={() => answer.mutate({ card, choices: ["yes"] })}
+                      disabled={busy || yes === undefined}
+                      onClick={() => yes !== undefined && answer.mutate({ card, choices: [yes] })}
                     >
                       Yes
                     </Button>
@@ -132,7 +142,7 @@ export function QuestionCard({ card, receipt }: { card: QuestionCardDto; receipt
                       {card.allowText && (
                         <>
                           {optionRow(
-                            "other",
+                            "__other",
                             "Something else",
                             "Type your own answer",
                             other,
@@ -165,7 +175,11 @@ export function QuestionCard({ card, receipt }: { card: QuestionCardDto; receipt
               </div>
             </div>
           </div>
-          <CardReceiptLine>{r && receiptText(r)}</CardReceiptLine>
+          <CardReceiptLine
+            tone={r && (r.answer === "elsewhere" || r.answer === null) ? "neutral" : "ok"}
+          >
+            {r && receiptText(r)}
+          </CardReceiptLine>
         </div>
       </div>
     </div>

@@ -170,3 +170,12 @@ test("phone row: Review opens the sheet; Allow once answers and folds to the rec
   expect(mocks.approve).toHaveBeenCalledWith({ cardId: "a1", answer: "once" });
   await waitFor(() => expect(screen.getByText("Allowed: GitPush")).toBeTruthy());
 });
+
+test("elsewhere receipts are neutral, not green", () => {
+  const el: Receipt = { kind: "approval", card: apprCard(), answer: "elsewhere" };
+  const { container } = view(<ApprovalCard card={apprCard()} receipt={el} />);
+  expect(container.querySelector(".ok.neutral")).toBeTruthy();
+  const b = view(<ApprovalReceipt receipt={el} />);
+  expect(b.container.querySelector(".ios-mini-appr.neutral")).toBeTruthy();
+  expect(b.container.querySelector(".allow")).toBeNull();
+});

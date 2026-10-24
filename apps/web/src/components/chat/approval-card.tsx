@@ -62,7 +62,9 @@ export function ApprovalCard({ card, receipt }: { card: ApprovalCardDto; receipt
               </div>
             </div>
           </div>
-          <CardReceiptLine deny={r?.answer === "deny"}>
+          <CardReceiptLine
+            tone={r?.answer === "deny" ? "deny" : r?.answer === "elsewhere" ? "neutral" : "ok"}
+          >
             {r &&
               (r.answer === "elsewhere" ? (
                 "Answered on another device"

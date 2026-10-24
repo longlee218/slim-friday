@@ -1,4 +1,4 @@
-import { CircleCheck, CircleX } from "lucide-react";
+import { CircleCheck, CircleDashed, CircleX } from "lucide-react";
 import type { Receipt } from "../../events/client-keys";
 import { scopeLine } from "./approval-text";
 
@@ -7,9 +7,10 @@ export function ApprovalReceipt({ receipt }: { receipt: Receipt }) {
   if (receipt.kind !== "approval") return null;
   const { answer, card } = receipt;
   const deny = answer === "deny";
-  const Icon = deny ? CircleX : CircleCheck;
+  const neutral = answer === "elsewhere";
+  const Icon = neutral ? CircleDashed : deny ? CircleX : CircleCheck;
   return (
-    <div className={deny ? "ios-mini-appr done deny" : "ios-mini-appr done allow"}>
+    <div className={`ios-mini-appr done ${neutral ? "neutral" : deny ? "deny" : "allow"}`}>
       <Icon strokeWidth={1.75} />
       <div className="grow">
         <b>

@@ -47,3 +47,6 @@
 .bsheet .kv dd { font-size: 13px; }
 .bsheet .btn { width: 100%; height: 50px; border-radius: 14px; font-size: 17px; margin-top: 8px; font-weight: 600; }
 .bsheet .btn svg { width: 18px; height: 18px; }
+/* neutral receipts (answered elsewhere, timed out): not an allow, not a deny */
+.appr-receipt .ok.neutral { background: transparent; color: var(--label-3); }
+.ios-mini-appr.done.neutral > svg { color: var(--label-3); }
