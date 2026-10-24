@@ -32,10 +32,20 @@ function parsePromoted(text: string): PromotedNote[] | undefined {
     if (!Array.isArray(parsed)) return undefined;
     const out: PromotedNote[] = [];
     for (const item of parsed) {
-      const { kind, note } = (item ?? {}) as { kind?: unknown; note?: unknown };
+      const { kind, note, replaces } = (item ?? {}) as {
+        kind?: unknown;
+        note?: unknown;
+        replaces?: unknown;
+      };
       if (typeof kind !== "string" || !KINDS.has(kind)) continue;
       if (typeof note !== "string" || !note.trim()) continue;
-      out.push({ kind: kind as PromotedNote["kind"], note: note.trim() });
+      // Only a positive whole number names a memory note; anything else leaves a plain new note.
+      const replacing = Number.isInteger(replaces) && (replaces as number) > 0;
+      out.push({
+        kind: kind as PromotedNote["kind"],
+        note: note.trim(),
+        ...(replacing && { replaces: replaces as number }),
+      });
     }
     return out.slice(0, MAX_PROMOTED);
   } catch {

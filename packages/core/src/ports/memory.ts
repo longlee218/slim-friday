@@ -7,9 +7,17 @@ export type MemoryOwner = { kind: "bot"; botId: BotId } | { kind: "group"; group
 export interface PromotedNote {
   kind: "decision" | "fact" | "preference" | "lesson";
   note: string;
+  /** 1-based number of the memory note this one updates (it replaces that line); unset = a new note. */
+  replaces?: number;
 }
 
-/** Ask a model which journal `notes` to keep, given the current `memory`; undefined = the call failed. */
+/** Most memory notes one consolidation run may replace; further `replaces` are added as new notes. */
+export const MAX_REPLACED_PER_RUN = 3;
+
+/**
+ * Ask a model which journal `notes` to keep, given the current memory as numbered notes (`[n] (kind) text` lines);
+ * undefined = the call failed.
+ */
 export type ConsolidateFn = (
   memory: string,
   notes: string[],

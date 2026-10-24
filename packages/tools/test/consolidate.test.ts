@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { existsSync, mkdtempSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ConsolidateFn, MemoryOwner } from "@friday/core";
@@ -158,4 +158,41 @@ test("a day with more notes than one batch is sent whole", async () => {
   });
   expect(got).toHaveLength(250);
   expect(r.through).toBe("2026-10-21");
+});
+
+test("the model sees memory as numbered notes and a pick with replaces updates that note", async () => {
+  const { root, mem } = setup();
+  await mem.save(ann, "owner wants answers in Vietnamese", "preference");
+  await mem.save(ann, "deploy target is fly.io");
+  let shown = "";
+  const r = await consolidateOwner(mem, ann, now, async (m) => {
+    shown = m;
+    return [{ kind: "preference", note: "owner wants answers in English", replaces: 1 }];
+  });
+  expect(shown).toBe(
+    "[1] (preference) owner wants answers in Vietnamese\n[2] (fact) deploy target is fly.io",
+  );
+  expect(r).toEqual({ promoted: 1, skipped: 0, through: "2026-10-22" });
+  const file = readFileSync(join(root, "bots", "ann", "MEMORY.md"), "utf8");
+  expect(file).toContain("owner wants answers in English");
+  expect(file).not.toContain("in Vietnamese");
+  expect(readdirSync(join(root, "bots", "ann", "backups")).length).toBeGreaterThan(0);
+});
+
+test("at most 3 replacements a run; more, or a number out of range, are added as new notes", async () => {
+  const { root, mem } = setup();
+  for (const n of ["alpha one", "beta two", "gamma three", "delta four"]) await mem.save(ann, n);
+  const r = await consolidateOwner(mem, ann, now, async () => [
+    { kind: "fact", note: "alpha one updated", replaces: 1 },
+    { kind: "fact", note: "beta two updated", replaces: 2 },
+    { kind: "fact", note: "gamma three updated", replaces: 3 },
+    { kind: "fact", note: "delta four updated", replaces: 4 },
+    { kind: "fact", note: "epsilon five new", replaces: 9 },
+  ]);
+  expect(r.promoted).toBe(5);
+  const file = readFileSync(join(root, "bots", "ann", "MEMORY.md"), "utf8");
+  expect(file).not.toContain("- alpha one (");
+  expect(file).toContain("- delta four (");
+  expect(file).toContain("delta four updated");
+  expect(file).toContain("epsilon five new");
 });

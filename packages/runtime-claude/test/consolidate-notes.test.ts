@@ -64,3 +64,20 @@ test("the prompt tells the model what is not worth keeping and to prefer nothing
   expect(prompt).toContain("task progress");
   expect(prompt).toContain("readable from the code");
 });
+
+test("a positive integer replaces is kept; any other replaces is dropped and the note stays", async () => {
+  const items = [
+    { kind: "preference", note: "answer in English", replaces: 2 },
+    { kind: "fact", note: "uses bun", replaces: 1.5 },
+    { kind: "fact", note: "uses node", replaces: "3" },
+    { kind: "fact", note: "uses deno", replaces: 0 },
+  ];
+  const { queryFn } = fake(JSON.stringify(items));
+  const out = await consolidateNotes({ memory: "[1] x", notes: ["a"] }, { model: "m", queryFn });
+  expect(out).toEqual([
+    { kind: "preference", note: "answer in English", replaces: 2 },
+    { kind: "fact", note: "uses bun" },
+    { kind: "fact", note: "uses node" },
+    { kind: "fact", note: "uses deno" },
+  ]);
+});

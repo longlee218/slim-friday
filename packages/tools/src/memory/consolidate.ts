@@ -1,6 +1,6 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import type { ConsolidateFn, MemoryOwner } from "@friday/core";
+import { type ConsolidateFn, MAX_REPLACED_PER_RUN, type MemoryOwner } from "@friday/core";
 import { type FileMemory, localDay, MemoryError } from "./file-memory";
 import {
   JOURNAL_MAX_LINES,
@@ -44,8 +44,10 @@ function pendingNotes(root: string, owner: MemoryOwner, today: string) {
 
 /**
  * Promote the owner's journal notes of complete days (before today) after its mark into MEMORY.md, as `ask` picks
- * them. The mark moves to the last day sent only when `ask` answered. A note that is too short, the same as one
- * already in MEMORY.md (or one promoted a moment ago) or refused by the file (also too long) is skipped and counted.
+ * them; `ask` sees the memory as numbered notes. A pick with `replaces: n` updates note n in place (a backup is kept),
+ * at most `MAX_REPLACED_PER_RUN` a run; a further one, or one whose n names no note, is added as a new note. The mark
+ * moves to the last day sent only when `ask` answered. A note that is too short, the same as another note in
+ * MEMORY.md (or one promoted a moment ago) or refused by the file (also too long) is skipped and counted.
  */
 export async function consolidateOwner(
   memory: FileMemory,
@@ -55,23 +57,38 @@ export async function consolidateOwner(
 ): Promise<{ promoted: number; skipped: number; through?: string }> {
   const { notes, through } = pendingNotes(memory.root, owner, localDay(now));
   if (!through) return { promoted: 0, skipped: 0 };
-  const picked = notes.length ? await ask(await memory.read(owner), notes) : [];
+  const bullets = memory.listBullets(owner);
+  const numbered = bullets.map((b, i) => `[${i + 1}] (${b.kind}) ${b.text}`).join("\n");
+  const picked = notes.length ? await ask(numbered, notes) : [];
   if (!picked) return { promoted: 0, skipped: 0 };
-  const kept = memory.listBullets(owner).map((b) => b.text);
+  const kept = bullets.map((b) => b.text);
   let promoted = 0;
   let skipped = 0;
+  let replaced = 0;
   for (const p of picked) {
-    if (worthKeeping(p.note, kept) !== "keep") {
+    const target =
+      p.replaces !== undefined && replaced < MAX_REPLACED_PER_RUN
+        ? bullets[p.replaces - 1]
+        : undefined;
+    // An update often shares most words with the line it replaces: compare against the other notes only.
+    const others = target ? kept.filter((t) => t !== target.text) : kept;
+    if (worthKeeping(p.note, others) !== "keep") {
       skipped++;
       continue;
     }
     try {
-      await memory.save(owner, p.note, p.kind);
-      kept.push(p.note);
+      if (target) {
+        await memory.edit(owner, target.id, p.note);
+        replaced++;
+        kept.splice(kept.indexOf(target.text), 1, p.note);
+      } else {
+        await memory.save(owner, p.note, p.kind);
+        kept.push(p.note);
+      }
       promoted++;
     } catch (err) {
-      if (!(err instanceof MemoryError && ["duplicate", "empty", "too_long"].includes(err.code)))
-        throw err;
+      const known = ["duplicate", "empty", "too_long", "not_found"];
+      if (!(err instanceof MemoryError && known.includes(err.code))) throw err;
       skipped++;
     }
   }
