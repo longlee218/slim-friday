@@ -26,6 +26,7 @@ export * from "./memory/recall/message-catch-up";
 export * from "./memory/recall/rrf";
 export * from "./memory/tools/MessageSearchTool/constants";
 export type { MessageSearchDeps } from "./memory/tools/MessageSearchTool/message-search-tool";
+export * from "./memory/write-through-memory";
 export * from "./text/redact";
 export * from "./tickets/tickets-context";
 export * from "./tickets/tickets-server";
