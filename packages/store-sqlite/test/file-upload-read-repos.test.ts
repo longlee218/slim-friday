@@ -103,3 +103,12 @@ test("uploads: claim is atomic, release gives it back; files: delete", async () 
   await s.files.delete("f");
   expect(await s.files.get("f")).toBeUndefined();
 });
+
+test("uploads: pendingBefore also returns stale claimed rows, never used ones", async () => {
+  const s = fresh();
+  await s.uploads.insert(upload("p", 1));
+  await s.uploads.insert(upload("c", 2));
+  await s.uploads.insert(upload("u", 3, "used"));
+  await s.uploads.claim("c");
+  expect((await s.uploads.pendingBefore(10)).map((u) => u.id)).toEqual(["p", "c"]);
+});

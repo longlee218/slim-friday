@@ -118,7 +118,7 @@ export interface Store {
     claim(id: string): Promise<boolean>;
     /** Give a claimed upload back (claimed -> pending). */
     release(id: string): Promise<void>;
-    /** Pending uploads created before `at`, oldest first. */
+    /** Unused (pending or claimed) uploads created before `at`, oldest first. */
     pendingBefore(at: number): Promise<UploadRow[]>;
     delete(id: string): Promise<void>;
   };

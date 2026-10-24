@@ -97,7 +97,7 @@ export class FakeStore implements Store {
     },
     pendingBefore: async (at: number) =>
       [...this.uploadMap.values()]
-        .filter((u) => u.state === "pending" && u.at < at)
+        .filter((u) => u.state !== "used" && u.at < at)
         .sort((a, b) => a.at - b.at),
     delete: async (id: string) => {
       this.uploadMap.delete(id);

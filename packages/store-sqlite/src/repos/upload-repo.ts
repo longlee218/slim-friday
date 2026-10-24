@@ -1,5 +1,5 @@
 import type { Store, UploadRow } from "@friday/core";
-import { and, asc, eq, lt } from "drizzle-orm";
+import { and, asc, eq, inArray, lt } from "drizzle-orm";
 import type { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import { uploads } from "../schema/engine-tables";
 
@@ -45,13 +45,16 @@ export function uploadRepo(db: BunSQLiteDatabase): Store["uploads"] {
         .run();
     },
     async pendingBefore(at) {
-      return db
-        .select()
-        .from(uploads)
-        .where(and(eq(uploads.state, "pending"), lt(uploads.at, at)))
-        .orderBy(asc(uploads.at))
-        .all()
-        .map(toRow);
+      return (
+        db
+          .select()
+          .from(uploads)
+          // `claimed` too: a crash mid-send leaves a claimed row that nothing else would sweep.
+          .where(and(inArray(uploads.state, ["pending", "claimed"]), lt(uploads.at, at)))
+          .orderBy(asc(uploads.at))
+          .all()
+          .map(toRow)
+      );
     },
     async delete(id) {
       db.delete(uploads).where(eq(uploads.id, id)).run();
