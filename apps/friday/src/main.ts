@@ -132,8 +132,11 @@ export async function startEngine(
     logEvent(log, "engine.started", { agentHome });
     if (!signal.aborted)
       await new Promise<void>((r) => signal.addEventListener("abort", () => r(), { once: true }));
-    await api.stop();
-    await app.stop();
+    try {
+      await api.stop();
+    } finally {
+      await app.stop();
+    }
   } finally {
     await port.close();
   }

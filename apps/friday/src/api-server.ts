@@ -61,8 +61,11 @@ export async function startApiServer(
       async stop() {
         if (stopped) return;
         stopped = true;
-        await server.stop(true);
-        authDb.close();
+        try {
+          await server.stop(true);
+        } finally {
+          authDb.close();
+        }
       },
     };
   } catch (err) {

@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { FakeDiscordPort } from "../../../packages/surface-discord/test/fake-discord-port";
 import { loadConfig } from "../src/config/agent-config";
 import { startEngine } from "../src/main";
 
@@ -53,5 +54,27 @@ test("a missing Discord value is refused by name before any connection", async (
 test("a missing web value is refused by name before any connection", async () => {
   for (const name of ["WEB_ORIGIN", "PUBLIC_API_URL", "AUTH_SECRET", "OWNER_EMAIL"] as const) {
     expect(await without(name)).toEqual({ message: `${name} missing`, connected: false });
+  }
+});
+
+test("a taken API port fails the start with a named error and closes the Discord port", async () => {
+  const home = mkdtempSync(join(tmpdir(), "main-"));
+  const holder = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: () => new Response("x") });
+  let closed = 0;
+  const fake = new FakeDiscordPort();
+  const connect = (async () => Object.assign(fake, { close: async () => void closed++ })) as never;
+  try {
+    const env = { AGENT_HOME: home, ...full, API_PORT: String(holder.port) };
+    const err = await startEngine(
+      { config: loadConfig(env), agentHome: home, signal: new AbortController().signal },
+      connect,
+    ).catch((e) => e as Error);
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message.startsWith("API server could not listen on 127.0.0.1:")).toBe(
+      true,
+    );
+    expect(closed).toBe(1);
+  } finally {
+    await holder.stop(true);
   }
 });
