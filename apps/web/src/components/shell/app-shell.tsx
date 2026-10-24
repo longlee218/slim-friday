@@ -1,4 +1,6 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect } from "react";
+import { useLocation } from "react-router";
+import { navHistory } from "./nav-history";
 import { PanelsContext, useResponsivePanels } from "./use-responsive-panels";
 
 export interface AppShellProps {
@@ -13,6 +15,9 @@ export interface AppShellProps {
  */
 export function AppShell({ sidebar, main, inspector }: AppShellProps) {
   const panels = useResponsivePanels();
+  // Keep the window-style history aligned with the URL (links, browser back, redirects).
+  const { pathname } = useLocation();
+  useEffect(() => navHistory.sync(pathname), [pathname]);
   const cls = ["mac", panels.inspector.open && "insp", !panels.sidebar.open && "nosb"]
     .filter(Boolean)
     .join(" ");

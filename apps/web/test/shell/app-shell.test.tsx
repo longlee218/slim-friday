@@ -136,11 +136,10 @@ test("⌘K calls onPalette; Ctrl works too", () => {
 
 test("shortcuts are ignored while typing, except Esc", () => {
   window.innerWidth = 1000;
-  const onPalette = vi.fn();
-  renderShell("/c/bot:dev", { onPalette });
+  const router = renderShell("/c/bot:dev");
   const field = screen.getByLabelText("field");
-  fireEvent.keyDown(field, { code: "KeyK", metaKey: true });
-  expect(onPalette).not.toHaveBeenCalled();
+  fireEvent.keyDown(field, { code: "Digit2", metaKey: true });
+  expect(router.state.location.pathname).toBe("/c/bot:dev");
   fireEvent.keyDown(window, { code: "Digit0", metaKey: true, altKey: true });
   expect(mac().className).toContain("insp");
   fireEvent.keyDown(field, { key: "Escape" });
@@ -153,4 +152,27 @@ test("shortcuts do nothing in phone mode", () => {
   renderShell("/c/bot:dev", { onPalette });
   key("KeyK");
   expect(onPalette).not.toHaveBeenCalled();
+});
+
+test("router.navigate(-1) and plain navigation keep canBack / canForward right", async () => {
+  const router = renderShell("/c/bot:dev");
+  await act(async () => {
+    await router.navigate("/tickets");
+  });
+  expect([navHistory.canBack, navHistory.canForward]).toEqual([true, false]);
+  await act(async () => {
+    await router.navigate(-1);
+  });
+  expect(router.state.location.pathname).toBe("/c/bot:dev");
+  expect([navHistory.canBack, navHistory.canForward]).toEqual([false, true]);
+});
+
+test("⌘K works while typing; ⌥⌘1 and ⇧⌘1 do not navigate", async () => {
+  const onPalette = vi.fn();
+  const router = renderShell("/c/bot:dev", { onPalette });
+  fireEvent.keyDown(screen.getByLabelText("field"), { code: "KeyK", metaKey: true });
+  expect(onPalette).toHaveBeenCalledTimes(1);
+  await act(async () => key("Digit2", { altKey: true }));
+  await act(async () => key("Digit2", { shiftKey: true }));
+  expect(router.state.location.pathname).toBe("/c/bot:dev");
 });

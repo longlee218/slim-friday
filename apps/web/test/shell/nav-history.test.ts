@@ -25,3 +25,19 @@ test("lastChat follows the last /c/ path and defaults to Friday", () => {
   h.push("/ops");
   expect(h.lastChat).toBe("/c/bot:dev");
 });
+
+test("sync: same path is a no-op, previous / next move the cursor, else push", () => {
+  const h = createNavHistory("/a");
+  h.sync("/a");
+  expect(h.canBack).toBe(false);
+  h.sync("/b");
+  h.sync("/c");
+  h.sync("/b"); // browser back
+  expect([h.canBack, h.canForward]).toEqual([true, true]);
+  h.sync("/c"); // browser forward
+  expect(h.canForward).toBe(false);
+  h.sync("/b");
+  h.sync("/x"); // new visit drops /c
+  expect(h.canForward).toBe(false);
+  expect(h.back()).toBe("/b");
+});

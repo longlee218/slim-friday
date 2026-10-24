@@ -40,6 +40,13 @@
 
 @media (prefers-reduced-motion: reduce) { .mac { transition-duration: 1ms; } }
 /* view transitions: macOS-like navigation */
+::view-transition-old(root), ::view-transition-new(root) { animation: none; }
+::view-transition-old(main-content) { animation: vtOut 140ms ease both; }
+::view-transition-new(main-content) { animation: vtIn 300ms var(--ease) both; }
+::view-transition-old(insp) { animation: vtOut 120ms ease both; }
+::view-transition-new(insp) { animation: vtInX 320ms var(--ease) both; }
+::view-transition-group(sb-sel), ::view-transition-group(set-sel), ::view-transition-group(tab-sel) { animation-duration: 340ms; animation-timing-function: var(--ease); }
+.inspector { view-transition-name: insp; }
 @keyframes vtOut { to { opacity: 0; } }
 @keyframes vtIn { from { opacity: 0; transform: translateY(6px); } }
 @keyframes vtInX { from { opacity: 0; transform: translateX(10px); } }

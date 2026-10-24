@@ -11,20 +11,19 @@ function useTransitions(): boolean {
   return !reduced && width >= PANEL_MIN.phone;
 }
 
-/** Navigate and record the visit in the window-style history (macOS view transition). */
+/** Navigate with the macOS view transition; `AppShell` syncs `navHistory` from the URL. */
 export function useAppNavigate(): (to: string) => void {
   const navigate = useNavigate();
   const viewTransition = useTransitions();
   return useCallback(
     (to) => {
-      navHistory.push(to);
       void navigate(to, { viewTransition });
     },
     [navigate, viewTransition],
   );
 }
 
-/** Back / forward over `navHistory`: moves the history cursor and the route, no new entry. */
+/** Back / forward over `navHistory`: moves the cursor and the route (the URL sync is a no-op). */
 export function useHistoryNavigate(): { back: () => void; forward: () => void } {
   const navigate = useNavigate();
   const viewTransition = useTransitions();

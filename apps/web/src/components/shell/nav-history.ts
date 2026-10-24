@@ -5,6 +5,11 @@ export interface NavHistory {
   /** Record a visit; entries ahead of the current one are dropped. */
   push(path: string): void;
   /** Step back; the new current path, or null at the start. */
+  /**
+   * Align with the URL after any navigation: same path is a no-op, the previous / next entry
+   * moves the cursor, anything else is a new visit.
+   */
+  sync(path: string): void;
   back(): string | null;
   /** Step forward; the new current path, or null at the end. */
   forward(): string | null;
@@ -46,6 +51,12 @@ export function createNavHistory(initial: string): NavHistory {
       entries = [...entries.slice(0, index + 1), path];
       index = entries.length - 1;
       changed();
+    },
+    sync(path) {
+      if (entries[index] === path) return;
+      if (entries[index - 1] === path) move(index - 1);
+      else if (entries[index + 1] === path) move(index + 1);
+      else this.push(path);
     },
     back: () => move(index - 1),
     forward: () => move(index + 1),
