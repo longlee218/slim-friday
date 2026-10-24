@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
 import { Avatar, AvatarStack } from "../../src/components/ui/avatar";
@@ -110,5 +111,27 @@ describe("sheets", () => {
     );
     expect(document.querySelector(".bsheet .grab")).not.toBeNull();
     expect(screen.getByText("Body")).toBeTruthy();
+  });
+  test("BottomSheet dismisses after a drag past 110px", () => {
+    const onOpenChange = vi.fn();
+    render(
+      <BottomSheet open onOpenChange={onOpenChange}>
+        Body
+      </BottomSheet>,
+    );
+    const sheet = document.querySelector(".bsheet") as HTMLElement;
+    fireEvent.pointerDown(sheet, { clientY: 100, pointerId: 1 });
+    fireEvent.pointerMove(sheet, { clientY: 250, pointerId: 1 });
+    fireEvent.pointerUp(sheet, { clientY: 250, pointerId: 1 });
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+});
+
+describe("overlays.css", () => {
+  test("a .badge.bump rule applies the bump animation", () => {
+    const css = readFileSync("src/styles/overlays.css", "utf8");
+    const rule = css.match(/([^{}]*\.badge\.bump[^{]*)\{([^}]*)\}/);
+    expect(rule).not.toBeNull();
+    expect(/animation:[^;]*bump/.test(rule?.[2] ?? "")).toBe(true);
   });
 });

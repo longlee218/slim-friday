@@ -10,7 +10,7 @@
 @keyframes popOut { to { opacity: 0; transform: translateY(-3px) scale(.98); } }
 
 /* badge bump + pop */
-.cap-badge.bump { animation: bump 420ms var(--ease); }
+.cap-badge.bump, .badge.bump { animation: bump 420ms var(--ease); }
 @keyframes bump { 30% { transform: scale(1.25); } }
 @keyframes pop { from { transform: scale(.4); opacity: 0; } 60% { transform: scale(1.12); } }
 

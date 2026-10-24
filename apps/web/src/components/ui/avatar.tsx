@@ -30,8 +30,9 @@ export interface AvatarStackProps {
 export function AvatarStack({ items, size = 24, max = 4 }: AvatarStackProps) {
   return (
     <span className="stack">
-      {items.slice(0, max).map((item) => (
-        <Avatar key={item.name} src={item.src} name={item.name} size={size} />
+      {items.slice(0, max).map((item, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: names can repeat; the list is static
+        <Avatar key={`${i}-${item.name}`} src={item.src} name={item.name} size={size} />
       ))}
     </span>
   );
