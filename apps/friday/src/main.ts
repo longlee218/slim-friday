@@ -1,12 +1,15 @@
 import { join } from "node:path";
 import { TEMPLATES_DIR } from "@friday/config";
-import { ClaudeRuntime } from "@friday/runtime-claude";
+import { ClaudeRuntime, extractNotes, isSensitivePath } from "@friday/runtime-claude";
 import { connectDiscord } from "@friday/surface-discord";
+import { appendJournal } from "@friday/tools";
 import type { AgentConfig } from "../../../src/config/agent-config";
+import { HAIKU_SUMMARY_MODEL } from "../../../src/config/model-ids";
 import { readProcessEnv } from "../../../src/config/process-env";
 import { logEvent, logger } from "../../../src/observability/logger";
 import { fridayExtraDirs } from "./friday-bot";
-import { startApp } from "./start-app";
+import { sessionTools } from "./session-tools";
+import { type RuntimeParts, startApp } from "./start-app";
 
 const log = logger.child({ module: "engine" });
 
@@ -38,13 +41,46 @@ export async function startEngine(
     onError: (err) => log.error({ error: err.message }, "discord.error"),
   });
   try {
-    const runtime = new ClaudeRuntime({
-      oauthToken: config.oauthToken,
-      agentHome,
-      scratchRoot: join(agentHome, "scratch"),
-      env: readProcessEnv(),
-      extraDirsFor: fridayExtraDirs(configDir, TEMPLATES_DIR),
-    });
+    const env = readProcessEnv();
+    const memoryDir = join(agentHome, "memory");
+    // The flush call needs the same login as the bots.
+    const flushEnv = {
+      ...env,
+      ...(config.oauthToken && { CLAUDE_CODE_OAUTH_TOKEN: config.oauthToken }),
+    };
+    const runtime = (parts: RuntimeParts) => {
+      const mcp = parts.config.mcpServers(env);
+      for (const p of mcp.problems) log.warn(p, "config.problem");
+      return new ClaudeRuntime({
+        oauthToken: config.oauthToken,
+        agentHome,
+        scratchRoot: join(agentHome, "scratch"),
+        env,
+        extraDirsFor: fridayExtraDirs(configDir, TEMPLATES_DIR),
+        mcpServers: mcp.servers,
+        mcpServersFor: sessionTools({
+          memory: parts.memory,
+          store: parts.store,
+          home: agentHome,
+          projectsDir: parts.config.projectsDir,
+          isSensitive: isSensitivePath,
+        }),
+        // After a compaction, keep what matters in the bot's journal (never in MEMORY.md, which the bot curates).
+        onCompact: (spec, summary) => {
+          extractNotes(summary, { model: HAIKU_SUMMARY_MODEL, env: flushEnv })
+            .then((notes) =>
+              appendJournal(
+                memoryDir,
+                { kind: "bot", botId: spec.bot.id },
+                "Flush",
+                notes,
+                new Date(),
+              ),
+            )
+            .catch((err) => log.error({ error: String(err), botId: spec.bot.id }, "memory.flush"));
+        },
+      });
+    };
     const app = await startApp({ port, runtime, agentHome, log });
     logEvent(log, "engine.started", { agentHome });
     if (!signal.aborted)

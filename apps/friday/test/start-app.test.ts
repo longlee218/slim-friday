@@ -25,9 +25,10 @@ function put(home: string, files: Record<string, string>) {
 }
 
 /** Start the app over fakes; each bot answers every turn with `reply:<name>`. */
-async function boot(files: Record<string, string> = {}) {
+async function boot(files: Record<string, string> = {}, before?: (home: string) => void) {
   const home = mkdtempSync(join(tmpdir(), "app-"));
   put(home, files);
+  before?.(home);
   const port = new FakeDiscordPort();
   const runtime = new FakeRuntime();
   runtime.onTurn = (s: FakeSession) => {
@@ -130,4 +131,25 @@ test("startApp fails when the first channel sync cannot list the channels", asyn
   await expect(
     startApp({ port, runtime: new FakeRuntime(), agentHome: home, log }),
   ).rejects.toThrow("discord 503");
+});
+
+test("a bot's saved memory reaches its session spec", async () => {
+  const { port, runtime, channel } = await boot({}, (home) => {
+    mkdirSync(join(home, "memory", "bots", "friday"), { recursive: true });
+    writeFileSync(
+      join(home, "memory", "bots", "friday", "MEMORY.md"),
+      "## Facts\n- owner likes tea\n",
+    );
+  });
+  port.emitMessage({ channelId: channel("friday"), text: "hi" });
+  await until(() => runtime.opened.length > 0);
+  expect(runtime.nth(0).spec.memory).toContain("owner likes tea");
+});
+
+test("/purge empties the trash and replies the count", async () => {
+  const { home, port, channel } = await boot();
+  mkdirSync(join(home, "trash", "ann", "1700000000000-aaaaaaaa"), { recursive: true });
+  expect(await port.emitCommand({ channelId: channel("friday"), name: "purge" })).toEqual([
+    "Purged 1 trash item(s).",
+  ]);
 });

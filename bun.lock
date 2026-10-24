@@ -43,6 +43,7 @@
         "@friday/runtime-claude": "workspace:*",
         "@friday/store-sqlite": "workspace:*",
         "@friday/surface-discord": "workspace:*",
+        "@friday/tools": "workspace:*",
       },
     },
     "packages/config": {

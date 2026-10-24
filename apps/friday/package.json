@@ -9,6 +9,7 @@
     "@friday/core": "workspace:*",
     "@friday/runtime-claude": "workspace:*",
     "@friday/store-sqlite": "workspace:*",
-    "@friday/surface-discord": "workspace:*"
+    "@friday/surface-discord": "workspace:*",
+    "@friday/tools": "workspace:*"
   }
 }

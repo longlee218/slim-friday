@@ -4,12 +4,15 @@ import { DEFAULTS_DIR, FileConfig, TEMPLATES_DIR } from "@friday/config";
 import { type AgentRuntime, BotHub, type Clock, PermissionGate, type Store } from "@friday/core";
 import { openEngineStore } from "@friday/store-sqlite";
 import { type DiscordPort, DiscordSurface, syncChannels } from "@friday/surface-discord";
+import { FileMemory, pruneJournals } from "@friday/tools";
 import { appCommands } from "./app-commands";
 import { withFridayDirs } from "./friday-bot";
 import { systemClock } from "./system-clock";
 
 /** How often quiet sessions are closed. */
 const SWEEP_MS = 60_000;
+/** How often old journal files are pruned. */
+const JOURNAL_PRUNE_MS = 24 * 3_600_000;
 
 /** A logger with the three levels the app uses (the caller passes its pino logger). */
 interface Log {
@@ -18,15 +21,25 @@ interface Log {
   error(o: object, msg: string): void;
 }
 
+/** What a runtime factory gets: the parts the runtime's tools need. */
+export interface RuntimeParts {
+  config: FileConfig;
+  store: Store;
+  memory: FileMemory;
+}
+
 /** What the app is built from. */
 export interface AppDeps {
   port: DiscordPort;
-  runtime: AgentRuntime;
+  /** The runtime, or a factory for one that needs the config, store and memory (built before the hub). */
+  runtime: AgentRuntime | ((parts: RuntimeParts) => AgentRuntime);
   /** The agent's home: `config/`, `data/` and the scratch dirs live under it. */
   agentHome: string;
   /** Shipped defaults (tests pass their own). */
   defaultsDir?: string;
   clock?: Clock;
+  /** Bot and group memory (default: files under `<agentHome>/memory`). */
+  memory?: FileMemory;
   log: Log;
 }
 
@@ -39,7 +52,7 @@ const why = (err: unknown): string => (err instanceof Error ? err.message : Stri
  * session, new bots and groups get channels). Returns the parts and `stop()`.
  */
 export async function startApp(deps: AppDeps) {
-  const { port, runtime, agentHome, log } = deps;
+  const { port, agentHome, log } = deps;
   const clock = deps.clock ?? systemClock;
   const dirs = { configDir: join(agentHome, "config"), templatesDir: TEMPLATES_DIR };
 
@@ -66,6 +79,10 @@ export async function startApp(deps: AppDeps) {
     groups: config.groups,
   };
 
+  const memory = deps.memory ?? new FileMemory(join(agentHome, "memory"));
+  const runtime =
+    typeof deps.runtime === "function" ? deps.runtime({ config, store, memory }) : deps.runtime;
+
   /** Display names for the surface, refreshed by every sync. */
   const names = new Map<string, string>();
   const surface = new DiscordSurface(port, (id) => names.get(id));
@@ -77,9 +94,9 @@ export async function startApp(deps: AppDeps) {
     settings: config.settings,
     timeoutMs: config.limits().approvalTimeoutMs,
   });
-  const hub = new BotHub({ runtime, surface, store, clock, gate, limits: config.limits() });
+  const hub = new BotHub({ runtime, surface, store, clock, gate, memory, limits: config.limits() });
   hub.start();
-  surface.onCommand(appCommands({ hub, store }));
+  surface.onCommand(appCommands({ hub, store, home: agentHome }));
 
   /** One channel per bot and group; new ones get a hello. Runs one at a time. */
   let queue: Promise<void> = Promise.resolve();
@@ -142,6 +159,18 @@ export async function startApp(deps: AppDeps) {
   };
   tick();
 
+  // Old journal files go at start and once a day.
+  let cancelPrune = () => {};
+  const prune = () => {
+    try {
+      pruneJournals(join(agentHome, "memory"), new Date(clock.now()));
+    } catch (err) {
+      log.error({ error: why(err) }, "journal.prune");
+    }
+    if (!stopped) cancelPrune = clock.setTimer(JOURNAL_PRUNE_MS, prune);
+  };
+  prune();
+
   return {
     hub,
     config,
@@ -151,6 +180,7 @@ export async function startApp(deps: AppDeps) {
       stopped = true;
       stopWatching();
       cancelSweep();
+      cancelPrune();
       await surface.cancelApprovals();
       await hub.stopAll();
       engine.close();

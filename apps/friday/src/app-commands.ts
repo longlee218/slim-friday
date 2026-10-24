@@ -1,19 +1,23 @@
 import type { Bot, BotHub, BotId, Store } from "@friday/core";
 import type { CommandHandler } from "@friday/surface-discord";
+import { purgeTrash } from "@friday/tools";
 
 /** What the commands need from the app. */
 interface CommandDeps {
   hub: BotHub;
   store: Pick<Store, "bots" | "groups" | "conversations">;
+  /** The agent home (`/purge` empties `<home>/trash`). */
+  home: string;
 }
 
-/** `/status` and `/stop` as plain text answers. */
-export function appCommands({ hub, store }: CommandDeps): CommandHandler {
+/** `/status`, `/stop` and `/purge` as plain text answers. */
+export function appCommands({ hub, store, home }: CommandDeps): CommandHandler {
   /** Display name of every bot by id. */
   const names = async (): Promise<Map<BotId, Bot>> =>
     new Map((await store.bots.list()).map((b) => [b.id, b]));
 
   return async (c) => {
+    if (c.name === "purge") return `Purged ${purgeTrash(home)} trash item(s).`;
     const bots = await names();
     const nameOf = (id: BotId) => bots.get(id)?.name ?? id;
     if (c.name === "status") {
