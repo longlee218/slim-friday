@@ -18,6 +18,7 @@ export * from "./ports/agent-runtime";
 export * from "./ports/clock";
 export * from "./ports/log";
 export * from "./ports/memory";
+export * from "./ports/memory-recall";
 export * from "./ports/messenger";
 export * from "./ports/store";
 export * from "./ports/surface";
