@@ -10,20 +10,31 @@ import { priorityOf } from "./run-rules";
 
 /** What `createRun` needs to store one run. */
 export interface NewRun {
+  /** The bot the run is for. */
   botId: BotId;
+  /** The conversation the run answers. */
   conversationId: ConversationId;
+  /** Who woke the bot (owner, bot or system). */
   sender: Author;
+  /** The text of the turn. */
   text: string;
+  /** Hand-offs since the owner message that started the chain. */
   hop: number;
+  /** Intent, ticket, files, chain and hop exemption of the run. */
   opts?: WakeOpts;
   /** Unique per conversation: a second run with the same key returns the first one. */
   dedupeKey?: string;
 }
 
+/** `wakeAt` of a run stored but not yet checked: no worker claims it (`claimNext` skips wakeAt > now). */
+export const HOLD_UNTIL = Number.MAX_SAFE_INTEGER;
+
 /**
- * Store one run as `queued` for a worker to claim, then hint the workers. The row is stored first and
- * checked after (the chain guard counts only rows stored before it); a cap or the spend limit turns it
- * into `blocked` with a notice. A dedupe key that is already used returns that run's outcome instead.
+ * Store one run as `queued` for a worker to claim, then hint the workers. The row is stored first, held
+ * (`wakeAt` = HOLD_UNTIL), and checked after (the chain guard counts only rows stored before it): a pass
+ * releases it in one guarded change (`wakeAt` = its creation time, so it is due at once) and only then hints;
+ * a cap or the spend limit turns it into `blocked` with a notice. A dedupe key that is already used returns
+ * that run's outcome, except a run still held (a crash between insert and check), which is checked again.
  */
 export async function createRun(ctx: HubContext, r: NewRun): Promise<WakeOutcome> {
   const { store } = ctx.deps;
@@ -42,6 +53,7 @@ export async function createRun(ctx: HubContext, r: NewRun): Promise<WakeOutcome
     text: r.text,
     scopeKey: scope?.key ?? bot.id,
     priority: priorityOf(r.sender, opts.ticketId),
+    wakeAt: HOLD_UNTIL,
     ...(r.dedupeKey && { dedupeKey: r.dedupeKey }),
     ...(opts.handoff && { handoff: true }),
     ...(opts.ticketId && { ticketId: opts.ticketId }),
@@ -51,19 +63,36 @@ export async function createRun(ctx: HubContext, r: NewRun): Promise<WakeOutcome
     ...(opts.parentWakeId && { parentWakeId: opts.parentWakeId }),
   });
   const added = await store.wakes.insertDeduped(row);
-  if (!added.inserted) return outcomeOf(added.existing);
+  if (!added.inserted) {
+    const old = added.existing;
+    if (old.status !== "queued" || old.wakeAt !== HOLD_UNTIL) return outcomeOf(old);
+    return admitHeld(ctx, old, scope !== undefined, opts.exemptFromHops);
+  }
   ctx.wakeLog.stored(row);
+  return admitHeld(ctx, row, scope !== undefined, opts.exemptFromHops);
+}
+
+/** Drop (no scope), block, or release and hint a stored, held run. */
+async function admitHeld(
+  ctx: HubContext,
+  row: WakeRow,
+  hasScope: boolean,
+  exemptFromHops?: boolean,
+): Promise<WakeOutcome> {
   // A bot that is not a member of the group has no session there: kept on record as dropped.
-  if (!scope) {
+  if (!hasScope) {
     await ctx.wakeLog.dropped(row.id);
     return { ok: false, reason: "gone" };
   }
-  const blocked = await capsCheck(ctx, row, opts.exemptFromHops);
+  const blocked = await capsCheck(ctx, row, exemptFromHops);
   if (blocked) {
     await block(ctx, row, blocked);
     return { ok: false, reason: blocked };
   }
-  ctx.hints.newRun(row.id);
+  // The port cannot write null, so "no wait" is the creation time (already due).
+  const release = { wakeAt: row.createdAt };
+  if (await ctx.deps.store.wakes.transition(row.id, row.leaseFence, ["queued"], release))
+    ctx.hints.newRun(row.id);
   return { ok: true, wakeId: row.id };
 }
 

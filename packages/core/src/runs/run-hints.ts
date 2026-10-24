@@ -34,18 +34,23 @@ export class InProcessHints implements RunHints {
     return () => this.listeners.delete(listener);
   }
 
+  /** Emit `newRun`. */
   newRun(wakeId: string): void {
     this.emit({ kind: "newRun", wakeId });
   }
+  /** Emit `steer`. */
   steer(wakeId: string): void {
     this.emit({ kind: "steer", wakeId });
   }
+  /** Emit `cardAnswered`. */
   cardAnswered(cardId: string): void {
     this.emit({ kind: "cardAnswered", cardId });
   }
+  /** Emit `cancel`. */
   cancel(wakeIds: string[]): void {
     this.emit({ kind: "cancel", wakeIds });
   }
+  /** Emit `configChanged`. */
   configChanged(): void {
     this.emit({ kind: "configChanged" });
   }

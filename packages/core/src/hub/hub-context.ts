@@ -20,9 +20,9 @@ export interface HubContext {
   hints: RunHints;
   /** Caps already announced; cleared when the user writes again in that conversation. */
   noticed: Set<string>;
-  /** Check the caps for a stored wake, then hand it to the bot's session (late-bound: the parts call each other). */
+  /** Check the caps for a stored (recovered) run, give it its scope and hint the workers (late-bound: the parts call each other). */
   admit: (row: WakeRow, bot: Bot, opts?: AdmitOpts) => Promise<WakeOutcome>;
-  /** Deliver one message to one bot unless a cap says stop. */
+  /** Store one message to one bot as a queued run (blocked when a cap says stop). */
   wake: (
     botId: Bot["id"],
     conversationId: ConversationId,

@@ -7,7 +7,7 @@ import { sessionScope } from "../hub/session-scope";
 import type { InboundMessage } from "../ports/surface";
 import { createRun } from "./run-create";
 import { answerByText } from "./run-intake-cards";
-import { isConversational } from "./run-rules";
+import { steerIntoBusyScope } from "./run-intake-steer";
 import { ownerRunKey, steeringId, supersede } from "./run-supersede";
 
 /**
@@ -66,7 +66,9 @@ export async function intakeOwnerMessage(
 
 /** One owner message for one addressed bot. */
 interface BotIntake {
+  /** The addressed bot. */
   botId: BotId;
+  /** The conversation the message was sent in. */
   conv: Conversation;
   /** Stored id of the owner's message. */
   messageId: number;
@@ -74,12 +76,13 @@ interface BotIntake {
   typed: string;
   /** The text a run or steering row carries. */
   runText: string;
+  /** Quote and files a new run carries. */
   opts: WakeOpts;
 }
 
 /** The branches for one bot, in the spec's order: question card, busy run of this conversation, new run. */
 async function intakeForBot(ctx: HubContext, t: BotIntake): Promise<void> {
-  const { store, clock } = ctx.deps;
+  const { store } = ctx.deps;
   const bot = await store.bots.get(t.botId);
   const group = t.conv.kind === "group" ? await store.groups.get(t.conv.groupId) : undefined;
   const scope = bot && sessionScope(bot, t.conv, group, ctx.deps.scopeBot);
@@ -99,23 +102,16 @@ async function intakeForBot(ctx: HubContext, t: BotIntake): Promise<void> {
     );
     // A resend of a message that already started a run here: routed already.
     if (busy.some((w) => w.dedupeKey === ownerRunKey(t.messageId, t.botId))) return;
-    if (busy.length) {
-      // Only an owner run takes the row (the running one first); otherwise it is held for a continuation run.
-      const owners = busy.filter(isConversational);
-      const host = owners.find((w) => w.status !== "queued") ?? owners[0];
-      await store.steering.add({
-        id: steeringId(t.messageId, t.botId),
-        messageId: t.messageId,
-        conversationId: t.conv.id,
-        scopeKey: scope.key,
-        ...(host && { wakeId: host.id }),
-        text: t.runText,
-        ...(t.opts.attachments && { attachments: t.opts.attachments }),
-        createdAt: clock.now(),
-      });
-      if (host) ctx.hints.steer(host.id);
-      return;
-    }
+    const steer = {
+      id: steeringId(t.messageId, t.botId),
+      messageId: t.messageId,
+      conversationId: t.conv.id,
+      scopeKey: scope.key,
+      text: t.runText,
+      ...(t.opts.attachments && { attachments: t.opts.attachments }),
+    };
+    // A row whose host ended meanwhile is removed again; the message then starts its own run below.
+    if (busy.length && (await steerIntoBusyScope(ctx, steer, busy))) return;
   }
   // No scope: `createRun` keeps the wake on record as dropped.
   const outcome = await createRun(ctx, {

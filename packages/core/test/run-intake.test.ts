@@ -264,3 +264,60 @@ test("supersede leaves the copies out when the old run was claimed meanwhile", a
   ]);
   expect(store.steerMap.size).toBe(0);
 });
+
+test("a steering row whose host run ends meanwhile becomes a new queued run, no orphan row", async () => {
+  const { hub, store } = setup();
+  await hub.handle({ conversationId: "dc", text: "one" });
+  const host = runs(store.wakeMap)[0];
+  // The host run finishes between the scope read and the steering write.
+  const add = store.steering.add;
+  store.steering.add = async (r) => {
+    if (host) host.status = "done";
+    await add(r);
+  };
+  await hub.handle({ conversationId: "dc", text: "two" });
+  expect(store.steerMap.size).toBe(0);
+  const queued = runs(store.wakeMap).filter((w) => w.status === "queued");
+  expect(queued.map((w) => w.text)).toEqual(["two"]);
+});
+
+test("a held row whose busy bot run ends meanwhile becomes a new queued run", async () => {
+  const { hub, store } = setup();
+  const busy = storedRun({ id: "bot", scopeKey: "editor", status: "running" });
+  await store.wakes.insert({ ...busy, sender: { kind: "bot", botId: "writer" } });
+  const add = store.steering.add;
+  store.steering.add = async (r) => {
+    const w = store.wakeMap.get("bot");
+    if (w) w.status = "done";
+    await add(r);
+  };
+  await hub.handle({ conversationId: "dc", text: "meanwhile" });
+  expect(store.steerMap.size).toBe(0);
+  const queued = runs(store.wakeMap).filter((w) => w.status === "queued");
+  expect(queued.map((w) => w.text)).toEqual(["meanwhile"]);
+});
+
+test("a run is not claimable between its insert and its cap check", async () => {
+  const { hub, store } = setup();
+  const claim = () =>
+    store.wakes.claimNext({ owner: "b:w", bootId: "b", now: 0, leaseMs: 300_000 });
+  const seen: unknown[] = [];
+  const total = store.spend.total;
+  store.spend.total = async (botId, day) => {
+    seen.push(await claim());
+    return total(botId, day);
+  };
+  await hub.handle({ conversationId: "dc", text: "hi" });
+  expect(seen).toEqual([undefined]);
+  expect((await claim())?.text).toBe("hi");
+});
+
+test("steering into queued owner runs binds to the newest one", async () => {
+  const { hub, store } = setup();
+  await store.wakes.insert(storedRun({ id: "old", scopeKey: "editor", status: "queued" }));
+  await store.wakes.insert(
+    storedRun({ id: "new", scopeKey: "editor", status: "queued", createdAt: 1 }),
+  );
+  await hub.handle({ conversationId: "dc", text: "more" });
+  expect([...store.steerMap.values()].map((r) => r.wakeId)).toEqual(["new"]);
+});

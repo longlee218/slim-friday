@@ -2,7 +2,7 @@ import type { Bot, BotId } from "../domain/bot";
 import type { ConversationId } from "../domain/conversation";
 import type { Author } from "../domain/message";
 import type { WakeRow } from "../domain/wake";
-import { block, capsCheck, createRun } from "../runs/run-create";
+import { block, capsCheck, createRun, HOLD_UNTIL } from "../runs/run-create";
 import { priorityOf } from "../runs/run-rules";
 import type { AdmitOpts, HubContext } from "./hub-context";
 import type { WakeOpts, WakeOutcome } from "./hub-types";
@@ -48,6 +48,9 @@ export async function admit(
     await block(ctx, row, blocked);
     return { ok: false, reason: blocked };
   }
+  // A run left held by a crash between its insert and its check is released now.
+  if (row.wakeAt === HOLD_UNTIL)
+    await store.wakes.transition(row.id, row.leaseFence, ["queued"], { wakeAt: row.createdAt });
   ctx.hints.newRun(row.id);
   return { ok: true, wakeId: row.id };
 }

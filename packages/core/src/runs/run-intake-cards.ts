@@ -3,8 +3,11 @@ import type { HubContext } from "../hub/hub-context";
 
 /** One owner message as the card branch sees it. */
 export interface TypedText {
+  /** Scope of the addressed bot. */
   scopeKey: string;
+  /** Conversation the message was sent in. */
   conversationId: string;
+  /** The text as typed. */
   text: string;
   /** Stored id of the owner message. */
   messageId: number;

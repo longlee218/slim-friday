@@ -14,7 +14,7 @@ export interface InboundMessage {
   replyTo?: number;
   /** The stored copies of the attachments. */
   files?: FileRef[];
-  /** Set by the client per send: a resend with the same nonce returns the first stored id and does nothing else. */
+  /** Set by the client per send: a resend with the same nonce stores nothing new, returns the first id and routes it again (idempotent). */
   clientNonce?: string;
 }
 
