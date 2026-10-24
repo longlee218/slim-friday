@@ -1,4 +1,4 @@
-import type { FileStore } from "@friday/core";
+import type { AvatarTarget, FileStore, UploadRow } from "@friday/core";
 import type { ApiDeps } from "./app";
 import { encodeKey } from "./encode-key";
 
@@ -32,12 +32,23 @@ export function createAvatarUrls(
     const t = now();
     const hit = cache.get(key);
     if (hit && t < hit.hourEnd) return hit.url;
+    // Drop entries whose hour has passed, so the cache cannot grow without bound.
+    for (const [k, e] of cache) if (e.hourEnd <= t) cache.delete(k);
     const hourEnd = (Math.floor(t / HOUR_MS) + 1) * HOUR_MS;
     // Valid until one hour after the hour ends.
     const url = files.presignGet(key, Math.ceil((hourEnd + HOUR_MS - t) / 1000));
     cache.set(key, { hourEnd, url });
     return url;
   };
+}
+
+/**
+ * True for an avatar upload row that lives under the target's own key prefix. A config file can
+ * name any `upload:<uuid>` (a bot can write one through BotDesign), so nothing acts on a row
+ * (URL, delete) before this holds.
+ */
+export function isOwnAvatarRow(row: UploadRow | undefined, t: AvatarTarget): row is UploadRow {
+  return row?.purpose === "avatar" && row.key.startsWith(`avatars/${t.kind}s/${t.id}/`);
 }
 
 /** One URL function per app deps, so the hourly cache is shared by every router. */
@@ -47,6 +58,7 @@ const perDeps = new WeakMap<object, ReturnType<typeof createAvatarUrls>>();
 export async function avatarUrlOf(
   deps: Pick<ApiDeps, "files" | "store" | "now" | "cdnUrl">,
   avatar: string | undefined,
+  target: AvatarTarget,
 ): Promise<string | undefined> {
   let urls = perDeps.get(deps);
   if (!urls) {
@@ -54,6 +66,8 @@ export async function avatarUrlOf(
     perDeps.set(deps, urls);
   }
   const id = uploadIdOf(avatar);
-  const key = id === undefined ? undefined : (await deps.store.uploads.get(id))?.key;
-  return urls(avatar, key);
+  // A malformed `upload:` value is not a preset either: no URL.
+  if (id === undefined) return avatar?.startsWith("upload:") ? undefined : urls(avatar);
+  const row = await deps.store.uploads.get(id);
+  return isOwnAvatarRow(row, target) ? urls(avatar, row.key) : undefined;
 }

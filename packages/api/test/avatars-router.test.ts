@@ -157,14 +157,19 @@ test("an unknown upload is NOT_FOUND", async () => {
   ).rejects.toMatchObject({ code: "NOT_FOUND" });
 });
 
-test("a used upload cannot be reused", async () => {
+test("a used upload cannot be reused (its original is gone)", async () => {
   const u = await upload("dev", WEBP);
   await ctx.h.client.config.bots.setAvatar({ id: "dev", uploadId: u });
   await expect(
     ctx.h.client.config.bots.setAvatar({ id: "dev", uploadId: u }),
   ).rejects.toMatchObject({
-    code: "BAD_REQUEST",
+    code: "NOT_FOUND",
   });
+  // The avatar's own (used) row cannot be set again either.
+  const copy = (ctx.h.settings.config.lastAvatar as string).replace("upload:", "");
+  await expect(
+    ctx.h.client.config.bots.setAvatar({ id: "dev", uploadId: copy }),
+  ).rejects.toMatchObject({ code: "BAD_REQUEST" });
 });
 
 test("preset must be a shipped one", async () => {

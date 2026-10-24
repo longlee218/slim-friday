@@ -24,7 +24,11 @@ async function toConversationDto(
   const owner =
     c.kind === "direct" ? await store.bots.get(c.botId) : await store.groups.get(c.groupId);
   if (!owner) return undefined;
-  const avatarUrl = await avatarUrlOf(deps, owner.avatar);
+  const avatarUrl = await avatarUrlOf(
+    deps,
+    owner.avatar,
+    c.kind === "direct" ? { kind: "bot", id: c.botId } : { kind: "group", id: c.groupId },
+  );
   const [last] = await toDtos(store, await store.messages.page(c.id, { limit: 1 }));
   return {
     id: c.id,

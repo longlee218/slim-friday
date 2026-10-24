@@ -8,7 +8,7 @@ import { toGroupDto } from "./to-dto";
 /** One group as a DTO, with its avatar URL. */
 async function groupDto(deps: ApiDeps, id: string) {
   const g = await adminCall(() => deps.settings.config.getGroup(id));
-  return toGroupDto(g, await avatarUrlOf(deps, g.avatar));
+  return toGroupDto(g, await avatarUrlOf(deps, g.avatar, { kind: "group", id: g.id }));
 }
 
 /** Group config over the settings admin. */
@@ -17,7 +17,9 @@ export const groupsRouter = {
     Promise.all(
       context.deps.settings.config
         .listGroups()
-        .map(async (g) => toGroupDto(g, await avatarUrlOf(context.deps, g.avatar))),
+        .map(async (g) =>
+          toGroupDto(g, await avatarUrlOf(context.deps, g.avatar, { kind: "group", id: g.id })),
+        ),
     ),
   ),
   get: authed.config.groups.get.handler(({ input, context }) => groupDto(context.deps, input.id)),

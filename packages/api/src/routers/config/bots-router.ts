@@ -8,7 +8,7 @@ import { toBotDto } from "./to-dto";
 /** One bot as a DTO, with its avatar URL. */
 async function botDto(deps: ApiDeps, id: string) {
   const b = await adminCall(() => deps.settings.config.getBot(id));
-  return toBotDto(b, await avatarUrlOf(deps, b.avatar));
+  return toBotDto(b, await avatarUrlOf(deps, b.avatar, { kind: "bot", id: b.id }));
 }
 
 /** Bot config over the settings admin. */
@@ -17,7 +17,9 @@ export const botsRouter = {
     Promise.all(
       context.deps.settings.config
         .listBots()
-        .map(async (b) => toBotDto(b, await avatarUrlOf(context.deps, b.avatar))),
+        .map(async (b) =>
+          toBotDto(b, await avatarUrlOf(context.deps, b.avatar, { kind: "bot", id: b.id })),
+        ),
     ),
   ),
   get: authed.config.bots.get.handler(({ input, context }) => botDto(context.deps, input.id)),

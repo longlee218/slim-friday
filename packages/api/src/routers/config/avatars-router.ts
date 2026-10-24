@@ -1,13 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { MAX_AVATAR_BYTES } from "@friday/contracts";
-import type { AvatarTarget } from "@friday/core";
+import type { AvatarTarget, UploadRow } from "@friday/core";
 import { ORPCError } from "@orpc/server";
 import { logApiEvent } from "../../api-log";
 import type { ApiDeps } from "../../app";
-import { uploadIdOf } from "../../avatar-url";
+import { isOwnAvatarRow, uploadIdOf } from "../../avatar-url";
 import { authed } from "../../rpc/implementer";
 import { adminCall } from "./admin-error";
-import { checkAvatarUpload } from "./avatar-upload-check";
+import { checkAvatarUpload, copyAvatarUpload, discardCopy } from "./avatar-upload-check";
 
 /** Seconds the browser has to PUT the image. */
 const AVATAR_PUT_SECONDS = 600;
@@ -19,22 +19,37 @@ export interface AvatarChoice {
   none?: boolean;
 }
 
+/** Delete an upload's object, then its row; a failure is logged, never thrown. */
+async function removeUpload(deps: ApiDeps, row: UploadRow) {
+  try {
+    await deps.files.delete(row.key);
+    await deps.store.uploads.delete(row.id);
+  } catch (err) {
+    logApiEvent(deps.log, "avatar.delete_failed", { uploadId: row.id, error: String(err) }, "warn");
+  }
+}
+
 /** Delete the object and row of a replaced upload; a failure is logged, never thrown. */
-async function dropOld(deps: ApiDeps, previous: string | undefined, keep: string | undefined) {
+async function dropOld(deps: ApiDeps, t: AvatarTarget, previous: string | undefined) {
   const old = uploadIdOf(previous);
-  if (old === undefined || old === keep) return;
+  if (old === undefined) return;
   try {
     const row = await deps.store.uploads.get(old);
-    if (row) await deps.files.delete(row.key);
-    await deps.store.uploads.delete(old);
+    // The config file names the old upload and a bot can write that: act only on this target's own avatar rows.
+    if (!isOwnAvatarRow(row, t)) {
+      logApiEvent(deps.log, "avatar.old_skipped", { uploadId: old }, "warn");
+      return;
+    }
+    await removeUpload(deps, row);
   } catch (err) {
     logApiEvent(deps.log, "avatar.delete_failed", { uploadId: old, error: String(err) }, "warn");
   }
 }
 
 /**
- * Set a bot or group avatar from exactly one choice. An upload is checked first, written to the
- * config file, marked used, and only then is the replaced upload deleted.
+ * Set a bot or group avatar from exactly one choice. An upload is checked, copied to a
+ * server-owned key, the copy is written to the config file, and only then are the uploaded
+ * object and the replaced avatar deleted.
  */
 export async function applyAvatar(deps: ApiDeps, t: AvatarTarget, c: AvatarChoice): Promise<void> {
   const choices = [c.preset, c.uploadId, c.none].filter((x) => x !== undefined);
@@ -48,11 +63,24 @@ export async function applyAvatar(deps: ApiDeps, t: AvatarTarget, c: AvatarChoic
       data: { field: "preset" },
     });
   }
-  if (c.uploadId !== undefined) await checkAvatarUpload(deps, t, c.uploadId);
-  const value = c.uploadId !== undefined ? `upload:${c.uploadId}` : (c.preset ?? null);
-  const { previous } = await adminCall(() => config.setAvatar(t, value));
-  if (c.uploadId !== undefined) await deps.store.uploads.markUsed(c.uploadId, null);
-  await dropOld(deps, previous, c.uploadId);
+  // An upload is copied to a server-owned key; only the copy becomes the avatar.
+  let copy: UploadRow | undefined;
+  let original: UploadRow | undefined;
+  if (c.uploadId !== undefined) {
+    original = await checkAvatarUpload(deps, t, c.uploadId);
+    copy = await copyAvatarUpload(deps, t, original);
+  }
+  const value = copy ? `upload:${copy.id}` : (c.preset ?? null);
+  let previous: string | undefined;
+  try {
+    ({ previous } = await adminCall(() => config.setAvatar(t, value)));
+  } catch (err) {
+    if (copy) await discardCopy(deps, copy);
+    throw err;
+  }
+  // The client's PUT URL stays valid for a while; its object is no longer used, so remove it.
+  if (original) await removeUpload(deps, original);
+  await dropOld(deps, t, previous);
 }
 
 /** Avatar presets and upload tickets. */

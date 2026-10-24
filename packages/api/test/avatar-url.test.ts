@@ -69,3 +69,18 @@ test("the link outlives the hour by one hour", () => {
   // 30 min to the hour end + 1 h = 5400 s.
   expect(url("upload:u1", "k.webp")).toContain("exp=5400");
 });
+
+test("cache entries of a past hour are pruned on insert", () => {
+  const { files } = counting();
+  let now = t(10, 5);
+  const url = createAvatarUrls(files, () => now);
+  url("upload:a", "a.webp");
+  now = t(11, 5);
+  url("upload:b", "b.webp");
+  now = t(10, 30); // clock back: a must have been dropped, so it presigns again
+  const presign = files.presignGet.bind(files);
+  let calls = 0;
+  files.presignGet = (k, e, o) => (calls++, presign(k, e, o));
+  url("upload:a", "a.webp");
+  expect(calls).toBe(1);
+});
