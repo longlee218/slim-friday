@@ -44,18 +44,22 @@ export async function postBotFile(
   file: { path: string; name: string },
   caption?: string,
 ): Promise<void> {
-  const bytes = await Bun.file(file.path).bytes();
+  const handle = Bun.file(file.path);
+  const bytes = await handle.bytes();
   const fileId = randomUUID();
   const name = safeName(file.name);
   const key = `files/${conversationId}/${fileId}/${name}`;
   const image = imageType(bytes);
-  const mimeType = image ?? (Bun.file(file.path).type || "application/octet-stream");
+  const mimeType = image ?? (handle.type || "application/octet-stream");
   const dims = image ? sizeOf(bytes) : undefined;
+  const fail = (e: unknown): Error => {
+    deps.log?.warn({ conversationId }, "bot file post failed");
+    return new Error(`Could not store the file: ${e instanceof Error ? e.message : String(e)}`);
+  };
   try {
     await deps.files.put(key, bytes, mimeType);
   } catch (e) {
-    deps.log?.warn({ conversationId }, "bot file upload failed");
-    throw new Error(`Could not store the file: ${e instanceof Error ? e.message : String(e)}`);
+    throw fail(e);
   }
   const row = {
     id: fileId,
@@ -68,16 +72,23 @@ export async function postBotFile(
     source: "bot" as const,
     at: deps.clock.now(),
   };
-  await deps.store.files.insert(row);
-  await postStored(
-    { store: deps.store, surface: deps.surface },
-    {
-      conversationId,
-      author,
-      kind: "file",
-      text: caption ?? "",
-      files: [toFileRef(row)],
-      at: row.at,
-    },
-  );
+  try {
+    await deps.store.files.insert(row);
+    await postStored(
+      { store: deps.store, surface: deps.surface },
+      {
+        conversationId,
+        author,
+        kind: "file",
+        text: caption ?? "",
+        files: [toFileRef(row)],
+        at: row.at,
+      },
+    );
+  } catch (e) {
+    // Best effort: do not leave an object nobody points at. (The store has no way to delete a
+    // files row; a row left behind by a failed post is harmless and swept with its conversation.)
+    await deps.files.delete(key).catch(() => undefined);
+    throw fail(e);
+  }
 }

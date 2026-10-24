@@ -139,3 +139,33 @@ test("postFile with R2 down rejects and stores nothing", async () => {
   expect(store.msgs).toHaveLength(0);
   expect(seen).toHaveLength(0);
 });
+
+test("postFile with a failing insert leaves no object and rejects", async () => {
+  const path = join(dir, "x.png");
+  writeFileSync(path, PNG);
+  store.files.insert = async () => {
+    throw new Error("db down");
+  };
+  await expect(surface.postFile("bot:a", bot, { path, name: "x.png" })).rejects.toThrow(
+    /Could not store the file: db down/,
+  );
+  expect(fileStore.objects.size).toBe(0);
+  expect(store.msgs).toHaveLength(0);
+});
+
+test("a failing unread lookup does not lose the card answer", async () => {
+  store.reads.unread = async () => {
+    throw new Error("db down");
+  };
+  const p = surface.askApproval("bot:a", {
+    botId: "a",
+    botName: "Ann",
+    tool: "Bash",
+    summary: "ls",
+    scope: {},
+    offerAlways: false,
+    timeoutMs: 600_000,
+  });
+  surface.cancelAll();
+  expect(await p).toBe("deny");
+});

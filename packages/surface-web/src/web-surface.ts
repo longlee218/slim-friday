@@ -65,15 +65,24 @@ export class WebSurface implements Surface {
     this.bus.publish({ type: "unread", conversationId: c, unread });
   }
 
+  /** Publish unread without ever failing the caller (a card must always get its answer). */
+  private async publishUnreadSafe(c: ConversationId): Promise<void> {
+    try {
+      await this.publishUnread(c);
+    } catch (e) {
+      this.deps.log?.warn({ conversationId: c, err: String(e) }, "unread event failed");
+    }
+  }
+
   async askApproval(c: ConversationId, card: ApprovalCard): Promise<ApprovalAnswer> {
     const answer = this.cards.askApproval(c, card);
-    await this.publishUnread(c);
+    await this.publishUnreadSafe(c);
     return answer;
   }
 
   async askQuestion(c: ConversationId, card: QuestionCard): Promise<QuestionAnswer | null> {
     const answer = this.cards.askQuestion(c, card);
-    await this.publishUnread(c);
+    await this.publishUnreadSafe(c);
     return answer;
   }
 

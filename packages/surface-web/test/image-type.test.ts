@@ -21,4 +21,5 @@ test("safeName keeps the last part, replaces odd chars, cuts to 100, never empty
   expect(safeName("x".repeat(150))).toHaveLength(100);
   expect(safeName("")).toBe("file");
   expect(safeName("dir/")).toBe("file");
+  for (const dots of ["..", ".", "a/..", "...", "x/."]) expect(safeName(dots)).toBe("file");
 });
