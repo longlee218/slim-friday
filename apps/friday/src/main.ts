@@ -125,6 +125,9 @@ export async function startEngine(
       authSecret,
       ownerEmail,
       log,
+    }).catch(async (err) => {
+      await app.stop();
+      throw err;
     });
     logEvent(log, "engine.started", { agentHome });
     if (!signal.aborted)
