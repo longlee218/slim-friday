@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { Memory, MemoryOwner } from "../src";
+import type { Memory, MemoryOwner, MemorySearcher } from "../src";
 import { flush, makeHub } from "./bot-hub-harness";
 
 /** A memory whose texts the test sets by owner key (`bot:<id>` / `group:<id>`). */
@@ -98,4 +98,24 @@ test("a background task started in a direct chat cannot use group scope while th
     taskId: "t1",
   });
   expect(own).toEqual({ behavior: "allow" });
+});
+
+test("a group turn carries a recalled block searched for the bot and the group", async () => {
+  const { memory } = fakeMemory();
+  const asked: string[] = [];
+  const recall: MemorySearcher = {
+    search: async (o) => {
+      asked.push(o.kind === "bot" ? `bot:${o.botId}` : `group:${o.groupId}`);
+      return [
+        { source: "builtin", where: "2026-10-20", ref: "r", text: `from ${o.kind}`, score: 1 },
+      ];
+    },
+  };
+  const { runtime, surface } = makeHub(memory, { recall });
+  surface.deliver({ conversationId: "gc", text: "what did we decide" });
+  await flush();
+  expect(asked).toEqual(["bot:writer", "group:g"]);
+  expect(runtime.nth(0).sent[0]?.recalled).toContain(
+    "- [2026-10-20] from bot\n- [2026-10-20] from group",
+  );
 });

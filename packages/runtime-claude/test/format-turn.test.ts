@@ -42,3 +42,23 @@ test("a message from the user stays plain", () => {
   );
   expect(text).toBe("[conversation c1] user (hop 0):\nhi");
 });
+
+test("formatTurn puts the recalled block after group memory and before recent messages", () => {
+  const text = formatTurn(
+    {
+      conversationId: "g1",
+      from: { kind: "user" },
+      text: "go",
+      hop: 0,
+      context: [{ conversationId: "g1", author: { kind: "user" }, text: "earlier", at: 1 }],
+      groupMemory: "- team uses bun",
+      recalled: "<recalled_memory>\nx\n</recalled_memory>",
+    },
+    {},
+  );
+  expect(
+    text.startsWith(
+      "Group memory:\n- team uses bun\n\n<recalled_memory>\nx\n</recalled_memory>\n\nRecent messages:\nuser: earlier",
+    ),
+  ).toBe(true);
+});

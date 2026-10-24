@@ -23,7 +23,8 @@ function nameOf(author: Author, names: Record<string, string>): string {
 /**
  * The text a bot reads for one inbound turn: a header naming the conversation, the sender and the hop,
  * then the message. A group turn with context starts with the recent messages; the last context
- * message is left out when it is the triggering message itself. Changed group memory comes first.
+ * message is left out when it is the triggering message itself. Changed group memory comes first, then
+ * recalled notes.
  */
 export function formatTurn(turn: InboundTurn, names: Record<string, string>): string {
   const last = turn.context.at(-1);
@@ -33,6 +34,7 @@ export function formatTurn(turn: InboundTurn, names: Record<string, string>): st
     : "";
   const tickets = turn.tickets ? `${turn.tickets}\n\n` : "";
   const memory = turn.groupMemory ? `Group memory:\n${turn.groupMemory}\n\n` : "";
+  const recalled = turn.recalled ? `${turn.recalled}\n\n` : "";
   // A bot's message is wrapped as untrusted peer content with what is expected of the receiver.
   const body =
     turn.from.kind === "bot"
@@ -44,7 +46,7 @@ export function formatTurn(turn: InboundTurn, names: Record<string, string>): st
         })
       : turn.text;
   const note = turn.interrupted ? `${INTERRUPTED_NOTE}\n\n` : "";
-  return `${tickets}${memory}${block}${note}[conversation ${turn.conversationId}] ${nameOf(turn.from, names)} (hop ${turn.hop}):\n${body}`;
+  return `${tickets}${memory}${recalled}${block}${note}[conversation ${turn.conversationId}] ${nameOf(turn.from, names)} (hop ${turn.hop}):\n${body}`;
 }
 
 /**

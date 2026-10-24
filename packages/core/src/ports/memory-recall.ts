@@ -59,6 +59,11 @@ export interface RecallSource {
   search(q: RecallQuery): Promise<RecallHit[]>;
 }
 
+/** What the hub needs of recall: a search over one owner's memory. */
+export interface MemorySearcher {
+  search(owner: MemoryOwner, text: string, limit?: number): Promise<RecallHit[]>;
+}
+
 /** A past message found by the message index. Higher `score` is better. */
 export interface MessageHit {
   id: number;

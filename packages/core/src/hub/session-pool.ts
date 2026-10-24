@@ -58,6 +58,8 @@ export interface PoolEntry {
   pumping?: boolean;
   /** Set before a deliberate stop, so the end of the event stream is not reported as a crash. */
   stopping: boolean;
+  /** Bot memory text given to this session at open ("" when none). */
+  memoryShown: string;
   /** Group memory text last sent to this session, by group; a new session starts empty. */
   groupMemorySent: Map<string, string>;
   /** Epoch milliseconds the session was opened or resumed. */
@@ -158,6 +160,7 @@ export class SessionPool {
       sentResults: new Set(),
       queue: [],
       stopping: false,
+      memoryShown: spec.memory ?? "",
       groupMemorySent: new Map(),
       openedAt: this.clock.now(),
       conversations: new Set(),

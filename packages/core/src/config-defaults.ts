@@ -16,6 +16,10 @@ export const CORE_DEFAULTS = {
   wakeExpireMs: 86_400_000,
   /** Finished wake rows are kept this long. */
   finishedWakeKeepMs: 259_200_000,
+  /** Most recalled notes added to a turn. */
+  recallNotes: 5,
+  /** Most characters of recalled notes added to a turn. */
+  recallChars: 2000,
 } as const;
 
 export type CoreLimits = typeof CORE_DEFAULTS;

@@ -7,7 +7,8 @@ import type { PermissionGate } from "../permission/permission-gate";
 import type { AgentRuntime } from "../ports/agent-runtime";
 import type { Clock } from "../ports/clock";
 import type { Log } from "../ports/log";
-import type { Memory } from "../ports/memory";
+import type { Memory, MemoryOwner } from "../ports/memory";
+import type { MemorySearcher } from "../ports/memory-recall";
 import type { BotMessenger, SendRequest, SendResult } from "../ports/messenger";
 import type { Store } from "../ports/store";
 import type { InboundMessage, Surface } from "../ports/surface";
@@ -16,6 +17,7 @@ import { ChainGuard } from "../routing/chain-guard";
 import { routeMessage } from "../routing/route-message";
 import { type Ticket, ticketRef } from "../tickets/ticket";
 import { TicketBoard } from "../tickets/ticket-board";
+import { recalledBlock } from "./auto-recall";
 import { dayOf, pumpEvents } from "./event-pump";
 import { changedGroupMemory } from "./group-memory";
 import { type IdleCloseHook, reportIdleClose } from "./idle-close";
@@ -68,6 +70,8 @@ export interface BotHubDeps {
   memory?: Memory;
   /** Where wake events and failures are reported; without it nothing is logged. */
   log?: Log;
+  /** Searches memory for notes that match each turn; without it no `<recalled_memory>` is sent. */
+  recall?: MemorySearcher;
   /** Told (not awaited) about each session `sweepIdle` closes; never about `stop()` or a crash. */
   onIdleClose?: IdleCloseHook;
 }
@@ -350,6 +354,7 @@ export class BotHub implements BotMessenger {
         ? await changedGroupMemory(entry, conv, this.deps.memory)
         : undefined;
       const tickets = await ticketContextFor(store, q.text);
+      const recalled = await this.recalledFor(entry, conv, q.text);
       await this.wakeLog.started(q.wakeId);
       entry.lastActive = clock.now();
       surface.showActivity(q.conversationId, { kind: "typing", botId: entry.bot.id });
@@ -365,6 +370,7 @@ export class BotHub implements BotMessenger {
         ...(tickets && { tickets }),
         ...(q.attachments && { attachments: q.attachments }),
         ...(groupMemory !== undefined && { groupMemory }),
+        ...(recalled && { recalled }),
       });
     } catch (err) {
       // A send that fails (for example an unreadable attachment) must not leave the bot busy for good.
@@ -373,6 +379,17 @@ export class BotHub implements BotMessenger {
       await this.wakeLog.dropped(q.wakeId);
       throw err;
     }
+  }
+
+  /** Recalled notes for a turn: the bot's, then its group's on a group turn; memory already shown is skipped. */
+  private recalledFor(entry: PoolEntry, conv: Conversation | undefined, text: string) {
+    const owners: MemoryOwner[] = [{ kind: "bot", botId: entry.bot.id }];
+    let shown = entry.memoryShown;
+    if (conv?.kind === "group") {
+      owners.push({ kind: "group", groupId: conv.groupId });
+      shown += `\n${entry.groupMemorySent.get(conv.groupId) ?? ""}`;
+    }
+    return recalledBlock(this.deps.recall, owners, text, shown, this.limits);
   }
 
   /** Wake the assignee of a ticket in its own direct conversation; nothing is posted to the channel. */
