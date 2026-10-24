@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DEFAULTS_DIR, FileConfig } from "@friday/config";
 import type { Bot, BotRuntimeSpec, Store } from "@friday/core";
-import { createBotDesignTool, FileMemory } from "@friday/tools";
+import { createBotDesignTool, FileMemory, MemoryRecall } from "@friday/tools";
 import { designContextFor } from "../src/design-context";
 import { sessionTools } from "../src/session-tools";
 
@@ -96,6 +96,7 @@ test("sessionTools adds the design server only for a bot that names it", () => {
   const { config } = FileConfig.load({ defaultsDir: DEFAULTS_DIR, userDir: join(home, "config") });
   const forSpec = sessionTools({
     memory: new FileMemory(join(home, "memory")),
+    recall: new MemoryRecall([]),
     store: {} as unknown as Store,
     home,
     projectsDir: () => join(home, "projects"),

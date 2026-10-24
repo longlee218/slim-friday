@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync } from 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Bot, BotRuntimeSpec, Store } from "@friday/core";
-import { FileMemory, resolveOwner } from "@friday/tools";
+import { FileMemory, MemoryRecall, resolveOwner } from "@friday/tools";
 import {
   commandEnv,
   ownerIdentityEnv,
@@ -49,6 +49,7 @@ function build() {
   const memory = new FileMemory(join(root, "memory"));
   const forSpec = sessionTools({
     memory,
+    recall: new MemoryRecall([]),
     store,
     home: root,
     projectsDir: () => join(root, "projects"),

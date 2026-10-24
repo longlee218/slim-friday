@@ -7,16 +7,31 @@ import {
   BotHub,
   type BotMessenger,
   type Clock,
+  type ConsolidateFn,
+  type MemoryIndexStore,
+  type MemoryOwner,
+  type MessageIndexStore,
   PermissionGate,
   type Store,
   type TicketBoard,
 } from "@friday/core";
-import { openEngineStore } from "@friday/store-sqlite";
+import { openEngineStore, openMemoryIndex } from "@friday/store-sqlite";
 import { type DiscordPort, DiscordSurface, syncChannels } from "@friday/surface-discord";
-import { FileMemory, pruneJournals } from "@friday/tools";
+import {
+  builtinSource,
+  catchUpMessages,
+  consolidateAll,
+  FileMemory,
+  Indexer,
+  MemoryRecall,
+  type MessageSearchDeps,
+  pruneJournals,
+} from "@friday/tools";
 import { appCommands } from "./app-commands";
 import { AVATARS_DIR, resolveAvatar } from "./avatars";
+import { homePaths } from "./config/home-paths";
 import { withFridayDirs } from "./friday-bot";
+import { idleFlush } from "./idle-flush";
 import { type Roster, withRoster } from "./roster";
 import { sharedDirsFor, withSharedDirs } from "./shared-dirs";
 import { systemClock } from "./system-clock";
@@ -42,6 +57,12 @@ export interface RuntimeParts {
   config: FileConfig;
   store: Store;
   memory: FileMemory;
+  /** Search over the bots' and groups' notes. */
+  recall: MemoryRecall;
+  /** Tell the index a memory owner's files changed (after a journal write); a failure is logged, never thrown. */
+  memoryChanged: (owner: MemoryOwner) => void;
+  /** Search over past messages (`MessageSearch`). */
+  messages: MessageSearchDeps;
   surface: DiscordSurface;
 }
 
@@ -57,6 +78,12 @@ export interface AppDeps {
   clock?: Clock;
   /** Bot and group memory (default: files under `<agentHome>/memory`). */
   memory?: FileMemory;
+  /** The memory search index (default: `<agentHome>/data/memory-index.db`; tests pass their own). */
+  memoryIndex?: MemoryIndexStore & MessageIndexStore;
+  /** Notes worth keeping from the transcript of a session closed for being quiet; without it no idle flush. */
+  flushNotes?: (transcript: string) => Promise<string[]>;
+  /** Picks the journal notes to promote into MEMORY.md each day; without it nothing is consolidated. */
+  consolidate?: ConsolidateFn;
   log: Log;
 }
 
@@ -113,7 +140,27 @@ export async function startApp(deps: AppDeps) {
     groups: config.groups,
   };
 
-  const memory = deps.memory ?? new FileMemory(join(agentHome, "memory"));
+  // The memory index mirrors the files: it follows every save and edit, and is rebuilt from the files when damaged.
+  const memoryRoot = deps.memory?.root ?? join(agentHome, "memory");
+  const memoryIndex = deps.memoryIndex ?? openMemoryIndex(homePaths(agentHome).memoryIndex);
+  const indexer = new Indexer(memoryRoot, memoryIndex);
+  const memoryChanged = (owner: MemoryOwner): void => {
+    try {
+      indexer.reindexOwner(owner);
+    } catch (err) {
+      log.error({ error: why(err) }, "memory.index");
+    }
+  };
+  const memory = deps.memory ?? new FileMemory(memoryRoot, undefined, memoryChanged);
+  const recall = new MemoryRecall([builtinSource(memoryIndex)], { log });
+  // Past messages are indexed from the engine db on demand (each search first catches up).
+  const messages: MessageSearchDeps = {
+    index: memoryIndex,
+    catchUp: () =>
+      catchUpMessages(engine.messages, memoryIndex).catch((err) =>
+        log.error({ error: why(err) }, "memory.messages"),
+      ),
+  };
   /** Display names for the surface, refreshed by every sync. */
   const names = new Map<string, string>();
   /** Avatar image file by bot id, refreshed by every sync. */
@@ -133,7 +180,17 @@ export async function startApp(deps: AppDeps) {
   };
   const runtime =
     typeof deps.runtime === "function"
-      ? deps.runtime({ messenger, tickets: () => hub?.tickets, config, store, memory, surface })
+      ? deps.runtime({
+          messenger,
+          tickets: () => hub?.tickets,
+          config,
+          store,
+          memory,
+          recall,
+          memoryChanged,
+          messages,
+          surface,
+        })
       : deps.runtime;
 
   const gate = new PermissionGate({
@@ -151,6 +208,16 @@ export async function startApp(deps: AppDeps) {
     clock,
     gate,
     memory,
+    recall,
+    ...(deps.flushNotes && {
+      onIdleClose: idleFlush({
+        store,
+        memoryRoot,
+        flushNotes: deps.flushNotes,
+        memoryChanged,
+        log,
+      }),
+    }),
     limits: config.limits(),
     log,
   });
@@ -227,33 +294,69 @@ export async function startApp(deps: AppDeps) {
   };
   tick();
 
-  // Old journal files go at start and once a day.
+  // At start and once a day: journal notes are consolidated into MEMORY.md, old journal files go, and the memory
+  // index is brought in step with the files.
   let cancelPrune = () => {};
-  const prune = () => {
+  /** Aborted by `stop()`: a consolidation still waiting on the model is given up. */
+  const daily = new AbortController();
+  /** The daily run in progress (stop waits for it before closing the dbs). */
+  let running: Promise<unknown> = Promise.resolve();
+  const prune = async () => {
+    if (deps.consolidate) {
+      try {
+        const promoted = await consolidateAll(
+          memory,
+          new Date(clock.now()),
+          deps.consolidate,
+          daily.signal,
+        );
+        log.info({ promoted }, "memory.consolidated");
+      } catch (err) {
+        log.error({ error: why(err) }, "memory.consolidate");
+      }
+    }
     try {
-      pruneJournals(join(agentHome, "memory"), new Date(clock.now()));
+      pruneJournals(memoryRoot, new Date(clock.now()));
     } catch (err) {
       log.error({ error: why(err) }, "journal.prune");
+    }
+    try {
+      log.info({ docs: indexer.reconcileAll() }, "memory.index.ready");
+    } catch (err) {
+      log.error({ error: why(err) }, "memory.index");
     }
     engine.wakes
       .deleteFinishedBefore(clock.now() - config.limits().finishedWakeKeepMs)
       .catch((err) => log.error({ error: why(err) }, "wakes.prune"));
-    if (!stopped) cancelPrune = clock.setTimer(JOURNAL_PRUNE_MS, prune);
+    if (!stopped)
+      cancelPrune = clock.setTimer(JOURNAL_PRUNE_MS, () => {
+        running = prune();
+      });
   };
-  prune();
+  // Not awaited: a model call must not hold the start. Then the message index catches up with the engine db.
+  const memoryReady = prune()
+    .then(() => catchUpMessages(engine.messages, memoryIndex))
+    .then((added) => log.info({ added }, "memory.messages.ready"))
+    .catch((err) => log.error({ error: why(err) }, "memory.messages"));
 
   return {
     hub: botHub,
     config,
+    /** Settles when the first consolidation, prune and message catch-up are done (tests wait on it). */
+    memoryReady,
     /** Stop watching and sweeping, cancel open approval cards, stop every session, close the db. */
     async stop(): Promise<void> {
       if (stopped) return;
       stopped = true;
+      daily.abort();
       stopWatching();
       cancelSweep();
       cancelPrune();
       await surface.cancelApprovals();
       await botHub.stopAll();
+      // A daily run may still use the index and the db.
+      await Promise.all([memoryReady, running]);
+      memoryIndex.close();
       engine.close();
     },
   };

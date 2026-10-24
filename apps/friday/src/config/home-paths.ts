@@ -9,6 +9,8 @@ export function homePaths(agentHome: string) {
     logs: join(agentHome, "logs"),
     /** Base path of the daily-rolled app log (JSON lines): files are `<base>.<yyyy-MM-dd>.<n>.jsonl`. */
     appLog: () => join(agentHome, "logs", "app"),
+    /** The memory search index (mirrors `memory/`; deleted and rebuilt from the files when damaged). */
+    memoryIndex: join(agentHome, "data", "memory-index.db"),
     /** Files the owner sent in chat, `inbox/<conversationId>/<epoch ms>/<n>-<name>` (swept after a day). */
     inbox: join(agentHome, "inbox"),
   };

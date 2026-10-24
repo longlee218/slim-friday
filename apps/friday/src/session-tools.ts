@@ -13,6 +13,8 @@ import {
   effectsServer,
   type FileMemory,
   MEMORY_MCP_SERVER,
+  type MemoryRecall,
+  type MessageSearchDeps,
   memoryServer,
   TICKETS_MCP_SERVER,
   type ToolSessionContext,
@@ -84,6 +86,10 @@ function readGlobalGit(key: string): string | undefined {
 /** What the per-session tools are built from. */
 export interface SessionToolsDeps {
   memory: FileMemory;
+  /** Search over the notes (`MemorySearch`). */
+  recall: MemoryRecall;
+  /** Search over past messages (`MessageSearch`); without it the tool is not offered. */
+  messages?: MessageSearchDeps;
   store: Pick<Store, "conversations" | "groups" | "bots">;
   /** The agent home (the trash lives under it). */
   home: string;
@@ -142,6 +148,7 @@ export function toolContext(
       return id ? store.conversations.get(id) : undefined;
     },
     group: (id) => store.groups.get(id),
+    direct: () => store.conversations.direct(spec.bot.id),
   };
 }
 
@@ -181,7 +188,12 @@ export function sessionTools(deps: SessionToolsDeps) {
       runCommand(cmd, cwd, { ...env, ...extra }));
   return (spec: BotRuntimeSpec) => {
     const servers: Record<string, ReturnType<typeof memoryServer>> = {
-      [MEMORY_MCP_SERVER]: memoryServer(deps.memory, toolContext(spec, deps.store)),
+      [MEMORY_MCP_SERVER]: memoryServer(
+        deps.memory,
+        deps.recall,
+        toolContext(spec, deps.store),
+        deps.messages,
+      ),
     };
     const { workspaces } = spec.bot;
     // Every bot may send a file from its workspaces or its scratch dir (`<home>/scratch/<botId>`, as in `main.ts`).

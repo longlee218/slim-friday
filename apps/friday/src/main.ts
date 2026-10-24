@@ -1,6 +1,11 @@
 import { join } from "node:path";
 import { TEMPLATES_DIR } from "@friday/config";
-import { ClaudeRuntime, extractNotes, isSensitivePath } from "@friday/runtime-claude";
+import {
+  ClaudeRuntime,
+  consolidateNotes,
+  extractNotes,
+  isSensitivePath,
+} from "@friday/runtime-claude";
 import { connectDiscord } from "@friday/surface-discord";
 import type { AgentConfig } from "../../../src/config/agent-config";
 import { HAIKU_SUMMARY_MODEL } from "../../../src/config/model-ids";
@@ -63,6 +68,8 @@ export async function startEngine(
         mcpServersFor: sessionTools({
           design: designContextFor({ config: parts.config, agentHome }),
           memory: parts.memory,
+          recall: parts.recall,
+          messages: parts.messages,
           store: parts.store,
           messenger: parts.messenger,
           tickets: parts.tickets,
@@ -84,10 +91,20 @@ export async function startEngine(
               oauthToken: config.oauthToken,
             }),
           log,
+          parts.memoryChanged,
         ),
       });
     };
-    const app = await startApp({ port, runtime, agentHome, log });
+    /** The one-turn Haiku call shared by the note extraction and the consolidation. */
+    const haiku = { model: HAIKU_SUMMARY_MODEL, env, oauthToken: config.oauthToken };
+    const app = await startApp({
+      port,
+      runtime,
+      agentHome,
+      log,
+      flushNotes: (transcript) => extractNotes(transcript, haiku),
+      consolidate: (memory, notes) => consolidateNotes({ memory, notes }, haiku),
+    });
     logEvent(log, "engine.started", { agentHome });
     if (!signal.aborted)
       await new Promise<void>((r) => signal.addEventListener("abort", () => r(), { once: true }));
