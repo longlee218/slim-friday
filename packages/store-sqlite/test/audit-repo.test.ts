@@ -29,3 +29,9 @@ test("recent returns the stored fields", async () => {
     { at: 5, botId: "b1", tool: "mcp__a__t", outcome: "allow", answer: "once", reason: "r" },
   ]);
 });
+
+test("a non-finite limit uses 1", async () => {
+  const s = openEngineStore(":memory:");
+  for (let at = 1; at <= 3; at++) await s.audit.append({ ...row, at, tool: "mcp__a__t" });
+  expect(await s.audit.recent({ toolPrefix: "mcp__a__", limit: Number.NaN })).toHaveLength(1);
+});

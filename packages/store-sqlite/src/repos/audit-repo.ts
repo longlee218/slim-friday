@@ -19,7 +19,7 @@ export function auditRepo(db: BunSQLiteDatabase): Store["audit"] {
         .run();
     },
     async recent({ toolPrefix, limit }) {
-      const n = Math.min(100, Math.max(1, Math.floor(limit)));
+      const n = Math.min(100, Math.max(1, Number.isFinite(limit) ? Math.floor(limit) : 1));
       // substr, not LIKE: `_` and `%` in a prefix such as `mcp__gh__` must not act as wildcards.
       const rows = db
         .select()

@@ -47,24 +47,30 @@ export function createMcpProbe(deps: {
         },
       }),
     };
-    const q = run({
-      prompt,
-      options: {
-        mcpServers: { [name]: toSdkServer(server) },
-        settingSources: [],
-        tools: [],
-        env: deps.env,
-      },
-    });
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let q: ReturnType<typeof query> | undefined;
     try {
-      // A timer, not the clock: the runtime reads no wall clock.
+      q = run({
+        prompt,
+        options: {
+          mcpServers: { [name]: toSdkServer(server) },
+          settingSources: [],
+          tools: [],
+          env: deps.env,
+        },
+      });
+      // A timer, not the clock; every wait is raced against it so a stalled SDK cannot hold the probe.
       let expired = false;
-      timer = setTimeout(() => {
-        expired = true;
-      }, timeoutMs);
+      const timeout = new Promise<"timeout">((r) => {
+        timer = setTimeout(() => {
+          expired = true;
+          r("timeout");
+        }, timeoutMs);
+      });
       while (!expired) {
-        const s = (await q.mcpServerStatus()).find((x) => x.name === name);
+        const list = await Promise.race([q.mcpServerStatus(), timeout]);
+        if (list === "timeout") break;
+        const s = list.find((x) => x.name === name);
         if (s && s.status !== "pending") {
           if (s.status === "connected") {
             return { status: "connected", tools: (s.tools ?? []).map((t) => t.name) };
@@ -72,7 +78,7 @@ export function createMcpProbe(deps: {
           if (s.status === "needs-auth") return { status: "needs-auth" };
           return { status: "failed", error: (s.error ?? s.status).slice(0, MAX_ERROR_CHARS) };
         }
-        await Bun.sleep(POLL_MS);
+        await Promise.race([Bun.sleep(POLL_MS), timeout]);
       }
       return { status: "failed", error: "timed out" };
     } catch (e) {
@@ -82,8 +88,18 @@ export function createMcpProbe(deps: {
       };
     } finally {
       clearTimeout(timer);
-      await q.interrupt().catch(() => {});
+      // Close the input first; interrupt and close are fired, never awaited (they may hang).
       finish();
+      const live = q;
+      if (live) {
+        for (const stop of [() => live.interrupt(), () => live.close()]) {
+          try {
+            Promise.resolve(stop()).catch(() => {});
+          } catch {
+            /* already gone */
+          }
+        }
+      }
     }
   };
 }
