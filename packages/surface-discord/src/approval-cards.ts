@@ -47,7 +47,10 @@ export class ApprovalCards {
       { id: `appr:${this.nonce}:${n}:deny`, label: "Deny", style: "danger" },
     ];
     // The summary comes from the model: flatten backticks and line breaks so it cannot fake the card or its outcome.
-    const summary = card.summary.replace(/[`\r\n]+/g, " ").slice(0, 1200);
+    const flat = card.summary.replace(/[`\r\n]+/g, " ");
+    // A cut summary says so: the owner must not read the visible part as the whole request.
+    const summary =
+      flat.length > 1200 ? `${flat.slice(0, 1200)} [CUT: ${flat.length - 1200} more chars]` : flat;
     const text = `**${card.botName}** wants to run \`${summary}\``;
     const messageId = await this.port.sendButtons(channelId, text, buttons);
     return new Promise((settle) => {

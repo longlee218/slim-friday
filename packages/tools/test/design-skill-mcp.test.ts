@@ -206,3 +206,34 @@ test("set_mcp refuses references to the engine's own secrets and references outs
     expect((await call(t, { action: "set_mcp", id: "x", server })).isError).toBe(true);
   expect((await call(t, { action: "set_mcp", id: "x", server: stdio })).isError).toBeUndefined();
 });
+
+test("set_mcp refuses an env ref the engine keeps (engine deny list)", async () => {
+  const { ctx } = setup();
+  const t = createBotDesignTool(ctx);
+  for (const n of ["FIRECRAWL_API_KEY", "GITHUB_PERSONAL_ACCESS_TOKEN"]) {
+    const server = { ...stdio, env: { K: `$${"{"}${n}}` } };
+    expect((await call(t, { action: "set_mcp", id: "some", server })).isError).toBe(true);
+  }
+});
+
+test("install_skill moves the clone aside and leaves no staging dir; a refused call keeps the clone", async () => {
+  const { ctx, scratchDir, configDir } = setup();
+  const t = createBotDesignTool(ctx);
+  const from = clone(scratchDir);
+  const clash = await call(t, { action: "install_skill", id: "shipped-one", from, source: "a/b" });
+  expect(clash.isError).toBe(true);
+  expect(existsSync(from)).toBe(true);
+  expect(
+    (await call(t, { action: "install_skill", id: "pick", from, source: "a/b" })).isError,
+  ).toBeUndefined();
+  expect(existsSync(from)).toBe(false);
+  expect(existsSync(join(configDir, ".staging", `pick-${process.pid}`))).toBe(false);
+});
+
+test("write_skill cannot replace a shipped skill, even with overwrite", async () => {
+  const { ctx } = setup();
+  const t = createBotDesignTool(ctx);
+  const files = [{ path: "SKILL.md", content: skill("shipped-one") }];
+  const r = await call(t, { action: "write_skill", id: "shipped-one", files, overwrite: true });
+  expect(r.isError).toBe(true);
+});

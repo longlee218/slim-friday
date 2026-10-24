@@ -30,6 +30,8 @@ export interface DesignContext {
   checkBot(id: string, text: string): void;
   checkGroup(id: string, text: string): void;
   checkMcp(text: string): void;
+  /** True when an env var is one the engine keeps for itself (its tokens and settings): never given to a server. */
+  envDenied(name: string): boolean;
   /** The commit a cloned repo is at (git with hooks and config off), or undefined. */
   gitHead(dir: string): Promise<string | undefined>;
 }

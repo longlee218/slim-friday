@@ -42,6 +42,9 @@ export function writeBot(ctx: DesignContext, a: DesignArgs): string {
   if (a.autonomy === "autonomous")
     throw new Refused("autonomy autonomous is for the owner to set by hand.");
   const catalog = new Set(ctx.catalogTools());
+  // A repeated name only pads the approval card, which is cut at a fixed length.
+  if (new Set(a.tools).size !== (a.tools ?? []).length)
+    throw new Refused("tools lists a name twice.");
   for (const t of a.tools ?? []) {
     // The design tools belong to the Friday bot only.
     if (t === "mcp__design" || t.startsWith("mcp__design__"))

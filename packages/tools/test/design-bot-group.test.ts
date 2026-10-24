@@ -157,3 +157,16 @@ test("write_group refuses an existing group without overwrite", async () => {
   expect((await call(t, g)).isError).toBe(true);
   expect((await call(t, { ...g, overwrite: true })).isError).toBeUndefined();
 });
+
+test("write_bot refuses a tool named twice (padding of the approval card)", async () => {
+  const { ctx } = setup();
+  const t = createBotDesignTool(ctx);
+  const r = await call(t, {
+    action: "write_bot",
+    id: "dup",
+    name: "Dup",
+    instructions: "Do it.",
+    tools: ["Read", "Read"],
+  });
+  expect(r.isError).toBe(true);
+});

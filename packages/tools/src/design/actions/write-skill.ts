@@ -23,6 +23,9 @@ export function skillName(value: string | undefined): string {
 
 /** Refuse a skill that already exists (owner or shipped) unless `overwrite` is set. */
 export function refuseExisting(ctx: DesignContext, name: string, overwrite?: boolean): void {
+  // A shipped skill carries the Friday bot's own guidance: an owner copy would shadow it behind a card that shows no file.
+  if (listSkills(ctx.skillDirs.slice(1)).some((s) => s.name.toLowerCase() === name.toLowerCase()))
+    throw new Refused(`"${name}" is a shipped skill and cannot be replaced; pick another name.`);
   if (
     !overwrite &&
     listSkills(ctx.skillDirs).some((s) => s.name.toLowerCase() === name.toLowerCase())

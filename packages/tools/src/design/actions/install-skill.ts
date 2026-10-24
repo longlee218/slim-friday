@@ -4,12 +4,15 @@ import {
   existsSync,
   fstatSync,
   lstatSync,
+  mkdirSync,
   openSync,
   readdirSync,
   readFileSync,
   realpathSync,
+  renameSync,
+  rmSync,
 } from "node:fs";
-import { isAbsolute, join, relative, sep } from "node:path";
+import { dirname, isAbsolute, join, relative, sep } from "node:path";
 import { resolveReal } from "../../effects/workspace-paths";
 import type { DesignArgs } from "../design-args";
 import type { DesignContext } from "../design-context";
@@ -99,19 +102,30 @@ export async function installSkill(ctx: DesignContext, a: DesignArgs): Promise<s
   if (!strictlyInside(ctx.scratchDir, real))
     throw new Refused("the skill dir must lie inside your scratch dir.");
   if (!existsSync(join(real, "SKILL.md"))) throw new Refused("SKILL.md not found in that dir.");
-  const files = collect(real);
-  const front = skillFront(files.get("SKILL.md")?.toString("utf8") ?? "");
-  if (front.name !== name)
-    throw new Refused(`the SKILL.md name is "${front.name ?? ""}", not "${name}".`);
-  if (!front.description) throw new Refused("SKILL.md has no description.");
+  // Refuse before the move, so a refused call leaves the clone where it is.
   refuseExisting(ctx, name, a.overwrite);
+  // Move the dir to a place the bot cannot write, so a background process of the bot cannot swap a file or a parent
+  // dir for a link while it is read. The sha is taken first: the clone's history stays behind.
   const sha = (await ctx.gitHead(real)) ?? "unknown";
-  replaceDir(join(ctx.configDir, "skills", name), files);
-  // The lock records where each installed skill came from; a hand edit is kept, only this entry changes.
-  const lockFile = join(ctx.configDir, "skills", "skills.lock.yaml");
-  const lock = existsSync(lockFile)
-    ? ((Bun.YAML.parse(readFileSync(lockFile, "utf8")) as Record<string, unknown> | null) ?? {})
-    : {};
-  atomicWrite(lockFile, toYaml({ ...lock, [name]: { source, sha } }));
-  return `Installed skill ${name} (${files.size} files) from ${source} at ${sha}.`;
+  const staging = join(ctx.configDir, ".staging", `${name}-${process.pid}`);
+  rmSync(staging, { recursive: true, force: true });
+  mkdirSync(dirname(staging), { recursive: true });
+  renameSync(real, staging);
+  try {
+    const files = collect(staging);
+    const front = skillFront(files.get("SKILL.md")?.toString("utf8") ?? "");
+    if (front.name !== name)
+      throw new Refused(`the SKILL.md name is "${front.name ?? ""}", not "${name}".`);
+    if (!front.description) throw new Refused("SKILL.md has no description.");
+    replaceDir(join(ctx.configDir, "skills", name), files);
+    // The lock records where each installed skill came from; a hand edit is kept, only this entry changes.
+    const lockFile = join(ctx.configDir, "skills", "skills.lock.yaml");
+    const lock = existsSync(lockFile)
+      ? ((Bun.YAML.parse(readFileSync(lockFile, "utf8")) as Record<string, unknown> | null) ?? {})
+      : {};
+    atomicWrite(lockFile, toYaml({ ...lock, [name]: { source, sha } }));
+    return `Installed skill ${name} (${files.size} files) from ${source} at ${sha}.`;
+  } finally {
+    rmSync(staging, { recursive: true, force: true });
+  }
 }

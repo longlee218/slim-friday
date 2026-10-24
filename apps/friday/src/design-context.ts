@@ -8,6 +8,7 @@ import {
   RESERVED_BOT_IDS,
 } from "@friday/config";
 import type { BotRuntimeSpec } from "@friday/core";
+import { isChildEnvDenied } from "@friday/runtime-claude";
 import { type DesignContext, type EffectsContext, GIT_HARDEN, GIT_RUN_ENV } from "@friday/tools";
 import { skillDirs } from "./skills-dirs";
 
@@ -39,6 +40,7 @@ export function designContextFor(deps: DesignDeps) {
     checkBot: (id, text) => void parseBotFile(id, text),
     checkGroup: (id, text) => void parseGroupFile(id, text),
     checkMcp: (text) => void parseMcpFile(text),
+    envDenied: isChildEnvDenied,
     // Git runs with hooks and program-running config off, in a clone the bot made itself.
     gitHead: async (dir) => {
       const r = await run(["git", ...GIT_HARDEN, "rev-parse", "HEAD"], dir, GIT_RUN_ENV);

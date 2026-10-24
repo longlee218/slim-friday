@@ -9,8 +9,6 @@ import { atomicWrite, ENV_REF_EXAMPLE, need, Refused, toYaml } from "../design-u
 const RESERVED = ["memory", "effects", "chat", "design"];
 /** A server name: part of every tool name of that server. */
 const NAME_RE = /^[a-z][a-z0-9-]{0,31}$/;
-/** Env names the engine keeps for itself (its own tokens and settings). */
-const ENGINE_ENV = /^(CLAUDE_CODE_|ANTHROPIC_|DISCORD_|OWNER_DISCORD|AGENT_HOME)/;
 /** A value that is only an env reference. */
 const ENV_REF = /^\$\{[A-Za-z_][A-Za-z0-9_]*\}$/;
 
@@ -28,7 +26,7 @@ export function setMcp(ctx: DesignContext, a: DesignArgs): string {
       throw new Refused(
         `env and header values must be a ${ENV_REF_EXAMPLE} reference, never the value.`,
       );
-    if (ENGINE_ENV.test(v.slice(2, -1)))
+    if (ctx.envDenied(v.slice(2, -1)))
       throw new Refused(`${v} is one of the engine's own secrets and cannot be given to a server.`);
   }
   for (const v of [...(s.args ?? []), s.url ?? "", s.command ?? ""]) {

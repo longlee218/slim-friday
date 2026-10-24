@@ -58,6 +58,10 @@ export function setup(over: Partial<DesignContext> = {}) {
     checkMcp: (text) => {
       if (!text.includes("servers:")) throw new Error("no servers");
     },
+    envDenied: (n) =>
+      /^(CLAUDE_CODE_|ANTHROPIC_|DISCORD_|OWNER_DISCORD|AGENT_HOME|FIRECRAWL_API_KEY|GITHUB_PERSONAL_ACCESS_TOKEN)/.test(
+        n,
+      ),
     gitHead: async () => "abc123",
     ...over,
   };
