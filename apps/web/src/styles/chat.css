@@ -1,0 +1,85 @@
+/* Chat messages, ported from docs/design/prototype/app.css (transcript, relay, files, gallery, viewer). */
+.day { text-align: center; font-size: 11.5px; color: var(--label-3); margin: 8px 0 18px; font-weight: 500; }
+.msg { position: relative; display: flex; gap: 12px; padding: 6px 0; }
+.msg.new { animation: msgIn 340ms var(--ease); }
+.msg .av { width: 30px; height: 30px; margin-top: 2px; }
+.msg .body { min-width: 0; flex: 1; }
+.msg .who { display: flex; align-items: baseline; gap: 8px; margin-bottom: 2px; }
+.msg .who b { font-weight: 650; font-size: 13.5px; }
+.msg .who time { font-size: 11.5px; color: var(--label-3); }
+.md { font-size: 14px; line-height: 1.55; }
+.msg.owner { justify-content: flex-end; }
+.msg.owner > div { display: flex; flex-direction: column; align-items: flex-end; max-width: 80%; }
+.msg.owner > div .bubble { max-width: 100%; }
+.bubble { max-width: min(560px, 80%); background: var(--owner-bubble); color: var(--owner-ink); padding: 8px 13px; border-radius: 18px 18px 6px 18px; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; white-space: pre-wrap; }
+.bubble + .bubble { margin-top: 4px; }
+.at { font-weight: 600; background: rgba(255, 255, 255, .22); padding: 0 4px; border-radius: 4px; }
+.owner-meta { text-align: right; font-size: 11.5px; color: var(--label-3); margin: 2px 4px 6px; }
+.owner-meta .link-btn { border: 0; background: none; padding: 0; font: inherit; color: var(--tint-text); font-weight: 600; }
+.route-meta { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; color: var(--label-2); }
+.route-meta .av { width: 14px; height: 14px; }
+.quote { display: flex; align-items: center; gap: 6px; max-width: 100%; margin-bottom: 4px; padding: 4px 10px; border-left: 3px solid var(--tint); border-radius: 6px; background: var(--fill); font-size: 12px; color: var(--label-2); }
+.quote b { color: var(--label); font-weight: 600; flex: none; }
+.quote span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.quote .av { width: 16px; height: 16px; }
+.sys { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 12px; color: var(--label-2); padding: 8px 0; }
+.sys svg { width: 14px; height: 14px; color: var(--label-3); }
+
+/* Reply and Copy sit under the message, quiet until hover or focus; the space stays reserved. */
+.msg .msg-acts { display: flex; gap: 2px; width: max-content; margin: 4px 0 -4px -6px; opacity: 0; pointer-events: none; transition: opacity var(--t-fast); }
+.msg:hover .msg-acts, .msg:focus-within .msg-acts { opacity: 1; pointer-events: auto; }
+.msg-acts .ib { width: 26px; height: 26px; color: var(--label-3); }
+.msg-acts .ib:hover { color: var(--label); }
+@media (hover: none) { .msg-acts { display: none; } }
+
+/* Relay card: one bot asking, handing off to or answering another. */
+.relay { display: flex; gap: 10px; align-items: flex-start; margin: 6px 0 6px 42px; padding: 9px 12px; border-radius: 12px; background: var(--well); max-width: 560px; font-size: 13px; }
+:root[data-theme="dark"] .relay { background: #242427; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .relay { background: #242427; } }
+.relay .pair { display: inline-flex; align-items: center; gap: 4px; flex: none; margin-top: 1px; }
+.relay .pair .av { width: 20px; height: 20px; }
+.relay .pair svg { width: 13px; height: 13px; color: var(--label-3); }
+.relay .rl1 { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.relay .rl1 b { font-weight: 600; }
+.relay .rl2 { color: var(--label); margin-top: 2px; }
+.relay .rl3 { font-size: 12px; color: var(--label-2); margin-top: 4px; display: inline-flex; align-items: center; gap: 5px; }
+.relay .rl3 svg { width: 12px; height: 12px; }
+.relay > div:last-child { min-width: 0; overflow-wrap: anywhere; }
+
+/* File card */
+.file { display: flex; align-items: center; gap: 10px; width: 300px; max-width: 100%; padding: 10px 12px; margin: 6px 0; border-radius: 12px; border: 1px solid var(--sep-strong); background: var(--raised); transition: background var(--t-fast); }
+.file:hover { background: var(--well); }
+.file .fi { width: 32px; height: 38px; border-radius: 5px; background: var(--tint-soft); color: var(--tint); display: grid; place-items: center; flex: none; }
+.file .fn { font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file .fs { font-size: 12px; color: var(--label-2); }
+.file .grow { flex: 1; min-width: 0; }
+
+/* Image gallery */
+.gallery { display: grid; gap: 6px; margin-top: 8px; max-width: 520px; }
+.gallery.n1 { max-width: 460px; }
+.gallery.n2, .gallery.n4 { grid-template-columns: 1fr 1fr; }
+.gallery.n3 { grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 1fr; }
+.gallery.n3 .shot:first-child { grid-row: span 2; }
+.shot { border: 0; padding: 0; border-radius: 10px; overflow: hidden; background: var(--well); box-shadow: 0 0 0 1px var(--sep); cursor: zoom-in; transition: transform var(--t-fast) var(--ease), box-shadow var(--t-fast); }
+.shot:hover { box-shadow: 0 0 0 1px var(--sep-strong), 0 6px 18px -8px rgba(0, 0, 0, .25); }
+.shot:active { transform: scale(.985); }
+.shot img, .shot-wait { display: block; width: 100%; height: 100%; object-fit: cover; aspect-ratio: 16 / 10; }
+.gallery.n1 .shot img { aspect-ratio: auto; }
+
+/* Full-window image viewer (a Base UI Dialog popup); [data-ending-style] is the 200 ms fade-out. */
+@keyframes fadeIn { from { opacity: 0; } }
+@keyframes zoomIn { from { transform: scale(.94); opacity: 0; } }
+.viewer { position: fixed; inset: 0; z-index: 90; background: rgba(0, 0, 0, .86); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); display: flex; flex-direction: column; color: #f2f2f5; animation: fadeIn 200ms var(--ease); outline: 0; }
+.viewer[data-ending-style] { animation: fadeOut 200ms var(--ease) forwards; }
+.vw-top { display: flex; align-items: center; gap: 8px; padding: 12px 16px; padding-top: calc(env(safe-area-inset-top, 0px) + 12px); font-size: 13px; }
+.vw-top .grow { flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.vw-top .grow span:last-child { color: rgba(255, 255, 255, .6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.viewer .ib { color: #f2f2f5; }
+.viewer .ib:hover { background: rgba(255, 255, 255, .12); }
+.vw-stage { flex: 1; display: flex; align-items: center; justify-content: center; gap: 12px; padding: 8px 16px 24px; min-height: 0; }
+.vw-stage img { max-width: min(1100px, 100%); max-height: 100%; border-radius: 8px; box-shadow: 0 20px 60px rgba(0, 0, 0, .5); animation: zoomIn 260ms var(--ease); }
+.vw-msg { color: rgba(255, 255, 255, .7); font-size: 13px; }
+.vw-nav { width: 40px; height: 40px; border-radius: 50%; background: rgba(255, 255, 255, .1); flex: none; }
+.vw-nav:disabled { opacity: .3; }
+.vw-count { text-align: center; padding-bottom: 18px; font-size: 12px; color: rgba(255, 255, 255, .6); }
+@media (max-width: 639px) { .vw-nav { display: none; } }
