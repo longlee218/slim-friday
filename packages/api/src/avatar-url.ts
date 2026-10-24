@@ -69,5 +69,6 @@ export async function avatarUrlOf(
   // A malformed `upload:` value is not a preset either: no URL.
   if (id === undefined) return avatar?.startsWith("upload:") ? undefined : urls(avatar);
   const row = await deps.store.uploads.get(id);
-  return isOwnAvatarRow(row, target) ? urls(avatar, row.key) : undefined;
+  // Only a server-made copy (`used`): a pending client upload keeps its client-chosen type and a live PUT URL.
+  return isOwnAvatarRow(row, target) && row.state === "used" ? urls(avatar, row.key) : undefined;
 }
