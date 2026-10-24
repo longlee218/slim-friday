@@ -22,6 +22,8 @@ export interface InboundTurn {
   interrupted?: boolean;
   /** The group's memory; set on a group turn only when it changed since the bot last saw it. */
   groupMemory?: string;
+  /** `<tickets_referenced>` block for the tickets the message names. */
+  tickets?: string;
   /** Files the user attached to this message; only the turn that answers that message carries them, never a hand-off. */
   attachments?: Attachment[];
 }

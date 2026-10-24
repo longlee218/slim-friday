@@ -12,6 +12,8 @@ function base(w: WakeRow) {
     intent: w.intent,
     hop: w.hop,
     attempts: w.attempts,
+    ...(w.ticketId && { ticketId: w.ticketId }),
+    ...(w.rewake && { rewake: true }),
   };
 }
 

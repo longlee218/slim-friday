@@ -14,9 +14,18 @@ import type { InboundMessage, Surface } from "../ports/surface";
 import { clampBotMessage, nextHop } from "../routing/bot-messages";
 import { ChainGuard } from "../routing/chain-guard";
 import { routeMessage } from "../routing/route-message";
+import { type Ticket, ticketRef } from "../tickets/ticket";
+import { TicketBoard } from "../tickets/ticket-board";
 import { dayOf, pumpEvents } from "./event-pump";
 import { changedGroupMemory } from "./group-memory";
 import { type PoolEntry, type QueuedWake, SessionPool } from "./session-pool";
+import {
+  AUTO_BLOCK_COMMENT,
+  isOpenWork,
+  ticketContextFor,
+  ticketRewakeText,
+  ticketWakeText,
+} from "./ticket-support";
 import { WakeLog } from "./wake-log";
 
 /** Text of an error value. */
@@ -35,6 +44,8 @@ interface WakeOpts {
   parentWakeId?: string;
   /** Check the hop cap as if at the last allowed hop (a result going back to the bot that gave the work). */
   exemptFromHops?: boolean;
+  ticketId?: string;
+  rewake?: boolean;
 }
 
 /** What /status shows for one running bot. */
@@ -67,6 +78,8 @@ export class BotHub implements BotMessenger {
   private guard: ChainGuard;
   private limits: CoreLimits;
   private wakeLog: WakeLog;
+  /** The shared ticket board; assigning a ticket wakes its assignee through this hub. */
+  readonly tickets: TicketBoard;
   /** Caps already announced; cleared when the user writes again in that conversation. */
   private noticed = new Set<string>();
 
@@ -75,6 +88,11 @@ export class BotHub implements BotMessenger {
     this.pool = new SessionPool(deps.runtime, deps.store, deps.clock, deps.gate, deps.memory);
     this.guard = new ChainGuard(deps.clock, this.limits);
     this.wakeLog = new WakeLog(deps.store, deps.clock, deps.log);
+    this.tickets = new TicketBoard({
+      store: deps.store,
+      clock: deps.clock,
+      wake: (t, botId) => this.wakeForTicket(t, botId),
+    });
   }
 
   /** Start listening to the surface. */
@@ -187,6 +205,8 @@ export class BotHub implements BotMessenger {
       hop,
       text,
       ...(opts.handoff && { handoff: true }),
+      ...(opts.ticketId && { ticketId: opts.ticketId }),
+      ...(opts.rewake && { rewake: true }),
       ...(opts.attachments && { attachments: opts.attachments }),
       ...(opts.chainId && { chainId: opts.chainId }),
       ...(opts.parentWakeId && { parentWakeId: opts.parentWakeId }),
@@ -241,6 +261,8 @@ export class BotHub implements BotMessenger {
       hop,
       intent: row.intent,
       ...(row.handoff && { handoff: true }),
+      ...(row.ticketId && { ticketId: row.ticketId }),
+      ...(row.rewake && { rewake: true }),
       ...(opts.interrupted && { interrupted: true }),
       ...(row.attachments && { attachments: row.attachments }),
     };
@@ -308,6 +330,7 @@ export class BotHub implements BotMessenger {
     // Claim the bot before the first await: a wake that arrives meanwhile sees it busy and waits.
     entry.current = { conversationId: q.conversationId, hop: q.hop };
     entry.currentWakeId = q.wakeId;
+    entry.currentTicket = q.ticketId ? { id: q.ticketId, rewake: q.rewake === true } : undefined;
     entry.turnTexts = [];
     entry.sentResults = new Set();
     entry.busy = true;
@@ -320,6 +343,7 @@ export class BotHub implements BotMessenger {
       const groupMemory = conv
         ? await changedGroupMemory(entry, conv, this.deps.memory)
         : undefined;
+      const tickets = await ticketContextFor(store, q.text);
       await this.wakeLog.started(q.wakeId);
       entry.lastActive = clock.now();
       surface.showActivity(q.conversationId, { kind: "typing", botId: entry.bot.id });
@@ -332,6 +356,7 @@ export class BotHub implements BotMessenger {
         ...(q.handoff && { handoff: true }),
         ...(q.interrupted && { interrupted: true }),
         context,
+        ...(tickets && { tickets }),
         ...(q.attachments && { attachments: q.attachments }),
         ...(groupMemory !== undefined && { groupMemory }),
       });
@@ -341,6 +366,58 @@ export class BotHub implements BotMessenger {
       entry.currentWakeId = undefined;
       await this.wakeLog.dropped(q.wakeId);
       throw err;
+    }
+  }
+
+  /** Wake the assignee of a ticket in its own direct conversation; nothing is posted to the channel. */
+  async wakeForTicket(ticket: Ticket, botId: BotId, rewake = false): Promise<void> {
+    if (ticket.status === "done" || ticket.status === "closed") return;
+    const { store } = this.deps;
+    const conv = await store.conversations.direct(botId);
+    const row = await this.wakeLog.create({
+      conversationId: conv?.id ?? "none",
+      targetBot: botId,
+      sender: { kind: "system" },
+      intent: "request",
+      hop: 0,
+      text: rewake ? ticketRewakeText(ticket) : ticketWakeText(ticket),
+      ticketId: ticket.id,
+      ...(rewake && { rewake: true }),
+    });
+    const bot = await store.bots.get(botId);
+    if (!conv || !bot) {
+      await this.wakeLog.dropped(row.id);
+      return;
+    }
+    await this.admit(row, bot);
+  }
+
+  /**
+   * After a normal turn end of a ticket wake: if the ticket is still todo/doing and the bot's, wake it once more;
+   * if that wake also ended with the ticket open, block the ticket, say why and tell the conversation.
+   */
+  private async checkUnfinished(e: PoolEntry): Promise<void> {
+    const cur = e.currentTicket;
+    e.currentTicket = undefined;
+    if (!cur) return;
+    try {
+      const { store } = this.deps;
+      const t = await store.tickets.get(cur.id);
+      if (!t || t.assigneeBotId !== e.bot.id || !isOpenWork(t)) return;
+      if (!cur.rewake) return await this.wakeForTicket(t, e.bot.id, true);
+      await store.tickets.update(t.id, { status: "blocked" }, this.deps.clock.now());
+      await store.tickets.addComment({
+        ticketId: t.id,
+        author: { kind: "system" },
+        body: AUTO_BLOCK_COMMENT,
+        createdAt: this.deps.clock.now(),
+      });
+      await this.tell(
+        e.current.conversationId,
+        `Ticket ${ticketRef(t.number)} was left open after two turns and is now blocked.`,
+      );
+    } catch (err) {
+      this.deps.log?.error({ error: errText(err), botId: e.bot.id }, "hub.unfinished_check_failed");
     }
   }
 
@@ -357,6 +434,7 @@ export class BotHub implements BotMessenger {
         await this.returnOutcome(e);
         if (wakeId) await this.wakeLog.done(wakeId);
         e.currentWakeId = undefined;
+        await this.checkUnfinished(e);
         // A queued message that cannot be sent is reported; the next one still gets its turn.
         for (;;) {
           const next = e.queue.shift();

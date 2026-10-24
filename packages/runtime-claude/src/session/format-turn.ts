@@ -31,6 +31,7 @@ export function formatTurn(turn: InboundTurn, names: Record<string, string>): st
   const block = recent.length
     ? `Recent messages:\n${recent.map((m) => `${nameOf(m.author, names)}: ${m.text}`).join("\n")}\n\n`
     : "";
+  const tickets = turn.tickets ? `${turn.tickets}\n\n` : "";
   const memory = turn.groupMemory ? `Group memory:\n${turn.groupMemory}\n\n` : "";
   // A bot's message is wrapped as untrusted peer content with what is expected of the receiver.
   const body =
@@ -43,7 +44,7 @@ export function formatTurn(turn: InboundTurn, names: Record<string, string>): st
         })
       : turn.text;
   const note = turn.interrupted ? `${INTERRUPTED_NOTE}\n\n` : "";
-  return `${memory}${block}${note}[conversation ${turn.conversationId}] ${nameOf(turn.from, names)} (hop ${turn.hop}):\n${body}`;
+  return `${tickets}${memory}${block}${note}[conversation ${turn.conversationId}] ${nameOf(turn.from, names)} (hop ${turn.hop}):\n${body}`;
 }
 
 /**

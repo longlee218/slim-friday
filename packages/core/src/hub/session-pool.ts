@@ -25,6 +25,9 @@ export interface QueuedWake {
   hop: number;
   intent: WakeIntent;
   handoff?: boolean;
+  /** The ticket this wake works on; `rewake` marks the extra wake for an unfinished one. */
+  ticketId?: string;
+  rewake?: boolean;
   /** Sent again after a restart cut its turn. */
   interrupted?: boolean;
   attachments?: Attachment[];
@@ -40,6 +43,8 @@ export interface PoolEntry {
   busy: boolean;
   /** The wake the bot is answering now; none between turns. */
   currentWakeId?: string;
+  /** Ticket of the current wake, if it is a ticket wake. */
+  currentTicket?: { id: string; rewake: boolean };
   /** Texts the bot said in the current turn, in order (the last one is its answer). */
   turnTexts: string[];
   /** Bots this bot sent an explicit `result` in the current turn. */
