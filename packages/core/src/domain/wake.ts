@@ -16,7 +16,8 @@ export type WakeStatus =
 export type BlockReason = "hops" | "rate" | "repeat" | "spend";
 
 /** What the sender wants from the receiver (a user message counts as `request`). */
-export type WakeIntent = "request" | "question" | "result" | "status" | "fyi";
+export const WAKE_INTENTS = ["request", "question", "result", "status", "fyi"] as const;
+export type WakeIntent = (typeof WAKE_INTENTS)[number];
 
 /** One message delivered (or to be delivered) into one bot's session; one wake is one turn. */
 export interface WakeRow {

@@ -5,6 +5,7 @@ import {
   type AgentRuntime,
   type Bot,
   BotHub,
+  type BotMessenger,
   type Clock,
   PermissionGate,
   type Store,
@@ -15,6 +16,7 @@ import { FileMemory, pruneJournals } from "@friday/tools";
 import { appCommands } from "./app-commands";
 import { AVATARS_DIR, resolveAvatar } from "./avatars";
 import { withFridayDirs } from "./friday-bot";
+import { type Roster, withRoster } from "./roster";
 import { sharedDirsFor, withSharedDirs } from "./shared-dirs";
 import { systemClock } from "./system-clock";
 
@@ -32,6 +34,8 @@ interface Log {
 
 /** What a runtime factory gets: the parts the runtime's tools need. */
 export interface RuntimeParts {
+  /** Lets a bot's tools reach the other bots; works once the hub exists (the runtime is built before it). */
+  messenger: BotMessenger;
   config: FileConfig;
   store: Store;
   memory: FileMemory;
@@ -80,14 +84,28 @@ export async function startApp(deps: AppDeps) {
   /** A bot with its real dirs filled in: the Friday bot's config dirs, and the shared folders of its groups. */
   const withBotDirs = (b: Bot): Bot =>
     withSharedDirs(withFridayDirs(b, dirs), sharedDirsFor(agentHome, config.groupIdsOf)(b.id));
+  /** The groups a bot is in, each with its members (from the files, without their own rosters). */
+  const rostersOf = async (b: Bot): Promise<Roster[]> => {
+    const rosters: Roster[] = [];
+    for (const gid of config.groupIdsOf(b.id)) {
+      const g = await config.groups.get(gid);
+      if (!g) continue;
+      const members = (await Promise.all(g.members.map((id) => config.bots.get(id)))).filter(
+        (m): m is Bot => m !== undefined,
+      );
+      rosters.push({ name: g.name, members });
+    }
+    return rosters;
+  };
+  const withAll = async (b: Bot): Promise<Bot> => withRoster(withBotDirs(b), await rostersOf(b));
   const store: Store = {
     ...engine,
     bots: {
       get: async (id) => {
         const b = await config.bots.get(id);
-        return b && withBotDirs(b);
+        return b && withAll(b);
       },
-      list: async () => (await config.bots.list()).map(withBotDirs),
+      list: async () => Promise.all((await config.bots.list()).map(withAll)),
     },
     groups: config.groups,
   };
@@ -104,9 +122,15 @@ export async function startApp(deps: AppDeps) {
     { inboxDir: join(agentHome, "inbox"), now: () => clock.now() },
     (id) => avatars.get(id),
   );
+  // The runtime is built before the hub; a bot's tool calls it only while it runs, when the hub exists.
+  let hub: BotHub | undefined;
+  const messenger: BotMessenger = {
+    send: async (from, req) =>
+      hub ? hub.send(from, req) : { ok: false, error: "The engine is not ready." },
+  };
   const runtime =
     typeof deps.runtime === "function"
-      ? deps.runtime({ config, store, memory, surface })
+      ? deps.runtime({ messenger, config, store, memory, surface })
       : deps.runtime;
 
   const gate = new PermissionGate({
@@ -117,9 +141,19 @@ export async function startApp(deps: AppDeps) {
     settings: config.settings,
     timeoutMs: config.limits().approvalTimeoutMs,
   });
-  const hub = new BotHub({ runtime, surface, store, clock, gate, memory, limits: config.limits() });
-  hub.start();
-  surface.onCommand(appCommands({ hub, store, home: agentHome }));
+  const botHub = new BotHub({
+    runtime,
+    surface,
+    store,
+    clock,
+    gate,
+    memory,
+    limits: config.limits(),
+    log,
+  });
+  hub = botHub;
+  botHub.start();
+  surface.onCommand(appCommands({ hub: botHub, store, home: agentHome }));
 
   /** One channel per bot and group; new ones get a hello. Runs one at a time. */
   let queue: Promise<void> = Promise.resolve();
@@ -167,7 +201,7 @@ export async function startApp(deps: AppDeps) {
     for (const p of r.problems) log.warn(p, "config.problem");
     void (async () => {
       for (const id of r.changedBots) {
-        await hub.stop(id);
+        await botHub.stop(id);
         await engine.sessions.clear(id);
       }
       await sync();
@@ -179,7 +213,7 @@ export async function startApp(deps: AppDeps) {
   let cancelSweep = () => {};
   const tick = () => {
     cancelSweep = clock.setTimer(SWEEP_MS, () => {
-      hub
+      botHub
         .sweepIdle()
         .catch((err) => log.error({ error: why(err) }, "sweep"))
         .finally(() => !stopped && tick());
@@ -200,7 +234,7 @@ export async function startApp(deps: AppDeps) {
   prune();
 
   return {
-    hub,
+    hub: botHub,
     config,
     /** Stop watching and sweeping, cancel open approval cards, stop every session, close the db. */
     async stop(): Promise<void> {
@@ -210,7 +244,7 @@ export async function startApp(deps: AppDeps) {
       cancelSweep();
       cancelPrune();
       await surface.cancelApprovals();
-      await hub.stopAll();
+      await botHub.stopAll();
       engine.close();
     },
   };

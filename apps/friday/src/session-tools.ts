@@ -1,6 +1,6 @@
 import { realpathSync } from "node:fs";
 import { join, relative } from "node:path";
-import type { BotRuntimeSpec, Store } from "@friday/core";
+import type { BotMessenger, BotRuntimeSpec, Store } from "@friday/core";
 import {
   CHAT_MCP_SERVER,
   type ChatContext,
@@ -91,6 +91,10 @@ export interface SessionToolsDeps {
   isSensitive: (rel: string) => boolean;
   /** Source env; commands get only `commandEnv` of it. */
   env?: Record<string, string | undefined>;
+  /** Reaches the other bots (the hub); a bot in no group (see `groupIdsOf`) is not given it. */
+  messenger?: BotMessenger;
+  /** The ids of the groups a bot is in. */
+  groupIdsOf?: (botId: string) => string[];
   /** Sends a file to a conversation under a bot's name (the surface). */
   postFile: ChatContext["postFile"];
   /** Runs a command (argv, no shell); tests replace it. */
@@ -185,6 +189,8 @@ export function sessionTools(deps: SessionToolsDeps) {
       isSensitive: sensitiveCheck(workspaces, deps.isSensitive),
       conversation: () => spec.currentConversation?.(),
       postFile: deps.postFile,
+      ...(deps.messenger &&
+        (deps.groupIdsOf?.(spec.bot.id).length ?? 0) > 0 && { messenger: deps.messenger }),
       // Read when the tool runs: the runtime fills `apply` after the session is built.
       effort: {
         max: spec.bot.maxEffort,

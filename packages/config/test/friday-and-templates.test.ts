@@ -5,7 +5,18 @@ import { join } from "node:path";
 import { DEFAULT_SKILLS_DIR, DEFAULTS_DIR, loadConfig } from "../src/load-config";
 import { loadTemplate } from "../src/templates";
 
-const ALLOWED = ["Read", "Glob", "Grep", "Write", "Edit", "Bash", "WebSearch", "WebFetch"];
+const ALLOWED = [
+  "Read",
+  "Glob",
+  "Grep",
+  "Write",
+  "Edit",
+  "Bash",
+  "WebSearch",
+  "WebFetch",
+  "mcp__chat__SendToBot",
+  "mcp__chat__HandOff",
+];
 
 test("the shipped Friday bot designs through BotDesign: no write tools, its skills ship, every tool is in the catalog", () => {
   const userDir = mkdtempSync(join(tmpdir(), "cfg-"));
@@ -32,14 +43,16 @@ for (const [name, entry] of [
   ["social-content", "strategist"],
   ["research", "lead"],
 ] as const) {
-  test(`template ${name}: loads, entry bot is a member, members hand off with @Name`, () => {
+  test(`template ${name}: loads, entry bot is a member, members name each other and use SendToBot / HandOff`, () => {
     const { group, bots } = loadTemplate(name);
     expect(group.id).toBe(name);
     expect(group.entryBot).toBe(entry);
     expect(group.members.sort()).toEqual(bots.map((b) => b.id).sort());
     for (const b of bots) {
       const others = bots.filter((o) => o.id !== b.id);
-      expect(others.some((o) => b.instructions.includes(`@${o.name}`))).toBe(true);
+      expect(others.some((o) => b.instructions.includes(o.name))).toBe(true);
+      expect(b.tools).toContain("mcp__chat__SendToBot");
+      expect(b.tools).toContain("mcp__chat__HandOff");
       for (const t of b.tools) expect(ALLOWED).toContain(t);
       expect(b.workspaces).toEqual([]);
     }

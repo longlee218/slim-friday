@@ -64,6 +64,8 @@ export async function startEngine(
           design: designContextFor({ config: parts.config, agentHome }),
           memory: parts.memory,
           store: parts.store,
+          messenger: parts.messenger,
+          groupIdsOf: parts.config.groupIdsOf,
           home: agentHome,
           projectsDir: parts.config.projectsDir,
           isSensitive: isSensitivePath,
