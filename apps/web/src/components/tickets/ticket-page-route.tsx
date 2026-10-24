@@ -1,10 +1,10 @@
 import { useParams } from "react-router";
 import { useIsPhone } from "../../app/use-is-phone";
-import { PhonePlaceholder } from "../phone/phone-placeholder";
+import { PhoneTicketView } from "./phone-ticket-view";
 import { TicketPage } from "./ticket-page";
 
-/** `/tickets/:ref`: the full page on desktop; the phone push view is built in Task 10. */
+/** `/tickets/:ref`: the full page on desktop; the pushed ticket view on the phone. */
 export function TicketPageRoute() {
   const { ref = "" } = useParams();
-  return useIsPhone() ? <PhonePlaceholder title={ref} /> : <TicketPage ticketRef={ref} />;
+  return useIsPhone() ? <PhoneTicketView ticketRef={ref} /> : <TicketPage ticketRef={ref} />;
 }

@@ -61,5 +61,6 @@ export function backLabel(stack: string[]): string {
   if (under.startsWith("/c/")) return "Chat";
   if (under === "/") return "Chats";
   if (under === "/settings") return "Settings";
+  if (under === "/tickets") return "Tickets";
   return "Back";
 }

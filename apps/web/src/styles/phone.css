@@ -80,3 +80,28 @@ button.live { border: 0; width: calc(100% - 32px); text-align: left; color: inhe
 /* A short swipe release settles back with the sheet ease; pan-y keeps horizontal pointer streams for the edge swipe. */
 .ios-view.pushed:not(.leave) { transition: transform var(--t-mid) var(--ease-sheet); }
 .ios-view { touch-action: pan-y; }
+/* Inset lists, segmented control and ticket props (prototype app.css .inset*, .irow*, .ios-seg, .ph-props). */
+.inset { margin: 0 16px 22px; border-radius: 12px; background: var(--well); overflow: hidden; }
+:root[data-theme="dark"] .inset { background: #2a2a2d; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .inset { background: #2a2a2d; } }
+.inset-h { margin: 0 32px 6px; font-size: 13px; color: var(--label-2); text-transform: uppercase; letter-spacing: .02em; }
+.inset-f { margin: -16px 32px 22px; font-size: 13px; color: var(--label-2); }
+.irow { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 16px; position: relative; }
+.irow:active { background: var(--fill); }
+.irow + .irow::before { content: ""; position: absolute; top: 0; right: 0; left: 16px; height: .5px; background: var(--sep-strong); }
+.irow.ic + .irow.ic::before { left: 56px; }
+.irow .grow { flex: 1; min-width: 0; padding: 11px 0; }
+.irow .v { color: var(--label-2); }
+.irow .chev { color: var(--label-3); width: 18px; height: 18px; }
+.irow .av { width: 30px; height: 30px; }
+.irow .t2 { font-size: 13px; color: var(--label-2); }
+.irow.danger { color: var(--red); }
+.ios-seg { margin: 0 16px 16px; }
+.ios-seg .seg { display: flex; }
+.ios-seg .seg button { flex: 1; justify-content: center; height: 28px; font-size: 13px; }
+.ios .tlog { margin-left: 4px; }
+.ios .ph-props .prop { padding: 9px 0; font-size: 15px; }
+.ios .ph-props .prop + .prop { border-top: 1px solid var(--sep); }
+/* Rows here are links or buttons: neutral their default look. */
+a.irow, button.irow { color: inherit; text-decoration: none; background: none; border: 0; width: 100%; font: inherit; text-align: left; }
+a.irow.danger, button.irow.danger { color: var(--red); }

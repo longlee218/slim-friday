@@ -1,8 +1,8 @@
 import { useIsPhone } from "../../app/use-is-phone";
-import { PhonePlaceholder } from "../phone/phone-placeholder";
+import { PhoneTicketsTab } from "./phone-tickets-tab";
 import { TicketsPage } from "./tickets-page";
 
-/** `/tickets`: the board on desktop; the phone tab body is built in Task 10 (placeholder until then). */
+/** `/tickets`: the board on desktop, the phone Tickets tab below 640 px. */
 export function TicketsRoute() {
-  return useIsPhone() ? <PhonePlaceholder title="Tickets" /> : <TicketsPage />;
+  return useIsPhone() ? <PhoneTicketsTab /> : <TicketsPage />;
 }

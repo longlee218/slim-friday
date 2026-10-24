@@ -1,9 +1,10 @@
-import type { TicketDto } from "@friday/contracts";
+import type { TicketDto, TicketStatus } from "@friday/contracts";
 import { type ReactNode, useState } from "react";
 import { useDirectory } from "../../api/directory";
 import { formatClock } from "../../lib/format";
 import { Avatar } from "../ui/avatar";
 import { Button } from "../ui/button";
+import { PhoneStatusSheet } from "./phone-status-sheet";
 import { AssigneeSelect, PrioritySelect, StatusSelect } from "./ticket-fields";
 import { useUpdateTicket } from "./use-update-ticket";
 
@@ -18,27 +19,27 @@ const Row = ({ label, children }: { label: string; children: ReactNode }) => (
 /**
  * Property rows shared by the drawer and the ticket page: status, assignee and priority selects,
  * created / updated, and the blocked reason. Choosing Blocked first asks "Why blocked?" and saves
- * status and reason together; every other change saves at once.
+ * status and reason together; every other change saves at once. On the phone the status is
+ * picked in a bottom sheet instead of a menu.
  */
-export function TicketDetail({ ticket: t }: { ticket: TicketDto }) {
+export function TicketDetail({ ticket: t, phone }: { ticket: TicketDto; phone?: boolean }) {
   const dir = useDirectory();
   const update = useUpdateTicket(t.ref);
   const [asking, setAsking] = useState(false);
   const [why, setWhy] = useState("");
   const creator = t.createdBy.kind === "bot" ? t.createdBy.botId : null;
   const now = Date.now();
+  const pickStatus = (status: TicketStatus) => {
+    if (status === "blocked") return setAsking(true);
+    setAsking(false);
+    update.mutate({ ref: t.ref, status });
+  };
+  const StatusControl = phone ? PhoneStatusSheet : StatusSelect;
 
   return (
     <>
       <Row label="Status">
-        <StatusSelect
-          value={t.status}
-          onChange={(status) => {
-            if (status === "blocked") return setAsking(true);
-            setAsking(false);
-            update.mutate({ ref: t.ref, status });
-          }}
-        />
+        <StatusControl value={t.status} onChange={pickStatus} />
       </Row>
       {asking && (
         <div style={{ padding: "4px 0 8px" }}>
