@@ -45,6 +45,7 @@ export async function webHarness(files: Record<string, string> = {}) {
     surface,
     files: fileStore,
     purge: () => 0,
+    listGroups: app.config.listGroups,
     now: () => Date.now(),
     log,
   };

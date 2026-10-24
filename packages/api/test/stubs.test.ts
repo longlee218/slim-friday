@@ -10,7 +10,16 @@ const client = createRouterClient(appRouter, {
 });
 
 /** Subtrees with a real handler (plan 2 adds its own as it goes). */
-const implemented = ["conversations.", "chat.", "approvals.", "questions.", "control.", "events."];
+const implemented = [
+  "conversations.",
+  "chat.",
+  "approvals.",
+  "questions.",
+  "control.",
+  "events.",
+  "config.bots.list",
+  "config.groups.list",
+];
 const expected = listProcedurePaths(contract)
   .filter((p) => !implemented.some((i) => p.startsWith(i)))
   .sort();
@@ -18,8 +27,8 @@ const expected = listProcedurePaths(contract)
 test("every procedure but the implemented ones is still a stub", () =>
   expect(stubbedProcedures()).toEqual(expected));
 
-test("41 stubs left (55 procedures; conversations, chat, cards, control and events are real)", () =>
-  expect(stubbedProcedures()).toHaveLength(41));
+test("39 stubs left (55 procedures; conversations, chat, cards, control, events and the two config reads are real)", () =>
+  expect(stubbedProcedures()).toHaveLength(39));
 
 test("a stub throws the typed NOT_IMPLEMENTED error", async () => {
   await expect(client.ops.sessions()).rejects.toMatchObject({

@@ -145,7 +145,14 @@ export async function startEngine(opts: {
     ...web,
     cdnUrl: config.cdnUrl,
     log,
-    engine: { hub: app.hub, store: app.store, surface, files, purge: () => purgeTrash(agentHome) },
+    engine: {
+      hub: app.hub,
+      store: app.store,
+      surface,
+      files,
+      purge: () => purgeTrash(agentHome),
+      listGroups: app.config.listGroups,
+    },
   }).catch(async (err) => {
     surface.cancelAll();
     await app.stop();

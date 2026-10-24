@@ -1,4 +1,4 @@
-import type { BotHub, FileStore, Store } from "@friday/core";
+import type { BotHub, FileStore, Group, Store } from "@friday/core";
 import type { WebSurface } from "@friday/surface-web";
 import { ORPCError, onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
@@ -32,12 +32,17 @@ export interface ApiDeps {
   files: FileStore;
   /** Public https origin of the owner's CDN on the bucket (no trailing `/`); images are served from it when set. */
   cdnUrl?: string;
+  /** Every group in the config files (core `Store.groups` has no `list`). */
+  listGroups: () => Promise<Group[]>;
   /** Empty the trash; returns how many entries were removed. */
   purge: () => number;
 }
 
 /** The fields the engine adds to `ApiDeps` (plan 2). */
-export type EngineDeps = Pick<ApiDeps, "hub" | "store" | "surface" | "files" | "purge">;
+export type EngineDeps = Pick<
+  ApiDeps,
+  "hub" | "store" | "surface" | "files" | "purge" | "listGroups"
+>;
 
 /** Build the HTTP app: log, CORS, Origin check, then health, auth and the owner-only RPC. */
 export function createApiApp(deps: ApiDeps): Hono {
