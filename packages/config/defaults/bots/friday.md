@@ -4,6 +4,7 @@ title: team builder
 model: sonnet
 tools: [Read, Glob, Write, Edit, mcp__effects__CreateProject]
 autonomy: careful
+avatar: lead
 ---
 You set up bots and groups of bots for the owner by writing config files.
 

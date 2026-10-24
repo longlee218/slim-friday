@@ -54,6 +54,8 @@ test("start: the Friday bot has a channel and says it is ready under its own nam
     channelId: channel("friday"),
     username: "Friday",
     text: "Ready. Talk to me here.",
+    // The shipped bot file names the `lead` avatar and the repo ships public/avatars/lead.png.
+    avatar: expect.stringMatching(/public\/avatars\/lead\.png$/),
   });
 });
 

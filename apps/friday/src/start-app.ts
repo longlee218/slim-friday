@@ -6,6 +6,7 @@ import { openEngineStore } from "@friday/store-sqlite";
 import { type DiscordPort, DiscordSurface, syncChannels } from "@friday/surface-discord";
 import { FileMemory, pruneJournals } from "@friday/tools";
 import { appCommands } from "./app-commands";
+import { AVATARS_DIR, resolveAvatar } from "./avatars";
 import { withFridayDirs } from "./friday-bot";
 import { systemClock } from "./system-clock";
 
@@ -83,10 +84,15 @@ export async function startApp(deps: AppDeps) {
   const memory = deps.memory ?? new FileMemory(join(agentHome, "memory"));
   /** Display names for the surface, refreshed by every sync. */
   const names = new Map<string, string>();
-  const surface = new DiscordSurface(port, (id) => names.get(id), {
-    inboxDir: join(agentHome, "inbox"),
-    now: () => clock.now(),
-  });
+  /** Avatar image file by bot id, refreshed by every sync. */
+  const avatars = new Map<string, string>();
+  const avatarDirs = [join(agentHome, "config", "avatars"), AVATARS_DIR];
+  const surface = new DiscordSurface(
+    port,
+    (id) => names.get(id),
+    { inboxDir: join(agentHome, "inbox"), now: () => clock.now() },
+    (id) => avatars.get(id),
+  );
   const runtime =
     typeof deps.runtime === "function"
       ? deps.runtime({ config, store, memory, surface })
@@ -109,7 +115,12 @@ export async function startApp(deps: AppDeps) {
   const run = async (): Promise<void> => {
     const bots = await store.bots.list();
     const groups = await config.listGroups();
-    for (const b of bots) names.set(b.id, b.name);
+    for (const b of bots) {
+      names.set(b.id, b.name);
+      const file = resolveAvatar(b.avatar, avatarDirs);
+      if (file) avatars.set(b.id, file);
+      else avatars.delete(b.id);
+    }
     const r = await syncChannels(port, surface, bots, groups);
     for (const e of r.errors) log.error({ error: e }, "channels.sync");
     for (const c of r.conversations) await engine.conversations.put(c);

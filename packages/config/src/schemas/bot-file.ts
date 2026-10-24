@@ -32,10 +32,15 @@ const botHeader = z.strictObject({
     .refine((a) => new Set(a.map((s) => s.name)).size === a.length, "duplicate subagent name"),
   workspaces: z.array(pathSchema).default([]),
   autonomy: z.enum(["careful", "balanced", "autonomous"]).optional(),
+  // A name, not a path: the app maps it to `<name>.png` in its avatar dirs.
+  avatar: z
+    .string()
+    .regex(/^[A-Za-z][A-Za-z0-9_-]*$/)
+    .optional(),
 });
 
 /**
- * Parse `bots/<id>.md`: a YAML header (name, title, model, tools, skills, subagents, workspaces, autonomy)
+ * Parse `bots/<id>.md`: a YAML header (name, title, model, tools, skills, subagents, workspaces, autonomy, avatar)
  * and the instructions as the body. Throws a readable error for any problem.
  */
 export function parseBotFile(id: string, text: string): Bot {
@@ -54,5 +59,6 @@ export function parseBotFile(id: string, text: string): Bot {
     subagents: h.subagents,
     workspaces: h.workspaces,
     ...(h.autonomy && { autonomy: h.autonomy }),
+    ...(h.avatar && { avatar: h.avatar }),
   };
 }

@@ -19,12 +19,13 @@ type Method =
 export class FakeDiscordPort implements DiscordPort {
   ownerId = "owner";
   sent: { channelId: string; text: string }[] = [];
-  sentAs: { channelId: string; username: string; text: string }[] = [];
+  sentAs: { channelId: string; username: string; text: string; avatar?: string }[] = [];
   filesSent: {
     channelId: string;
     username: string;
     file: { path: string; name: string };
     caption?: string;
+    avatar?: string;
   }[] = [];
   typings: string[] = [];
   buttons: {
@@ -87,17 +88,24 @@ export class FakeDiscordPort implements DiscordPort {
     this.check("send");
     this.sent.push({ channelId, text });
   }
-  async sendAs(channelId: string, username: string, text: string): Promise<void> {
+  async sendAs(channelId: string, username: string, text: string, avatar?: string): Promise<void> {
     this.check("sendAs");
-    this.sentAs.push({ channelId, username, text });
+    this.sentAs.push({ channelId, username, text, ...(avatar && { avatar }) });
   }
   async sendFileAs(
     channelId: string,
     username: string,
     file: { path: string; name: string },
     caption?: string,
+    avatar?: string,
   ): Promise<void> {
-    this.filesSent.push({ channelId, username, file, ...(caption && { caption }) });
+    this.filesSent.push({
+      channelId,
+      username,
+      file,
+      ...(caption && { caption }),
+      ...(avatar && { avatar }),
+    });
   }
   async typing(channelId: string): Promise<void> {
     this.check("typing");

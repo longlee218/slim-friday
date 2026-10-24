@@ -1,3 +1,4 @@
+import { basename } from "node:path";
 import {
   ActionRowBuilder,
   ApplicationCommandOptionType,
@@ -84,21 +85,25 @@ export async function connectDiscord(opts: {
     return ch;
   };
 
-  // One webhook per channel, found or created once (the promise is cached, so two first posts share it).
+  // One webhook per channel and avatar, found or created once (the promise is cached, so two first posts share it).
+  // No avatar = the shared `Friday` webhook; an avatar file gets its own webhook that shows that picture (a webhook's
+  // avatar is uploaded once, so a local file works). The username is still set on every post.
   const hooks = new Map<string, Promise<Webhook>>();
-  const webhookFor = (channelId: string): Promise<Webhook> => {
-    let hook = hooks.get(channelId);
+  const webhookFor = (channelId: string, avatar?: string): Promise<Webhook> => {
+    const key = `${channelId}|${avatar ?? ""}`;
+    let hook = hooks.get(key);
     if (!hook) {
+      const name = avatar ? `${WEBHOOK_NAME} ${basename(avatar, ".png")}` : WEBHOOK_NAME;
       hook = (async () => {
         const ch = await textChannel(channelId);
         const mine = (await ch.fetchWebhooks()).find(
-          (w) => w.name === WEBHOOK_NAME && w.owner?.id === client.user?.id,
+          (w) => w.name === name && w.owner?.id === client.user?.id,
         );
-        return mine ?? (await ch.createWebhook({ name: WEBHOOK_NAME }));
+        return mine ?? (await ch.createWebhook({ name, ...(avatar && { avatar }) }));
       })();
-      hooks.set(channelId, hook);
+      hooks.set(key, hook);
       // A failed lookup is not kept.
-      hook.catch(() => hooks.delete(channelId));
+      hook.catch(() => hooks.delete(key));
     }
     return hook;
   };
@@ -107,13 +112,14 @@ export async function connectDiscord(opts: {
   const sendViaWebhook = async (
     channelId: string,
     payload: Parameters<Webhook["send"]>[0],
+    avatar?: string,
   ): Promise<void> => {
     try {
-      await (await webhookFor(channelId)).send(payload);
+      await (await webhookFor(channelId, avatar)).send(payload);
     } catch (err) {
       if ((err as { code?: number }).code !== UNKNOWN_WEBHOOK) throw err;
-      hooks.delete(channelId);
-      await (await webhookFor(channelId)).send(payload);
+      hooks.delete(`${channelId}|${avatar ?? ""}`);
+      await (await webhookFor(channelId, avatar)).send(payload);
     }
   };
 
@@ -168,15 +174,19 @@ export async function connectDiscord(opts: {
     async send(channelId, text) {
       await (await textChannel(channelId)).send(text);
     },
-    async sendAs(channelId, username, text) {
-      await sendViaWebhook(channelId, { content: text, username });
+    async sendAs(channelId, username, text, avatar) {
+      await sendViaWebhook(channelId, { content: text, username }, avatar);
     },
-    async sendFileAs(channelId, username, file, caption) {
-      await sendViaWebhook(channelId, {
-        content: caption ?? "",
-        username,
-        files: [{ attachment: file.path, name: file.name }],
-      });
+    async sendFileAs(channelId, username, file, caption, avatar) {
+      await sendViaWebhook(
+        channelId,
+        {
+          content: caption ?? "",
+          username,
+          files: [{ attachment: file.path, name: file.name }],
+        },
+        avatar,
+      );
     },
     async typing(channelId) {
       await (await textChannel(channelId)).sendTyping();

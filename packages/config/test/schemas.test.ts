@@ -101,3 +101,12 @@ test("a tools file parses; duplicate names are refused", () => {
   ]);
   expect(() => parseToolsFile("tools:\n  - name: A\n  - name: A\n")).toThrow();
 });
+
+test("a bot file may name an avatar; a path-like avatar is refused", () => {
+  const file = (avatar: string) =>
+    `---\nname: Ann\ntitle: T\nmodel: m\navatar: ${avatar}\n---\nBe brief.`;
+  expect(parseBotFile("ann", file("developer")).avatar).toBe("developer");
+  expect(parseBotFile("ann", "---\nname: Ann\ntitle: T\nmodel: m\n---\nx").avatar).toBeUndefined();
+  for (const bad of ["../x", "a/b", ".hidden", "x.png"])
+    expect(() => parseBotFile("ann", file(bad))).toThrow();
+});

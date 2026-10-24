@@ -25,4 +25,6 @@ export interface Bot {
   workspaces: string[];
   /** Overrides the user's autonomy level for this bot. */
   autonomy?: AutonomyLevel;
+  /** Name of the bot's avatar image (the app finds the file); none = the default avatar. */
+  avatar?: string;
 }

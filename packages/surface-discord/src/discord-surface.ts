@@ -31,6 +31,8 @@ export class DiscordSurface implements Surface {
     private readonly botName: (id: BotId) => string | undefined,
     /** Where the owner's files are saved (`<inboxDir>/<channel>/<epoch>/`); without it files are ignored. */
     private readonly files?: { inboxDir: string; now: () => number; fetchFn?: FetchFn },
+    /** Avatar image file of a bot (none = the default avatar). */
+    private readonly avatarOf?: (id: BotId) => string | undefined,
   ) {
     this.cards = new ApprovalCards(port);
   }
@@ -90,6 +92,7 @@ export class DiscordSurface implements Surface {
           conversationId,
           this.botName(m.author.botId) ?? m.author.botId,
           chunk,
+          this.avatarOf?.(m.author.botId),
         );
       else await this.port.send(conversationId, chunk);
     }
@@ -103,7 +106,13 @@ export class DiscordSurface implements Surface {
     caption?: string,
   ): Promise<void> {
     const name = author.kind === "bot" ? (this.botName(author.botId) ?? author.botId) : "Friday";
-    await this.port.sendFileAs(conversationId, name, file, caption);
+    await this.port.sendFileAs(
+      conversationId,
+      name,
+      file,
+      caption,
+      author.kind === "bot" ? this.avatarOf?.(author.botId) : undefined,
+    );
   }
 
   /** Typing indicator; a failure is not worth stopping for. */

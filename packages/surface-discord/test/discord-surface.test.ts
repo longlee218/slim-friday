@@ -62,3 +62,18 @@ test("typing shows in the channel and a failing typing call is swallowed", () =>
   port.failNext("typing");
   expect(() => surface.showActivity("ch1", { kind: "typing", botId: "ann" })).not.toThrow();
 });
+
+test("a bot with an avatar posts text and files through its avatar file", async () => {
+  const port = new FakeDiscordPort();
+  const surface = new DiscordSurface(
+    port,
+    () => "Ann",
+    undefined,
+    (id) => (id === "ann" ? "/av/ann.png" : undefined),
+  );
+  await surface.post("ch1", { author: { kind: "bot", botId: "ann" }, text: "hi" });
+  await surface.post("ch1", { author: { kind: "bot", botId: "bob" }, text: "yo" });
+  await surface.postFile("ch1", { kind: "bot", botId: "ann" }, { path: "/x/a.txt", name: "a.txt" });
+  expect(port.sentAs.map((s) => s.avatar)).toEqual(["/av/ann.png", undefined]);
+  expect(port.filesSent[0]?.avatar).toBe("/av/ann.png");
+});
