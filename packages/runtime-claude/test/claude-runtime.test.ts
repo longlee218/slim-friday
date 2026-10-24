@@ -208,3 +208,14 @@ test("a group spec opens and resumes in scratch/<botId>_<groupId>", async () => 
   expect(dirs).toEqual([join(root, "scratch", "editor_reelme")]);
   expect(fq.options().cwd).toBe(join(root, "scratch", "editor_reelme"));
 });
+
+test("turn_end carries the cost of that turn: the SDK's total_cost_usd is a running total of the session", async () => {
+  const { fq, rt } = setup();
+  const s = await rt.open(spec);
+  const result = (total: number) => ({ type: "result", subtype: "success", total_cost_usd: total });
+  fq.emit(result(0.5));
+  fq.emit(result(1.25));
+  fq.emit(result(1.25));
+  const costs = (await take(s.events, 3)).map((e) => (e.type === "turn_end" ? e.costUsd : -1));
+  expect(costs).toEqual([0.5, 0.75, 0]);
+});

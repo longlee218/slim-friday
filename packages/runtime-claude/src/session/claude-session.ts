@@ -43,13 +43,25 @@ export class ClaudeSession implements BotSession {
     this.fireStop();
   }
 
+  /** Running cost total the SDK reported so far (its `total_cost_usd` grows over the session). */
+  private costSoFar = 0;
+
   /** Map SDK messages to events until the stream ends or the session stops; a stream error after a stop is silent. */
   private async *run(): AsyncGenerator<RuntimeEvent> {
     try {
       while (true) {
         const r = await Promise.race([this.stream.next(), this.stopSignal]);
         if (r === "stop" || r.done) return;
-        yield* mapMessage(r.value);
+        for (const e of mapMessage(r.value)) {
+          if (e.type !== "turn_end") {
+            yield e;
+            continue;
+          }
+          // The SDK reports the running total of this process; the port wants this turn's cost.
+          const turnCost = Math.max(0, e.costUsd - this.costSoFar);
+          this.costSoFar = Math.max(this.costSoFar, e.costUsd);
+          yield { type: "turn_end", costUsd: turnCost };
+        }
       }
     } catch (err) {
       if (!this.stopped) throw err;

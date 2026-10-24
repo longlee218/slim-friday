@@ -41,6 +41,7 @@ export type RuntimeEvent =
       status: "completed" | "failed" | "stopped";
       summary: string;
     }
+  /** `costUsd` is the cost of this turn only (estimated at API prices, also under an OAuth plan). */
   | { type: "turn_end"; costUsd: number }
   /** The main thread's context was compacted: what the bot was shown earlier may be gone. */
   | { type: "compacted" }
