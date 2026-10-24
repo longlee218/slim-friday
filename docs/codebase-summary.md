@@ -8,10 +8,10 @@ Friday is a self-hosted personal agent on the Claude Agent SDK (Bun + TypeScript
 |---|---|
 | `packages/core/` | domain types, ports, routing, permission decision, bot hub (no dependencies; tests with fakes in `packages/core/test/`) |
 | `packages/runtime-claude/` | `AgentRuntime` on the Claude Agent SDK: streaming session, event mapper, SDK options, hard floor check; `floor/` = OS sandbox, env scrub, sensitive paths (tests with a fake `query`) |
-| `packages/store-sqlite/` | engine db (conversations, messages, grants, sessions, spend, audit) on Drizzle with its own migrations |
+| `packages/store-sqlite/` | engine db (conversations, messages, grants, sessions, spend, audit, wakes) on Drizzle with its own migrations |
 | `packages/config/` | file config: bots, groups, settings, tool annotations; schemas, merge with defaults, live reload; `defaults/` (incl. the Friday bot) and `templates/` (three groups) |
 | `packages/surface-discord/` | `Surface` on Discord: `DiscordPort` + discord.js adapter, channel sync by topic, webhooks, approval buttons, owner commands (tests with a fake port) |
-| `packages/tools/` | built-in tools as per-session MCP servers: file memory (`FileMemory`), journal, search, memory tools; effect tools (`DeletePaths` + trash, `GitPush`, `CreatePullRequest`, `MergeBranch`, `CreateProject`); `chat` server (`PostFile`) |
+| `packages/tools/` | built-in tools as per-session MCP servers: file memory (`FileMemory`), journal, search, memory tools; effect tools (`DeletePaths` + trash, `GitPush`, `CreatePullRequest`, `MergeBranch`, `CreateProject`); `chat` server (`PostFile`, `SendToBot`, `HandOff`) |
 | `apps/friday/` | composition root: `startApp` (config, db, memory, surface, gate, hub, channel sync, reload, journal prune, `/purge`), `startEngine` (Discord + Claude runtime with MCP servers and the memory flush), `sessionTools`, Friday bot dirs |
 | `src/index.ts`, `src/lifecycle/` | process entry, boot checks, trash and home-retention sweepers |
 | `src/config/`, `src/observability/` | env and home paths (the only place that reads env besides `apps/friday`), pino logger |

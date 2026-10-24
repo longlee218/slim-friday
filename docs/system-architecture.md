@@ -9,9 +9,9 @@ Last updated: 2026-10-24 (plans 1-7 done: the engine runs on Discord with memory
 
 ## `packages/core` (plan 2)
 Domain, ports and use cases; no dependencies, imports only itself (`packages/core/test/core-boundary.test.ts`). Ports are in [`packages/core/src/ports/`](../packages/core/src/ports/): `AgentRuntime` (+ `BotSession`, generic `RuntimeEvent`), `Surface`, `Store`, `ToolCatalog`, `Memory`, `Clock`.
-- **Routing** (`routing/`): `@name` parsing; direct chat goes to its bot, a group message to the mentioned members or the entry bot, a bot reply only to bots it mentions. `ChainGuard` caps hops, bot messages per hour and bot repeats.
+- **Routing** (`routing/`): `@name` parsing; direct chat goes to its bot, a group message to the mentioned members or the entry bot, a bot reply wakes no one: bots reach each other only through the `SendToBot` and `HandOff` tools (`BotMessenger`). `ChainGuard` caps hops, bot messages per hour and bot repeats.
 - **Permission** (`permission/`): `decide` is pure: hard-floor deny, tool override, matching grant, then the autonomy level (careful / balanced / autonomous) for the tool's class from its annotations. Unannotated = ask; irreversible = ask always (no "Always allow"). `PermissionGate` asks through the `Surface`, stores grants, audits, and denies on timeout.
-- **Hub** (`hub/`): `BotHub` keeps one session per active bot, pushes one turn at a time (a message to a busy bot waits for the turn to end), turns mentions into hand-offs, applies the daily spend cap, closes idle sessions, resumes after a crash, and serves `stop` and `status`.
+- **Hub** (`hub/`): `BotHub` keeps one session per active bot, pushes one turn at a time (a message to a busy bot waits for the turn to end), stores every bot-to-bot wake in the `wakes` table (lifecycle `queued/running/done/blocked/interrupted/dropped`, redelivered once after a restart by `recover()`), returns a finished request to its sender as a `result`, applies the daily spend cap, closes idle sessions, resumes after a crash, and serves `stop` and `status`.
 - Defaults: `packages/core/src/config-defaults.ts`.
 
 ## `packages/store-sqlite` and `packages/config` (plan 4)

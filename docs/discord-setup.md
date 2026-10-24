@@ -99,6 +99,13 @@ bun run start
 - Per run: `$AGENT_HOME/logs/tasks/<taskId>.jsonl` (deleted 10 days after the last write; see [limits](limits-and-stop-conditions.md))
 - Example: `tail -f "$AGENT_HOME"/logs/app.$(date +%F).*.jsonl | jq 'select(.workspace=="<ws>")'`
 
+## Check bot collaboration (not verified live)
+1. In a group, ask the entry bot to get a teammate to do a small task: it must call `SendToBot`; the channel shows `→ @Name (request): ...`.
+2. When the teammate finishes, its answer returns to the sender as a `result` without another tool call.
+3. A plain `@Name` in a bot's text must not wake that bot.
+4. Kill the app mid-turn of a woken bot, start it again: the wake is redelivered once with an "interrupted" note.
+5. Optional Axiom: set `AXIOM_TOKEN` and `AXIOM_DATASET`, send a request; events `wake.*` with timings appear, with no message text.
+
 ## Check the Friday bot as a designer (not verified live)
 1. Ask Friday: "make a dev bot". It must ask questions (the `bot-design` skill), propose, then show a `BotDesign` card; the file appears in `<AGENT_HOME>/config/bots/`.
 2. Ask it to give that bot a shipped skill: a card, the bot restarts, ask the bot to use the skill.
