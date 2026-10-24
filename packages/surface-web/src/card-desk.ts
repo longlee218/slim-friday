@@ -1,129 +1,81 @@
-import { randomUUID } from "node:crypto";
 import type { ApprovalCardDto, QuestionCardDto } from "@friday/contracts";
-import type {
-  ApprovalAnswer,
-  ApprovalCard,
-  Clock,
-  QuestionAnswer,
-  QuestionCard,
-} from "@friday/core";
-import { CORE_DEFAULTS } from "@friday/core";
+import type { ApprovalAnswer, CardRow, Clock, QuestionAnswer } from "@friday/core";
 import type { EventBus } from "./event-bus";
 import { flattenSummary } from "./flatten-summary";
-import { validAnswer } from "./valid-answer";
 
-/** How many closed card ids are remembered, so a late answer is `conflict`, not `not_found`. */
-const CLOSED_MEMORY = 500;
-
-/** Result of answering a card. */
-export type AnswerResult = "ok" | "conflict" | "not_found";
-
-/** An open approval: its card, how to close it and how to stop its timer. */
-interface OpenApproval {
-  dto: ApprovalCardDto;
+/** An open card as the web shows it, with when it was shown (for the answer latency log). */
+interface Shown<T> {
+  dto: T;
   /** Epoch ms the card was shown. */
   openedAt: number;
-  settle: (a: ApprovalAnswer) => void;
-}
-
-/** An open question: its card, the original options and how to close it. */
-interface OpenQuestion {
-  dto: QuestionCardDto;
-  /** Epoch ms the card was shown. */
-  openedAt: number;
-  settle: (a: QuestionAnswer | null) => void;
 }
 
 /**
- * Approval and question cards waiting for the owner on the web. Each card is published on the
- * event bus; the first answer wins, later ones are `conflict`. A timeout closes a card as
- * `deny` (approval) or `null` (question).
+ * The web's view of the open approval and question cards. The cards are rows in the engine db (the truth): the
+ * engine shows a stored card here (`open`), and closes it after the owner's answer went through the hub's
+ * `answerCard` (`close`). Each change is published on the event bus. No promise waits on a card and nothing
+ * times out; after a restart the app shows the stored open cards again. (Task 16 replaces this view with db reads.)
  */
 export class CardDesk {
-  /** Approvals not answered yet, by card id. */
-  private approvals = new Map<string, OpenApproval>();
-  /** Questions not answered yet, by card id. */
-  private questions = new Map<string, OpenQuestion>();
-  /** The last closed card ids, oldest first (a Set keeps insertion order). */
-  private closed = new Set<string>();
+  /** Open approvals, by card id. */
+  private approvals = new Map<string, Shown<ApprovalCardDto>>();
+  /** Open questions, by card id. */
+  private questions = new Map<string, Shown<QuestionCardDto>>();
 
   constructor(
     private bus: EventBus,
     private clock: Clock,
-    /** Called with the conversation id after a card closes (the open-card count changed). */
-    private onClose?: (conversationId: string) => void,
   ) {}
 
-  /** Show an approval card; resolves with the first answer, or `deny` at the timeout. */
-  askApproval(conversationId: string, card: ApprovalCard): Promise<ApprovalAnswer> {
-    return new Promise((resolve) => {
-      const cardId = randomUUID();
-      const stop = this.startTimer(card.timeoutMs, () => this.closeApproval(cardId, "deny"));
+  /** Show a stored open card under the asking bot's name; showing the same card again changes nothing. */
+  open(card: CardRow, botName: string): void {
+    if (this.approvals.has(card.id) || this.questions.has(card.id)) return;
+    const openedAt = this.clock.now();
+    const base = {
+      cardId: card.id,
+      conversationId: card.conversationId,
+      botId: card.botId,
+      botName,
+    };
+    if (card.approval) {
+      const a = card.approval;
       const dto: ApprovalCardDto = {
-        cardId,
-        conversationId,
-        botId: card.botId ?? "",
-        botName: card.botName,
-        tool: card.tool,
-        summary: flattenSummary(card.summary),
-        scope: card.scope,
-        offerAlways: card.offerAlways,
-        expiresAt: this.clock.now() + (card.timeoutMs ?? CORE_DEFAULTS.approvalTimeoutMs),
+        ...base,
+        tool: a.tool,
+        summary: flattenSummary(a.summary),
+        scope: a.scope,
+        offerAlways: a.offerAlways,
       };
-      this.approvals.set(cardId, {
-        dto,
-        openedAt: this.clock.now(),
-        settle: (a) => {
-          stop();
-          resolve(a);
-        },
-      });
+      this.approvals.set(card.id, { dto, openedAt });
       this.bus.publish({ type: "approval.opened", card: dto });
-    });
-  }
-
-  /** Show a question card; resolves with the first answer, or `null` at the timeout. */
-  askQuestion(conversationId: string, card: QuestionCard): Promise<QuestionAnswer | null> {
-    return new Promise((resolve) => {
-      const cardId = randomUUID();
-      const stop = this.startTimer(card.timeoutMs, () => this.closeQuestion(cardId, null));
+    } else if (card.question) {
+      const q = card.question;
       const dto: QuestionCardDto = {
-        cardId,
-        conversationId,
-        botId: card.botId,
-        botName: card.botName,
-        question: card.question,
-        kind: card.kind,
-        options: card.options,
-        allowText: card.allowText,
-        expiresAt: this.clock.now() + (card.timeoutMs ?? CORE_DEFAULTS.approvalTimeoutMs),
+        ...base,
+        question: q.question,
+        kind: q.kind,
+        options: q.options,
+        allowText: q.allowText,
       };
-      this.questions.set(cardId, {
-        dto,
-        openedAt: this.clock.now(),
-        settle: (a) => {
-          stop();
-          resolve(a);
-        },
-      });
+      this.questions.set(card.id, { dto, openedAt });
       this.bus.publish({ type: "question.opened", card: dto });
-    });
+    }
   }
 
-  /** The owner answers an approval card. */
-  answerApproval(cardId: string, answer: ApprovalAnswer): AnswerResult {
-    if (!this.approvals.has(cardId)) return this.closed.has(cardId) ? "conflict" : "not_found";
-    this.closeApproval(cardId, answer);
-    return "ok";
-  }
-
-  /** The owner answers a question card; a bad answer leaves the card open. */
-  answerQuestion(cardId: string, answer: QuestionAnswer): AnswerResult | "bad_answer" {
-    const open = this.questions.get(cardId);
-    if (!open) return this.closed.has(cardId) ? "conflict" : "not_found";
-    if (!validAnswer(open.dto, answer)) return "bad_answer";
-    this.closeQuestion(cardId, answer);
-    return "ok";
+  /** Close a card that was answered or withdrawn (a withdrawn question closes with no answer). */
+  close(card: CardRow): void {
+    if (this.approvals.delete(card.id))
+      this.bus.publish({
+        type: "approval.closed",
+        cardId: card.id,
+        answer: (card.answer as ApprovalAnswer | undefined) ?? "deny",
+      });
+    else if (this.questions.delete(card.id))
+      this.bus.publish({
+        type: "question.closed",
+        cardId: card.id,
+        answer: card.status === "withdrawn" ? null : ((card.answer as QuestionAnswer) ?? null),
+      });
   }
 
   /** When an open card (either kind) was shown; undefined once closed or unknown. */
@@ -147,48 +99,5 @@ export class CardDesk {
       this.pendingApprovals().filter((c) => c.conversationId === conversationId).length +
       this.pendingQuestions().filter((c) => c.conversationId === conversationId).length
     );
-  }
-
-  /** Close every open card (shutdown): approvals `deny`, questions `null`. */
-  cancelAll = (): void => this.cancelWhere(() => true);
-
-  /** Close the open cards `pred` accepts (a stopped bot or conversation): approvals `deny`, questions `null`. */
-  cancelWhere(pred: (c: { conversationId: string; botId: string }) => boolean): void {
-    for (const [id, o] of [...this.approvals]) if (pred(o.dto)) this.closeApproval(id, "deny");
-    for (const [id, o] of [...this.questions]) if (pred(o.dto)) this.closeQuestion(id, null);
-  }
-
-  /** Start the card timer (the default timeout when none is given, so no card stays open forever). */
-  private startTimer(ms: number | undefined, fn: () => void): () => void {
-    return this.clock.setTimer(ms ?? CORE_DEFAULTS.approvalTimeoutMs, fn);
-  }
-
-  /** Close an approval: settle the bot's wait, remember the id, tell the tabs. */
-  private closeApproval(cardId: string, answer: ApprovalAnswer): void {
-    const open = this.approvals.get(cardId);
-    if (!open) return;
-    this.approvals.delete(cardId);
-    this.remember(cardId);
-    open.settle(answer);
-    this.bus.publish({ type: "approval.closed", cardId, answer });
-    this.onClose?.(open.dto.conversationId);
-  }
-
-  /** Close a question: settle the bot's wait, remember the id, tell the tabs. */
-  private closeQuestion(cardId: string, answer: QuestionAnswer | null): void {
-    const open = this.questions.get(cardId);
-    if (!open) return;
-    this.questions.delete(cardId);
-    this.remember(cardId);
-    open.settle(answer);
-    this.bus.publish({ type: "question.closed", cardId, answer });
-    this.onClose?.(open.dto.conversationId);
-  }
-
-  /** Keep a closed id; forget the oldest beyond the limit. */
-  private remember(cardId: string): void {
-    this.closed.add(cardId);
-    if (this.closed.size > CLOSED_MEMORY)
-      this.closed.delete(this.closed.values().next().value as string);
   }
 }

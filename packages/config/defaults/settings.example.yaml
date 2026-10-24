@@ -41,8 +41,6 @@ limits:
   # maxBotMessagesPerConversationPerHour: 60
   ## The same sender, target and text inside this window counts as a repeat (ms).
   # repeatWindowMs: 600000
-  ## An unanswered approval card is a deny after this long (ms).
-  # approvalTimeoutMs: 600000
   ## A quiet session is closed (and its notes flushed) after this long (ms).
   # idleCloseMs: 1800000
   ## Group messages given to a woken bot as context.

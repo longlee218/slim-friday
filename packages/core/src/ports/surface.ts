@@ -1,7 +1,7 @@
 import type { BotId } from "../domain/bot";
 import type { ConversationId } from "../domain/conversation";
 import type { Attachment, Author, FileRef, IndexedMessage } from "../domain/message";
-import type { QuestionAnswer, QuestionCard } from "../domain/question";
+import type { CardRow } from "../domain/card";
 import type { RunStep } from "../domain/run";
 
 /** A message from the user, as the surface delivers it. */
@@ -21,20 +21,6 @@ export interface InboundMessage {
 /** A message the surface shows: the stored row with its id. */
 export type OutboundMessage = IndexedMessage;
 
-/** What the user is asked when a call needs approval. */
-export interface ApprovalCard {
-  /** The bot that asks; set by the permission gate. */
-  botId?: BotId;
-  botName: string;
-  tool: string;
-  summary: string;
-  scope: Record<string, string>;
-  /** Show the "Always allow" choice. */
-  offerAlways: boolean;
-  /** The surface closes the card after this long (the gate has denied by then). */
-  timeoutMs?: number;
-}
-
 export type ApprovalAnswer = "once" | "always" | "deny";
 
 /** A live status shown next to the conversation. */
@@ -49,10 +35,14 @@ export interface Surface {
   /** The handler resolves with the stored id of the owner's message (undefined: nothing stored). */
   onMessage(handler: (m: InboundMessage) => Promise<number | undefined>): void;
   post(conversationId: ConversationId, m: OutboundMessage): Promise<void>;
-  askApproval(conversationId: ConversationId, card: ApprovalCard): Promise<ApprovalAnswer>;
+  /**
+   * Show a stored approval or question card (written first, so a restart shows it again); `botName` is the
+   * asking bot's display name. The answer comes back through the hub's `answerCard`, never as a return value.
+   */
+  showCard(card: CardRow, botName: string): void;
+  /** The card was answered or withdrawn (`card` holds its new status and answer): close it on the surface. */
+  closeCard(card: CardRow): void;
   showActivity(conversationId: ConversationId, a: Activity): void;
-  /** Ask the owner a bot's question; resolves `null` when nobody answers in time. */
-  askQuestion(conversationId: ConversationId, card: QuestionCard): Promise<QuestionAnswer | null>;
   /** Show one step of the bot's run in progress. */
   showRun(conversationId: ConversationId, botId: BotId, step: RunStep): void;
   /** Send a file (already checked by the caller) under the author's name, with an optional caption. */

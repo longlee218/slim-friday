@@ -1,31 +1,48 @@
 import { expect, test } from "bun:test";
 import type { FridayEvent } from "@friday/contracts";
-import { type ApprovalCard, CORE_DEFAULTS, type QuestionCard } from "@friday/core";
+import type { CardRow } from "@friday/core";
 import { FakeClock } from "../../core/test/fakes/fake-clock";
 import { CardDesk } from "../src/card-desk";
 import { EventBus } from "../src/event-bus";
 
-const card: ApprovalCard = {
+/** A stored open approval card. */
+const approval = (id: string, summary = "ls", conversationId = "bot:a"): CardRow => ({
+  id,
+  kind: "approval",
+  wakeId: "w1",
   botId: "a",
-  botName: "Ann",
-  tool: "Bash",
-  summary: "ls",
-  scope: { cmd: "ls" },
-  offerAlways: true,
-  timeoutMs: 600_000,
-};
-const q: QuestionCard = {
+  conversationId,
+  scopeKey: "a",
+  approval: {
+    tool: "Bash",
+    input: { command: "ls" },
+    inputHash: "h",
+    summary,
+    scope: { cmd: "ls" },
+    offerAlways: true,
+  },
+  status: "open",
+  createdAt: 1,
+});
+/** A stored open question card. */
+const question = (id: string): CardRow => ({
+  id,
+  kind: "question",
+  wakeId: "w1",
   botId: "a",
-  botName: "Ann",
-  question: "Color?",
-  kind: "single",
-  options: [
-    { value: "Red", label: "Red" },
-    { value: "Blue", label: "Blue" },
-  ],
-  allowText: false,
-  timeoutMs: 600_000,
-};
+  conversationId: "bot:a",
+  scopeKey: "a",
+  question: {
+    botId: "a",
+    botName: "Ann",
+    question: "Color?",
+    kind: "single",
+    options: [{ value: "Red", label: "Red" }],
+    allowText: false,
+  },
+  status: "open",
+  createdAt: 1,
+});
 
 /** A desk with a fake clock and the events its bus saw. */
 function setup() {
@@ -40,115 +57,66 @@ function setup() {
   return { desk: new CardDesk(bus, clock), clock, events };
 }
 
-test("bad answers are refused and the card stays open", () => {
-  const { desk } = setup();
-  void desk.askQuestion("bot:a", q);
-  const id = desk.pendingQuestions()[0]?.cardId as string;
-  expect(desk.answerQuestion(id, { choices: ["Purple"] })).toBe("bad_answer");
-  expect(desk.answerQuestion(id, { choices: ["Red", "Blue"] })).toBe("bad_answer");
-  expect(desk.answerQuestion(id, { choices: [] })).toBe("bad_answer");
-  expect(desk.answerQuestion(id, { choices: ["Red"], text: "x" })).toBe("bad_answer");
-  expect(desk.pendingQuestions()).toHaveLength(1);
-});
-
-test("first answer wins, the second is CONFLICT, unknown is NOT_FOUND", async () => {
+test("a stored approval is published with the card's id and listed until closed", () => {
   const { desk, events } = setup();
-  const p = desk.askApproval("bot:a", card);
-  const dto = desk.pendingApprovals()[0];
-  expect(dto?.botId).toBe("a");
-  expect(dto?.expiresAt).toBe(601_000);
-  const id = dto?.cardId as string;
-  expect(desk.answerApproval(id, "always")).toBe("ok");
-  expect(desk.answerApproval(id, "deny")).toBe("conflict");
-  expect(await p).toBe("always");
-  expect(desk.answerApproval("nope", "once")).toBe("not_found");
-  expect(events.map((e) => e.type)).toEqual(["approval.opened", "approval.closed"]);
-  expect(desk.pendingApprovals()).toHaveLength(0);
+  desk.open(approval("c1"), "Ann");
+  desk.open(approval("c1"), "Ann");
+  expect(events).toEqual([
+    {
+      type: "approval.opened",
+      card: {
+        cardId: "c1",
+        conversationId: "bot:a",
+        botId: "a",
+        botName: "Ann",
+        tool: "Bash",
+        summary: "ls",
+        scope: { cmd: "ls" },
+        offerAlways: true,
+      },
+    },
+  ]);
+  expect(desk.openedAt("c1")).toBe(1000);
+  desk.close({ ...approval("c1"), status: "answered", answer: "once" });
+  expect(events.at(-1)).toEqual({ type: "approval.closed", cardId: "c1", answer: "once" });
+  expect(desk.pendingApprovals()).toEqual([]);
 });
 
-test("approval timeout is deny with a closed event; a late answer is CONFLICT", async () => {
-  const { desk, clock, events } = setup();
-  const p = desk.askApproval("bot:a", card);
-  const id = desk.pendingApprovals()[0]?.cardId as string;
-  clock.advance(600_000);
-  expect(await p).toBe("deny");
-  expect(events[1]).toEqual({ type: "approval.closed", cardId: id, answer: "deny" });
-  expect(desk.answerApproval(id, "once")).toBe("conflict");
-});
-
-test("an answered card clears its timer", async () => {
-  const { desk, clock, events } = setup();
-  const p = desk.askApproval("bot:a", card);
-  desk.answerApproval(desk.pendingApprovals()[0]?.cardId as string, "once");
-  await p;
-  clock.advance(600_000);
-  expect(events.filter((e) => e.type === "approval.closed")).toHaveLength(1);
-});
-
-test("question timeout resolves null and publishes question.closed answer null", async () => {
-  const { desk, clock, events } = setup();
-  const p = desk.askQuestion("bot:a", q);
-  const id = desk.pendingQuestions()[0]?.cardId as string;
-  clock.advance(600_000);
-  expect(await p).toBeNull();
-  expect(events[1]).toEqual({ type: "question.closed", cardId: id, answer: null });
-  expect(desk.answerQuestion(id, { choices: ["Red"] })).toBe("conflict");
-});
-
-test("a valid question answer settles; openIn counts per conversation", async () => {
-  const { desk } = setup();
-  const p = desk.askQuestion("bot:a", q);
-  void desk.askApproval("bot:a", card);
-  void desk.askApproval("bot:b", card);
-  expect(desk.openIn("bot:a")).toBe(2);
-  const id = desk.pendingQuestions()[0]?.cardId as string;
-  expect(desk.answerQuestion(id, { choices: ["Blue"] })).toBe("ok");
-  expect(await p).toEqual({ choices: ["Blue"] });
+test("a question opens and a withdrawn one closes with no answer", () => {
+  const { desk, events } = setup();
+  desk.open(question("q1"), "Ann");
+  expect(desk.pendingQuestions().map((c) => c.question)).toEqual(["Color?"]);
   expect(desk.openIn("bot:a")).toBe(1);
+  desk.close({ ...question("q1"), status: "withdrawn" });
+  expect(events.at(-1)).toEqual({ type: "question.closed", cardId: "q1", answer: null });
+  expect(desk.openIn("bot:a")).toBe(0);
 });
 
-test("cancelAll denies approvals and nulls questions", async () => {
-  const { desk, events } = setup();
-  const a = desk.askApproval("bot:a", card);
-  const b = desk.askQuestion("bot:a", q);
-  desk.cancelAll();
-  expect(await a).toBe("deny");
-  expect(await b).toBeNull();
-  expect(events.filter((e) => e.type.endsWith(".closed"))).toHaveLength(2);
-  expect(desk.openIn("bot:a")).toBe(0);
+test("openIn counts the open cards of one conversation", () => {
+  const { desk } = setup();
+  desk.open(approval("a1"), "Ann");
+  desk.open(approval("a2", "ls", "bot:b"), "Ann");
+  desk.open(question("q1"), "Ann");
+  expect(desk.openIn("bot:a")).toBe(2);
+  expect(desk.openIn("bot:b")).toBe(1);
 });
 
 test("a summary with backticks and newlines is flattened and cut", () => {
   const { desk } = setup();
-  void desk.askApproval("bot:a", { ...card, summary: "a`b\r\nc" });
+  desk.open(approval("c1", "a`b\r\nc"), "Ann");
   expect(desk.pendingApprovals()[0]?.summary).toBe("a b c");
-  void desk.askApproval("bot:a", { ...card, summary: "x".repeat(1300) });
+  desk.open(approval("c2", "x".repeat(1300)), "Ann");
   expect(desk.pendingApprovals()[1]?.summary).toBe(`${"x".repeat(1200)} [CUT: 100 more chars]`);
-});
-
-test("closed ids are remembered for the last 500 only", () => {
-  const { desk } = setup();
-  const ids: string[] = [];
-  for (let i = 0; i < 501; i++) {
-    void desk.askApproval("bot:a", card);
-    const id = desk.pendingApprovals()[0]?.cardId as string;
-    ids.push(id);
-    desk.answerApproval(id, "once");
-  }
-  expect(desk.answerApproval(ids[0] as string, "once")).toBe("not_found");
-  expect(desk.answerApproval(ids[500] as string, "once")).toBe("conflict");
 });
 
 test("the cut is by code points: an emoji at the boundary stays whole", () => {
   const { desk } = setup();
-  void desk.askApproval("bot:a", { ...card, summary: `${"x".repeat(1199)}😀tail` });
+  desk.open(approval("c1", `${"x".repeat(1199)}😀tail`), "Ann");
   expect(desk.pendingApprovals()[0]?.summary).toBe(`${"x".repeat(1199)}😀 [CUT: 4 more chars]`);
 });
 
-test("a card without timeoutMs still times out at the default", async () => {
-  const { desk, clock } = setup();
-  const p = desk.askApproval("bot:a", { ...card, timeoutMs: undefined });
-  expect(desk.pendingApprovals()[0]?.expiresAt).toBe(1000 + CORE_DEFAULTS.approvalTimeoutMs);
-  clock.advance(CORE_DEFAULTS.approvalTimeoutMs);
-  expect(await p).toBe("deny");
+test("closing an unknown card publishes nothing", () => {
+  const { desk, events } = setup();
+  desk.close({ ...approval("nope"), status: "answered", answer: "once" });
+  expect(events).toEqual([]);
 });

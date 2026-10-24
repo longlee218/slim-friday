@@ -36,6 +36,8 @@ export interface CardPort {
   openForScope(scopeKey: string): Promise<CardRow[]>;
   /** open -> answered, once; false when the card was not open. `messageId`: the owner message that answered it by text. */
   answer(id: string, answer: CardRow["answer"], at: number, messageId?: number): Promise<boolean>;
+  /** Every card of run `wakeId` (any status), oldest first. */
+  forWake(wakeId: string): Promise<CardRow[]>;
   /** Cards answered by the typed text of owner message `messageId`. */
   answeredByMessage(messageId: number): Promise<CardRow[]>;
   /** Guarded change `from` -> `to`; false when the card was not in `from`. */

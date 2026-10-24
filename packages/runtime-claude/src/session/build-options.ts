@@ -3,7 +3,7 @@ import type { Bot, BotRuntimeSpec } from "@friday/core";
 import { isInside, realOrSame } from "../floor/paths";
 import { sdkEnv } from "../floor/sdk-env";
 import { workerSandbox } from "../floor/worker-sandbox";
-import { askOwner } from "./ask-question";
+import { askOwner, PARKED_RESULT } from "./ask-question";
 import { floorCheck } from "./floor-check";
 import { mcpGranted, pickServers, splitTools } from "./mcp-grants";
 import { buildSkillsPlugin } from "./skills-plugin";
@@ -58,7 +58,7 @@ export interface BuildOptionsInput {
 /**
  * SDK options for one bot session: its model, prompt, tools and background subagents, the OS sandbox around its
  * workspaces, a scrubbed env that lets background tasks run, and a permission callback that applies the hard floor
- * first and then asks `spec.decide` (a throw or a refusal is a deny).
+ * first and then asks `spec.decide` (a throw or a refusal is a deny; a park is a deny that ends the turn).
  */
 export function buildOptions(input: BuildOptionsInput): Options {
   const { spec, config, scratchDir } = input;
@@ -185,9 +185,10 @@ export function buildOptions(input: BuildOptionsInput): Options {
       if (denied) return { behavior: "deny", message: denied };
       try {
         const d = await spec.decide({ tool, input: toolInput, taskId: opts.agentID });
-        return d.behavior === "allow"
-          ? { behavior: "allow", updatedInput: toolInput }
-          : { behavior: "deny", message: d.reason };
+        if (d.behavior === "allow") return { behavior: "allow", updatedInput: toolInput };
+        // Parked on a card: the tool does not run and the turn ends (the engine closes the session).
+        if (d.behavior === "park") return PARKED_RESULT;
+        return { behavior: "deny", message: d.reason };
       } catch {
         return { behavior: "deny", message: "permission decision failed" };
       }

@@ -3,7 +3,9 @@ import type { BotId } from "../domain/bot";
 import type { GroupId } from "../domain/group";
 import type { Author } from "../domain/message";
 import type { BotMessenger, SendRequest, SendResult } from "../ports/messenger";
-import type { InboundMessage } from "../ports/surface";
+import type { QuestionAnswer } from "../domain/question";
+import type { ApprovalAnswer, InboundMessage } from "../ports/surface";
+import { type AnswerCardResult, answerCard, remindWaitingCards } from "../runs/run-card-answer";
 import { ChainGuard } from "../routing/chain-guard";
 import { abortRun, type RunExec } from "../runs/run-exec";
 import { InProcessHints } from "../runs/run-hints";
@@ -120,6 +122,16 @@ export class BotHub implements BotMessenger {
       openedAt: e.openedAt,
       tasks: [...e.tasks].map(([taskId, t]) => ({ taskId, description: t.description })),
     }));
+  }
+
+  /** The owner answers card `cardId` (web button): the run is requeued, or told in place while it still runs. */
+  answerCard(cardId: string, answer: ApprovalAnswer | QuestionAnswer): Promise<AnswerCardResult> {
+    return answerCard(this.ctx, cardId, answer);
+  }
+
+  /** Main sweep: one reminder for cards waiting longer than `cardReminderMs`; requeue runs whose card was answered. */
+  sweepCards(): Promise<void> {
+    return remindWaitingCards(this.ctx, this.deps.clock.now());
   }
 
   /** Tell `onIdleClose` about scopes quiet for `idleCloseMs` (the app flushes their notes). */

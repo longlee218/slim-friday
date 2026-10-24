@@ -104,7 +104,7 @@ test("status lists running tasks; text after task_done goes to the conversation 
 });
 
 test("a tool decision made by a task asks in the conversation that started the task", async () => {
-  const { runtime, surface, store } = makeHub();
+  const { runtime, surface, store, hub } = makeHub();
   // A second chat of the same group shares editor's group scope.
   store.convMap.set("gc2", { id: "gc2", kind: "group", groupId: "g" });
   surface.deliver({ conversationId: "gc2", text: "@editor go" });
@@ -119,11 +119,15 @@ test("a tool decision made by a task asks in the conversation that started the t
   await flush();
   expect(runtime.created).toHaveLength(1);
   expect([...store.wakeMap.values()].map((w) => w.status)).toEqual(["running", "queued"]);
-  surface.answerWith("once");
-  await s.spec.decide({ tool: "Unknown", input: {}, taskId: "t1" });
-  expect(surface.approvals.at(-1)?.conversationId).toBe("gc2");
-  await s.spec.decide({ tool: "Unknown", input: {} });
-  expect(surface.approvals.at(-1)?.conversationId).toBe("gc2");
+  const first = s.spec.decide({ tool: "Unknown", input: {}, taskId: "t1" });
+  await flush();
+  expect(surface.shown.at(-1)?.card.conversationId).toBe("gc2");
+  await hub.answerCard(surface.shown.at(-1)?.card.id ?? "", "once");
+  expect(await first).toEqual({ behavior: "allow" });
+  void s.spec.decide({ tool: "Unknown", input: {} });
+  await flush();
+  expect(surface.shown).toHaveLength(2);
+  expect(surface.shown.at(-1)?.card.conversationId).toBe("gc2");
 });
 
 test("sweepIdle closes a quiet session; the next message resumes it", async () => {
@@ -229,8 +233,8 @@ test("I6: a tool decision made while the session opens asks in the run's convers
   };
   surface.deliver({ conversationId: "dc", text: "one" });
   await flush();
-  expect(early).toMatchObject({ behavior: "deny" });
-  expect(surface.approvals.map((a) => a.conversationId)).toEqual(["dc"]);
+  expect(early).toMatchObject({ behavior: "park" });
+  expect(surface.shown.map((a) => a.card.conversationId)).toEqual(["dc"]);
 });
 
 test("the session spec tells the runtime which conversation the bot answers now", async () => {

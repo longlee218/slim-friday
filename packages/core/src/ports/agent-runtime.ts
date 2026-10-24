@@ -60,7 +60,22 @@ export type RuntimeEvent =
   | { type: "compacted" }
   | { type: "error"; message: string; retryable: boolean };
 
-export type ToolDecision = { behavior: "allow" } | { behavior: "deny"; reason: string };
+/**
+ * The call waits for the owner's answer on card `cardId`: the run parks (its session ends, the worker is free)
+ * and the answer reaches the bot when the run resumes. The runtime ends the turn without running the tool.
+ */
+export type ParkDecision = { behavior: "park"; cardId: string };
+
+/** What `BotRuntimeSpec.ask` resolves with. */
+export type AskResult =
+  | { behavior: "answered"; answers: QuestionAnswer[] }
+  | { behavior: "refused"; reason: string }
+  | ParkDecision;
+
+export type ToolDecision =
+  | { behavior: "allow" }
+  | { behavior: "deny"; reason: string }
+  | ParkDecision;
 
 /** Everything a runtime needs to run one bot. */
 export interface BotRuntimeSpec {
@@ -82,8 +97,12 @@ export interface BotRuntimeSpec {
   groupContext?: string;
   /** A group session's group memory, read at open; added to the system prompt. */
   groupMemory?: string;
-  /** Asks the owner a question the bot raised; resolves `null` when nobody answers. */
-  ask?: (card: QuestionCard) => Promise<QuestionAnswer | null>;
+  /**
+   * Asks the owner the questions of one bot call (one card each, shown together): every answer when they came
+   * while the session was open, a refusal with the reason the bot reads (between runs, a card already open, a
+   * question withdrawn), or a park (the run waits for the answers without its session; the runtime ends the turn).
+   */
+  ask?: (cards: QuestionCard[]) => Promise<AskResult>;
 }
 
 /** A long-lived conversation with one bot. */

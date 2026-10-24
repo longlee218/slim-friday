@@ -66,6 +66,15 @@ export function cardRepo(db: BunSQLiteDatabase): Store["cards"] {
           .all().length === 1
       );
     },
+    async forWake(wakeId) {
+      return db
+        .select()
+        .from(cards)
+        .where(eq(cards.wakeId, wakeId))
+        .orderBy(...oldestFirst)
+        .all()
+        .map(fromRow);
+    },
     async answeredByMessage(messageId) {
       return db
         .select()

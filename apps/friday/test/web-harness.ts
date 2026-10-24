@@ -33,8 +33,11 @@ export async function until(fn: () => boolean, ms = 3000) {
  * The whole engine on fakes (runtime, file store) behind the real routers: `startApp` in a temp home, a router client
  * for a signed-in owner, and a recorder of every event the `events.subscribe` stream delivers.
  */
-export async function webHarness(files: Record<string, string> = {}) {
-  const home = mkdtempSync(join(tmpdir(), "web-flow-"));
+export async function webHarness(
+  files: Record<string, string> = {},
+  /** An existing home (a restart over the same db); default: a new temp home. */
+  home = mkdtempSync(join(tmpdir(), "web-flow-")),
+) {
   put(home, files);
   const { engine, files: fileStore, surface } = webParts(home);
   const runtime = new FakeRuntime();

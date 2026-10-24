@@ -100,6 +100,14 @@ test("Bash goes to decide with the subagent's task id and the answer is mapped",
   });
 });
 
+test("a park ends the turn with an interrupting deny and the tool does not run", async () => {
+  const { s } = spec(bot(), { behavior: "park", cardId: "c1" });
+  expect(await build(s).canUseTool?.("Bash", { command: "ls" }, opts)).toMatchObject({
+    behavior: "deny",
+    interrupt: true,
+  });
+});
+
 test("a decide that throws is a deny", async () => {
   const { s } = spec(bot(), new Error("boom"));
   expect((await build(s).canUseTool?.("Bash", { command: "ls" }, opts))?.behavior).toBe("deny");

@@ -110,14 +110,26 @@ test("markRead publishes the new unread count; list counts open cards too", asyn
   };
   await h.client.conversations.markRead({ id: "bot:a", messageId: id });
   expect(seen).toContainEqual({ type: "unread", conversationId: "bot:a", unread: 0 });
-  void h.surface.cards.askQuestion("bot:a", {
-    botId: "a",
-    botName: "Ann",
-    question: "Q?",
-    kind: "single",
-    options: [{ value: "x", label: "x" }],
-    allowText: false,
-    timeoutMs: 600_000,
-  });
+  h.surface.showCard(
+    {
+      id: "q1",
+      kind: "question",
+      wakeId: "w1",
+      botId: "a",
+      conversationId: "bot:a",
+      scopeKey: "a",
+      question: {
+        botId: "a",
+        botName: "Ann",
+        question: "Q?",
+        kind: "single",
+        options: [{ value: "x", label: "x" }],
+        allowText: false,
+      },
+      status: "open",
+      createdAt: 1,
+    },
+    "Ann",
+  );
   expect((await h.client.conversations.list())[0]?.unread).toBe(1);
 });

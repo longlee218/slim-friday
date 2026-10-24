@@ -1,14 +1,11 @@
 import type {
   Activity,
-  ApprovalAnswer,
-  ApprovalCard,
   Author,
   BotId,
+  CardRow,
   ConversationId,
   InboundMessage,
   OutboundMessage,
-  QuestionAnswer,
-  QuestionCard,
   RunStep,
   Surface,
 } from "../../src";
@@ -17,12 +14,12 @@ import type {
 export class FakeSurface implements Surface {
   posts: { conversationId: ConversationId; message: OutboundMessage }[] = [];
   activities: { conversationId: ConversationId; activity: Activity }[] = [];
-  approvals: { conversationId: ConversationId; card: ApprovalCard }[] = [];
-  questions: { conversationId: ConversationId; card: QuestionCard }[] = [];
+  /** Cards shown, in order, with the bot name they were shown under. */
+  shown: { card: CardRow; botName: string }[] = [];
+  /** Cards closed, in order (answered or withdrawn). */
+  closed: CardRow[] = [];
   runs: { conversationId: ConversationId; botId: BotId; step: RunStep }[] = [];
-  private questionAnswer: QuestionAnswer | null | "never" = null;
   private handler: (m: InboundMessage) => Promise<number | undefined> = async () => undefined;
-  private answer: ApprovalAnswer | "never" = "deny";
 
   onMessage(handler: (m: InboundMessage) => Promise<number | undefined>): void {
     this.handler = handler;
@@ -30,9 +27,11 @@ export class FakeSurface implements Surface {
   async post(conversationId: ConversationId, message: OutboundMessage): Promise<void> {
     this.posts.push({ conversationId, message });
   }
-  askApproval(conversationId: ConversationId, card: ApprovalCard): Promise<ApprovalAnswer> {
-    this.approvals.push({ conversationId, card });
-    return this.answer === "never" ? new Promise(() => {}) : Promise.resolve(this.answer);
+  showCard(card: CardRow, botName: string): void {
+    this.shown.push({ card, botName });
+  }
+  closeCard(card: CardRow): void {
+    this.closed.push(card);
   }
   files: { conversationId: ConversationId; author: Author; name: string; caption?: string }[] = [];
   async postFile(
@@ -43,12 +42,6 @@ export class FakeSurface implements Surface {
   ): Promise<void> {
     this.files.push({ conversationId, author, name: file.name, ...(caption && { caption }) });
   }
-  askQuestion(conversationId: ConversationId, card: QuestionCard): Promise<QuestionAnswer | null> {
-    this.questions.push({ conversationId, card });
-    return this.questionAnswer === "never"
-      ? new Promise(() => {})
-      : Promise.resolve(this.questionAnswer);
-  }
   showRun(conversationId: ConversationId, botId: BotId, step: RunStep): void {
     this.runs.push({ conversationId, botId, step });
   }
@@ -56,14 +49,6 @@ export class FakeSurface implements Surface {
     this.activities.push({ conversationId, activity });
   }
 
-  /** The user's answer to the next approval cards; "never" leaves them unanswered. */
-  answerWith(a: ApprovalAnswer | "never"): void {
-    this.answer = a;
-  }
-  /** The user's answer to the next question cards; "never" leaves them unanswered. */
-  answerQuestionWith(a: QuestionAnswer | null | "never"): void {
-    this.questionAnswer = a;
-  }
   /** The user sends a message. */
   deliver(m: InboundMessage): Promise<number | undefined> {
     return this.handler(m);

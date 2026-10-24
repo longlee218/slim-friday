@@ -185,6 +185,10 @@ export class FakeStore implements Store {
       [...this.wakeMap.values()]
         .filter((w) => w.status === "queued" || w.status === "running")
         .sort((a, b) => a.createdAt - b.createdAt),
+    waiting: async () =>
+      [...this.wakeMap.values()]
+        .filter((w) => w.status === "waiting_input")
+        .sort((a, b) => a.createdAt - b.createdAt),
     botSentSince: async (conversationId: ConversationId, since: number) =>
       [...this.wakeMap.values()]
         .filter(
@@ -375,6 +379,7 @@ export class FakeStore implements Store {
       });
       return true;
     },
+    forWake: async (wakeId: string) => this.cardRows((c) => c.wakeId === wakeId),
     answeredByMessage: async (messageId: number) =>
       this.cardRows((c) => c.answeredMessageId === messageId),
     setStatus: async (id: string, from: CardRow["status"], to: CardRow["status"]) => {

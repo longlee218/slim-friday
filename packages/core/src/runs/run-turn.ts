@@ -11,6 +11,11 @@ export interface RunTurnOpts {
   cut: boolean;
   /** Text that replaces the row's text (a continuation run, Task 9). */
   continuation?: string;
+  /**
+   * Resume text of a run that parked on a card (the approval continuation or the question's answer): it replaces
+   * the row's text, comes from the system, and the row's files and quote are not sent again.
+   */
+  resume?: string;
   /** Memory already in the session's system prompt (bot and group memory); recall skips notes it holds. */
   shown?: string;
 }
@@ -31,7 +36,8 @@ export async function buildRunTurn(
   const context = isGroup
     ? await store.messages.recent(row.conversationId, ctx.limits.groupContextMessages)
     : [];
-  const text = opts.continuation ?? row.text;
+  const text = opts.resume ?? opts.continuation ?? row.text;
+  const first = opts.resume === undefined;
   const tickets = await ticketContextFor(store, text);
   // A group scope key holds "@"; a direct scope recalls the bot's own notes.
   const owners: MemoryOwner[] = row.scopeKey.includes("@")
@@ -41,7 +47,7 @@ export async function buildRunTurn(
   const recalled = await recalledBlock(recall, owners, text, opts.shown ?? "", ctx.limits);
   return {
     conversationId: row.conversationId,
-    from: row.sender,
+    from: first ? row.sender : { kind: "system" },
     text,
     hop: row.hop,
     intent: row.intent,
@@ -49,8 +55,8 @@ export async function buildRunTurn(
     ...(opts.cut && { interrupted: true }),
     context,
     ...(tickets && { tickets }),
-    ...(row.attachments && { attachments: row.attachments }),
-    ...(row.quote && { quote: row.quote }),
+    ...(first && row.attachments && { attachments: row.attachments }),
+    ...(first && row.quote && { quote: row.quote }),
     ...(recalled && { recalled }),
   };
 }

@@ -4,6 +4,7 @@ import type { HubContext } from "../hub/hub-context";
 import { type SessionScope, sessionScope } from "../hub/session-scope";
 import { checkUnfinished } from "../hub/ticket-wakes";
 import { settleCutSteering } from "./run-continuation";
+import { cardResume, parkAtClaim, parkRun, resumeCardId } from "./run-cards";
 import { abortRun, newRunExec, type RunExec, untilStop } from "./run-exec";
 import { countCut, handleRunError } from "./run-failure";
 import { finishRun } from "./run-finish";
@@ -27,14 +28,22 @@ export async function executeRun(ctx: HubContext, row: WakeRow, lease: RunLease)
   const fence = lease.fence;
   const scope = await scopeOf(ctx, row);
   if (!scope) return dropRun(ctx, row, fence);
-  const claimed = await countCut(ctx, row, fence, scope.bot);
-  if (!claimed) return;
+  // An open card of its own (a crash before the park was stored): park again, no session, no cut.
+  if (await parkAtClaim(ctx, row, fence)) return;
+  const cardId = await resumeCardId(ctx, row);
+  const counted = await countCut(ctx, row, fence, scope.bot);
+  if (!counted) return;
+  const claimed = cardId ? { ...counted, cardId } : counted;
   // A run reclaimed after a cut: rows its earlier attempt answered go, the others are offered again.
   if (claimed.claimedFrom === "running") await settleCutSteering(ctx, claimed);
   // Spec "Taint flag": not started by the owner, resumes a cut or parked run, or a second attempt.
   const tainted =
     claimed.sender.kind !== "user" || claimed.cuts > 0 || claimed.cardId !== undefined || fence > 1;
-  const patch = { attempts: Math.max(claimed.attempts, fence), ...(tainted && { tainted }) };
+  const patch = {
+    attempts: Math.max(claimed.attempts, fence),
+    ...(tainted && { tainted }),
+    ...(cardId && { cardId }),
+  };
   if (!(await store.wakes.transition(row.id, fence, ["running"], patch))) return;
   const now = clock.now();
   ctx.wakeLog.logStarted(claimed, now);
@@ -83,6 +92,13 @@ async function runSession(
 ): Promise<PumpEnd> {
   exec.turnOpen = true;
   try {
+    // A run that parked on a card resumes with the answer; a card still open parks it again at once.
+    const resume = await cardResume(ctx, exec);
+    if (resume === "open") {
+      abortRun(exec, { kind: "park", cardId: exec.row.cardId ?? "" });
+      return { kind: "stopped" };
+    }
+    if (resume?.oneShot) exec.oneShot = resume.oneShot;
     const state = await untilStop(exec, ctx.deps.store.scopes.get(exec.key));
     if (exec.stop) return { kind: "stopped" };
     const spec = runSpec(ctx, exec, state?.effort);
@@ -95,7 +111,11 @@ async function runSession(
     persistEffort(ctx, exec.key, spec);
     const turn = await untilStop(
       exec,
-      buildRunTurn(ctx, exec.row, { cut: exec.row.cuts > 0, shown: opened.memory }),
+      buildRunTurn(ctx, exec.row, {
+        cut: exec.row.cuts > 0,
+        shown: opened.memory,
+        ...(resume && { resume: resume.text }),
+      }),
     );
     if (turn === undefined || exec.stop) return { kind: "stopped" };
     // Steering rows bound since the claim travel with the first turn (a conversational run only); rows that
@@ -111,7 +131,7 @@ async function runSession(
 }
 
 /**
- * Store how the run ended: finished, failed with the retry rules, or cut short. A lost lease, cancel or stop
+ * Store how the run ended: parked on a card, finished, failed with the retry rules, or cut short. A lost lease, cancel or stop
  * always takes the cut-short path, even when the pump returned done or an error: another worker may own the
  * run, so nothing is finished or requeued.
  */
@@ -119,6 +139,8 @@ async function settle(ctx: HubContext, exec: RunExec, end: PumpEnd): Promise<voi
   const { row, bot } = exec;
   const fence = row.leaseFence;
   const stop = exec.stop?.kind;
+  // Parked on a card: the row waits for the owner's answer, the worker is free.
+  if (exec.stop?.kind === "park") return void (await parkRun(ctx, row, fence, exec.stop.cardId));
   if (stop && stop !== "idle" && stop !== "followUpOver") return cutShort(ctx, exec);
   if (end.kind === "error") return handleRunError(ctx, row, fence, end.err, bot);
   // Silent while only a finished task's follow-up turn was still to come: the work is done.

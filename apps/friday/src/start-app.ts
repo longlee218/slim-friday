@@ -14,6 +14,7 @@ import { startUploadSweeper } from "./lifecycle/upload-sweeper";
 import { wireMemory } from "./memory-wiring";
 import { readProjectRules } from "./project-rules";
 import { scopeBotFor } from "./scope-bot";
+import { showOpenCards } from "./show-open-cards";
 import { conversationSync } from "./sync-conversations";
 import { systemClock } from "./system-clock";
 
@@ -101,7 +102,6 @@ async function composeApp(deps: AppDeps, opened: Array<() => unknown>) {
     clock,
     catalog: config.catalog,
     settings: config.settings,
-    timeoutMs: config.limits().approvalTimeoutMs,
   });
   const botHub = new BotHub({
     runtime,
@@ -141,6 +141,9 @@ async function composeApp(deps: AppDeps, opened: Array<() => unknown>) {
   const n = await engine.conversations.deleteLegacy();
   if (n > 0) log.info({ n }, "conversations.legacy_deleted");
   await run();
+
+  // Cards are rows: the open ones the last run left are shown again (their runs stay parked until answered).
+  await showOpenCards(store, surface).catch((err) => log.error({ error: why(err) }, "cards.show"));
 
   // Put back the wakes the last run left open (after the first sync, which creates the conversations they answer in).
   await botHub.recover().catch((err) => log.error({ error: why(err) }, "wakes.recover"));

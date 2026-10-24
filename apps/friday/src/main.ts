@@ -154,20 +154,16 @@ export async function startEngine(opts: {
       listGroups: app.config.listGroups,
     },
   }).catch(async (err) => {
-    surface.cancelAll();
     await app.stop();
     throw err;
   });
   logEvent(log, "engine.started", { agentHome });
   if (!signal.aborted)
     await new Promise<void>((r) => signal.addEventListener("abort", () => r(), { once: true }));
-  // Open cards close first (bots waiting on an answer get deny / null), then the API, then the app.
-  surface.cancelAll();
+  // Open cards stay open: they are rows, shown again at the next start. The API stops first, then the app.
   try {
     await api.stop();
   } finally {
     await app.stop();
-    // A turn that finished while the app stopped may have opened a card; close it too.
-    surface.cancelAll();
   }
 }

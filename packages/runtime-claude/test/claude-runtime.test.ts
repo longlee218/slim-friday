@@ -129,6 +129,13 @@ test("a stream failure rejects events with that error", async () => {
   await expect(take(s.events, 1)).rejects.toThrow("boom");
 });
 
+test("the SDK's throw after our own abort (a park) ends the events without an error", async () => {
+  const { fq, rt } = setup();
+  const s = await rt.open(spec);
+  fq.fail(new Error("Claude Code process aborted by user"));
+  expect(await take(s.events, 1)).toEqual([]);
+});
+
 test("stop aborts the SDK, ends the input and events, and a later send is dropped", async () => {
   const { fq, rt } = setup();
   const s = await rt.open(spec);

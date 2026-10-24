@@ -1,5 +1,6 @@
 import type { HubContext } from "../hub/hub-context";
 import type { Log } from "../ports/log";
+import { applyCardAnswer } from "./run-cards";
 import { RunClaimer } from "./run-claimer";
 import { abortRun } from "./run-exec";
 import { executeRun } from "./run-executor";
@@ -43,6 +44,9 @@ export class LocalRunner {
       else if (h.kind !== "steer") this.claimer.onHint();
       // Steering for a run of this process goes into its open turn at once (a queued run claims it at start).
       if (h.kind === "steer") this.steer(h.wakeId);
+      // An answer for a run of this process that waits in place (background tasks) is applied without a resume.
+      if (h.kind === "cardAnswered")
+        for (const exec of this.ctx.runs.values()) void applyCardAnswer(this.ctx, exec, h.cardId);
     });
   }
 

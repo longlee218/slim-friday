@@ -4,6 +4,12 @@ import { turnContent, withAttachments } from "./format-turn";
 import type { InputQueue } from "./input-queue";
 import { mapMessage } from "./map-message";
 
+/** The SDK's throw after our abort controller fired (spike: "Claude Code process aborted by user"). */
+export function isAbortedByUs(err: unknown): boolean {
+  const text = err instanceof Error ? `${err.name} ${err.message}` : String(err);
+  return /process aborted by user|AbortError/i.test(text);
+}
+
 /** One long-lived SDK streaming session of one bot. */
 export class ClaudeSession implements BotSession {
   readonly events: AsyncIterable<RuntimeEvent>;
@@ -73,7 +79,8 @@ export class ClaudeSession implements BotSession {
         }
       }
     } catch (err) {
-      if (!this.stopped) throw err;
+      // Our own abort (stop, or a park that closes the session) ends the stream as expected, never as a failure.
+      if (!this.stopped && !isAbortedByUs(err)) throw err;
     }
   }
 }

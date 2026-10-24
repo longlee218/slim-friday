@@ -82,10 +82,9 @@ test("after a compaction the next run still gets the group memory", async () => 
 
 test("a background task keeps the group scope busy: another chat's message waits and the task asks where it began", async () => {
   const { memory } = fakeMemory();
-  const { runtime, surface, store } = makeHub(memory);
+  const { runtime, surface, store, hub } = makeHub(memory);
   // A second chat of the same group shares the bot's group scope.
   store.convMap.set("gc2", { id: "gc2", kind: "group", groupId: "g" });
-  surface.answerWith("once");
   surface.deliver({ conversationId: "gc2", text: "@Editor start a task" });
   await flush();
   const s = runtime.nth(0);
@@ -96,13 +95,17 @@ test("a background task keeps the group scope busy: another chat's message waits
   await flush();
   // The run with the task holds the scope, so the bot never answers the other chat meanwhile.
   expect([...store.wakeMap.values()].map((w) => w.status)).toEqual(["running", "queued"]);
-  const d = await s.spec.decide({
+  const d = s.spec.decide({
     tool: "mcp__memory__MemorySave",
     input: { scope: "group" },
     taskId: "t1",
   });
-  expect(d).toEqual({ behavior: "allow" });
-  expect(surface.approvals.at(-1)?.conversationId).toBe("gc2");
+  await flush();
+  // A task runs: the card waits in place and the answer applies without a resume.
+  const card = surface.shown.at(-1)?.card;
+  expect(card?.conversationId).toBe("gc2");
+  expect(await hub.answerCard(card?.id ?? "", "once")).toBe("ok");
+  expect(await d).toEqual({ behavior: "allow" });
 });
 
 test("a group turn recalls only the group's notes; a direct turn recalls the bot's", async () => {

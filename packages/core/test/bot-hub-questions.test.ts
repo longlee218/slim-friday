@@ -10,27 +10,34 @@ const card = {
   allowText: true,
 };
 
-test("a bot's question reaches the surface with its name and timeout and comes back", async () => {
-  const { runtime, surface } = makeHub();
-  surface.answerQuestionWith({ choices: ["Blue"] });
+test("a bot's question becomes a stored card with its name; with no task open the run parks", async () => {
+  const { runtime, surface, store } = makeHub();
   surface.deliver({ conversationId: "dc", text: "hi" });
   await flush();
-  const a = await runtime.nth(0).spec.ask?.(card);
-  expect(surface.questions[0]).toMatchObject({
+  const a = await runtime.nth(0).spec.ask?.([card]);
+  const shown = surface.shown[0];
+  expect(shown?.botName).toBe("Editor");
+  expect(shown?.card).toMatchObject({
+    kind: "question",
     conversationId: "dc",
-    card: { botId: "editor", botName: "Editor", timeoutMs: 600_000 },
+    question: { botId: "editor", botName: "Editor", question: "Color?" },
   });
-  expect(a).toEqual({ choices: ["Blue"] });
+  expect(a).toEqual({ behavior: "park", cardId: shown?.card.id ?? "" });
+  await flush();
+  expect([...store.wakeMap.values()][0]).toMatchObject({
+    status: "waiting_input",
+    cardId: shown?.card.id,
+  });
 });
 
-test("ask between turns resolves null without asking", async () => {
+test("ask between turns is refused without asking", async () => {
   const { runtime, surface } = makeHub();
   surface.deliver({ conversationId: "dc", text: "hi" });
   await flush();
   runtime.nth(0).emit({ type: "turn_end", costUsd: 0 });
   await flush();
-  expect(await runtime.nth(0).spec.ask?.(card)).toBeNull();
-  expect(surface.questions).toHaveLength(0);
+  expect((await runtime.nth(0).spec.ask?.([card]))?.behavior).toBe("refused");
+  expect(surface.shown).toHaveLength(0);
 });
 
 test("the approval card names the bot id", async () => {
@@ -39,5 +46,5 @@ test("the approval card names the bot id", async () => {
   await flush();
   void runtime.nth(0).spec.decide({ tool: "Bash", input: { command: "ls" } });
   await flush();
-  expect(surface.approvals[0]?.card.botId).toBe("editor");
+  expect(surface.shown[0]?.card.botId).toBe("editor");
 });

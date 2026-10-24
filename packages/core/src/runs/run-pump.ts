@@ -4,6 +4,7 @@ import type { HubContext } from "../hub/hub-context";
 import { errText } from "../hub/hub-types";
 import { postStored } from "../hub/post-stored";
 import type { RuntimeEvent } from "../ports/agent-runtime";
+import { parkNow } from "./run-cards";
 import { abortRun, type RunExec } from "./run-exec";
 import { dayOf } from "./run-rules";
 import { answerFirstTurn, answerPushed, deliverSteering } from "./run-steering";
@@ -91,6 +92,8 @@ async function onEvent(
     if (task) exec.current = { conversationId: task.conversationId, hop: task.hop };
     if (exec.turnOpen) exec.taskDoneInTurn = true;
     else exec.followUp = true;
+    // The last task ended while a card is still open: the run parks now (spec: subagent exception).
+    if (exec.tasks.size === 0 && exec.waiting) parkNow(exec);
   } else if (e.type === "turn_end") {
     show(exec.steps.endTurn(now));
     exec.turnOpen = false;

@@ -1,12 +1,22 @@
 import type { BotId, BotRuntimeSpec, QuestionAnswer, QuestionCard } from "@friday/core";
 
-/** Result shape of the SDK permission callback for one tool call. */
-type AskResult =
+/** Result shape of the SDK permission callback for one tool call (`interrupt` ends the turn). */
+type CanUseResult =
   | { behavior: "allow"; updatedInput: Record<string, unknown> }
-  | { behavior: "deny"; message: string };
+  | { behavior: "deny"; message: string; interrupt?: boolean };
 
-/** Reason sent to the bot when the owner leaves a question unanswered. */
-const NO_ANSWER = "The owner did not answer in time.";
+/**
+ * What the model reads when its call parks on a card: the turn ends here (the session is closed by the engine)
+ * and the answer comes when the run resumes.
+ */
+export const PARKED_TEXT =
+  "Waiting for the owner's answer; this turn ends here and resumes with the answer.";
+
+/** The deny that ends the turn on a park. */
+export const PARKED_RESULT = { behavior: "deny" as const, message: PARKED_TEXT, interrupt: true };
+
+/** Reason sent to the bot when an answer holds neither a choice nor text (there is no time limit). */
+const NO_ANSWER = "The owner gave no answer.";
 
 /** One question of the SDK `AskUserQuestion` input, as far as the cards need it. */
 interface AskQuestion {
@@ -40,7 +50,6 @@ export function cardsFromAsk(
   input: unknown,
   botId: BotId,
   botName: string,
-  timeoutMs?: number,
 ): QuestionCard[] | string {
   const qs = (input as { questions?: unknown } | null)?.questions;
   if (!Array.isArray(qs) || qs.length === 0)
@@ -58,7 +67,6 @@ export function cardsFromAsk(
       ...(o.description && { description: o.description }),
     })),
     allowText: true,
-    ...(timeoutMs !== undefined && { timeoutMs }),
   }));
 }
 
@@ -70,7 +78,7 @@ export function cardsFromAsk(
 export function answerAsk(
   input: Record<string, unknown>,
   answers: (QuestionAnswer | null)[],
-): AskResult {
+): CanUseResult {
   const questions = (input.questions as AskQuestion[]).map((q) => q.question);
   const out: Record<string, string> = {};
   const annotations: Record<string, { notes: string }> = {};
@@ -94,24 +102,23 @@ export function answerAsk(
 }
 
 /**
- * Puts each question of an `AskUserQuestion` call to the owner in turn through `spec.ask`. No `ask` or a throw is a
- * deny (the session goes on); an unanswered question is a deny too.
+ * Puts the questions of an `AskUserQuestion` call to the owner through `spec.ask`, all at once (one card each). No
+ * `ask` or a throw is a deny (the session goes on); a refusal is a deny with its reason (e.g. a question withdrawn
+ * because the owner wrote something else). A park (no answers while the session is open) ends the turn; every
+ * answer reaches the bot on resume.
  */
 export async function askOwner(
   spec: BotRuntimeSpec,
   input: Record<string, unknown>,
-): Promise<AskResult> {
+): Promise<CanUseResult> {
   if (!spec.ask) return { behavior: "deny", message: "No one can answer questions here." };
   const cards = cardsFromAsk(input, spec.bot.id, spec.bot.name);
   if (typeof cards === "string") return { behavior: "deny", message: cards };
   try {
-    const answers: (QuestionAnswer | null)[] = [];
-    for (const card of cards) {
-      const a = await spec.ask(card);
-      answers.push(a);
-      if (!a || (!a.choices.length && !a.text)) break;
-    }
-    return answerAsk(input, answers);
+    const r = await spec.ask(cards);
+    if (r.behavior === "park") return PARKED_RESULT;
+    if (r.behavior === "refused") return { behavior: "deny", message: r.reason };
+    return answerAsk(input, r.answers);
   } catch {
     return { behavior: "deny", message: "question failed" };
   }

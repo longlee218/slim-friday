@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import type { ToolCall, ToolSpec } from "../src";
-import { PermissionGate } from "../src/permission/permission-gate";
+import { inputHash } from "../src/permission/input-hash";
+import { PermissionGate, WAITING_TEXT } from "../src/permission/permission-gate";
 import { FakeClock } from "./fakes/fake-clock";
 import { FakeStore } from "./fakes/fake-store";
 import { FakeSurface } from "./fakes/fake-surface";
@@ -27,7 +28,6 @@ function setup() {
     clock,
     catalog: new FakeToolCatalog([PUSH, DELETE, READ]),
     settings: () => ({ level: "balanced" }),
-    timeoutMs: 600_000,
   });
   return { store, surface, clock, gate };
 }
@@ -37,113 +37,95 @@ const call = (tool: string, input: Record<string, unknown> = {}): ToolCall => ({
   tool,
   input,
 });
+/** The run context of run `w1` in scope `b1`. */
+const run = (over: { wakeId?: string; oneShot?: string } = {}) => ({
+  wakeId: "w1",
+  scopeKey: "b1",
+  tainted: false,
+  ...over,
+});
 
 test("allow needs no card and is audited", async () => {
   const { gate, surface, store } = setup();
-  expect(await gate.decide(call("Read"), "Writer")).toEqual({ behavior: "allow" });
-  expect(surface.approvals).toHaveLength(0);
+  expect(await gate.decide(call("Read"), "Writer", run())).toEqual({ behavior: "allow" });
+  expect(surface.shown).toHaveLength(0);
   expect(store.auditLog).toHaveLength(1);
   expect(store.auditLog[0]).toMatchObject({ tool: "Read", outcome: "allow", botId: "b1" });
 });
 
-test("ask + always stores a grant; the same call is then allowed without a card", async () => {
+test("ask writes one stored card with the exact call and parks", async () => {
   const { gate, surface, store } = setup();
-  surface.answerWith("always");
-  expect(await gate.decide(call("Push", { repo: "a" }), "Writer")).toEqual({ behavior: "allow" });
-  expect(store.grantList).toHaveLength(1);
-  expect(store.grantList[0]).toMatchObject({ botId: "b1", tool: "Push", scope: { repo: "a" } });
-  expect(surface.approvals[0]?.card).toMatchObject({
-    botName: "Writer",
-    tool: "Push",
-    offerAlways: true,
+  const d = await gate.decide(call("Push", { repo: "a" }), "Writer", run());
+  expect(d.behavior).toBe("park");
+  const cardId = d.behavior === "park" ? d.cardId : "";
+  const card = store.cardMap.get(cardId);
+  expect(card).toMatchObject({
+    kind: "approval",
+    wakeId: "w1",
+    scopeKey: "b1",
+    conversationId: "c1",
+    status: "open",
+    approval: { tool: "Push", input: { repo: "a" }, summary: "Push repo=a", offerAlways: true },
   });
-  await gate.decide(call("Push", { repo: "a" }), "Writer");
-  expect(surface.approvals).toHaveLength(1);
-  surface.answerWith("deny");
-  expect((await gate.decide(call("Push", { repo: "b" }), "Writer")).behavior).toBe("deny");
-  expect(surface.approvals).toHaveLength(2);
+  expect(card?.approval?.inputHash).toBe(await inputHash("Push", { repo: "a" }));
+  expect(surface.shown.map((s) => [s.card.id, s.botName])).toEqual([[cardId, "Writer"]]);
+  expect(store.auditLog[0]).toMatchObject({ outcome: "ask" });
 });
 
-test("once allows and stores nothing; the next call asks again", async () => {
-  const { gate, surface, store } = setup();
-  surface.answerWith("once");
-  expect(await gate.decide(call("Push", { repo: "a" }), "W")).toEqual({ behavior: "allow" });
-  expect(store.grantList).toHaveLength(0);
-  await gate.decide(call("Push", { repo: "a" }), "W");
-  expect(surface.approvals).toHaveLength(2);
-});
-
-test("deny answer denies with a reason", async () => {
-  const { gate, surface } = setup();
-  surface.answerWith("deny");
-  expect(await gate.decide(call("Push"), "W")).toEqual({
+test("second ask in the same step does not open a second card", async () => {
+  const { gate, store } = setup();
+  await gate.decide(call("Push", { repo: "a" }), "W", run());
+  expect(await gate.decide(call("Push", { repo: "b" }), "W", run())).toEqual({
     behavior: "deny",
-    reason: "denied by the user",
+    reason: WAITING_TEXT,
   });
+  expect(store.cardMap.size).toBe(1);
+  // Another run of the scope (a new owner message) gets its own card.
+  expect(
+    (await gate.decide(call("Push", { repo: "b" }), "W", run({ wakeId: "w2" }))).behavior,
+  ).toBe("park");
 });
 
-test("an irreversible call is asked without Always allow, and a forged 'always' stores nothing", async () => {
-  const { gate, surface, store } = setup();
-  surface.answerWith("always");
-  const d = await gate.decide(call("Delete"), "W");
-  expect(surface.approvals[0]?.card.offerAlways).toBe(false);
-  expect(d).toEqual({ behavior: "allow" });
-  expect(store.grantList).toHaveLength(0);
+test("the approved call is allowed by its one shot; a different input asks again", async () => {
+  const { gate, store } = setup();
+  const hash = await inputHash("Push", { repo: "a" });
+  expect(await gate.decide(call("Push", { repo: "a" }), "W", run({ oneShot: hash }))).toEqual({
+    behavior: "allow",
+  });
+  expect(store.cardMap.size).toBe(0);
+  const other = await gate.decide(call("Push", { repo: "b" }), "W", run({ oneShot: hash }));
+  expect(other.behavior).toBe("park");
 });
 
-test("no answer in time is a deny and stores no grant", async () => {
-  const { gate, surface, store, clock } = setup();
-  surface.answerWith("never");
-  const pending = gate.decide(call("Push"), "W");
-  await new Promise((r) => setTimeout(r, 0)); // let the gate reach its wait
-  clock.advance(600_000);
-  expect(await pending).toEqual({ behavior: "deny", reason: "approval timed out" });
-  expect(store.grantList).toHaveLength(0);
-  expect(store.auditLog[0]?.reason).toContain("timed out");
+test("the input hash ignores key order", async () => {
+  expect(await inputHash("T", { a: 1, b: { c: 2, d: 3 } })).toBe(
+    await inputHash("T", { b: { d: 3, c: 2 }, a: 1 }),
+  );
+  expect(await inputHash("T", { a: 1 })).not.toBe(await inputHash("U", { a: 1 }));
 });
 
-test("every asked call writes one audit entry with the outcome and the answer", async () => {
-  const { gate, surface, store } = setup();
-  surface.answerWith("once");
-  await gate.decide(call("Push", { repo: "a" }), "W");
-  expect(store.auditLog).toHaveLength(1);
-  expect(store.auditLog[0]).toMatchObject({ outcome: "ask", answer: "once" });
+test("no Always allow for an irreversible call, a '*' scope or an unknown tool", async () => {
+  const { gate, store } = setup();
+  await gate.decide(call("Delete"), "W", run({ wakeId: "a" }));
+  await gate.decide(call("Push", { repo: "*" }), "W", run({ wakeId: "b" }));
+  await gate.decide(call("Mystery"), "W", run({ wakeId: "c" }));
+  expect([...store.cardMap.values()].map((c) => c.approval?.offerAlways)).toEqual([
+    false,
+    false,
+    false,
+  ]);
 });
 
-test("C2: no Always allow for a scope value of '*'; a forged always stores nothing", async () => {
-  const { gate, surface, store } = setup();
-  surface.answerWith("always");
-  await gate.decide(call("Push", { repo: "*" }), "W");
-  expect(surface.approvals[0]?.card.offerAlways).toBe(false);
-  expect(store.grantList).toHaveLength(0);
-});
-
-test("I4: no Always allow for a tool the catalog does not know", async () => {
-  const { gate, surface, store } = setup();
-  surface.answerWith("always");
-  await gate.decide(call("Mystery"), "W");
-  expect(surface.approvals[0]?.card.offerAlways).toBe(false);
-  expect(store.grantList).toHaveLength(0);
-});
-
-test("I5: any answer other than once or always is a deny", async () => {
-  const { gate, surface } = setup();
-  for (const bad of [undefined, "cancel", "ALWAYS"]) {
-    surface.answerWith(bad as never);
-    expect((await gate.decide(call("Push", { repo: "a" }), "W")).behavior).toBe("deny");
-  }
-});
-
-test("I5: a failing store or surface denies instead of throwing", async () => {
-  const { gate, surface, store } = setup();
+test("a failing store denies instead of throwing; a failing surface still parks on the stored card", async () => {
+  const { gate, store } = setup();
   store.grants.list = async () => {
     throw new Error("db down");
   };
-  expect((await gate.decide(call("Read"), "W")).behavior).toBe("deny");
+  expect((await gate.decide(call("Read"), "W", run())).behavior).toBe("deny");
   const s2 = setup();
-  s2.surface.askApproval = () => {
+  s2.surface.showCard = () => {
     throw new Error("surface down");
   };
-  expect((await s2.gate.decide(call("Push", { repo: "a" }), "W")).behavior).toBe("deny");
-  expect(surface.approvals).toHaveLength(0);
+  expect((await s2.gate.decide(call("Push", { repo: "a" }), "W", run())).behavior).toBe("park");
+  expect(s2.store.cardMap.size).toBe(1);
 });

@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { FridayEvent } from "@friday/contracts";
-import type { RunStep } from "@friday/core";
+import type { CardRow, RunStep } from "@friday/core";
 import { FakeClock } from "../../core/test/fakes/fake-clock";
 import { FakeFileStore } from "../../core/test/fakes/fake-file-store";
 import { FakeStore } from "../../core/test/fakes/fake-store";
@@ -86,40 +86,39 @@ test("showRun and showActivity publish run and activity events", () => {
   ]);
 });
 
-test("a card publishes unread counting the open card, cancelAll closes it", async () => {
-  const p = surface.askQuestion("bot:a", {
+/** A stored open question card of conversation bot:a. */
+const qcard = (id = "c1"): CardRow => ({
+  id,
+  kind: "question",
+  wakeId: "w1",
+  botId: "a",
+  conversationId: "bot:a",
+  scopeKey: "a",
+  question: {
     botId: "a",
     botName: "Ann",
     question: "Q?",
     kind: "single",
     options: [{ value: "x", label: "x" }],
     allowText: false,
-    timeoutMs: 600_000,
-  });
-  await Promise.resolve();
-  await Promise.resolve();
+  },
+  status: "open",
+  createdAt: 1,
+});
+
+test("a shown card publishes unread counting the open card", async () => {
+  surface.showCard(qcard(), "Ann");
+  await Bun.sleep(5);
   expect(seen.at(-1)).toEqual({ type: "unread", conversationId: "bot:a", unread: 1 });
-  surface.cancelAll();
-  expect(await p).toBeNull();
 });
 
 test("a card closing publishes the unread count without it", async () => {
-  const p = surface.askQuestion("bot:a", {
-    botId: "a",
-    botName: "Ann",
-    question: "Q?",
-    kind: "single",
-    options: [{ value: "x", label: "x" }],
-    allowText: false,
-    timeoutMs: 600_000,
-  });
-  await Promise.resolve();
-  await Promise.resolve();
-  seen.length = 0;
-  const [card] = surface.cards.pendingQuestions();
-  surface.cards.answerQuestion(card?.cardId ?? "", { choices: ["x"] });
-  await p;
+  surface.showCard(qcard(), "Ann");
   await Bun.sleep(5);
+  seen.length = 0;
+  surface.closeCard({ ...qcard(), status: "answered", answer: { choices: ["x"] } });
+  await Bun.sleep(5);
+  expect(seen[0]).toEqual({ type: "question.closed", cardId: "c1", answer: { choices: ["x"] } });
   expect(seen.at(-1)).toEqual({ type: "unread", conversationId: "bot:a", unread: 0 });
 });
 
@@ -173,19 +172,11 @@ test("postFile with a failing insert leaves no object and rejects", async () => 
   expect(store.msgs).toHaveLength(0);
 });
 
-test("a failing unread lookup does not lose the card answer", async () => {
+test("a failing unread lookup does not stop a card from showing", async () => {
   store.reads.unread = async () => {
     throw new Error("db down");
   };
-  const p = surface.askApproval("bot:a", {
-    botId: "a",
-    botName: "Ann",
-    tool: "Bash",
-    summary: "ls",
-    scope: {},
-    offerAlways: false,
-    timeoutMs: 600_000,
-  });
-  surface.cancelAll();
-  expect(await p).toBe("deny");
+  surface.showCard(qcard(), "Ann");
+  await Bun.sleep(5);
+  expect(surface.cards.pendingQuestions().map((c) => c.cardId)).toEqual(["c1"]);
 });

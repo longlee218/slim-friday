@@ -18,17 +18,17 @@ function logAnswered(
   });
 }
 
-/** Approval cards waiting for the owner; the first answer wins. */
+/** Approval cards waiting for the owner; the first answer wins (the stored card is answered once). */
 export const approvalsRouter = {
   pending: authed.approvals.pending.handler(({ context }) =>
     context.deps.surface.cards.pendingApprovals(),
   ),
-  answer: authed.approvals.answer.handler(({ input, context, errors }) => {
-    const { cards } = context.deps.surface;
-    const openedAt = cards.openedAt(input.cardId);
-    const r = cards.answerApproval(input.cardId, input.answer);
+  answer: authed.approvals.answer.handler(async ({ input, context, errors }) => {
+    const openedAt = context.deps.surface.cards.openedAt(input.cardId);
+    const r = await context.deps.hub.answerCard(input.cardId, input.answer);
     if (r === "conflict") throw errors.CONFLICT();
     if (r === "not_found") throw errors.NOT_FOUND();
+    if (r === "bad_answer") throw errors.BAD_REQUEST();
     logAnswered(context.deps, input.cardId, "approval", input.answer, openedAt);
     return { ok: true as const };
   }),
@@ -39,10 +39,9 @@ export const questionsRouter = {
   pending: authed.questions.pending.handler(({ context }) =>
     context.deps.surface.cards.pendingQuestions(),
   ),
-  answer: authed.questions.answer.handler(({ input, context, errors }) => {
-    const { cards } = context.deps.surface;
-    const openedAt = cards.openedAt(input.cardId);
-    const r = cards.answerQuestion(input.cardId, {
+  answer: authed.questions.answer.handler(async ({ input, context, errors }) => {
+    const openedAt = context.deps.surface.cards.openedAt(input.cardId);
+    const r = await context.deps.hub.answerCard(input.cardId, {
       choices: input.choices ?? [],
       ...(input.text !== undefined && { text: input.text }),
     });

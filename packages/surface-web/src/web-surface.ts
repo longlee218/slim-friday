@@ -1,16 +1,13 @@
 import type {
   Activity,
-  ApprovalAnswer,
-  ApprovalCard,
   Author,
+  CardRow,
   Clock,
   ConversationId,
   FileStore,
   InboundMessage,
   Log,
   OutboundMessage,
-  QuestionAnswer,
-  QuestionCard,
   RunStep,
   Store,
   Surface,
@@ -44,8 +41,7 @@ export class WebSurface implements Surface {
   constructor(protected deps: WebSurfaceDeps) {
     // Ids start from boot time, so a tab's id from a previous run is older than the buffer: resync.
     this.bus = new EventBus(REPLAY_EVENTS, deps.clock.now() * 1000);
-    // A closed card changes the unread count of its conversation.
-    this.cards = new CardDesk(this.bus, deps.clock, (c) => void this.publishUnreadSafe(c));
+    this.cards = new CardDesk(this.bus, deps.clock);
   }
 
   onMessage(handler: (m: InboundMessage) => Promise<number | undefined>): void {
@@ -92,16 +88,16 @@ export class WebSurface implements Surface {
     }
   }
 
-  async askApproval(c: ConversationId, card: ApprovalCard): Promise<ApprovalAnswer> {
-    const answer = this.cards.askApproval(c, card);
-    await this.publishUnreadSafe(c);
-    return answer;
+  /** Show a stored card; an open card counts as unread in its conversation. */
+  showCard(card: CardRow, botName: string): void {
+    this.cards.open(card, botName);
+    void this.publishUnreadSafe(card.conversationId);
   }
 
-  async askQuestion(c: ConversationId, card: QuestionCard): Promise<QuestionAnswer | null> {
-    const answer = this.cards.askQuestion(c, card);
-    await this.publishUnreadSafe(c);
-    return answer;
+  /** Close an answered or withdrawn card; the unread count of its conversation changes. */
+  closeCard(card: CardRow): void {
+    this.cards.close(card);
+    void this.publishUnreadSafe(card.conversationId);
   }
 
   showActivity(c: ConversationId, a: Activity): void {
@@ -116,11 +112,6 @@ export class WebSurface implements Surface {
 
   showRun(c: ConversationId, botId: string, step: RunStep): void {
     this.bus.publish({ type: "run", conversationId: c, botId, step });
-  }
-
-  /** Close every open card (engine shutdown). */
-  cancelAll(): void {
-    this.cards.cancelAll();
   }
 
   postFile(

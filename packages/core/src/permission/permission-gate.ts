@@ -1,32 +1,56 @@
-import { CORE_DEFAULTS } from "../config-defaults";
 import type { PermissionSettings } from "../domain/autonomy";
+import type { CardRow } from "../domain/card";
 import type { ToolCall } from "../domain/tool";
 import type { ToolDecision } from "../ports/agent-runtime";
 import type { Clock } from "../ports/clock";
 import type { Store } from "../ports/store";
-import type { ApprovalAnswer, Surface } from "../ports/surface";
+import type { Surface } from "../ports/surface";
 import type { ToolCatalog } from "../ports/tool-catalog";
 import { scopeOf } from "./classify-tool";
 import { decide } from "./decide";
+import { inputHash } from "./input-hash";
+
+/** Deny reason for a call that needs approval while the same run already waits on a card. */
+export const WAITING_TEXT = "waiting for the owner's answer to an earlier request";
 
 export interface PermissionGateDeps {
   store: Store;
+  /** Shows a new card to the owner (after it is stored). */
   surface: Surface;
   catalog: ToolCatalog;
   clock: Clock;
   /** Read at every call, so a settings change applies at once. */
   settings: () => PermissionSettings;
-  timeoutMs?: number;
 }
 
-/** Turns the pure decision into an action: allows, denies, or asks the user and remembers "Always allow". */
+/** The run a call belongs to, as the gate needs it. */
+export interface GateContext {
+  /** The run (wake) that makes the call; its card waits for the owner. */
+  wakeId: string;
+  /** The run's session scope (`<botId>` or `<botId>@<groupId>`). */
+  scopeKey: string;
+  /** The run read untrusted input (spec "Taint flag"); recorded only, the stricter policy is later work. */
+  tainted: boolean;
+  /** Input hash of the call the owner approved for this resumed run: that exact call is allowed. */
+  oneShot?: string;
+}
+
+/**
+ * Turns the pure decision into an action: allows, denies, or writes an approval card and parks the run (the
+ * owner's answer reaches the bot when the run resumes; nothing waits on a promise and nothing times out).
+ */
 export class PermissionGate {
   constructor(private deps: PermissionGateDeps) {}
 
   /** Decide one call; every call is audited once. Any failure on the way is a deny. */
-  async decide(call: ToolCall, botName: string, floorDenyReason?: string): Promise<ToolDecision> {
+  async decide(
+    call: ToolCall,
+    botName: string,
+    ctx: GateContext,
+    floorDenyReason?: string,
+  ): Promise<ToolDecision> {
     try {
-      return await this.decideOrThrow(call, botName, floorDenyReason);
+      return await this.decideOrThrow(call, botName, ctx, floorDenyReason);
     } catch (err) {
       return {
         behavior: "deny",
@@ -38,6 +62,7 @@ export class PermissionGate {
   private async decideOrThrow(
     call: ToolCall,
     botName: string,
+    ctx: GateContext,
     floorDenyReason?: string,
   ): Promise<ToolDecision> {
     const { store, catalog, clock } = this.deps;
@@ -51,13 +76,12 @@ export class PermissionGate {
       floorDenyReason,
       now: clock.now(),
     });
-    const audit = async (reason: string, answer?: ApprovalAnswer) =>
+    const audit = (reason: string) =>
       store.audit.append({
         at: clock.now(),
         botId: call.botId,
         tool: call.tool,
         outcome: verdict.outcome,
-        answer,
         reason,
       });
 
@@ -69,65 +93,49 @@ export class PermissionGate {
       await audit(verdict.reason);
       return { behavior: "deny", reason: verdict.reason };
     }
-
+    const hash = await inputHash(call.tool, call.input);
+    // The exact call the owner approved before the run parked; the caller spends the one shot.
+    if (ctx.oneShot !== undefined && ctx.oneShot === hash) {
+      await audit("approved by the owner");
+      return { behavior: "allow" };
+    }
+    // Only the first call of a step gets a card; the others wait for the next step.
+    const open = await store.cards.openForScope(ctx.scopeKey);
+    if (open.some((c) => c.wakeId === ctx.wakeId)) {
+      await audit(WAITING_TEXT);
+      return { behavior: "deny", reason: WAITING_TEXT };
+    }
     // "Always allow" only for a tool the catalog knows, with plain scope values (a "*" would become a wildcard grant).
     const offerAlways =
       verdict.outcome === "ask" &&
       spec !== undefined &&
       Object.values(scope).every((v) => v !== "*");
-    const answer = await this.ask(call, botName, scope, offerAlways);
-    if (answer === "timeout") {
-      await audit("approval timed out");
-      return { behavior: "deny", reason: "approval timed out" };
-    }
-    await audit(verdict.reason, answer);
-    // Only an explicit once or always allows; anything else (including a malformed answer) denies.
-    if (answer !== "once" && answer !== "always")
-      return { behavior: "deny", reason: "denied by the user" };
-    if (answer === "always" && offerAlways)
-      await store.grants.add({
-        id: `grant-${call.botId}-${call.tool}-${clock.now()}`,
-        botId: call.botId,
+    const card: CardRow = {
+      id: `card-${crypto.randomUUID()}`,
+      kind: "approval",
+      wakeId: ctx.wakeId,
+      botId: call.botId,
+      conversationId: call.conversationId,
+      scopeKey: ctx.scopeKey,
+      approval: {
         tool: call.tool,
+        input: call.input,
+        inputHash: hash,
+        summary: [call.tool, ...Object.entries(scope).map(([k, v]) => `${k}=${v}`)].join(" "),
         scope,
-        createdAt: clock.now(),
-      });
-    return { behavior: "allow" };
-  }
-
-  /** Ask the surface; a missing answer after the timeout is "timeout", a surface failure is a deny. */
-  private ask(
-    call: ToolCall,
-    botName: string,
-    scope: Record<string, string>,
-    offerAlways: boolean,
-  ): Promise<ApprovalAnswer | "timeout"> {
-    const { surface, clock } = this.deps;
-    const summary = [call.tool, ...Object.entries(scope).map(([k, v]) => `${k}=${v}`)].join(" ");
-    return new Promise((resolve) => {
-      const cancel = clock.setTimer(this.deps.timeoutMs ?? CORE_DEFAULTS.approvalTimeoutMs, () =>
-        resolve("timeout"),
-      );
-      Promise.resolve()
-        .then(() =>
-          surface.askApproval(call.conversationId, {
-            botId: call.botId,
-            botName,
-            tool: call.tool,
-            summary,
-            scope,
-            offerAlways,
-            timeoutMs: this.deps.timeoutMs ?? CORE_DEFAULTS.approvalTimeoutMs,
-          }),
-        )
-        .then((a) => {
-          cancel();
-          resolve(a);
-        })
-        .catch(() => {
-          cancel();
-          resolve("deny");
-        });
-    });
+        offerAlways,
+      },
+      status: "open",
+      createdAt: clock.now(),
+    };
+    await store.cards.insert(card);
+    await audit(verdict.reason);
+    // The card is stored first: a surface that fails to show it now shows it after a restart.
+    try {
+      this.deps.surface.showCard(card, botName);
+    } catch {
+      // Best effort; the stored card is the truth.
+    }
+    return { behavior: "park", cardId: card.id };
   }
 }

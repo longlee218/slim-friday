@@ -16,8 +16,6 @@ export interface QuestionCard {
   options: QuestionOption[];
   /** The owner may type a free answer. */
   allowText: boolean;
-  /** The surface closes the card after this long. */
-  timeoutMs?: number;
 }
 
 /** The owner's answer: the chosen option values and/or free text. */

@@ -110,6 +110,15 @@ export function wakeRepo(db: BunSQLiteDatabase): Store["wakes"] {
         .all()
         .map(fromRow);
     },
+    async waiting() {
+      return db
+        .select()
+        .from(wakes)
+        .where(eq(wakes.status, "waiting_input"))
+        .orderBy(asc(wakes.createdAt), asc(wakes.id))
+        .all()
+        .map(fromRow);
+    },
     async insertDeduped(w) {
       // The unique index is the arbiter, so a racing second insert cannot slip through.
       const added = db

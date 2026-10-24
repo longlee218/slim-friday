@@ -27,7 +27,8 @@ export async function settleSteering(
 ): Promise<void> {
   const { steering } = ctx.deps.store;
   // A failed continuation drops the rows it took (claimed); rows bound to it but never claimed are new messages and go back to held.
-  if (status !== "done" && row.dedupeKey?.startsWith(CONTINUATION_KEY)) await steering.deleteClaimed(row.id);
+  if (status !== "done" && row.dedupeKey?.startsWith(CONTINUATION_KEY))
+    await steering.deleteClaimed(row.id);
   else await steering.releaseClaimed(row.id);
   await steering.unbind(row.id);
   await holdOrContinue(ctx, row.scopeKey, row.id);

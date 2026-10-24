@@ -1,4 +1,5 @@
 import type { Bot, BotId } from "../domain/bot";
+import type { CardRow } from "../domain/card";
 import type { ConversationId } from "../domain/conversation";
 import type { WakeRow } from "../domain/wake";
 import { RunTracker } from "../hub/run-steps";
@@ -16,14 +17,22 @@ export interface TaskInfo {
 /**
  * Why a run's session is stopped: its lease was lost, the owner stopped it, the worker shuts down, the stream
  * watchdog saw no event for too long, or no follow-up turn came within the grace after a task finished during
- * the last turn (`followUpOver`, which ends the run as done).
+ * the last turn (`followUpOver`, which ends the run as done), or the run parks on a card (`park`).
  */
 export type RunStop =
   | { kind: "lease"; why: LeaseLoss | "cancelled" }
   | { kind: "stopped" }
   | { kind: "shutdown" }
   | { kind: "idle" }
-  | { kind: "followUpOver" };
+  | { kind: "followUpOver" }
+  | { kind: "park"; cardId: string };
+
+/** A card the run waits on while its session stays open (background tasks run); see `run-cards.ts`. */
+export interface CardWait {
+  cardId: string;
+  /** Settles the waiting tool call or question: the answered card, or "parked" when the run parks. */
+  settle: (r: CardRow | "parked") => void;
+}
 
 /** One run executing in this process: what the event pump, the bot's tools and `status()` read. */
 export interface RunExec {
@@ -69,6 +78,10 @@ export interface RunExec {
   live: boolean;
   /** Set when the run read untrusted input (spec "Taint flag"); the permission gate gets it. */
   tainted: boolean;
+  /** A card the run waits on with its session open (only while background tasks run, else it parks). */
+  waiting?: CardWait;
+  /** The approved call of a resumed run (input hash and card): allowed once, then spent. */
+  oneShot?: { hash: string; cardId: string };
   /** The first text of the run was recorded. */
   firstTextSeen: boolean;
   /** Set once the run is cut short; the first reason wins. */

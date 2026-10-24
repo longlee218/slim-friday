@@ -165,6 +165,8 @@ export interface Store {
     get(id: string): Promise<WakeRow | undefined>;
     /** Rows with status queued or running, oldest first. */
     open(): Promise<WakeRow[]>;
+    /** Rows parked on a card (`waiting_input`), oldest first. */
+    waiting(): Promise<WakeRow[]>;
     /** Wakes sent by a bot in a conversation created at or after `since`, oldest first. */
     botSentSince(conversationId: ConversationId, since: number): Promise<WakeRow[]>;
     /** Delete rows that ended before `at` (any status but queued, leased, running and waiting_input); returns the count. */

@@ -137,7 +137,7 @@ test("limits must be usable: counts are integers, timers fit a 32-bit timer", ()
   for (const bad of [
     "groupContextMessages: 2.5",
     "maxHops: 1.5",
-    "approvalTimeoutMs: 3000000000",
+    "repeatWindowMs: 3000000000",
     "idleCloseMs: 3000000000",
   ]) {
     const { snapshot, problems } = load(userDir({ "settings.yaml": `limits:\n  ${bad}\n` }));
