@@ -10,6 +10,7 @@
 @import "./cards.css";
 @import "./transcript.css";
 @import "./inspector.css";
+@import "./phone.css";
 
 /* Tailwind utilities read the design tokens, so light/dark/theme switch flows through. */
 @theme inline {

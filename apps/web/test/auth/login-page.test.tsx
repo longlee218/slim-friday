@@ -17,21 +17,38 @@ vi.mock("../../src/api/auth-client", () => ({
   },
 }));
 
+vi.mock("../../src/events/use-event-stream", () => ({ useEventStream: () => "live" }));
+
+import { QueryClientProvider } from "@tanstack/react-query";
 import { appRoutes } from "../../src/app/router";
+import { seededClient } from "../shell/fixtures";
 
 beforeEach(() => {
   vi.resetAllMocks();
-  mocks.getSession.mockResolvedValue({ data: { user: { id: "u" } } });
+  vi.stubGlobal("matchMedia", () => ({
+    matches: false,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+  // Signed out until the passkey call succeeds.
+  mocks.getSession.mockResolvedValue({ data: null });
 });
 
 function open(path: string) {
   const router = createMemoryRouter(appRoutes, { initialEntries: [path] });
-  render(<RouterProvider router={router} />);
+  render(
+    <QueryClientProvider client={seededClient({})}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>,
+  );
   return router;
 }
 
 test("passkey button calls signIn.passkey and opens / on success", async () => {
-  mocks.passkey.mockResolvedValue({ data: {}, error: null });
+  mocks.passkey.mockImplementation(async () => {
+    mocks.getSession.mockResolvedValue({ data: { user: { id: "u" } } });
+    return { data: {}, error: null };
+  });
   const router = open("/login");
   await userEvent.click(await screen.findByRole("button", { name: /Sign in with passkey/ }));
   expect(mocks.passkey).toHaveBeenCalledTimes(1);

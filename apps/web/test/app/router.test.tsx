@@ -18,10 +18,33 @@ vi.mock("../../src/api/auth-client", () => ({
   },
 }));
 
+vi.mock("../../src/events/use-event-stream", () => ({ useEventStream: () => "live" }));
+
+import { QueryClientProvider } from "@tanstack/react-query";
 import { handleUnauthorized } from "../../src/api/client";
 import { appRoutes, wireUnauthorized } from "../../src/app/router";
+import { navHistory } from "../../src/components/shell/nav-history";
+import { seededClient } from "../shell/fixtures";
 
-beforeEach(() => vi.resetAllMocks());
+/** The app inside a client whose lists are seeded (no network). */
+function renderApp(router: ReturnType<typeof createMemoryRouter>) {
+  return render(
+    <QueryClientProvider client={seededClient({})}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>,
+  );
+}
+
+beforeEach(() => {
+  vi.resetAllMocks();
+  vi.stubGlobal("matchMedia", () => ({
+    matches: false,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+  window.innerWidth = 1200;
+  navHistory.reset("/");
+});
 
 test("protected route without a session redirects to /login", async () => {
   mocks.getSession.mockResolvedValue({ data: null });
@@ -31,12 +54,35 @@ test("protected route without a session redirects to /login", async () => {
   expect(router.state.location.pathname).toBe("/login");
 });
 
-test("a session opens the chat route and / redirects to the Friday chat", async () => {
+test("on desktop / redirects to the last visited chat (default: Friday)", async () => {
   mocks.getSession.mockResolvedValue({ data: { user: { id: "u" } } });
   const router = createMemoryRouter(appRoutes, { initialEntries: ["/"] });
-  render(<RouterProvider router={router} />);
-  expect(await screen.findByText("Chat is not built yet.")).toBeTruthy();
-  expect(router.state.location.pathname).toBe("/c/bot:friday");
+  renderApp(router);
+  await vi.waitFor(() => expect(router.state.location.pathname).toBe("/c/bot:friday"));
+  expect(document.querySelector(".mac")).toBeTruthy();
+});
+
+test("on the phone / renders the Chats list", async () => {
+  window.innerWidth = 390;
+  mocks.getSession.mockResolvedValue({ data: { user: { id: "u" } } });
+  const router = createMemoryRouter(appRoutes, { initialEntries: ["/"] });
+  renderApp(router);
+  expect((await screen.findAllByText("Chats")).length).toBeGreaterThan(0);
+  expect(router.state.location.pathname).toBe("/");
+  expect(document.querySelector(".tabbar")).toBeTruthy();
+});
+
+test("/login while signed in goes to /; a failed session check stays on /login", async () => {
+  mocks.getSession.mockResolvedValue({ data: { user: { id: "u" } } });
+  const signedIn = createMemoryRouter(appRoutes, { initialEntries: ["/login"] });
+  const first = renderApp(signedIn);
+  await vi.waitFor(() => expect(signedIn.state.location.pathname).not.toBe("/login"));
+  first.unmount();
+  mocks.getSession.mockRejectedValue(new Error("network"));
+  const offline = createMemoryRouter(appRoutes, { initialEntries: ["/login"] });
+  renderApp(offline);
+  expect(await screen.findByText("Sign in to Friday")).toBeTruthy();
+  expect(offline.state.location.pathname).toBe("/login");
 });
 
 test("every contract path is routed (placeholder pages)", async () => {
@@ -48,7 +94,7 @@ test("every contract path is routed (placeholder pages)", async () => {
     ["/settings/bot/dev/tools", "Settings"],
   ]) {
     const router = createMemoryRouter(appRoutes, { initialEntries: [path] });
-    const { unmount } = render(<RouterProvider router={router} />);
+    const { unmount } = renderApp(router);
     expect(await screen.findByText(`${title} is not built yet.`)).toBeTruthy();
     unmount();
   }
@@ -57,9 +103,11 @@ test("every contract path is routed (placeholder pages)", async () => {
 test("unauthorized rpc sends the owner to /login", async () => {
   mocks.getSession.mockResolvedValue({ data: { user: { id: "u" } } });
   const router = createMemoryRouter(appRoutes, { initialEntries: ["/ops"] });
-  render(<RouterProvider router={router} />);
+  renderApp(router);
   await screen.findByText("Ops is not built yet.");
   wireUnauthorized(router);
+  // The session is gone, so the sign-in screen stays.
+  mocks.getSession.mockResolvedValue({ data: null });
   handleUnauthorized(new ORPCError("UNAUTHORIZED"));
   await vi.waitFor(() => expect(router.state.location.pathname).toBe("/login"));
 });
@@ -68,7 +116,7 @@ test("an unreachable API shows Can't reach Friday and Retry loads the route", as
   mocks.getSession.mockRejectedValueOnce(new Error("network"));
   mocks.getSession.mockResolvedValue({ data: { user: { id: "u" } } });
   const router = createMemoryRouter(appRoutes, { initialEntries: ["/ops"] });
-  render(<RouterProvider router={router} />);
+  renderApp(router);
   expect(await screen.findByText("Can't reach Friday.")).toBeTruthy();
   await userEvent.click(screen.getByRole("button", { name: "Retry" }));
   expect(await screen.findByText("Ops is not built yet.")).toBeTruthy();

@@ -1,0 +1,79 @@
+/* Phone shell (iOS): prototype app.css .ios, .ios-view*, .ios-nav*, .ios-scroll, .large, .ios-search, .live, .crow*, .tabbar*, chat nav. Composer, cards and sheets live in chat.css, cards.css, overlays.css. */
+.ios { position: fixed; inset: 0; background: var(--ground); font-size: 17px; overflow: hidden; --nav-h: 44px; --tab-h: 50px; --safe-t: env(safe-area-inset-top, 0px); --safe-b: env(safe-area-inset-bottom, 0px); }
+.ios.framed { --safe-t: 54px; --safe-b: 30px; }
+.ios-view { position: absolute; inset: 0; background: var(--ground); display: flex; flex-direction: column; will-change: transform; }
+.ios-view.under { transition: transform var(--t-slow) var(--ease-sheet), filter var(--t-slow); }
+.ios-view.pushed { box-shadow: -10px 0 30px rgba(0, 0, 0, .12); }
+.ios-view.enter { animation: pushIn var(--t-slow) var(--ease-sheet); }
+@keyframes pushIn { from { transform: translateX(100%); } }
+.ios-view.leave { transition: transform 320ms var(--ease-sheet); transform: translateX(100%) !important; }
+.ios-view.shift { transform: translateX(-28%); filter: brightness(.94); }
+.ios-scroll { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-top: calc(var(--safe-t) + var(--nav-h)); padding-bottom: calc(var(--safe-b) + var(--tab-h) + 8px); }
+.ios-scroll.nt { padding-bottom: 8px; }
+.ios-nav { position: absolute; z-index: 4; top: 0; left: 0; right: 0; padding-top: var(--safe-t); height: calc(var(--safe-t) + var(--nav-h)); display: flex; align-items: center; justify-content: space-between; padding-left: 8px; padding-right: 8px;
+  background: transparent; border-bottom: .5px solid transparent; transition: background var(--t-mid), border-color var(--t-mid); }
+.ios-nav.solid { background: var(--toolbar); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); border-bottom-color: var(--sep-strong); }
+.ios-nav .ttl { position: absolute; left: 0; right: 0; text-align: center; font-weight: 600; font-size: 17px; pointer-events: none; opacity: 0; transition: opacity var(--t-mid); padding-top: var(--safe-t); top: 0; bottom: 0; display: grid; place-items: center; }
+.ios-nav.solid .ttl, .ios-nav .ttl.always { opacity: 1; }
+.ios-nav .nb { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 2px; height: 44px; min-width: 44px; padding: 0 6px; border: 0; background: none; color: var(--tint); font-size: 17px; }
+.ios-nav .nb svg { width: 22px; height: 22px; stroke-width: 2; }
+.ios-nav .nb.back svg { width: 26px; height: 26px; margin-left: -6px; }
+.large { font: 700 34px/1.15 var(--font-display); letter-spacing: -0.025em; margin: 2px 16px 10px; }
+.ios-search { margin: 0 16px 12px; position: relative; }
+.ios-search input { width: 100%; height: 36px; border-radius: 10px; border: 0; background: var(--fill); padding: 0 12px 0 34px; font-size: 17px; outline: 0; }
+.ios-search svg { position: absolute; left: 9px; top: 9px; width: 18px; height: 18px; color: var(--label-3); }
+.live { margin: 0 16px 14px; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; background: var(--well); font-size: 15px; }
+.live .stack .av { width: 24px; height: 24px; box-shadow: 0 0 0 2px var(--well); }
+.live .grow { flex: 1; min-width: 0; }
+.live .t2 { font-size: 13px; color: var(--label-2); }
+.crow { display: flex; align-items: center; gap: 12px; padding: 0 16px; min-height: 76px; position: relative; transition: background var(--t-fast); }
+.crow:active { background: var(--fill); }
+.crow .av { width: 52px; height: 52px; }
+.crow .av .dot { box-shadow: 0 0 0 2.5px var(--ground); }
+.crow .grow { flex: 1; min-width: 0; padding: 10px 0; border-bottom: .5px solid var(--sep-strong); align-self: stretch; display: flex; flex-direction: column; justify-content: center; }
+.crow:last-child .grow { border-bottom: 0; }
+.crow .l1 { display: flex; align-items: baseline; gap: 8px; }
+.crow .l1 b { font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crow .l1 time { font-size: 15px; color: var(--label-2); }
+.crow .l2 { font-size: 15px; color: var(--label-2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.3; }
+.crow .l2 .pill { font-size: 12px; }
+.crow .gav { width: 52px; height: 52px; position: relative; flex: none; }
+.crow .gav .av { position: absolute; width: 34px; height: 34px; }
+.crow .gav .av:first-child { left: 0; top: 0; }
+.crow .gav .av:last-child { right: 0; bottom: 0; box-shadow: 0 0 0 2.5px var(--ground); }
+.tabbar { position: absolute; z-index: 6; left: 0; right: 0; bottom: 0; height: calc(var(--tab-h) + var(--safe-b)); padding-bottom: var(--safe-b); display: grid; grid-template-columns: repeat(4, 1fr);
+  background: var(--toolbar); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); border-top: .5px solid var(--sep-strong); transition: transform var(--t-slow) var(--ease-sheet); }
+.tabbar.hidden { transform: translateY(100%); }
+.tabbar button { border: 0; background: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 10.5px; font-weight: 500; color: var(--label-3); position: relative; }
+.tabbar button svg { width: 25px; height: 25px; stroke-width: 1.75; }
+.tabbar button.on { color: var(--tint); }
+.tabbar .tb { position: absolute; top: 3px; left: calc(50% + 6px); min-width: 18px; height: 18px; border-radius: 9px; background: var(--red-dot); color: #fff; font-size: 12px; font-weight: 600; display: grid; place-items: center; padding: 0 5px; }
+
+/* iOS chat */
+.chat-nav-mid { position: absolute; left: 0; right: 0; top: var(--safe-t); bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
+.chat-nav-mid .av { width: 28px; height: 28px; }
+.chat-nav-mid b { font-size: 12px; font-weight: 600; margin-top: 1px; display: flex; align-items: center; gap: 3px; }
+.chat-nav-mid .st { font-size: 11px; color: var(--label-2); }
+.ios .ios-nav.chatnav { height: calc(var(--safe-t) + 58px); background: var(--toolbar); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); border-bottom-color: var(--sep-strong); }
+.ios .transcript { padding: 12px 12px 8px; }
+.ios .md { font-size: 16px; }
+.ios .bubble { font-size: 16px; max-width: 82%; }
+.ios .msg .av { width: 28px; height: 28px; }
+.ios .appr { max-width: none; }
+.ios .appr-actions { flex-wrap: wrap; }
+.ios .appr-actions .left { flex-basis: 100%; }
+.chat-nav-mid .cnm { pointer-events: auto; display: flex; flex-direction: column; align-items: center; border: 0; background: none; color: inherit; font: inherit; padding: 2px 10px; border-radius: 10px; cursor: pointer; transition: background var(--t-fast); }
+.chat-nav-mid .cnm:active { background: var(--fill); }
+/* Phone chat: the nav is 58 px tall and the transcript scrolls under it; the view is a column (scroll, composer). */
+.ios-chat .ios-scroll { padding-top: calc(var(--safe-t) + 66px); padding-bottom: 8px; }
+.ios-chat .transcript { padding: 12px 12px 8px; }
+/* The edge-swipe drag moves a view with no transition (also under Reduce Motion). */
+.ios-view.dragging, .ios-view.dragging.under { transition: none !important; }
+/* Chat view is a column: nav (absolute), scroll, composer. */
+.ios-chat { position: relative; display: flex; flex-direction: column; flex: 1; min-height: 0; }
+/* The connection banner sits under the nav bar. */
+.ios-banner { position: absolute; z-index: 5; left: 0; right: 0; top: calc(var(--safe-t) + 58px); pointer-events: none; }
+.ios-banner .banner { pointer-events: auto; }
+/* Rows are links and the live row a button here: neutral their default look. */
+a.crow { color: inherit; text-decoration: none; }
+button.live { border: 0; width: calc(100% - 32px); text-align: left; color: inherit; font: inherit; }

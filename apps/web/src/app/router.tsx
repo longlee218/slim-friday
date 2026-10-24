@@ -1,33 +1,32 @@
-import { createBrowserRouter, Navigate, type RouteObject } from "react-router";
+import { createBrowserRouter, type RouteObject } from "react-router";
 import { setUnauthorizedHandler } from "../api/client";
 import { LoginPage } from "../components/auth/login-page";
 import { SetupPasskeyPage } from "../components/auth/setup-passkey-page";
 import { WelcomePage } from "../components/auth/welcome-page";
-import { RoutePlaceholder } from "../components/shell/route-placeholder";
-import { RequireSession, requireSession, SessionError } from "./require-session";
+import { protectedChildren } from "./protected-routes";
+import {
+  redirectIfSignedIn,
+  requireSession,
+  SessionError,
+  SessionPending,
+} from "./require-session";
+import { ResponsiveRoot } from "./responsive-root";
 
 /**
- * Every route path of the app (shared contract "Web routes"). Plans 4-5 replace the
- * placeholder elements and keep the paths.
+ * Every route path of the app (shared contract "Web routes"). The signed-in ones live in
+ * `protected-routes.tsx`; plans 4-5 replace their placeholders and keep the paths.
  */
 export const appRoutes: RouteObject[] = [
-  { path: "/login", element: <LoginPage step="start" /> },
+  { path: "/login", loader: redirectIfSignedIn, element: <LoginPage step="start" /> },
   { path: "/login-link", element: <LoginPage step="link" /> },
   { path: "/setup-passkey", element: <SetupPasskeyPage /> },
   { path: "/welcome", element: <WelcomePage /> },
   {
     loader: requireSession,
-    element: <RequireSession />,
+    element: <ResponsiveRoot />,
+    HydrateFallback: SessionPending,
     errorElement: <SessionError />,
-    children: [
-      // Task 16 adds last-chat memory and the phone Chats list.
-      { path: "/", element: <Navigate to="/c/bot:friday" replace /> },
-      { path: "/c/:conversationId", element: <RoutePlaceholder title="Chat" /> },
-      { path: "/tickets", element: <RoutePlaceholder title="Tickets" /> },
-      { path: "/tickets/:ref", element: <RoutePlaceholder title="Ticket" /> },
-      { path: "/ops", element: <RoutePlaceholder title="Ops" /> },
-      { path: "/settings/*", element: <RoutePlaceholder title="Settings" /> },
-    ],
+    children: protectedChildren,
   },
 ];
 
