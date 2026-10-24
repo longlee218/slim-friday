@@ -120,3 +120,27 @@ test("return() while next() is pending resolves it as done and removes the subsc
   expect((await pending).done).toBe(true);
   expect(bus.subscriberCount()).toBe(0);
 });
+
+test("abort listener is removed when the subscriber closes", async () => {
+  const bus = new EventBus();
+  const ac = new AbortController();
+  let removed = 0;
+  const orig = ac.signal.removeEventListener.bind(ac.signal);
+  ac.signal.removeEventListener = ((...a: Parameters<typeof orig>) => {
+    removed++;
+    return orig(...a);
+  }) as typeof orig;
+  const it = bus.subscribe(undefined, ac.signal)[Symbol.asyncIterator]();
+  await it.return?.();
+  expect(removed).toBe(1);
+});
+
+test("abort while next() is pending resolves it as done", async () => {
+  const bus = new EventBus();
+  const ac = new AbortController();
+  const it = bus.subscribe(undefined, ac.signal)[Symbol.asyncIterator]();
+  const pending = it.next();
+  ac.abort();
+  expect((await pending).done).toBe(true);
+  expect(bus.subscriberCount()).toBe(0);
+});

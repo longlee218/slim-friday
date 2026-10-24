@@ -66,6 +66,7 @@ export class EventBus {
   /**
    * Events after `lastEventId` (replayed when still held, else one `resync`), then live ones.
    * No id: live only. Registers at call time, ends when `signal` aborts.
+   * Single reader: one pending `next()` at a time (as `for await` does); no resolver queue.
    */
   subscribe(lastEventId: number | undefined, signal: AbortSignal): AsyncIterable<BusItem> {
     const sub: Subscriber = { replay: [], queue: [], closed: false };
