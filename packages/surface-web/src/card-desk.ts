@@ -7,12 +7,12 @@ import type {
   QuestionAnswer,
   QuestionCard,
 } from "@friday/core";
+import { CORE_DEFAULTS } from "@friday/core";
 import type { EventBus } from "./event-bus";
+import { flattenSummary } from "./flatten-summary";
 
 /** How many closed card ids are remembered, so a late answer is `conflict`, not `not_found`. */
 const CLOSED_MEMORY = 500;
-/** Longest summary shown on a card. */
-const SUMMARY_MAX = 1200;
 
 /** Result of answering a card. */
 export type AnswerResult = "ok" | "conflict" | "not_found";
@@ -27,17 +27,6 @@ interface OpenApproval {
 interface OpenQuestion {
   dto: QuestionCardDto;
   settle: (a: QuestionAnswer | null) => void;
-}
-
-/**
- * Flatten a model-written summary (backticks and line breaks cannot fake the card) and cut it,
- * saying how much was cut. Same behavior as the retired Discord card (UTF-16 units).
- */
-function flattenSummary(summary: string): string {
-  const flat = summary.replace(/[`\r\n]+/g, " ");
-  return flat.length > SUMMARY_MAX
-    ? `${flat.slice(0, SUMMARY_MAX)} [CUT: ${flat.length - SUMMARY_MAX} more chars]`
-    : flat;
 }
 
 /** Whether a question answer fits the card; the card stays open when it does not. */
@@ -82,7 +71,7 @@ export class CardDesk {
         summary: flattenSummary(card.summary),
         scope: card.scope,
         offerAlways: card.offerAlways,
-        ...(card.timeoutMs !== undefined && { expiresAt: this.clock.now() + card.timeoutMs }),
+        expiresAt: this.clock.now() + (card.timeoutMs ?? CORE_DEFAULTS.approvalTimeoutMs),
       };
       this.approvals.set(cardId, {
         dto,
@@ -109,7 +98,7 @@ export class CardDesk {
         kind: card.kind,
         options: card.options,
         allowText: card.allowText,
-        ...(card.timeoutMs !== undefined && { expiresAt: this.clock.now() + card.timeoutMs }),
+        expiresAt: this.clock.now() + (card.timeoutMs ?? CORE_DEFAULTS.approvalTimeoutMs),
       };
       this.questions.set(cardId, {
         dto,
@@ -162,9 +151,9 @@ export class CardDesk {
     for (const id of [...this.questions.keys()]) this.closeQuestion(id, null);
   }
 
-  /** Start a timer when the card has a timeout; returns its cancel function. */
+  /** Start the card timer (the default timeout when none is given, so no card stays open forever). */
   private startTimer(ms: number | undefined, fn: () => void): () => void {
-    return ms === undefined ? () => {} : this.clock.setTimer(ms, fn);
+    return this.clock.setTimer(ms ?? CORE_DEFAULTS.approvalTimeoutMs, fn);
   }
 
   /** Close an approval: settle the bot's wait, remember the id, tell the tabs. */

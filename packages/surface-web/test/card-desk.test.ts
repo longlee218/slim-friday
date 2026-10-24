@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import type { FridayEvent } from "@friday/contracts";
-import type { ApprovalCard, QuestionCard } from "@friday/core";
+import { type ApprovalCard, CORE_DEFAULTS, type QuestionCard } from "@friday/core";
 import { FakeClock } from "../../core/test/fakes/fake-clock";
 import { CardDesk } from "../src/card-desk";
 import { EventBus } from "../src/event-bus";
@@ -137,4 +137,18 @@ test("closed ids are remembered for the last 500 only", () => {
   }
   expect(desk.answerApproval(ids[0] as string, "once")).toBe("not_found");
   expect(desk.answerApproval(ids[500] as string, "once")).toBe("conflict");
+});
+
+test("the cut is by code points: an emoji at the boundary stays whole", () => {
+  const { desk } = setup();
+  void desk.askApproval("bot:a", { ...card, summary: `${"x".repeat(1199)}😀tail` });
+  expect(desk.pendingApprovals()[0]?.summary).toBe(`${"x".repeat(1199)}😀 [CUT: 4 more chars]`);
+});
+
+test("a card without timeoutMs still times out at the default", async () => {
+  const { desk, clock } = setup();
+  const p = desk.askApproval("bot:a", { ...card, timeoutMs: undefined });
+  expect(desk.pendingApprovals()[0]?.expiresAt).toBe(1000 + CORE_DEFAULTS.approvalTimeoutMs);
+  clock.advance(CORE_DEFAULTS.approvalTimeoutMs);
+  expect(await p).toBe("deny");
 });
