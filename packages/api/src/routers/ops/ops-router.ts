@@ -1,9 +1,8 @@
+import { MAX_WAKES } from "@friday/contracts";
 import { authed } from "../../rpc/implementer";
 import { botStatusDtos } from "../bot-status-dto";
 import { toWakeDto } from "./ops-dto";
 
-/** Most wakes one `wakes` call returns. */
-const WAKES_LIMIT = 200;
 /** Longest `spend` range, in days (both ends included). */
 const MAX_SPEND_DAYS = 31;
 const DAY_MS = 86_400_000;
@@ -17,12 +16,12 @@ function dayMs(day: string): number | undefined {
 /** Sessions, wakes and spend, read-only. */
 export const opsRouter = {
   sessions: authed.ops.sessions.handler(({ context }) => botStatusDtos(context.deps)),
-  /** Newest first, at most 200; a row never carries its text. */
+  /** Newest first, at most `MAX_WAKES`; a row never carries its text. */
   wakes: authed.ops.wakes.handler(async ({ input, context }) => {
     const rows = await context.deps.store.wakes.list({
       ...(input.status && { status: input.status }),
       since: input.since,
-      limit: WAKES_LIMIT,
+      limit: MAX_WAKES,
     });
     return rows.map(toWakeDto);
   }),

@@ -1,4 +1,4 @@
-import type { AuthorDto, WakeDto } from "@friday/contracts";
+import { type AuthorDto, MAX_WAKES, type WakeDto } from "@friday/contracts";
 import { LoaderCircle } from "lucide-react";
 import { useState } from "react";
 import { useDirectory } from "../../api/directory";
@@ -36,7 +36,10 @@ function WakeFilter({ value, onChange }: { value: Filter; onChange: (f: Filter) 
   );
 }
 
-/** The Wakes section: heading with the All / Running / Failed switch (filtered here, client side) over the table. */
+/**
+ * The Wakes section: heading with the All / Running / Failed switch (filtered here, client side)
+ * over the table. A full page from the server says "Latest 200": older wakes in the window are cut.
+ */
 export function WakesTable({ wakes, now }: { wakes: WakeDto[]; now: number }) {
   const dir = useDirectory();
   const [active, setActive] = useState<Filter>("all");
@@ -48,6 +51,7 @@ export function WakesTable({ wakes, now }: { wakes: WakeDto[]; now: number }) {
       <h2>
         Wakes
         <span className="aside">
+          {wakes.length >= MAX_WAKES && <span style={{ marginRight: 10 }}>Latest {MAX_WAKES}</span>}
           <WakeFilter value={active} onChange={setActive} />
         </span>
       </h2>

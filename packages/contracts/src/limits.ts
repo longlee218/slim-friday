@@ -12,3 +12,5 @@ export const MAX_RULES = 50;
 export const MAX_RULE_CHARS = 500;
 /** Largest page a list call may ask for. */
 export const MAX_PAGE = 100;
+/** Most wakes one `ops.wakes` call returns (newest first). */
+export const MAX_WAKES = 200;
