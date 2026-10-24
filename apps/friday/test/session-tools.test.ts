@@ -6,6 +6,7 @@ import type { Bot, BotRuntimeSpec, Store } from "@friday/core";
 import { FileMemory, resolveOwner } from "@friday/tools";
 import {
   commandEnv,
+  ownerIdentityEnv,
   runCommand,
   sensitiveCheck,
   sessionTools,
@@ -105,4 +106,16 @@ test("the sensitive check works from the real workspace path (a symlinked worksp
   expect(check(join(root, "real", "a", ".env"))).toBe(true);
   expect(check(join(root, "real", "keys-docs", "a.md"))).toBe(false);
   expect(seen).toContain(join("a", ".env"));
+});
+
+test("the owner's git identity becomes env, so merge commits have an author", () => {
+  const read = (k: string) => ({ "user.name": "Ann Owner", "user.email": "a@x.io" })[k];
+  expect(ownerIdentityEnv(read, {})).toEqual({
+    GIT_AUTHOR_NAME: "Ann Owner",
+    GIT_AUTHOR_EMAIL: "a@x.io",
+    GIT_COMMITTER_NAME: "Ann Owner",
+    GIT_COMMITTER_EMAIL: "a@x.io",
+  });
+  // An identity already in the env wins; nothing is read.
+  expect(ownerIdentityEnv(read, { GIT_AUTHOR_NAME: "x", GIT_AUTHOR_EMAIL: "y" })).toEqual({});
 });

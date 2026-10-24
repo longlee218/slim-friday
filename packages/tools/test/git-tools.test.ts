@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { EffectsContext } from "../src/effects/effects-context";
 import { effectsTools } from "../src/effects/effects-server";
-import { isPlainName } from "../src/effects/git-args";
+import { GIT_HARDEN, isPlainName } from "../src/effects/git-args";
 import { createCreateProjectTool } from "../src/effects/tools/CreateProjectTool/create-project-tool";
 import { createCreatePullRequestTool } from "../src/effects/tools/CreatePullRequestTool/create-pull-request-tool";
 import { createGitPushTool } from "../src/effects/tools/GitPushTool/git-push-tool";
@@ -42,10 +42,16 @@ function setup() {
     workspaces: [ws],
     home: join(base, "home"),
     isSensitive: () => false,
-    run: async (cmd, cwd) => {
+    run: async (cmd, cwd, env) => {
       calls.push(cmd);
       if (cmd[0] === "gh") return { code: 0, out: "https://github.com/o/r/pull/7\n" };
-      const p = Bun.spawnSync(cmd, { cwd, stdout: "pipe", stderr: "pipe" });
+      // Like the app: the given env goes over the process env.
+      const p = Bun.spawnSync(cmd, {
+        cwd,
+        stdout: "pipe",
+        stderr: "pipe",
+        env: { ...process.env, ...env },
+      });
       return { code: p.exitCode, out: p.stdout.toString() + p.stderr.toString() };
     },
   };
@@ -196,4 +202,37 @@ test("a merge killed by the timeout is aborted and the bot's branch comes back",
   expect(r.isError).toBe(true);
   expect(calls.some((c) => c.includes("--abort"))).toBe(true);
   expect(git(ws, "rev-parse", "--abbrev-ref", "HEAD")).toBe("feat");
+});
+
+test("the owner's global git config is not used: a global url rewrite does not redirect a push", async () => {
+  const { base, ws, remote, ctx } = setup();
+  const other = join(base, "other");
+  git(base, "init", "--bare", "-b", "main", other);
+  const globalCfg = join(base, "gitconfig");
+  writeFileSync(globalCfg, `[url "${other}"]\n\tinsteadOf = ${remote}\n`);
+  git(ws, "checkout", "-b", "feat");
+  const before = process.env.GIT_CONFIG_GLOBAL;
+  process.env.GIT_CONFIG_GLOBAL = globalCfg;
+  try {
+    const r = await call(createGitPushTool(ctx), {
+      workspace: ws,
+      remote: "origin",
+      branch: "feat",
+    });
+    expect(r.isError).toBeUndefined();
+  } finally {
+    if (before === undefined) delete process.env.GIT_CONFIG_GLOBAL;
+    else process.env.GIT_CONFIG_GLOBAL = before;
+  }
+  expect(git(remote, "branch", "--list", "feat")).toContain("feat");
+  expect(git(other, "branch", "--list", "feat")).toBe("");
+});
+
+test("every git argv carries the hardening pins right after git", async () => {
+  const { ws, ctx, calls } = setup();
+  git(ws, "checkout", "-b", "feat");
+  await call(createGitPushTool(ctx), { workspace: ws, remote: "origin", branch: "feat" });
+  const gits = calls.filter((c) => c[0] === "git");
+  expect(gits.length).toBeGreaterThan(0);
+  for (const c of gits) expect(c.slice(1, 1 + GIT_HARDEN.length)).toEqual([...GIT_HARDEN]);
 });

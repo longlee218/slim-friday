@@ -40,6 +40,38 @@ export function commandEnv(env: Record<string, string | undefined>): Record<stri
   return out;
 }
 
+/**
+ * The owner's commit identity as env (`GIT_AUTHOR_*`, `GIT_COMMITTER_*`): git runs without the owner's global config,
+ * so a merge commit needs it from here. Empty when the env already names an author. `read(key)` returns a global
+ * git config value.
+ */
+export function ownerIdentityEnv(
+  read: (key: string) => string | undefined,
+  env: Record<string, string | undefined>,
+): Record<string, string> {
+  if (env.GIT_AUTHOR_NAME && env.GIT_AUTHOR_EMAIL) return {};
+  const name = read("user.name");
+  const email = read("user.email");
+  if (!name || !email) return {};
+  return {
+    GIT_AUTHOR_NAME: name,
+    GIT_AUTHOR_EMAIL: email,
+    GIT_COMMITTER_NAME: name,
+    GIT_COMMITTER_EMAIL: email,
+  };
+}
+
+/** One value of the owner's global git config (one line, else undefined). */
+function readGlobalGit(key: string): string | undefined {
+  const r = Bun.spawnSync(["git", "config", "--global", "--get", key], {
+    stdout: "pipe",
+    stderr: "ignore",
+    stdin: "ignore",
+  });
+  const v = r.exitCode === 0 ? r.stdout.toString().trim() : "";
+  return v === "" || v.includes("\n") ? undefined : v;
+}
+
 /** What the per-session tools are built from. */
 export interface SessionToolsDeps {
   memory: FileMemory;
@@ -62,7 +94,15 @@ export async function runCommand(
   cwd: string,
   env: Record<string, string>,
 ): Promise<{ code: number; out: string }> {
-  const p = Bun.spawn(cmd, { cwd, env, stdout: "pipe", stderr: "pipe", timeout: RUN_TIMEOUT_MS });
+  const p = Bun.spawn(cmd, {
+    cwd,
+    env,
+    stdin: "ignore",
+    stdout: "pipe",
+    stderr: "pipe",
+    timeout: RUN_TIMEOUT_MS,
+    killSignal: "SIGKILL",
+  });
   const [out, err, code] = await Promise.all([
     new Response(p.stdout).text(),
     new Response(p.stderr).text(),
@@ -116,8 +156,11 @@ const wantsEffects = (tools: string[]) =>
  * Built per session so the tools act for that bot only.
  */
 export function sessionTools(deps: SessionToolsDeps) {
-  const env = commandEnv(deps.env ?? {});
-  const run = deps.run ?? ((cmd: string[], cwd: string) => runCommand(cmd, cwd, env));
+  const env = { ...commandEnv(deps.env ?? {}), ...ownerIdentityEnv(readGlobalGit, deps.env ?? {}) };
+  const run =
+    deps.run ??
+    ((cmd: string[], cwd: string, extra?: Record<string, string>) =>
+      runCommand(cmd, cwd, { ...env, ...extra }));
   return (spec: BotRuntimeSpec) => {
     const servers: Record<string, ReturnType<typeof memoryServer>> = {
       [MEMORY_MCP_SERVER]: memoryServer(deps.memory, toolContext(spec, deps.store)),

@@ -2,7 +2,14 @@ import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { textResult } from "../../../tool-result";
 import type { EffectsContext } from "../../effects-context";
-import { badName, grantedWorkspace, isPlainName, NOT_GRANTED, runGit } from "../../git-args";
+import {
+  badName,
+  GIT_RUN_ENV,
+  grantedWorkspace,
+  isPlainName,
+  NOT_GRANTED,
+  runGit,
+} from "../../git-args";
 import { CREATE_PULL_REQUEST_TOOL, PR_BODY_MAX, PR_TITLE_MAX } from "./constants";
 import { CREATE_PULL_REQUEST_DESCRIPTION } from "./prompt";
 
@@ -33,6 +40,7 @@ export function createCreatePullRequestTool(ctx: EffectsContext) {
       const r = await ctx.run(
         ["gh", "pr", "create", "--base", base, "--head", head, "--title", title, "--body", body],
         cwd,
+        GIT_RUN_ENV,
       );
       return textResult(r.out.trim() || "gh gave no output", r.code !== 0);
     },
