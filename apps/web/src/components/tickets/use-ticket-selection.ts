@@ -5,11 +5,11 @@ import { PanelsContext } from "../shell/use-responsive-panels";
 /** Query parameter holding the ref of the ticket whose drawer is open (`/tickets?t=FRI-3`). */
 const PARAM = "t";
 
-/** The ref of the open drawer; only the board route (`/tickets`) has one. */
+/** The ref of the open drawer, upper-cased like the server's refs; only the board route (`/tickets`) has one. */
 export function useSelectedTicket(): string | null {
   const { pathname } = useLocation();
   const [params] = useSearchParams();
-  return pathname === "/tickets" ? params.get(PARAM) : null;
+  return pathname === "/tickets" ? (params.get(PARAM)?.toUpperCase() ?? null) : null;
 }
 
 /** True while the drawer is the reason the inspector column is open (shared by every caller). */
