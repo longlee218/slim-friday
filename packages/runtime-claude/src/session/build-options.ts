@@ -32,6 +32,8 @@ export interface ClaudeRuntimeConfig {
    * dirs read-only; both stay reachable even inside `agentHome`, the rest of which remains denied.
    */
   extraDirsFor?: (bot: Bot) => { write: string[]; read: string[] };
+  /** Called with the summary after the main thread's context was compacted; not awaited, so it never delays the bot. */
+  onCompact?: (spec: BotRuntimeSpec, summary: string) => void;
 }
 
 /** What `buildOptions` needs for one session. */
@@ -133,6 +135,23 @@ export function buildOptions(input: BuildOptionsInput): Options {
                     },
                   }
                 : { continue: true };
+            },
+          ],
+        },
+      ],
+      PostCompact: [
+        {
+          hooks: [
+            async (hook) => {
+              // A subagent's compaction (agent_id set) is not the bot's own conversation.
+              if (hook.hook_event_name === "PostCompact" && !hook.agent_id && config.onCompact) {
+                try {
+                  config.onCompact(spec, hook.compact_summary);
+                } catch {
+                  // A failing flush must never break the session.
+                }
+              }
+              return { continue: true };
             },
           ],
         },

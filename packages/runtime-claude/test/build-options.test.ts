@@ -233,3 +233,39 @@ test("the bot's memory ends the system prompt", () => {
     "You are Ann, Dev.\n\nBe brief.\n\n## Your memory\n## Facts\n- likes tea",
   );
 });
+
+/** Run the PostCompact hook of the options like the SDK does. */
+function postCompact(onCompact: (s: BotRuntimeSpec, summary: string) => void, agentId?: string) {
+  const s = spec(bot()).s;
+  const o = buildOptions({
+    spec: s,
+    config: { ...config, onCompact },
+    abort: new AbortController(),
+    scratchDir: scratch,
+  });
+  const hook = o.hooks?.PostCompact?.[0]?.hooks[0];
+  return hook?.(
+    {
+      hook_event_name: "PostCompact",
+      trigger: "auto",
+      compact_summary: "we chose bun",
+      ...(agentId && { agent_id: agentId }),
+    } as never,
+    undefined,
+    { signal: new AbortController().signal },
+  );
+}
+
+test("the PostCompact hook hands the main thread's summary to onCompact without waiting", async () => {
+  const got: string[] = [];
+  const r = await postCompact((_s, summary) => {
+    got.push(summary);
+  });
+  expect(r).toEqual({ continue: true });
+  expect(got).toEqual(["we chose bun"]);
+  const sub: string[] = [];
+  await postCompact((_s, summary) => {
+    sub.push(summary);
+  }, "agent-1");
+  expect(sub).toEqual([]);
+});

@@ -1,0 +1,56 @@
+import { query } from "@anthropic-ai/claude-agent-sdk";
+import type { QueryFn } from "./build-options";
+
+/** Longest summary text sent to the extraction call. */
+const MAX_INPUT = 20000;
+/** Most notes one extraction returns. */
+const MAX_NOTES = 5;
+
+const SYSTEM_PROMPT =
+  "You read a summary of a conversation between a user and an assistant bot. " +
+  `List at most ${MAX_NOTES} durable facts, decisions, preferences or lessons worth remembering later. ` +
+  "Skip anything temporary. Answer with a JSON array of short strings only, or [] when there is nothing.";
+
+/** The first JSON array of strings in `text`, or [] when there is none. */
+function parseNotes(text: string): string[] {
+  const start = text.indexOf("[");
+  const end = text.lastIndexOf("]");
+  if (start < 0 || end <= start) return [];
+  try {
+    const parsed: unknown = JSON.parse(text.slice(start, end + 1));
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((n): n is string => typeof n === "string" && n.trim() !== "")
+      .slice(0, MAX_NOTES);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Notes worth keeping from a compaction summary: one tool-less, one-turn model call. Never throws; any failure or
+ * an answer that is not a JSON array gives [].
+ */
+export async function extractNotes(
+  summary: string,
+  opts: { model: string; queryFn?: QueryFn; env?: Record<string, string | undefined> },
+): Promise<string[]> {
+  try {
+    const run = (opts.queryFn ?? query)({
+      prompt: summary.slice(0, MAX_INPUT),
+      options: {
+        model: opts.model,
+        systemPrompt: SYSTEM_PROMPT,
+        tools: [],
+        maxTurns: 1,
+        settingSources: [],
+        ...(opts.env && { env: opts.env }),
+      },
+    });
+    for await (const m of run)
+      if (m.type === "result") return m.subtype === "success" ? parseNotes(m.result) : [];
+    return [];
+  } catch {
+    return [];
+  }
+}
