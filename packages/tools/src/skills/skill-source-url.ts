@@ -17,10 +17,14 @@ export function parseSkillSource(source: string, path?: string): { url: string; 
   } catch (e) {
     throw new Refused("source must be a valid https URL.", "source", e);
   }
+  // Git gets exactly what the parser understood: a spelling WHATWG rewrites (`https:evil.com`, backslashes,
+  // empty userinfo, upper-case scheme) is refused rather than normalised.
+  if (source !== u.href)
+    throw new Refused("source must be written as a normalised https URL.", "source");
   if (u.protocol !== "https:") throw new Refused("source must use https.", "source");
   if (u.username || u.password)
     throw new Refused("source must not contain a username or password.", "source");
-  if (path === undefined) return { url: source };
+  if (path === undefined) return { url: u.href };
   const bad =
     !SKILL_PATH_RE.test(path) ||
     path.startsWith("/") ||
@@ -31,5 +35,5 @@ export function parseSkillSource(source: string, path?: string): { url: string; 
       "path must be relative, without .. (letters, digits, . _ / -; max 200).",
       "path",
     );
-  return { url: source, path };
+  return { url: u.href, path };
 }
