@@ -1,18 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import {
-  Fingerprint,
-  Gauge,
-  Plus,
-  Search,
-  Settings,
-  SquareKanban,
-  SquarePen,
-  Users,
-} from "lucide-react";
+import { Fingerprint, Gauge, Plus, Search, Settings, SquareKanban, SquarePen } from "lucide-react";
 import type { ReactNode } from "react";
 import { useLocation } from "react-router";
 import { orpc } from "../../api/client";
 import { useDirectory } from "../../api/directory";
+import { GroupAvatar } from "../settings/group-avatar";
 import { openCount, useAllTickets } from "../tickets/use-tickets";
 import { Avatar } from "../ui/avatar";
 import { IconButton } from "../ui/button";
@@ -99,13 +91,7 @@ export function Sidebar({ onPalette }: { onPalette: () => void }) {
           });
           return (
             <SidebarRow key={id} href={`/c/${id}`} on={pathname === `/c/${id}`}>
-              {g.avatarUrl ? (
-                <Avatar src={g.avatarUrl} name={g.name} size={22} />
-              ) : (
-                <Ico>
-                  <Users size={16} strokeWidth={1.75} />
-                </Ico>
-              )}
+              <GroupAvatar {...g} bots={bots} size={22} />
               <span className="name">{g.name}</span>
               <Trailing mark={mark} workingLabel={`${busy} working`} />
             </SidebarRow>

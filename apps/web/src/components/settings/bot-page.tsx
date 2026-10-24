@@ -4,6 +4,7 @@ import { MessageCircle } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router";
 import { client, orpc } from "../../api/client";
 import { Avatar } from "../ui/avatar";
+import { AvatarPicker } from "./avatar-picker";
 import { BotForm } from "./bot-form";
 import { type BotFormValue, NEW_BOT } from "./bot-form-value";
 import { InlineName } from "./inline-name";
@@ -81,7 +82,13 @@ export function BotPage() {
   return (
     <SettingsPage title={bot.name}>
       <div className="set-head">
-        <Avatar src={bot.avatarUrl} name={bot.name} size={64} />
+        {shipped ? (
+          <Avatar src={bot.avatarUrl} name={bot.name} size={64} />
+        ) : (
+          <AvatarPicker target={{ kind: "bot", id: bot.id }} current={bot.avatar} onDone={() => {}}>
+            <Avatar src={bot.avatarUrl} name={bot.name} size={64} />
+          </AvatarPicker>
+        )}
         <div className="grow">
           <InlineName
             value={bot.name}

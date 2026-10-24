@@ -1,11 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { KeyRound, Plug, Plus, Puzzle, Sparkles, UserRound, Users } from "lucide-react";
+import { KeyRound, Plug, Plus, Puzzle, Sparkles, UserRound } from "lucide-react";
 import type { ReactNode } from "react";
 import { useLocation } from "react-router";
 import { orpc } from "../../api/client";
 import { useDirectory } from "../../api/directory";
 import { SidebarRow } from "../shell/sidebar-row";
 import { Avatar } from "../ui/avatar";
+import { GroupAvatar } from "./group-avatar";
 
 const Ico = ({ children }: { children: ReactNode }) => <span className="sb-ico">{children}</span>;
 
@@ -42,13 +43,7 @@ export function SettingsList() {
       <div className="sb-sec">Groups</div>
       {[...dir.groups.values()].map((g) => (
         <SidebarRow key={g.id} href={`/settings/group/${g.id}`} on={on(`/settings/group/${g.id}`)}>
-          {g.avatarUrl ? (
-            <Avatar src={g.avatarUrl} name={g.name} size={22} />
-          ) : (
-            <Ico>
-              <Users size={16} strokeWidth={1.75} />
-            </Ico>
-          )}
+          <GroupAvatar {...g} bots={dir.bots} size={22} />
           <span className="name">{g.name}</span>
         </SidebarRow>
       ))}

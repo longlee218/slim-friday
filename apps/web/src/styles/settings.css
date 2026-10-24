@@ -55,3 +55,13 @@
 /* Phone forms: a segmented control spans the row and its segments share the width. */
 .ios .formgroup .seg { display: flex; width: 100%; }
 .ios .formgroup .seg button { flex: 1 1 0; justify-content: center; padding: 0 4px; }
+.av-grid { display: grid; grid-template-columns: repeat(5, 48px); gap: 10px; padding: 8px; }
+.av-grid button { border: 0; padding: 0; background: none; border-radius: 50%; width: 48px; height: 48px; position: relative; transition: transform var(--t-fast) var(--ease); }
+.av-grid button:hover { transform: scale(1.06); }
+.av-grid button .av { width: 48px; height: 48px; }
+.av-grid button.on::after { content: ""; position: absolute; inset: -3px; border-radius: 50%; box-shadow: 0 0 0 2px var(--tint); }
+.av-pop { width: auto; }
+.av-actions { display: flex; gap: 8px; padding: 6px 8px 4px; }
+.av-actions .btn { flex: 1; justify-content: center; }
+.av-note { padding: 2px 8px 6px; font-size: 12px; color: var(--label-2); }
+.av-note.err { color: var(--red, #ff3b30); }

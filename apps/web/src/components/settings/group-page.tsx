@@ -1,9 +1,11 @@
 import { GroupInputDtoSchema } from "@friday/contracts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { MessageCircle, Users } from "lucide-react";
+import { MessageCircle } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router";
 import { client, orpc } from "../../api/client";
-import { Avatar } from "../ui/avatar";
+import { useDirectory } from "../../api/directory";
+import { AvatarPicker } from "./avatar-picker";
+import { GroupAvatar } from "./group-avatar";
 import { GroupForm, type GroupFormValue, NEW_GROUP } from "./group-form";
 import { SettingsPage } from "./settings-page";
 
@@ -34,6 +36,7 @@ export function GroupNewPage() {
 export function GroupPage() {
   const { id = "" } = useParams();
   const qc = useQueryClient();
+  const dir = useDirectory();
   const q = useQuery(orpc.config.groups.get.queryOptions({ input: { id } }));
   const group = q.data;
   if (!group) {
@@ -52,11 +55,13 @@ export function GroupPage() {
   return (
     <SettingsPage title={group.name}>
       <div className="page-head">
-        {group.avatarUrl ? (
-          <Avatar src={group.avatarUrl} name={group.name} size={64} />
-        ) : (
-          <Users size={32} strokeWidth={1.5} />
-        )}
+        <AvatarPicker
+          target={{ kind: "group", id: group.id }}
+          current={group.avatar}
+          onDone={() => {}}
+        >
+          <GroupAvatar {...group} bots={dir.bots} size={64} />
+        </AvatarPicker>
         <div className="grow">
           <h2>{group.name}</h2>
           <div className="r">{group.members.length} members</div>

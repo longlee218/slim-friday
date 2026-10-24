@@ -16,6 +16,7 @@ import { orpc } from "../../api/client";
 import { useDirectory } from "../../api/directory";
 import { useIsPhone } from "../../app/use-is-phone";
 import { Avatar } from "../ui/avatar";
+import { GroupAvatar } from "./group-avatar";
 import { SettingsPage } from "./settings-page";
 
 /** A 44 px row that opens `to` (an `<a>` so it also opens in a new tab). */
@@ -129,9 +130,7 @@ export function PhoneGroupsList() {
           <Row
             key={g.id}
             to={`/settings/group/${g.id}`}
-            icon={
-              g.avatarUrl ? <Avatar src={g.avatarUrl} name={g.name} size={30} /> : <Users {...ic} />
-            }
+            icon={<GroupAvatar {...g} bots={dir.bots} size={30} />}
           >
             <div>{g.name}</div>
             <div className="t2">
