@@ -5,11 +5,13 @@ import type { Author } from "../domain/message";
 import type { PermissionGate } from "../permission/permission-gate";
 import type { AgentRuntime } from "../ports/agent-runtime";
 import type { Clock } from "../ports/clock";
+import type { Memory } from "../ports/memory";
 import type { Store } from "../ports/store";
 import type { InboundMessage, Surface } from "../ports/surface";
 import { ChainGuard } from "../routing/chain-guard";
 import { routeMessage } from "../routing/route-message";
 import { dayOf, pumpEvents } from "./event-pump";
+import { changedGroupMemory } from "./group-memory";
 import { type PoolEntry, type QueuedWake, SessionPool } from "./session-pool";
 
 /** What /status shows for one running bot. */
@@ -27,6 +29,8 @@ export interface BotHubDeps {
   clock: Clock;
   gate: PermissionGate;
   limits?: CoreLimits;
+  /** Bot and group memory; without it no memory reaches the prompt. */
+  memory?: Memory;
 }
 
 /**
@@ -42,7 +46,7 @@ export class BotHub {
 
   constructor(private deps: BotHubDeps) {
     this.limits = deps.limits ?? CORE_DEFAULTS;
-    this.pool = new SessionPool(deps.runtime, deps.store, deps.clock, deps.gate);
+    this.pool = new SessionPool(deps.runtime, deps.store, deps.clock, deps.gate, deps.memory);
     this.guard = new ChainGuard(deps.clock, this.limits);
   }
 
@@ -161,6 +165,7 @@ export class BotHub {
       conv?.kind === "group"
         ? await store.messages.recent(q.conversationId, this.limits.groupContextMessages)
         : [];
+    const groupMemory = conv ? await changedGroupMemory(entry, conv, this.deps.memory) : undefined;
     entry.current = { conversationId: q.conversationId, hop: q.hop };
     entry.busy = true;
     entry.lastActive = clock.now();
@@ -171,6 +176,7 @@ export class BotHub {
       text: q.text,
       hop: q.hop,
       context,
+      ...(groupMemory !== undefined && { groupMemory }),
     });
   }
 

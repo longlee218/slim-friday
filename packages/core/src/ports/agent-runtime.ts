@@ -12,6 +12,8 @@ export interface InboundTurn {
   hop: number;
   /** Recent messages of the conversation, oldest first. */
   context: StoredMessage[];
+  /** The group's memory; set on a group turn only when it changed since the bot last saw it. */
+  groupMemory?: string;
 }
 
 /** What a session reports; generic words only. */
@@ -37,6 +39,8 @@ export interface BotRuntimeSpec {
   decide(call: RuntimeToolCall): Promise<ToolDecision>;
   /** The conversation of the turn in progress (undefined between turns); tools use it to find their scope. */
   currentConversation?: () => ConversationId | undefined;
+  /** The bot's own memory, read when the session opens; the runtime adds it to the system prompt. */
+  memory?: string;
 }
 
 /** A long-lived conversation with one bot. */

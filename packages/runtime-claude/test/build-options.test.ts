@@ -220,3 +220,16 @@ test("an MCP tool the bot did not name is denied before decide; a named or per-s
     "mcp__memory__MemorySave",
   ]);
 });
+
+test("the bot's memory ends the system prompt", () => {
+  const s = spec(bot());
+  const o = buildOptions({
+    spec: { ...s.s, memory: "## Facts\n- likes tea" },
+    config,
+    abort: new AbortController(),
+    scratchDir: scratch,
+  });
+  expect(o.systemPrompt).toBe(
+    "You are Ann, Dev.\n\nBe brief.\n\n## Your memory\n## Facts\n- likes tea",
+  );
+});

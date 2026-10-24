@@ -4,6 +4,7 @@ import type { Author } from "../domain/message";
 import type { PermissionGate } from "../permission/permission-gate";
 import type { AgentRuntime, BotRuntimeSpec, BotSession } from "../ports/agent-runtime";
 import type { Clock } from "../ports/clock";
+import type { Memory } from "../ports/memory";
 import type { Store } from "../ports/store";
 
 /** A background task a bot started, remembered with the conversation that started it. */
@@ -38,6 +39,8 @@ export interface PoolEntry {
   pumping?: boolean;
   /** Set before a deliberate stop, so the end of the event stream is not reported as a crash. */
   stopping: boolean;
+  /** Group memory text last sent to this session, by group; a new session starts empty. */
+  groupMemorySent: Map<string, string>;
 }
 
 /** Open sessions, one per bot. Opens a new session or resumes the stored one. */
@@ -50,6 +53,7 @@ export class SessionPool {
     private store: Store,
     private clock: Clock,
     private gate: PermissionGate,
+    private memory?: Memory,
   ) {}
 
   /** The bot's open session, creating (or resuming) it when needed. */
@@ -97,6 +101,9 @@ export class SessionPool {
       },
       currentConversation: () => (ref.entry?.busy ? ref.entry.current.conversationId : undefined),
     };
+    // A memory that cannot be read must not keep the bot from answering.
+    const memory = await this.memory?.read({ kind: "bot", botId: bot.id }).catch(() => "");
+    if (memory?.trim()) spec.memory = memory;
     const stored = await this.store.sessions.get(bot.id);
     let session: BotSession | undefined;
     if (stored) {
@@ -118,6 +125,7 @@ export class SessionPool {
       tasks: new Map(),
       queue: [],
       stopping: false,
+      groupMemorySent: new Map(),
     };
     ref.entry = entry;
     this.entries.set(bot.id, entry);

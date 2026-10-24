@@ -9,7 +9,7 @@ function nameOf(author: Author, names: Record<string, string>): string {
 /**
  * The text a bot reads for one inbound turn: a header naming the conversation, the sender and the hop,
  * then the message. A group turn with context starts with the recent messages; the last context
- * message is left out when it is the triggering message itself.
+ * message is left out when it is the triggering message itself. Changed group memory comes first.
  */
 export function formatTurn(turn: InboundTurn, names: Record<string, string>): string {
   const last = turn.context.at(-1);
@@ -17,5 +17,6 @@ export function formatTurn(turn: InboundTurn, names: Record<string, string>): st
   const block = recent.length
     ? `Recent messages:\n${recent.map((m) => `${nameOf(m.author, names)}: ${m.text}`).join("\n")}\n\n`
     : "";
-  return `${block}[conversation ${turn.conversationId}] ${nameOf(turn.from, names)} (hop ${turn.hop}):\n${turn.text}`;
+  const memory = turn.groupMemory ? `Group memory:\n${turn.groupMemory}\n\n` : "";
+  return `${memory}${block}[conversation ${turn.conversationId}] ${nameOf(turn.from, names)} (hop ${turn.hop}):\n${turn.text}`;
 }

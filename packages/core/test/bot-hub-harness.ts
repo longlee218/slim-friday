@@ -1,4 +1,4 @@
-import type { Bot, Conversation, Group } from "../src";
+import type { Bot, Conversation, Group, Memory } from "../src";
 import { BotHub } from "../src/hub/bot-hub";
 import { PermissionGate } from "../src/permission/permission-gate";
 import { FakeClock } from "./fakes/fake-clock";
@@ -25,7 +25,7 @@ export const flush = async () => {
 };
 
 /** A hub over fakes with bots writer (entry) and editor in group "g", a group chat "gc", and a direct chat "dc" with editor. */
-export function makeHub() {
+export function makeHub(memory?: Memory) {
   const store = new FakeStore();
   const runtime = new FakeRuntime();
   const surface = new FakeSurface();
@@ -45,7 +45,7 @@ export function makeHub() {
     catalog: new FakeToolCatalog([]),
     settings: () => ({ level: "balanced" }),
   });
-  const hub = new BotHub({ runtime, surface, store, clock, gate });
+  const hub = new BotHub({ runtime, surface, store, clock, gate, ...(memory && { memory }) });
   hub.start();
   return { store, runtime, surface, clock, gate, hub, writer, editor };
 }
