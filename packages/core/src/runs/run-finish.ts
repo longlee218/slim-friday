@@ -9,15 +9,14 @@ export interface RunResult {
   resultText?: string;
   /** Why the run failed. */
   error?: string;
-  /** Steering rows claimed up to this time were answered by a turn that ended (done runs only). */
-  answeredUpTo?: number;
 }
 
 /**
  * Finish a run. The store has no transaction across repos, so the fence-guarded `transition` to done/failed
  * is the commit point: when it matches no row (another worker owns the run, or it was cancelled) nothing else
  * is written and false is returned. The follow-ups are idempotent and safe to repeat: attempt closed,
- * `scopes.finished`, steering settled (`settleSteering`: answered rows deleted, the rest held, a done run hands them to a continuation run). The outcome fields stay on the row for Task 11.
+ * `scopes.finished`, steering settled (`settleSteering`: unanswered rows held, then a continuation run).
+ * The outcome fields stay on the row for Task 11.
  *
  * Crash order: after the transition and before the follow-ups the attempt stays `running` and the scope's
  * finish time is older (bookkeeping); steering rows stay bound to the ended run until the reconciler (Task 11)
@@ -40,7 +39,7 @@ export async function finishRun(
   if (!(await store.wakes.transition(row.id, fence, ["running"], patch))) return false;
   await store.attempts.finish(`${row.id}:${fence}`, r.status, endedAt, r.error);
   await store.scopes.finished(row.scopeKey, endedAt, Math.max(0, row.createdAt - 1));
-  await settleSteering(ctx, row, r.status, r.answeredUpTo);
+  await settleSteering(ctx, row, r.status);
   const ended = (await store.wakes.get(row.id)) ?? { ...row, ...patch };
   if (r.status === "done") ctx.wakeLog.logDone(ended, endedAt);
   else log?.warn({ event: "wake.failed", wakeId: row.id, botId: row.targetBot }, "wake.failed");

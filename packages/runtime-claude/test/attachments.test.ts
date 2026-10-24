@@ -109,3 +109,34 @@ test("steer pushes the framed text and files into the input queue, nothing after
   await Bun.sleep(20);
   expect(fq.sentContent()).toHaveLength(2);
 });
+
+test("a file that is gone becomes a note line in a steer push and in a turn", async () => {
+  const fq = fakeQuery();
+  const rt = new ClaudeRuntime({
+    agentHome: join(root, "home"),
+    scratchRoot: join(root, "runs-gone"),
+    queryFn: fq.queryFn,
+    sessionExists: async () => true,
+  });
+  const s = await rt.open(spec);
+  const gone: Attachment[] = [
+    { name: "x.png", mimeType: "image/png", path: join(root, "nope.png"), size: 5 },
+    { name: "y.pdf", mimeType: "application/pdf", path: join(root, "nope.pdf"), size: 5 },
+  ];
+  s.steer({ text: "look", attachments: gone });
+  s.send({
+    conversationId: "c1",
+    from: { kind: "user" },
+    text: "hi",
+    hop: 0,
+    context: [],
+    attachments: gone,
+  });
+  await Bun.sleep(20);
+  for (const blocks of fq.sentContent() as Block[][]) {
+    const text = blocks.find((b) => b.type === "text")?.text ?? "";
+    expect(text).toContain("[file no longer available: x.png]");
+    expect(text).toContain("[file no longer available: y.pdf]");
+  }
+  expect(fq.sentContent()).toHaveLength(2);
+});

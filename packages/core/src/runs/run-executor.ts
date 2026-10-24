@@ -11,7 +11,7 @@ import type { RunLease } from "./run-lease";
 import { type PumpEnd, pumpRun } from "./run-pump";
 import { openRunSession } from "./run-session";
 import { persistEffort, runSpec } from "./run-spec";
-import { answeredUpTo, claimSteering, withSteering } from "./run-steering";
+import { claimSteering, withSteering } from "./run-steering";
 import { buildRunTurn } from "./run-turn";
 import { StreamWatchdog } from "./run-watchdog";
 
@@ -102,6 +102,7 @@ async function runSession(
     // come later are pushed into the open turn (`deliverSteering`).
     const rows = await untilStop(exec, claimSteering(ctx, exec.row, ctx.deps.clock.now()));
     if (rows === undefined || exec.stop) return { kind: "stopped" };
+    exec.firstRows = rows.map((r) => r.id);
     exec.session.send(withSteering(turn, rows));
     return await pumpRun(ctx, exec, dog);
   } catch (err) {
@@ -127,12 +128,7 @@ async function settle(ctx: HubContext, exec: RunExec, end: PumpEnd): Promise<voi
     return handleRunError(ctx, row, fence, err, bot);
   }
   const resultText = exec.turnTexts.at(-1);
-  const upTo = answeredUpTo(exec);
-  const done = {
-    status: "done" as const,
-    ...(resultText !== undefined && { resultText }),
-    ...(upTo !== undefined && { answeredUpTo: upTo }),
-  };
+  const done = { status: "done" as const, ...(resultText !== undefined && { resultText }) };
   if (!(await finishRun(ctx, row, fence, done))) return;
   await returnOutcome(ctx, exec);
   await checkUnfinished(ctx, exec);

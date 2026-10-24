@@ -6,7 +6,7 @@ import { postStored } from "../hub/post-stored";
 import type { RuntimeEvent } from "../ports/agent-runtime";
 import { abortRun, type RunExec } from "./run-exec";
 import { dayOf } from "./run-rules";
-import { deliverSteering } from "./run-steering";
+import { answerFirstTurn, answerPushed, deliverSteering } from "./run-steering";
 import type { StreamWatchdog } from "./run-watchdog";
 
 /** How a run's event stream ended: the work is done, it failed, or the run was cut short (`exec.stop`). */
@@ -67,7 +67,8 @@ async function onEvent(
   } else if (e.type === "tool_result") {
     exec.openTools.delete(e.toolUseId);
     show(exec.steps.onToolResult(e, now));
-    // The next model step reads owner messages that came while the tool ran.
+    // This result followed the earlier pushes: the model read them. Then push what came while the tool ran.
+    await answerPushed(ctx, exec);
     await deliverSteering(ctx, exec, false);
   } else if (e.type === "text") {
     exec.turnOpen = true;
@@ -93,9 +94,10 @@ async function onEvent(
   } else if (e.type === "turn_end") {
     show(exec.steps.endTurn(now));
     exec.turnOpen = false;
-    exec.lastTurnEndAt = now;
     // A steering push still being claimed learns the turn is over before the run is finished.
     await exec.delivering;
+    // The first turn is answered with its end, rows it carried are done.
+    await answerFirstTurn(ctx, exec);
     exec.followUp = false;
     await store.spend.add(exec.bot.id, dayOf(now), e.costUsd);
     const taskDoneInTurn = exec.taskDoneInTurn;

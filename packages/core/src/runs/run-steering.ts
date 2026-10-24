@@ -7,6 +7,9 @@ import { createRun } from "./run-create";
 import type { RunExec } from "./run-exec";
 import { isConversational } from "./run-rules";
 
+/** Dedupe-key prefix that marks a continuation run. */
+export const CONTINUATION_KEY = "cont:";
+
 /** The text of a continuation run (it answers owner messages that came while the bot was busy). */
 export const CONTINUATION_PROMPT =
   "Respond to the owner's messages that arrived while you were busy.";
@@ -58,8 +61,9 @@ export async function claimSteering(
  * only at a point where the model reads the push inside the same turn: right after a tool result
  * (`needsOpenTool` false) or on a hint while a tool call is in flight (`needsOpenTool` true; a push during
  * plain text generation is untested, so those rows wait for the next tool result or become a continuation
- * run). A claim that finds the turn already over is remembered in `unansweredFrom`, so the finish does not
- * count those rows as answered.
+ * run). Pushed rows go to `exec.pushed`; they count as answered only when a later tool result follows
+ * (`answerPushed`). A claim that finds the turn over, or a push that throws (e.g. an unreadable file), stays
+ * claimed and unanswered: the finish offers it again.
  */
 export function deliverSteering(
   ctx: HubContext,
@@ -70,14 +74,10 @@ export function deliverSteering(
     exec.live && !exec.stop && exec.turnOpen && !!exec.session && isConversational(exec.row);
   const push = async () => {
     if (!can() || (needsOpenTool && exec.openTools.size === 0)) return;
-    const at = ctx.deps.clock.now();
-    const rows = await claimSteering(ctx, exec.row, at);
-    if (rows.length === 0) return;
-    if (!can()) {
-      exec.unansweredFrom = Math.min(exec.unansweredFrom ?? at, at);
-      return;
-    }
+    const rows = await claimSteering(ctx, exec.row, ctx.deps.clock.now());
+    if (rows.length === 0 || !can()) return;
     exec.session?.steer(formatSteering(rows));
+    exec.pushed.push(...rows.map((r) => r.id));
   };
   const p = (exec.delivering ?? Promise.resolve()).then(push).catch((err) => {
     ctx.deps.log?.error({ error: errText(err), wakeId: exec.row.id }, "run.steer_failed");
@@ -86,12 +86,16 @@ export function deliverSteering(
   return p;
 }
 
-/** Latest claim time whose rows the turns that ended have answered; undefined when no turn ended. */
-export function answeredUpTo(exec: RunExec): number | undefined {
-  if (exec.lastTurnEndAt === undefined) return undefined;
-  return exec.unansweredFrom === undefined
-    ? exec.lastTurnEndAt
-    : Math.min(exec.lastTurnEndAt, exec.unansweredFrom - 1);
+/** A tool result followed the pushes so far: the model has read those rows, so they are deleted. */
+export async function answerPushed(ctx: HubContext, exec: RunExec): Promise<void> {
+  const ids = exec.pushed.splice(0);
+  if (ids.length > 0) await ctx.deps.store.steering.remove(ids);
+}
+
+/** The first turn reached its end: the rows it carried are answered and deleted. */
+export async function answerFirstTurn(ctx: HubContext, exec: RunExec): Promise<void> {
+  const ids = exec.firstRows.splice(0);
+  if (ids.length > 0) await ctx.deps.store.steering.remove(ids);
 }
 
 /**
@@ -101,30 +105,37 @@ export function answeredUpTo(exec: RunExec): number | undefined {
  * run. A run of that key that already ended (its rows came back held) gets a new key (`:2`, `:3`...). When a
  * cap blocks the run the rows stay held. Called from `finishRun` and when a run parks.
  */
-export async function holdOrContinue(ctx: HubContext, scopeKey: string): Promise<void> {
+export async function holdOrContinue(
+  ctx: HubContext,
+  scopeKey: string,
+  endedWakeId?: string,
+): Promise<void> {
   const { store } = ctx.deps;
   const held = await store.steering.held(scopeKey);
   const first = held[0];
   if (!first) return;
   if ((await store.wakes.activeInScope(scopeKey)).some((w) => LIVE.includes(w.status))) return;
   const rows = held.filter((r) => r.conversationId === first.conversationId);
-  for (let n = 1; n <= 5; n++) {
-    const outcome = await createRun(ctx, {
-      botId: scopeKey.split("@")[0] ?? scopeKey,
-      conversationId: first.conversationId,
-      sender: { kind: "user" },
-      text: CONTINUATION_PROMPT,
-      hop: 0,
-      dedupeKey: n === 1 ? `cont:${first.id}` : `cont:${first.id}:${n}`,
-    });
-    if (!outcome.ok) return;
-    const run = await store.wakes.get(outcome.wakeId);
-    if (!run || !OPEN.includes(run.status)) continue;
-    const bound = await store.steering.bind(
-      rows.map((r) => r.id),
-      outcome.wakeId,
+  const outcome = await createRun(ctx, {
+    botId: scopeKey.split("@")[0] ?? scopeKey,
+    conversationId: first.conversationId,
+    sender: { kind: "user" },
+    text: CONTINUATION_PROMPT,
+    hop: 0,
+    dedupeKey: `${CONTINUATION_KEY}${endedWakeId ?? first.id}`,
+  });
+  if (!outcome.ok) {
+    ctx.deps.log?.warn(
+      { scopeKey, rowId: first.id, reason: outcome.reason },
+      "run.continuation_not_created",
     );
-    if (bound.length > 0) ctx.hints.steer(outcome.wakeId);
     return;
   }
+  const run = await store.wakes.get(outcome.wakeId);
+  if (!run || !OPEN.includes(run.status)) return;
+  const bound = await store.steering.bind(
+    rows.map((r) => r.id),
+    outcome.wakeId,
+  );
+  if (bound.length > 0) ctx.hints.steer(outcome.wakeId);
 }

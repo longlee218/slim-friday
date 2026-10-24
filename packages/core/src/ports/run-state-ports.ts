@@ -15,8 +15,8 @@ export interface SteeringPort {
   held(scopeKey: string): Promise<SteeringRow[]>;
   /** Bind held, unclaimed rows to the wake that will deliver them; returns the ids actually bound. */
   bind(ids: string[], wakeId: string): Promise<string[]>;
-  /** Drop the rows a finished turn claimed; with `upTo`, only those claimed at or before it (the turn answered them). */
-  deleteClaimed(wakeId: string, upTo?: number): Promise<void>;
+  /** Drop the rows a finished turn claimed. */
+  deleteClaimed(wakeId: string): Promise<void>;
   /** Unclaimed rows bound to `wakeId` become held again (the wake ended without taking them). */
   unbind(wakeId: string): Promise<void>;
   /** Give the claimed rows of a failed turn back (claimed -> unclaimed). */

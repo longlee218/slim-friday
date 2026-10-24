@@ -92,18 +92,23 @@ export function withAttachments(
   const lines: string[] = [];
   let copyDir: string | undefined;
   for (const a of attachments) {
-    if (INLINE_IMAGES.has(a.mimeType) && a.size <= MAX_INLINE_BYTES) {
-      images.push(imageBlock(a));
-      lines.push(`- ${a.name} (${a.mimeType}, shown above)`);
-      continue;
+    // A file swept or removed since the message came is named in a note; it must not fail the turn.
+    try {
+      if (INLINE_IMAGES.has(a.mimeType) && a.size <= MAX_INLINE_BYTES) {
+        images.push(imageBlock(a));
+        lines.push(`- ${a.name} (${a.mimeType}, shown above)`);
+        continue;
+      }
+      if (!copyDir) {
+        mkdirSync(join(scratchDir, "inbox"), { recursive: true });
+        copyDir = mkdtempSync(join(scratchDir, "inbox", "t-"));
+      }
+      const dest = join(copyDir, basename(a.name));
+      copyFileSync(a.path, dest);
+      lines.push(`- ${dest} (${a.mimeType}, ${a.size} bytes)`);
+    } catch {
+      lines.push(`- [file no longer available: ${a.name}]`);
     }
-    if (!copyDir) {
-      mkdirSync(join(scratchDir, "inbox"), { recursive: true });
-      copyDir = mkdtempSync(join(scratchDir, "inbox", "t-"));
-    }
-    const dest = join(copyDir, basename(a.name));
-    copyFileSync(a.path, dest);
-    lines.push(`- ${dest} (${a.mimeType}, ${a.size} bytes)`);
   }
   return [{ type: "text", text: `${text}\n\nAttached files:\n${lines.join("\n")}` }, ...images];
 }

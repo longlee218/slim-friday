@@ -1,5 +1,5 @@
 import type { SteeringRow, Store } from "@friday/core";
-import { and, asc, eq, inArray, isNotNull, isNull, lte } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import type { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import { steering } from "../schema/engine-tables";
 
@@ -84,16 +84,9 @@ export function steeringRepo(db: BunSQLiteDatabase): Store["steering"] {
         .all()
         .map((r) => r.id);
     },
-    async deleteClaimed(wakeId, upTo) {
+    async deleteClaimed(wakeId) {
       db.delete(steering)
-        .where(
-          and(
-            eq(steering.wakeId, wakeId),
-            isNotNull(steering.claimedAt),
-            // Without `upTo` every claimed row goes; with it only those claimed by that time.
-            ...(upTo === undefined ? [] : [lte(steering.claimedAt, upTo)]),
-          ),
-        )
+        .where(and(eq(steering.wakeId, wakeId), isNotNull(steering.claimedAt)))
         .run();
     },
     async unbind(wakeId) {

@@ -117,7 +117,7 @@ test("non-conversational run leaves rows held and finish creates one continuatio
   expect(h.store.steerMap.get("later")).toMatchObject({ wakeId: cont[0]?.id });
 });
 
-test("cut run: answered rows deleted, unanswered offered again", async () => {
+test("cut run: every claimed row (none was deleted as answered) is offered again", async () => {
   const h = makeHub();
   await h.store.wakes.insert(
     run({
@@ -127,19 +127,15 @@ test("cut run: answered rows deleted, unanswered offered again", async () => {
       leaseOwner: "oldboot:main",
       leaseFence: 1,
       leaseExpiresAt: 300_000,
-      firstTextAt: 50,
     }),
   );
-  await h.store.steering.add(steer("answered", 1, { wakeId: "w1", claimedAt: 40 }));
-  await h.store.steering.add(steer("unanswered", 2, { wakeId: "w1", claimedAt: 60 }));
+  await h.store.steering.add(steer("claimed", 1, { wakeId: "w1", claimedAt: 60 }));
   await h.store.steering.add(steer("fresh", 3, { wakeId: "w1" }));
   await h.hub.recover();
   await flush();
-  expect(h.store.steerMap.has("answered")).toBe(false);
   const text = h.runtime.last().sent[0]?.text ?? "";
-  expect(text).toContain(`${HEADER}\nunanswered`);
+  expect(text).toContain(`${HEADER}\nclaimed`);
   expect(text).toContain(`${HEADER}\nfresh`);
-  expect(text).not.toContain(`${HEADER}\nanswered`);
 });
 
 test("no continuation while another run is queued in the scope", async () => {
@@ -155,7 +151,24 @@ test("no continuation while another run is queued in the scope", async () => {
   expect(wakes(h).filter((w) => w.text === CONTINUATION_PROMPT)).toHaveLength(1);
 });
 
-test("rows bound to a run that fails go back to held without a continuation", async () => {
+/** A hub with one held row and a finished bot run, so a continuation run is running. */
+async function withContinuation() {
+  const h = makeHub();
+  await h.store.steering.add(steer("later", 1));
+  await createRun(ctxOf(h), {
+    botId: "editor",
+    conversationId: "dc",
+    sender: { kind: "bot", botId: "writer" },
+    text: "do it",
+    hop: 1,
+  });
+  await flush();
+  h.runtime.last().emit({ type: "turn_end", costUsd: 0 });
+  await flush();
+  return h;
+}
+
+test("a failed run hands its rows to a continuation; a failed continuation deletes them", async () => {
   const h = makeHub();
   h.surface.deliver({ conversationId: "dc", text: "start" });
   await flush();
@@ -163,9 +176,80 @@ test("rows bound to a run that fails go back to held without a continuation", as
   await flush();
   h.runtime.last().emit({ type: "error", message: "boom", retryable: false });
   await flush();
-  expect(wakes(h)[0]?.status).toBe("failed");
-  expect(wakes(h)).toHaveLength(1);
-  expect([...h.store.steerMap.values()].map((r) => [r.text, r.wakeId])).toEqual([
-    ["more", undefined],
-  ]);
+  const cont = wakes(h).filter((w) => w.text === CONTINUATION_PROMPT);
+  expect(wakes(h).map((w) => w.status)).toEqual(["failed", "running"]);
+  expect(cont).toHaveLength(1);
+  // The continuation fails too: its rows are deleted and no third run starts.
+  h.runtime.last().emit({ type: "error", message: "boom", retryable: false });
+  await flush();
+  expect(wakes(h).map((w) => w.status)).toEqual(["failed", "failed"]);
+  expect(h.store.steerMap.size).toBe(0);
+});
+
+test("a failed continuation deletes its rows instead of holding them", async () => {
+  const h = await withContinuation();
+  expect(wakes(h)).toHaveLength(2);
+  h.runtime.last().emit({ type: "error", message: "boom", retryable: false });
+  await flush();
+  expect(wakes(h)).toHaveLength(2);
+  expect(h.store.steerMap.size).toBe(0);
+});
+
+test("a row pushed after the last tool result is unanswered: continuation run", async () => {
+  const h = makeHub();
+  h.surface.deliver({ conversationId: "dc", text: "start" });
+  await flush();
+  const s = h.runtime.last();
+  s.emit({ type: "tool_call", toolUseId: "t1", tool: "Bash", input: {} });
+  s.emit({ type: "tool_result", toolUseId: "t1", ok: true });
+  await flush();
+  h.surface.deliver({ conversationId: "dc", text: "late one" });
+  await flush();
+  s.emit({ type: "tool_call", toolUseId: "t2", tool: "Bash", input: {} });
+  await flush();
+  expect(s.steered).toHaveLength(0);
+  s.emit({ type: "tool_result", toolUseId: "t2", ok: true });
+  await flush();
+  expect(s.steered).toHaveLength(1);
+  // The push followed the last tool result: nothing shows the model read it.
+  s.emit({ type: "turn_end", costUsd: 0 });
+  await flush();
+  expect(h.runtime.last().sent[0]?.text).toBe(`${CONTINUATION_PROMPT}\n\n${HEADER}\nlate one`);
+});
+
+test("a steer push that throws leaves the row unanswered", async () => {
+  const h = makeHub();
+  h.surface.deliver({ conversationId: "dc", text: "start" });
+  await flush();
+  const s = h.runtime.last();
+  s.steer = () => {
+    throw new Error("file gone");
+  };
+  h.surface.deliver({ conversationId: "dc", text: "more" });
+  await flush();
+  s.emit({ type: "tool_call", toolUseId: "t1", tool: "Bash", input: {} });
+  s.emit({ type: "tool_result", toolUseId: "t1", ok: true });
+  s.emit({ type: "tool_call", toolUseId: "t2", tool: "Bash", input: {} });
+  s.emit({ type: "tool_result", toolUseId: "t2", ok: true });
+  s.emit({ type: "turn_end", costUsd: 0 });
+  await flush();
+  expect(h.runtime.last().sent[0]?.text).toBe(`${CONTINUATION_PROMPT}\n\n${HEADER}\nmore`);
+});
+
+test("a continuation a cap blocked is created at the next finish", async () => {
+  const h = makeHub();
+  const ctx = ctxOf(h);
+  await h.store.steering.add(steer("later", 1));
+  await h.store.spend.add("editor", new Date(0).toISOString().slice(0, 10), 999);
+  await holdOrContinue(ctx, "editor", "ended1");
+  expect(wakes(h).map((w) => w.status)).toEqual(["blocked"]);
+  expect(h.log.of("run.continuation_not_created")).toHaveLength(1);
+  expect(h.store.steerMap.get("later")?.wakeId).toBeUndefined();
+  // The next day the cap is off; another run finishes in the scope.
+  h.clock.advance(86_400_000);
+  await holdOrContinue(ctx, "editor", "ended2");
+  await flush();
+  const cont = wakes(h).filter((w) => w.status !== "blocked");
+  expect(cont).toHaveLength(1);
+  expect(h.store.steerMap.get("later")?.wakeId).toBe(cont[0]?.id);
 });

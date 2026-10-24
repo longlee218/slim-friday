@@ -57,10 +57,10 @@ export interface RunExec {
   followUp: boolean;
   /** A task ended while the current turn was open: a follow-up turn may come after its end. */
   taskDoneInTurn: boolean;
-  /** Epoch ms of the last `turn_end`; steering rows claimed up to then were answered. */
-  lastTurnEndAt?: number;
-  /** Earliest claim time of rows claimed after their turn ended (never answered). */
-  unansweredFrom?: number;
+  /** Steering rows that went into the first turn; answered (deleted) when that turn reaches `turn_end`. */
+  firstRows: string[];
+  /** Rows pushed into the open turn; answered (deleted) when a later `tool_result` follows the push. */
+  pushed: string[];
   /** The last steering delivery in flight (deliveries are chained). */
   delivering?: Promise<void>;
   /** Cancels the follow-up grace timer, while one runs. */
@@ -108,6 +108,8 @@ export function newRunExec(row: WakeRow, scope: SessionScope, now: number, taint
     openTools: new Set(),
     steps: new RunTracker(),
     turnTexts: [],
+    firstRows: [],
+    pushed: [],
     sentResults: new Set(),
     turnOpen: false,
     followUp: false,
