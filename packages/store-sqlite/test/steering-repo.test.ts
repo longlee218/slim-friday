@@ -34,6 +34,17 @@ test("claim returns only rows bound to the wake and only once", async () => {
   s.close();
 });
 
+test("bind skips rows bound to another wake or already claimed", async () => {
+  const s = open();
+  await s.steering.add(row("b1", 1, "w1"));
+  await s.steering.add(row("c1", 2));
+  await s.steering.bind(["c1"], "w2");
+  await s.steering.claim("w2", 5);
+  expect(await s.steering.bind(["b1", "c1"], "w3")).toEqual([]);
+  expect((await s.steering.claim("w1", 6)).map((r) => r.id)).toEqual(["b1"]);
+  s.close();
+});
+
 test("held rows are those without a wake; bind and deleteForScope", async () => {
   const s = open();
   await s.steering.add({
@@ -46,7 +57,7 @@ test("held rows are those without a wake; bind and deleteForScope", async () => 
   expect(held.map((r) => r.id)).toEqual(["h1", "h2"]);
   expect(held[0]?.attachments?.[0]?.name).toBe("f");
   expect(held[0]?.wakeId).toBeUndefined();
-  await s.steering.bind(["h1"], "w9");
+  expect(await s.steering.bind(["h1", "b1", "nope"], "w9")).toEqual(["h1"]);
   expect((await s.steering.held("a")).map((r) => r.id)).toEqual(["h2"]);
   await s.steering.deleteForScope("a");
   expect(await s.steering.held("a")).toEqual([]);

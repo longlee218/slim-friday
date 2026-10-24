@@ -3,13 +3,14 @@ import type { SteeringRow } from "../domain/steering";
 
 /** Owner messages sent while a run is busy. */
 export interface SteeringPort {
+  /** Store a row (held when it has no wake). */
   add(r: SteeringRow): Promise<void>;
   /** Unclaimed rows bound to `wakeId`, oldest first, marked claimed at `at` (one transaction). */
   claim(wakeId: string, at: number): Promise<SteeringRow[]>;
   /** Rows of the scope bound to no wake, oldest first. */
   held(scopeKey: string): Promise<SteeringRow[]>;
-  /** Bind rows to the wake that will deliver them. */
-  bind(ids: string[], wakeId: string): Promise<void>;
+  /** Bind held, unclaimed rows to the wake that will deliver them; returns the ids actually bound. */
+  bind(ids: string[], wakeId: string): Promise<string[]>;
   /** Drop the rows a finished turn claimed. */
   deleteClaimed(wakeId: string): Promise<void>;
   /** Give the claimed rows of a failed turn back (claimed -> unclaimed). */
@@ -19,7 +20,9 @@ export interface SteeringPort {
 
 /** Approval and question cards. */
 export interface CardPort {
+  /** Store a new card. */
   insert(c: CardRow): Promise<void>;
+  /** One card by id. */
   get(id: string): Promise<CardRow | undefined>;
   /** Open cards, oldest first. */
   open(): Promise<CardRow[]>;
@@ -29,6 +32,7 @@ export interface CardPort {
   answer(id: string, answer: CardRow["answer"], at: number): Promise<boolean>;
   /** Guarded change `from` -> `to`; false when the card was not in `from`. */
   setStatus(id: string, from: CardRow["status"], to: CardRow["status"]): Promise<boolean>;
+  /** Record that the owner was reminded of the card. */
   markReminded(id: string, at: number): Promise<void>;
 }
 
@@ -42,7 +46,7 @@ export type EffectBegin =
 export interface EffectPort {
   /** Atomic: the first call for a key is "new"; later ones "started", or "done" with the result. */
   begin(key: string, wakeId: string, tool: string, at: number): Promise<EffectBegin>;
-  /** Store the result and mark the key done. */
+  /** Store the result and mark the key done; only a started key changes, so the first result stays. */
   finish(key: string, result: string, at: number): Promise<void>;
 }
 
@@ -56,11 +60,17 @@ export interface ScopeState {
 
 /** Per-scope state that outlives a run. */
 export interface ScopePort {
+  /** State of a scope; undefined when nothing was ever set. */
   get(key: string): Promise<ScopeState | undefined>;
+  /** Set the scope effort. */
   setEffort(key: string, effort: string): Promise<void>;
+  /** Ask for a fresh session next time. */
   markReset(key: string): Promise<void>;
+  /** Clear the reset request. */
   clearReset(key: string): Promise<void>;
+  /** Record the end of a run. */
   finished(key: string, at: number): Promise<void>;
+  /** Record a memory flush. */
   flushed(key: string, at: number): Promise<void>;
   /** Scopes finished before `before` and not flushed since they finished. */
   quiet(before: number): Promise<string[]>;

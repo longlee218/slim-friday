@@ -1,5 +1,5 @@
 import type { Store } from "@friday/core";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import { effectCalls } from "../schema/engine-tables";
 
@@ -23,7 +23,7 @@ export function effectCallRepo(db: BunSQLiteDatabase): Store["effects"] {
     async finish(key, result, at) {
       db.update(effectCalls)
         .set({ state: "done", result, finishedAt: at })
-        .where(eq(effectCalls.key, key))
+        .where(and(eq(effectCalls.key, key), eq(effectCalls.state, "started")))
         .run();
     },
   };

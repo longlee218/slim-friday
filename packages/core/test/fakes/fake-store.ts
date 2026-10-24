@@ -289,6 +289,7 @@ export class FakeStore implements Store {
       });
     },
   };
+  /** Steering rows by id. */
   steerMap = new Map<string, SteeringRow>();
   private steerRows = (f: (r: SteeringRow) => boolean) =>
     [...this.steerMap.values()]
@@ -308,10 +309,15 @@ export class FakeStore implements Store {
         ...r,
       })),
     bind: async (ids: string[], wakeId: string) => {
+      const bound: string[] = [];
       for (const id of ids) {
         const r = this.steerMap.get(id);
-        if (r) r.wakeId = wakeId;
+        if (r && r.wakeId === undefined && r.claimedAt === undefined) {
+          r.wakeId = wakeId;
+          bound.push(id);
+        }
       }
+      return bound;
     },
     deleteClaimed: async (wakeId: string) => {
       for (const r of this.steerRows((r) => r.wakeId === wakeId && r.claimedAt !== undefined))
@@ -325,6 +331,7 @@ export class FakeStore implements Store {
       for (const r of this.steerRows((r) => r.scopeKey === scopeKey)) this.steerMap.delete(r.id);
     },
   };
+  /** Cards by id. */
   cardMap = new Map<string, CardRow>();
   private cardRows = (f: (c: CardRow) => boolean) =>
     [...this.cardMap.values()]
@@ -359,6 +366,7 @@ export class FakeStore implements Store {
       if (c) c.remindedAt = at;
     },
   };
+  /** Effect records by key. */
   effectMap = new Map<string, { state: "started" | "done"; result?: string }>();
   effects = {
     begin: async (key: string, _wakeId: string, _tool: string, _at: number) => {
@@ -373,9 +381,10 @@ export class FakeStore implements Store {
     },
     finish: async (key: string, result: string, _at: number) => {
       const e = this.effectMap.get(key);
-      if (e) Object.assign(e, { state: "done", result });
+      if (e?.state === "started") Object.assign(e, { state: "done", result });
     },
   };
+  /** Scope state by key. */
   scopeMap = new Map<string, ScopeState>();
   /** Create-or-patch, like the repo's upsert. */
   private scopeSet(key: string, patch: Partial<ScopeState>) {

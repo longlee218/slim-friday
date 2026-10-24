@@ -39,7 +39,7 @@ export function scopeRepo(db: BunSQLiteDatabase): Store["scopes"] {
       upsert(key, { lastFlushedAt: at });
     },
     async quiet(before) {
-      // NULL finish never matches; a NULL flush counts as "not flushed".
+      // NULL finish never matches; a NULL flush counts as "not flushed". The AND keeps scopes whose last flush is not after their last finish.
       return db
         .select({ key: scopes.key })
         .from(scopes)

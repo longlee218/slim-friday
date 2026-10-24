@@ -11,6 +11,7 @@ test("effect begin is new, then started, then done with the stored result", asyn
   expect(await s.effects.begin("k", "w1", "GitPush", 1)).toEqual({ state: "new" });
   expect(await s.effects.begin("k", "w1", "GitPush", 2)).toEqual({ state: "started" });
   await s.effects.finish("k", "ok", 3);
+  await s.effects.finish("k", "second", 4);
   expect(await s.effects.begin("k", "w2", "GitPush", 4)).toEqual({ state: "done", result: "ok" });
   expect(await s.effects.begin("k2", "w1", "GitPush", 4)).toEqual({ state: "new" });
   s.close();

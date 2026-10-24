@@ -27,7 +27,8 @@ export function messageRepo(db: BunSQLiteDatabase): Store["messages"] {
           and(eq(messages.conversationId, m.conversationId), eq(messages.clientNonce, clientNonce)),
         )
         .get();
-      return { id: first?.id ?? 0, replayed: true };
+      if (!first) throw new Error(`message with nonce ${clientNonce} vanished after a conflict`);
+      return { id: first.id, replayed: true };
     },
     async get(id) {
       const r = db.select().from(messages).where(eq(messages.id, id)).get();

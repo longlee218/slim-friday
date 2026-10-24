@@ -60,8 +60,15 @@ export function steeringRepo(db: BunSQLiteDatabase): Store["steering"] {
         .map(fromRow);
     },
     async bind(ids, wakeId) {
-      if (!ids.length) return;
-      db.update(steering).set({ wakeId }).where(inArray(steering.id, ids)).run();
+      if (!ids.length) return [];
+      // Only held, unclaimed rows bind; the rows actually changed come back.
+      return db
+        .update(steering)
+        .set({ wakeId })
+        .where(and(inArray(steering.id, ids), isNull(steering.wakeId), isNull(steering.claimedAt)))
+        .returning({ id: steering.id })
+        .all()
+        .map((r) => r.id);
     },
     async deleteClaimed(wakeId) {
       db.delete(steering)
