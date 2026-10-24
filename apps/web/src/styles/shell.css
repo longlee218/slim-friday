@@ -51,10 +51,6 @@
 @keyframes vtIn { from { opacity: 0; transform: translateY(6px); } }
 @keyframes vtInX { from { opacity: 0; transform: translateX(10px); } }
 .main-vt { view-transition-name: main-content; display: contents; }
-.sb-row.on { background: transparent; }
-.sb-row .sel { position: absolute; inset: 0; border-radius: 7px; background: var(--sel); z-index: -1; view-transition-name: sb-sel; }
-.set-list .sb-row .sel { view-transition-name: set-sel; }
-.sb-row { isolation: isolate; }
 .mac { position: relative; }
 @media (max-width: 1179px) {
   .mac.insp { grid-template-columns: var(--sb-w) minmax(0, 1fr) 0px; }

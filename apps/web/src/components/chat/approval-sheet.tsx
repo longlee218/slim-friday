@@ -25,10 +25,15 @@ export function ApprovalSheet({ card, open, onOpenChange }: ApprovalSheetProps) 
   const busy = answer.isPending;
   return (
     <BottomSheet open={open} onOpenChange={onOpenChange}>
-      <Avatar src={face.src} name={card.botName} size={40} />
-      <Dialog.Title render={(props) => <h3 {...props}>{approvalTitle(card)}</h3>} />
-      <div className="t2" style={{ margin: "0 0 8px", fontSize: 13, color: "var(--label-2)" }}>
-        {countdown(card.expiresAt, now)}
+      {/* Face beside the title and countdown, as the prototype's review sheet. */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+        <Avatar src={face.src} name={card.botName} size={40} />
+        <div>
+          <Dialog.Title render={(props) => <h3 {...props}>{approvalTitle(card)}</h3>} />
+          <div style={{ fontSize: 13, color: "var(--label-2)" }}>
+            {countdown(card.expiresAt, now)}
+          </div>
+        </div>
       </div>
       <ApprovalDetail card={card} />
       <Button variant="primary" disabled={busy} onClick={() => send("once")}>
