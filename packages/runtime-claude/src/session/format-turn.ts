@@ -6,8 +6,8 @@ import {
   buildWakePrompt,
   INTERRUPTED_NOTE,
   type InboundTurn,
+  MEMORY_LABEL,
 } from "@friday/core";
-import { MEMORY_LABEL } from "./build-options";
 import type { UserContent } from "./input-queue";
 
 /** Image types the model reads inline. */
@@ -38,7 +38,9 @@ export function formatTurn(turn: InboundTurn, names: Record<string, string>): st
   const botMemory = turn.botMemory
     ? `Your memory (updated):\n${MEMORY_LABEL}\n\n${turn.botMemory}\n\n`
     : "";
-  const memory = turn.groupMemory ? `Group memory:\n${turn.groupMemory}\n\n` : "";
+  const memory = turn.groupMemory
+    ? `Group memory:\n${MEMORY_LABEL}\n\n${turn.groupMemory}\n\n`
+    : "";
   const recalled = turn.recalled ? `${turn.recalled}\n\n` : "";
   // A bot's message is wrapped as untrusted peer content with what is expected of the receiver.
   const body =

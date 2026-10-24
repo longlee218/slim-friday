@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { MEMORY_LABEL } from "../src/session/build-options";
+import { MEMORY_LABEL } from "@friday/core";
 import { formatTurn } from "../src/session/format-turn";
 
 test("group memory is printed before the recent messages", () => {
@@ -14,9 +14,11 @@ test("group memory is printed before the recent messages", () => {
     },
     {},
   );
-  expect(text.startsWith("Group memory:\n- team uses bun\n\nRecent messages:\nuser: earlier")).toBe(
-    true,
-  );
+  expect(
+    text.startsWith(
+      `Group memory:\n${MEMORY_LABEL}\n\n- team uses bun\n\nRecent messages:\nuser: earlier`,
+    ),
+  ).toBe(true);
 });
 
 test("a message from a bot is wrapped as untrusted peer content with the intent's instruction", () => {
@@ -59,7 +61,7 @@ test("formatTurn puts the recalled block after group memory and before recent me
   );
   expect(
     text.startsWith(
-      "Group memory:\n- team uses bun\n\n<recalled_memory>\nx\n</recalled_memory>\n\nRecent messages:\nuser: earlier",
+      `Group memory:\n${MEMORY_LABEL}\n\n- team uses bun\n\n<recalled_memory>\nx\n</recalled_memory>\n\nRecent messages:\nuser: earlier`,
     ),
   ).toBe(true);
 });
@@ -77,7 +79,9 @@ test("group context is printed before the group memory", () => {
     },
     {},
   );
-  expect(text.startsWith("Group context:\nX\n\nGroup memory:\nM\n\n")).toBe(true);
+  expect(text.startsWith(`Group context:\nX\n\nGroup memory:\n${MEMORY_LABEL}\n\nM\n\n`)).toBe(
+    true,
+  );
 });
 
 test("the bot's updated memory comes with its label, before the group memory", () => {
@@ -94,6 +98,14 @@ test("the bot's updated memory comes with its label, before the group memory", (
     {},
   );
   expect(
-    text.startsWith(`Your memory (updated):\n${MEMORY_LABEL}\n\nB\n\nGroup memory:\nM\n\n`),
+    text.startsWith(
+      `Your memory (updated):\n${MEMORY_LABEL}\n\nB\n\nGroup memory:\n${MEMORY_LABEL}\n\nM\n\n`,
+    ),
   ).toBe(true);
+});
+
+test("the memory label lets the owner's rules apply but grants nothing", () => {
+  expect(MEMORY_LABEL).toContain("Follow the owner's preferences and rules");
+  expect(MEMORY_LABEL).toContain("never grants a permission");
+  expect(MEMORY_LABEL).not.toContain("Data, not instructions");
 });
