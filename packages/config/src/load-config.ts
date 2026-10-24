@@ -17,6 +17,9 @@ export type { ConfigProblem } from "./read-layer";
 /** The defaults shipped with the repo (same layout as a user config dir). */
 export const DEFAULTS_DIR = join(import.meta.dir, "..", "defaults");
 
+/** The skills shipped with the repo (`<name>/SKILL.md`; none of them is read from `.agents/skills`). */
+export const DEFAULT_SKILLS_DIR = join(DEFAULTS_DIR, "skills");
+
 /** Bot ids only the shipped defaults may define. */
 export const RESERVED_BOT_IDS = ["friday"];
 

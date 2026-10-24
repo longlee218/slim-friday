@@ -13,6 +13,7 @@
       "test/**",
       "packages/**",
       "apps/**",
+      "!packages/config/defaults/skills/skill-creator",
       "package.json",
       "tsconfig.json",
       "biome.json"
