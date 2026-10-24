@@ -132,3 +132,31 @@ test("avatar create: oversize passes validation (handler answers 413), png is re
     false,
   );
 });
+
+test("skill and MCP server names use the config name rules", () => {
+  const bad = ["../x", "a/b", ""];
+  for (const path of ["config.skills.install", "config.skills.update"]) {
+    for (const name of bad)
+      expect(inputOf(path).safeParse({ lookupId: "l", name }).success).toBe(false);
+    expect(inputOf(path).safeParse({ lookupId: "l", name: "my-skill.v2" }).success).toBe(true);
+  }
+  for (const path of ["config.skills.checkUpdate", "config.skills.remove"]) {
+    for (const name of bad) expect(inputOf(path).safeParse({ name }).success).toBe(false);
+    expect(inputOf(path).safeParse({ name: "my-skill" }).success).toBe(true);
+  }
+  for (const name of bad)
+    expect(inputOf("config.skills.setUsedBy").safeParse({ name, botIds: [] }).success).toBe(false);
+  for (const path of ["config.mcp.delete"]) {
+    for (const name of bad) expect(inputOf(path).safeParse({ name }).success).toBe(false);
+    expect(inputOf(path).safeParse({ name: "firecrawl" }).success).toBe(true);
+  }
+  for (const server of bad)
+    expect(inputOf("config.mcp.calls").safeParse({ server, limit: 5 }).success).toBe(false);
+  expect(inputOf("config.mcp.calls").safeParse({ server: "firecrawl", limit: 5 }).success).toBe(
+    true,
+  );
+  const spec = { type: "http", url: "https://x.example.com" };
+  for (const path of ["config.mcp.save", "config.mcp.test"])
+    for (const name of bad)
+      expect(inputOf(path).safeParse({ name, server: spec, mode: "create" }).success).toBe(false);
+});

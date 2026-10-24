@@ -10,10 +10,9 @@ import {
 } from "../dto/config";
 import { OkDtoSchema } from "../dto/status";
 import { base } from "../errors";
-import { BotIdSchema } from "../ids";
+import { BotIdSchema, McpNameSchema, SkillNameSchema } from "../ids";
 import { MAX_OWNER_FILE_CHARS, MAX_PAGE } from "../limits";
 
-const name = z.string().min(1);
 const lookupId = z.string();
 const ownerFile = z.enum(["USER", "SOUL"]);
 const https = z.url().refine((u) => u.startsWith("https://"), { message: "https only" });
@@ -24,29 +23,41 @@ export const skills = {
   lookup: base
     .input(z.object({ source: https, path: z.string().optional() }))
     .output(SkillLookupDtoSchema),
-  install: base.input(z.object({ lookupId, name })).output(SkillDtoSchema),
-  checkUpdate: base.input(z.object({ name })).output(
+  install: base.input(z.object({ lookupId, name: SkillNameSchema })).output(SkillDtoSchema),
+  checkUpdate: base.input(z.object({ name: SkillNameSchema })).output(
     z.object({
       sha: z.string().optional(),
       latestSha: z.string(),
       updateAvailable: z.boolean(),
     }),
   ),
-  update: base.input(z.object({ lookupId, name })).output(SkillDtoSchema),
-  remove: base.input(z.object({ name })).output(z.object({ botIds: z.array(BotIdSchema) })),
-  setUsedBy: base.input(z.object({ name, botIds: z.array(BotIdSchema) })).output(SkillDtoSchema),
+  update: base.input(z.object({ lookupId, name: SkillNameSchema })).output(SkillDtoSchema),
+  remove: base
+    .input(z.object({ name: SkillNameSchema }))
+    .output(z.object({ botIds: z.array(BotIdSchema) })),
+  setUsedBy: base
+    .input(z.object({ name: SkillNameSchema, botIds: z.array(BotIdSchema) }))
+    .output(SkillDtoSchema),
 };
 
 /** MCP servers as data. */
 export const mcp = {
   list: base.output(z.array(McpServerDtoSchema)),
   save: base
-    .input(z.object({ name, server: McpServerSpecDtoSchema, mode: z.enum(["create", "update"]) }))
+    .input(
+      z.object({
+        name: McpNameSchema,
+        server: McpServerSpecDtoSchema,
+        mode: z.enum(["create", "update"]),
+      }),
+    )
     .output(McpServerDtoSchema),
-  delete: base.input(z.object({ name })).output(OkDtoSchema),
-  test: base.input(z.object({ name, server: McpServerSpecDtoSchema })).output(McpTestDtoSchema),
+  delete: base.input(z.object({ name: McpNameSchema })).output(OkDtoSchema),
+  test: base
+    .input(z.object({ name: McpNameSchema, server: McpServerSpecDtoSchema }))
+    .output(McpTestDtoSchema),
   calls: base
-    .input(z.object({ server: z.string(), limit: z.number().int().min(1).max(MAX_PAGE) }))
+    .input(z.object({ server: McpNameSchema, limit: z.number().int().min(1).max(MAX_PAGE) }))
     .output(z.array(McpCallDtoSchema)),
 };
 

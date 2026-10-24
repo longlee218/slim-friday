@@ -19,3 +19,9 @@ export type TicketRef = z.infer<typeof TicketRefSchema>;
 /** A calendar day `YYYY-MM-DD`. */
 export const DaySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 export type Day = z.infer<typeof DaySchema>;
+
+/** A skill name: same rule as `SKILL_NAME_RE` in packages/tools/src/design/design-util.ts (no `/`, no leading dot). */
+export const SkillNameSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/);
+
+/** An MCP server name: same rule as `idSchema` in packages/config/src/schemas/ids.ts. */
+export const McpNameSchema = z.string().regex(/^[a-z][a-z0-9-]{0,31}$/);
