@@ -40,7 +40,14 @@ export function listGroupEntries(ctx: DesignContext): GroupEntry[] {
     .filter((f) => f.endsWith(".yaml"))
     .map((f) => f.slice(0, -5))
     .sort()
-    .map((id) => getGroupEntry(ctx, id));
+    .flatMap((id) => {
+      // One broken file is left out; it must not lock the list or the bot delete check.
+      try {
+        return [getGroupEntry(ctx, id)];
+      } catch {
+        return [];
+      }
+    });
 }
 
 /** Create or update a group through the same checks `BotDesign` runs; an update keeps the file's avatar. */
@@ -54,7 +61,12 @@ export function saveGroupFile(ctx: DesignContext, g: GroupInput, mode: "create" 
       throw new AdminError("NOT_FOUND", `group "${id}" does not exist`, "id");
     const { file, text } = buildGroupFile(ctx, {
       action: "write_group",
-      ...g,
+      id: g.id,
+      name: g.name,
+      members: g.members,
+      entryBot: g.entryBot,
+      workspaces: g.workspaces,
+      instructions: g.instructions,
       overwrite: mode === "update",
     });
     atomicWrite(insideConfig(ctx.configDir, file), text);
@@ -65,12 +77,17 @@ export function saveGroupFile(ctx: DesignContext, g: GroupInput, mode: "create" 
 export function deleteGroupFile(ctx: DesignContext, rawId: string): void {
   guarded(() => {
     const id = plainId(rawId);
-    readGroupYaml(ctx, id);
+    // Existence only: a group file that does not parse can still be deleted.
+    if (!existsSync(groupFileOf(ctx.configDir, id)))
+      throw new AdminError("NOT_FOUND", `group "${id}" does not exist`, "id");
     const file = insideConfig(ctx.configDir, groupFileOf(ctx.configDir, id));
     const memoryDir = ctx.memory.dirOf({ kind: "group", groupId: id });
     const paths = existsSync(memoryDir) ? [file, memoryDir] : [file];
     const move = moveToTrash(ctx.agentHome, ctx.botId, paths, ctx.now());
-    if (move.error) throw new Refused(`trash move stopped (${move.error}).`);
+    if (move.error)
+      throw new Error(
+        `trash move stopped (${move.error}) after ${move.entries.length} of ${paths.length}; moved: ${move.entries.map((e) => e.from).join(", ") || "none"}.`,
+      );
   });
 }
 

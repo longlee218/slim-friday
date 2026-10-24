@@ -63,7 +63,14 @@ export function listBotEntries(ctx: DesignContext): BotEntry[] {
   for (const dir of ctx.botDirs)
     if (existsSync(dir))
       for (const f of readdirSync(dir)) if (f.endsWith(".md")) ids.add(f.slice(0, -3));
-  return [...ids].sort().map((id) => getBotEntry(ctx, id));
+  // One broken file (a YAML typo, an id that is not plain) is left out; it must not lock the whole list.
+  return [...ids].sort().flatMap((id) => {
+    try {
+      return [getBotEntry(ctx, id)];
+    } catch {
+      return [];
+    }
+  });
 }
 
 /**
@@ -82,7 +89,21 @@ export function saveBotFile(ctx: DesignContext, b: BotInput, mode: "create" | "u
       throw new AdminError("NOT_FOUND", `bot "${id}" does not exist`, "id");
     const { file, text } = buildBotFile(
       ctx,
-      { action: "write_bot", ...b, overwrite: mode === "update" },
+      {
+        action: "write_bot",
+        id: b.id,
+        name: b.name,
+        title: b.title,
+        model: b.model,
+        instructions: b.instructions,
+        tools: b.tools,
+        skills: b.skills,
+        workspaces: b.workspaces,
+        effort: b.effort,
+        maxEffort: b.maxEffort,
+        autonomy: b.autonomy,
+        overwrite: mode === "update",
+      },
       "owner",
     );
     atomicWrite(insideConfig(ctx.configDir, file), text);

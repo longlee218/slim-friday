@@ -43,9 +43,13 @@ beforeEach(() => {
   const s = setup();
   ({ home, configDir } = s);
   const groupFiles = () =>
-    idsIn(join(configDir, "groups"), ".yaml").map((id) =>
-      parseGroupFile(id, readFileSync(join(configDir, "groups", `${id}.yaml`), "utf8")),
-    );
+    idsIn(join(configDir, "groups"), ".yaml").flatMap((id) => {
+      try {
+        return [parseGroupFile(id, readFileSync(join(configDir, "groups", `${id}.yaml`), "utf8"))];
+      } catch {
+        return []; // the app's snapshot also leaves a broken file out
+      }
+    });
   admin = createConfigAdmin({
     ...s.ctx,
     // The real parsers, as the app wires them.
@@ -229,4 +233,34 @@ test("groups: create, get, update keeps avatar, bad member, avatar, delete to tr
 
 test("the other settings methods are not available yet", () => {
   expect(() => admin.listMcp()).toThrow(expect.objectContaining({ code: "BAD_REQUEST" }));
+});
+
+test("a broken group file does not lock lists, deleteBot or deleteGroup", () => {
+  admin.saveBot(dev, "create");
+  admin.saveBot({ ...dev, id: "ann", name: "Ann" }, "create");
+  admin.saveGroup(group, "create");
+  writeFileSync(join(configDir, "groups", "x.yaml"), "name: [unclosed\n  members: {");
+  expect(admin.listGroups().map((g) => g.id)).toEqual(["team"]);
+  admin.deleteBot("ann");
+  expect(() => admin.deleteBot("dev")).toThrow(expect.objectContaining({ code: "CONFLICT" }));
+  admin.deleteGroup("x");
+  expect(existsSync(join(configDir, "groups", "x.yaml"))).toBe(false);
+});
+
+test("a broken or oddly named bot file does not break listBots", () => {
+  admin.saveBot(dev, "create");
+  writeFileSync(join(configDir, "bots", "My-Bot.md"), "---\nname: x\n---\nbody\n");
+  writeFileSync(join(configDir, "bots", "bad.md"), "---\nname: [unclosed\n  tools: {\n---\nbody\n");
+  expect(admin.listBots().map((b) => b.id)).toEqual(["dev", "friday"]);
+});
+
+test("extra runtime keys on the input do not get through", () => {
+  admin.saveBot(dev, "create");
+  admin.setAvatar({ kind: "bot", id: "dev" }, "fox");
+  admin.saveBot({ ...dev, avatar: "owl", subagents: [] } as unknown as BotInput, "update");
+  expect(admin.getBot("dev").avatar).toBe("fox");
+  admin.saveGroup(group, "create");
+  admin.setAvatar({ kind: "group", id: "team" }, "fox");
+  admin.saveGroup({ ...group, avatar: "owl" } as unknown as GroupInput, "update");
+  expect(admin.getGroup("team").avatar).toBe("fox");
 });
