@@ -17,3 +17,6 @@ node_modules
 
 # Subagent-driven-development workspace (local progress ledger)
 /.superpowers/
+
+# Live SDK spike output (raw messages, local only)
+/scripts/spike-out/
