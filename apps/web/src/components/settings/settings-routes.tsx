@@ -1,8 +1,10 @@
-import { Navigate, type RouteObject } from "react-router";
+import { Navigate, type RouteObject, useParams } from "react-router";
 import { useDirectory } from "../../api/directory";
 import { useIsPhone } from "../../app/use-is-phone";
 import { BotNewPage, BotPage } from "./bot-page";
 import { GroupNewPage, GroupPage } from "./group-page";
+import { McpDetail } from "./mcp/mcp-detail";
+import { McpList } from "./mcp/mcp-list";
 import { PhoneBotsList, PhoneGroupsList, PhoneSettingsRoot } from "./phone-settings-lists";
 import { SettingsLayout } from "./settings-layout";
 import { SettingsPage } from "./settings-page";
@@ -29,6 +31,9 @@ const later = (title: string) => (
   </SettingsPage>
 );
 
+/** `/settings/mcp/:name?`: the server list, or one server. */
+const McpPage = () => (useParams().name ? <McpDetail /> : <McpList />);
+
 /** The `/settings/*` routes: bot and group forms now; MCP, skills, owner files and account later. */
 export const settingsRoutes: RouteObject[] = [
   {
@@ -42,7 +47,7 @@ export const settingsRoutes: RouteObject[] = [
       { path: "bot/:id/:tab?", element: <BotPage /> },
       { path: "group/new", element: <GroupNewPage /> },
       { path: "group/:id", element: <GroupPage /> },
-      { path: "mcp/:name?", element: later("MCP servers") },
+      { path: "mcp/:name?", element: <McpPage /> },
       { path: "skills/:name?", element: later("Skills & plugins") },
       { path: "owner/:file", element: later("About you") },
       { path: "account", element: later("Account") },

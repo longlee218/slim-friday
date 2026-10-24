@@ -112,7 +112,6 @@ test("/tickets/:ref is the ticket page, not a placeholder", async () => {
 test("every contract path is routed (placeholder pages)", async () => {
   mocks.getSession.mockResolvedValue({ data: { user: { id: "u" } } });
   for (const [path, title] of [
-    ["/settings/mcp", "MCP servers"],
     ["/settings/skills", "Skills & plugins"],
     ["/settings/account", "Account"],
   ]) {

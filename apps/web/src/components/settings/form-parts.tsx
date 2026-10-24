@@ -124,7 +124,7 @@ export function SaveBar({
 }
 
 /** Shown in a form whose server value changed while the owner has unsaved edits. */
-export function StaleNotice({ what }: { what: "bot" | "group" }) {
+export function StaleNotice({ what }: { what: "bot" | "group" | "server" }) {
   return (
     <div className="foot-note" role="status">
       This {what} changed elsewhere. Revert to load the latest, or save to overwrite it.

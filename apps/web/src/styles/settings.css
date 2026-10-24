@@ -86,3 +86,9 @@
 .rule.off .nt { color: var(--label-3); }
 .rule.dragging { opacity: .5; background: var(--tint-soft); }
 .rule .drag { cursor: grab; }
+.kvrow { display: grid; grid-template-columns: 1fr 1.4fr auto auto; gap: 8px; margin-bottom: 6px; }
+.conn { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 12px; margin-bottom: 18px; font-size: 13px; }
+.conn.ok { background: var(--green-fill); } .conn.warn { background: var(--amber-fill); } .conn.bad { background: var(--red-fill); }
+.conn .grow { flex: 1; }
+.conn svg { width: 18px; height: 18px; }
+.conn.ok svg { color: var(--green); } .conn.warn svg { color: var(--amber); } .conn.bad svg { color: var(--red); }
