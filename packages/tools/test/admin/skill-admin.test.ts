@@ -271,3 +271,54 @@ test("BotDesign install_skill still works and records installedAt", async () => 
     installedAt: expect.any(String),
   });
 });
+
+const LOCK = () => join(configDir, "skills", "skills.lock.yaml");
+
+test("a broken lock refuses install and remove and is left untouched", async () => {
+  for (const bad of ["a: [unclosed\n", "just a scalar\n", "- a\n- b\n"]) {
+    writeFileSync(LOCK(), bad);
+    putSkill(join(configDir, "skills"), "mine");
+    const l = await skills.lookup(SRC);
+    refused(() => skills.install(l.lookupId, "code-review"), "BAD_REQUEST", "skills.lock.yaml");
+    refused(() => skills.remove("mine"), "BAD_REQUEST", "skills.lock.yaml");
+    expect(readFileSync(LOCK(), "utf8")).toBe(bad);
+    expect(existsSync(join(configDir, "skills", "code-review"))).toBe(false);
+    expect(existsSync(join(configDir, "skills", "mine"))).toBe(true);
+    rmSync(join(configDir, "skills", "mine"), { recursive: true });
+  }
+});
+
+test("BotDesign install_skill refuses a broken lock and installs nothing", async () => {
+  const s = setup();
+  writeFileSync(join(s.configDir, "skills", "skills.lock.yaml"), "a: [unclosed\n");
+  putSkill(join(s.scratchDir, "repo", "skills"), "pick");
+  const from = join(s.scratchDir, "repo", "skills", "pick");
+  const r = await call(createBotDesignTool(s.ctx), {
+    action: "install_skill",
+    id: "pick",
+    from,
+    source: "acme/skills",
+  });
+  expect(r.isError).toBe(true);
+  expect(existsSync(join(s.configDir, "skills", "pick"))).toBe(false);
+});
+
+test("update needs the lookup path to equal the lock path", async () => {
+  const l = await skills.lookup(SRC, "skills/code-review");
+  skills.install(l.lookupId, "code-review");
+  expect(lock()["code-review"]).toMatchObject({ path: "skills/code-review" });
+  const noPath = await skills.lookup(SRC);
+  refused(() => skills.update(noPath.lookupId, "code-review"), "BAD_REQUEST", "path");
+  const same = await skills.lookup(SRC, "skills/code-review");
+  skills.update(same.lookupId, "code-review");
+});
+
+test("remove deletes the skill before it edits bot files", async () => {
+  const l = await skills.lookup(SRC);
+  skills.install(l.lookupId, "code-review");
+  // a bot file the parser refuses after the edit: the skill is already gone, never half-kept
+  writeFileSync(join(configDir, "bots", "dev.md"), "---\nskills: [code-review]\n---\nHi\n");
+  expect(() => skills.remove("code-review")).toThrow();
+  expect(existsSync(join(configDir, "skills", "code-review"))).toBe(false);
+  expect(lock()["code-review"]).toBeUndefined();
+});

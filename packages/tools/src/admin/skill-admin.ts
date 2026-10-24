@@ -162,6 +162,12 @@ export function createSkillAdmin(deps: SkillAdminDeps): SkillAdmin {
         throw new AdminError("BAD_REQUEST", "shipped skills cannot be updated", "name");
       if (!ownerNames().has(name))
         throw new AdminError("NOT_FOUND", `skill "${name}" is not installed`, "name");
+      if (lockOf(name)?.path !== l.path)
+        throw new AdminError(
+          "BAD_REQUEST",
+          "the lookup path is not the path the skill was installed from",
+          "path",
+        );
       if (lockOf(name)?.source !== l.source)
         throw new AdminError(
           "BAD_REQUEST",

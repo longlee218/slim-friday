@@ -1,7 +1,7 @@
-import { existsSync, rmSync } from "node:fs";
+import { rmSync } from "node:fs";
 import { join } from "node:path";
 import { AdminError, type SkillEntry } from "@friday/core";
-import { readSkillLock, skillLockFile } from "../design/actions/install-from-staged";
+import { readSkillLockForWrite, skillLockFile } from "../design/actions/install-from-staged";
 import { skillName } from "../design/actions/write-skill";
 import { editBotHeader } from "../design/bot-file-edit";
 import type { DesignContext } from "../design/design-context";
@@ -15,8 +15,7 @@ const without = (skills: unknown, name: string): unknown[] =>
   (Array.isArray(skills) ? skills : []).filter((s) => String(s) !== name);
 
 /**
- * Remove an installed skill: take its name out of every owner bot file first (a missing skill refuses the whole
- * session), then delete its dir and lock entry. Shipped skills are refused. Returns the bots that named it.
+ * Remove an installed skill: delete its dir and lock entry, then take its name out of every owner bot file. Shipped skills are refused. Returns the bots that named it.
  */
 export function removeSkill(ctx: DesignContext, name: string): { botIds: string[] } {
   return guarded(() => {
@@ -26,22 +25,24 @@ export function removeSkill(ctx: DesignContext, name: string): { botIds: string[
       throw new AdminError("BAD_REQUEST", "shipped skills cannot be removed", "name");
     if (!ownerNames().has(name))
       throw new AdminError("NOT_FOUND", `skill "${name}" does not exist`, "name");
+    // A broken lock refuses before anything changes.
+    const lock = readSkillLockForWrite(ctx.configDir);
     const botIds = listBotEntries(ctx)
       .filter((b) => !b.shipped && b.skills.includes(name))
       .map((b) => b.id);
-    for (const id of botIds)
-      editBotHeader(ctx, id, (h) => {
-        h.skills = without(h.skills, name);
-      });
+    // The skill goes first: a failure while editing bots then leaves a skill no bot can load, not a half-edited state.
     rmSync(insideConfig(ctx.configDir, join(ctx.configDir, "skills", name)), {
       recursive: true,
       force: true,
     });
-    const lock = readSkillLock(ctx.configDir);
-    if (name in lock && existsSync(skillLockFile(ctx.configDir))) {
+    if (name in lock) {
       delete lock[name];
       atomicWrite(insideConfig(ctx.configDir, skillLockFile(ctx.configDir)), toYaml(lock));
     }
+    for (const id of botIds)
+      editBotHeader(ctx, id, (h) => {
+        h.skills = without(h.skills, name);
+      });
     return { botIds };
   });
 }

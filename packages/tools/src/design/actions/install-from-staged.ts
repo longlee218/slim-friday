@@ -33,15 +33,34 @@ export interface SkillLockEntry {
 export const skillLockFile = (configDir: string): string =>
   join(configDir, "skills", "skills.lock.yaml");
 
-/** The lock as a map (a missing or unreadable file is an empty lock; a hand edit is kept). */
-export function readSkillLock(configDir: string): Record<string, unknown> {
+/** The lock as a plain object, or undefined when the file exists but does not parse to one (YAML error, scalar, array). */
+function parseLock(configDir: string): Record<string, unknown> | undefined {
   const file = skillLockFile(configDir);
   if (!existsSync(file)) return {};
   try {
-    return (Bun.YAML.parse(readFileSync(file, "utf8")) as Record<string, unknown> | null) ?? {};
+    const doc = Bun.YAML.parse(readFileSync(file, "utf8")) as unknown;
+    if (doc === null) return {};
+    return typeof doc === "object" && !Array.isArray(doc)
+      ? (doc as Record<string, unknown>)
+      : undefined;
   } catch {
-    return {};
+    return undefined;
   }
+}
+
+/** The lock as a map for display: a missing or unparsable file reads as empty (never use it to write). */
+export function readSkillLock(configDir: string): Record<string, unknown> {
+  return parseLock(configDir) ?? {};
+}
+
+/**
+ * The lock as a map for a write: a file that exists but does not parse is refused, so a rewrite never drops the
+ * owner's hand edit. Call it before changing anything on disk.
+ */
+export function readSkillLockForWrite(configDir: string): Record<string, unknown> {
+  const lock = parseLock(configDir);
+  if (!lock) throw new Refused("skills.lock.yaml is not valid YAML; fix or delete it first.");
+  return lock;
 }
 
 /**
@@ -115,6 +134,8 @@ export function installFromStaged(
   },
 ): number {
   refuseExisting(ctx, i.name, i.overwrite);
+  // Before replaceDir: a broken lock must refuse the install, not follow a written skill dir.
+  const lock = readSkillLockForWrite(ctx.configDir);
   const files = collect(i.stagedDir);
   const front = skillFront(files.get("SKILL.md")?.toString("utf8") ?? "");
   if (front.name !== i.name)
@@ -128,7 +149,9 @@ export function installFromStaged(
     sha: i.sha,
     installedAt: new Date(ctx.now()).toISOString(),
   };
-  const lock = { ...readSkillLock(ctx.configDir), [i.name]: entry };
-  atomicWrite(insideConfig(ctx.configDir, skillLockFile(ctx.configDir)), toYaml(lock));
+  atomicWrite(
+    insideConfig(ctx.configDir, skillLockFile(ctx.configDir)),
+    toYaml({ ...lock, [i.name]: entry }),
+  );
   return files.size;
 }
