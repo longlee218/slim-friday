@@ -5,9 +5,11 @@ import {
   readFileSync,
   renameSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join, relative, sep } from "node:path";
+import type { DesignContext } from "./design-context";
 
 /** How an env reference looks in a config value (spelled in two parts so lint does not read it as a template). */
 export const ENV_REF_EXAMPLE = "$" + "{NAME}";
@@ -98,4 +100,17 @@ export function existingSubagents(file: string): unknown[] {
   } catch {
     return [];
   }
+}
+
+/** A workspace (of a bot or a group) must be an absolute, existing dir outside the agent home. */
+export function checkWorkspace(ctx: DesignContext, ws: string): void {
+  if (!isAbsolute(ws)) throw new Refused(`workspace must be an absolute path: ${ws}`);
+  try {
+    if (!statSync(ws).isDirectory()) throw new Error();
+  } catch {
+    throw new Refused(`workspace is not an existing dir: ${ws}`);
+  }
+  const r = relative(ctx.agentHome, ws);
+  if (r === "" || (r !== ".." && !r.startsWith(`..${sep}`) && !isAbsolute(r)))
+    throw new Refused(`workspace is inside the agent home: ${ws}`);
 }

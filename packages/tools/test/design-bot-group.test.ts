@@ -189,3 +189,56 @@ test("write_bot writes effort and maxEffort into the header", async () => {
   expect(text).toContain("effort: medium");
   expect(text).toContain("maxEffort: high");
 });
+
+const grp = { action: "write_group", id: "duo", name: "Duo", members: ["ann"], entryBot: "ann" };
+const annOnly = { botSummaries: () => [{ id: "ann", name: "Ann", title: "t" }] };
+
+test("write_group writes workspaces and instructions", async () => {
+  const { ctx, configDir, scratchDir } = setup(annOnly);
+  const dir = join(scratchDir, "..", "..", "..", "ws");
+  mkdirSync(dir, { recursive: true });
+  const r = await call(createBotDesignTool(ctx), {
+    ...grp,
+    workspaces: [dir],
+    instructions: "Be nice.",
+  });
+  expect(r.isError).toBeUndefined();
+  const parsed = Bun.YAML.parse(readFileSync(join(configDir, "groups", "duo.yaml"), "utf8")) as {
+    workspaces: string[];
+    instructions: string;
+  };
+  expect(parsed.workspaces).toEqual([dir]);
+  expect(parsed.instructions).toBe("Be nice.");
+});
+
+test("write_group refuses a missing workspace and one inside the agent home", async () => {
+  const { ctx } = setup(annOnly);
+  const t = createBotDesignTool(ctx);
+  for (const w of ["/no/such/dir-xyz", ctx.scratchDir])
+    expect((await call(t, { ...grp, workspaces: [w] })).isError).toBe(true);
+});
+
+test("write_group overwrite keeps workspaces and instructions that are not given", async () => {
+  const { ctx, configDir, scratchDir } = setup(annOnly);
+  const dir = join(scratchDir, "..", "..", "..", "ws");
+  mkdirSync(dir, { recursive: true });
+  const t = createBotDesignTool(ctx);
+  await call(t, { ...grp, workspaces: [dir], instructions: "Keep me." });
+  expect((await call(t, { ...grp, name: "Duo2", overwrite: true })).isError).toBeUndefined();
+  const file = join(configDir, "groups", "duo.yaml");
+  const parsed = Bun.YAML.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
+  expect(parsed.name).toBe("Duo2");
+  expect(parsed.workspaces).toEqual([dir]);
+  expect(parsed.instructions).toBe("Keep me.");
+  // A malformed existing file is treated as having no values.
+  writeFileSync(file, "{ not: yaml: [");
+  expect((await call(t, { ...grp, overwrite: true })).isError).toBeUndefined();
+});
+
+test("a new group without workspaces or instructions writes no empty keys", async () => {
+  const { ctx, configDir } = setup(annOnly);
+  await call(createBotDesignTool(ctx), grp);
+  const text = readFileSync(join(configDir, "groups", "duo.yaml"), "utf8");
+  expect(text).not.toContain("workspaces");
+  expect(text).not.toContain("instructions");
+});

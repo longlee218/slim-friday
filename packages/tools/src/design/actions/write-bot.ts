@@ -1,9 +1,10 @@
-import { existsSync, statSync } from "node:fs";
-import { isAbsolute, join, relative, sep } from "node:path";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import type { DesignArgs } from "../design-args";
 import type { DesignContext } from "../design-context";
 import {
   atomicWrite,
+  checkWorkspace,
   existingSubagents,
   listSkills,
   need,
@@ -17,19 +18,6 @@ function toolKnown(ctx: DesignContext, tool: string, catalog: Set<string>): bool
   if (catalog.has(tool)) return true;
   const m = /^mcp__([a-z][a-z0-9-]*)(?:__.+)?$/.exec(tool);
   return !!m && ctx.mcpNames().includes(m[1] ?? "");
-}
-
-/** A workspace must be an absolute, existing dir outside the agent home. */
-function checkWorkspace(ctx: DesignContext, ws: string): void {
-  if (!isAbsolute(ws)) throw new Refused(`workspace must be an absolute path: ${ws}`);
-  try {
-    if (!statSync(ws).isDirectory()) throw new Error();
-  } catch {
-    throw new Refused(`workspace is not an existing dir: ${ws}`);
-  }
-  const r = relative(ctx.agentHome, ws);
-  if (r === "" || (r !== ".." && !r.startsWith(`..${sep}`) && !isAbsolute(r)))
-    throw new Refused(`workspace is inside the agent home: ${ws}`);
 }
 
 /** `write_bot`: validate, render `bots/<id>.md`, check it with the app's parser, then write it. */

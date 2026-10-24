@@ -10,13 +10,16 @@ export const DESIGN_SHAPE = {
   name: z.string().optional().describe("Bot display name (one word) or group name."),
   title: z.string().optional(),
   model: z.string().optional(),
-  instructions: z.string().optional().describe("The bot's instructions (the file body)."),
+  instructions: z
+    .string()
+    .optional()
+    .describe("The bot's instructions (the file body), or the group's shared instructions."),
   tools: z.array(z.string()).optional(),
   skills: z.array(z.string()).optional(),
   workspaces: z
     .array(z.string())
     .optional()
-    .describe("Absolute paths of existing dirs the owner gave."),
+    .describe("Absolute paths of existing dirs the owner gave, for a bot or a group."),
   autonomy: z.enum(["careful", "balanced", "autonomous"]).optional(),
   effort: z.enum(EFFORT_LEVELS).optional().describe("Thinking effort the bot starts at."),
   maxEffort: z
