@@ -17,6 +17,7 @@ const ALLOWED = [
   "mcp__chat__SendToBot",
   "mcp__chat__HandOff",
   "mcp__tickets",
+  "mcp__memory",
 ];
 
 test("the shipped Friday bot designs through BotDesign: no write tools, its skills ship, every tool is in the catalog", () => {
@@ -26,12 +27,20 @@ test("the shipped Friday bot designs through BotDesign: no write tools, its skil
   const f = snapshot.bots.get("friday");
   expect(f?.name).toBe("Friday");
   const tools = f?.tools ?? [];
-  for (const t of ["mcp__design__BotDesign", "mcp__design__BotLookup", "Bash", "WebFetch"])
+  for (const t of [
+    "mcp__design__BotDesign",
+    "mcp__design__BotLookup",
+    "mcp__memory",
+    "Bash",
+    "WebFetch",
+  ])
     expect(tools).toContain(t);
   // The config dir is written only through BotDesign.
   for (const t of ["Write", "Edit", "NotebookEdit"]) expect(tools).not.toContain(t);
   const catalog = new Set(snapshot.tools.map((t) => t.name));
-  expect(tools.filter((t) => !catalog.has(t))).toEqual([]);
+  // A server name (`mcp__memory`) stands for every catalog tool under it.
+  const known = (t: string) => catalog.has(t) || [...catalog].some((c) => c.startsWith(`${t}__`));
+  expect(tools.filter((t) => !known(t))).toEqual([]);
   expect(f?.skills).toEqual(["bot-design", "skill-install", "skill-creator"]);
   for (const s of f?.skills ?? [])
     expect(existsSync(join(DEFAULT_SKILLS_DIR, s, "SKILL.md"))).toBe(true);
@@ -55,6 +64,7 @@ for (const [name, entry] of [
       expect(b.tools).toContain("mcp__chat__SendToBot");
       expect(b.tools).toContain("mcp__chat__HandOff");
       expect(b.tools).toContain("mcp__tickets");
+      expect(b.tools).toContain("mcp__memory");
       for (const t of b.tools) expect(ALLOWED).toContain(t);
       expect(b.workspaces).toEqual([]);
     }

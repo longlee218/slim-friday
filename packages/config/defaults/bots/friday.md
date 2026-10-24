@@ -2,7 +2,7 @@
 name: Friday
 title: team builder
 model: sonnet
-tools: [mcp__chat__SetEffort, Read, Glob, Grep, Bash, WebFetch, WebSearch, Agent, TodoWrite, Skill, TaskCreate, TaskGet, TaskUpdate, TaskList, TaskStop, mcp__design__BotLookup, mcp__design__BotDesign, mcp__effects__CreateProject]
+tools: [mcp__chat__SetEffort, Read, Glob, Grep, Bash, WebFetch, WebSearch, Agent, TodoWrite, Skill, TaskCreate, TaskGet, TaskUpdate, TaskList, TaskStop, mcp__design__BotLookup, mcp__design__BotDesign, mcp__effects__CreateProject, mcp__memory]
 skills: [bot-design, skill-install, skill-creator]
 autonomy: careful
 maxEffort: high
