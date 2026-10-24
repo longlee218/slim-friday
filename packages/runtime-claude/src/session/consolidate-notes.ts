@@ -1,21 +1,13 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import type { PromotedNote } from "@friday/core";
 import { sdkEnv } from "../floor/sdk-env";
+import { NOTE_CALL_TIMEOUT_MS, timeoutController } from "./call-timeout";
 import type { extractNotes } from "./extract-notes";
 
 /** Longest prompt sent (memory + notes): a full journal day (about 60 000 chars) still leaves room for memory. */
 const MAX_INPUT = 80000;
 /** Most notes one consolidation promotes. */
 const MAX_PROMOTED = 5;
-/** A consolidation call that has not answered by then is given up (the mark stays). */
-const CALL_TIMEOUT_MS = 120_000;
-
-/** An abort controller that fires after `ms` (the timer does not keep the process alive). */
-function timeoutController(ms: number): AbortController {
-  const ac = new AbortController();
-  setTimeout(() => ac.abort(), ms).unref?.();
-  return ac;
-}
 
 /** Kinds a promoted note may have (the MEMORY.md sections). */
 const KINDS = new Set<string>(["decision", "fact", "preference", "lesson"]);
@@ -72,7 +64,7 @@ export async function consolidateNotes(
         tools: [],
         maxTurns: 1,
         settingSources: [],
-        abortController: timeoutController(CALL_TIMEOUT_MS),
+        abortController: timeoutController(opts.timeoutMs ?? NOTE_CALL_TIMEOUT_MS),
         env: sdkEnv(
           { hasRealAuth: !!opts.oauthToken, oauthToken: opts.oauthToken },
           opts.env ?? {},

@@ -1,5 +1,6 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { sdkEnv } from "../floor/sdk-env";
+import { NOTE_CALL_TIMEOUT_MS, timeoutController } from "./call-timeout";
 import type { QueryFn } from "./build-options";
 
 /** Longest summary text sent to the extraction call. */
@@ -44,6 +45,8 @@ export async function extractNotes(
     /** Source env (scrubbed like a bot's: no API key or base URL can redirect the call). */
     env?: Record<string, string | undefined>;
     oauthToken?: string;
+    /** Give the call up after this long (ms); default `NOTE_CALL_TIMEOUT_MS`. */
+    timeoutMs?: number;
   },
 ): Promise<string[]> {
   try {
@@ -55,6 +58,7 @@ export async function extractNotes(
         tools: [],
         maxTurns: 1,
         settingSources: [],
+        abortController: timeoutController(opts.timeoutMs ?? NOTE_CALL_TIMEOUT_MS),
         env: sdkEnv(
           { hasRealAuth: !!opts.oauthToken, oauthToken: opts.oauthToken },
           opts.env ?? {},

@@ -60,3 +60,17 @@ test("the prompt tells the model what is not worth keeping and to prefer nothing
   expect(prompt).toContain("task progress");
   expect(prompt).toContain("readable from the code");
 });
+
+test("extractNotes gives up a call that never answers once its time limit passes", async () => {
+  let aborted = false;
+  const queryFn = ((args: { options: { abortController?: AbortController } }) =>
+    (async function* () {
+      const ac = args.options.abortController;
+      if (!ac) throw new Error("no abort controller");
+      await new Promise((resolve) => ac.signal.addEventListener("abort", resolve));
+      aborted = true;
+      throw new Error("aborted");
+    })()) as unknown as QueryFn;
+  expect(await extractNotes("summary", { model: "m", queryFn, timeoutMs: 10 })).toEqual([]);
+  expect(aborted).toBe(true);
+});
