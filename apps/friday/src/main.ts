@@ -8,6 +8,7 @@ import {
 } from "@friday/runtime-claude";
 import { connectDiscord } from "@friday/surface-discord";
 import { localDay } from "@friday/tools";
+import { startApiServer } from "./api-server";
 import type { AgentConfig } from "./config/agent-config";
 import { HAIKU_SUMMARY_MODEL } from "./config/model-ids";
 import { readProcessEnv } from "./config/process-env";
@@ -41,6 +42,10 @@ export async function startEngine(
   const token = need("DISCORD_TOKEN", config.discordToken);
   const guildId = need("DISCORD_GUILD_ID", config.discordGuildId);
   const ownerId = need("OWNER_DISCORD_ID", config.ownerDiscordId);
+  const webOrigin = need("WEB_ORIGIN", config.webOrigin);
+  const publicApiUrl = need("PUBLIC_API_URL", config.publicApiUrl);
+  const authSecret = need("AUTH_SECRET", config.authSecret);
+  const ownerEmail = need("OWNER_EMAIL", config.ownerEmail);
 
   const port = await connect({
     token,
@@ -111,9 +116,20 @@ export async function startEngine(
       consolidate: (memory, notes) =>
         consolidateNotes({ memory, notes, today: localDay(new Date()) }, haiku),
     });
+    // The web API runs next to Discord; a failed start unwinds through the `finally` below.
+    const api = await startApiServer({
+      agentHome,
+      port: config.apiPort,
+      webOrigin,
+      publicApiUrl,
+      authSecret,
+      ownerEmail,
+      log,
+    });
     logEvent(log, "engine.started", { agentHome });
     if (!signal.aborted)
       await new Promise<void>((r) => signal.addEventListener("abort", () => r(), { once: true }));
+    await api.stop();
     await app.stop();
   } finally {
     await port.close();

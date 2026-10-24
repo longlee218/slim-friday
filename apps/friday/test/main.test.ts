@@ -10,6 +10,10 @@ const full = {
   DISCORD_TOKEN: "fake.token",
   DISCORD_GUILD_ID: "12345678901234567",
   OWNER_DISCORD_ID: "1",
+  WEB_ORIGIN: "https://friday.example.com",
+  PUBLIC_API_URL: "https://friday-api.example.com",
+  AUTH_SECRET: "x".repeat(32),
+  OWNER_EMAIL: "owner@example.com",
 };
 
 /** Run `startEngine` with `drop` removed from a complete env; returns the error and whether it tried to connect. */
@@ -44,4 +48,10 @@ test("a missing Discord value is refused by name before any connection", async (
     message: "OWNER_DISCORD_ID missing",
     connected: false,
   });
+});
+
+test("a missing web value is refused by name before any connection", async () => {
+  for (const name of ["WEB_ORIGIN", "PUBLIC_API_URL", "AUTH_SECRET", "OWNER_EMAIL"] as const) {
+    expect(await without(name)).toEqual({ message: `${name} missing`, connected: false });
+  }
 });
