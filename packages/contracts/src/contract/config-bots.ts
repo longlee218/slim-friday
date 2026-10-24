@@ -10,7 +10,6 @@ import {
 import { OkDtoSchema } from "../dto/status";
 import { base } from "../errors";
 import { BotIdSchema } from "../ids";
-import { MAX_AVATAR_BYTES } from "../limits";
 
 const id = BotIdSchema;
 const mode = z.enum(["create", "update"]);
@@ -60,7 +59,7 @@ export const avatars = {
       z.object({
         kind: z.enum(["bot", "group"]),
         id,
-        size: z.number().int().positive().max(MAX_AVATAR_BYTES),
+        size: z.number().int().positive(),
         type: z.enum(["image/webp", "image/jpeg"]),
       }),
     )

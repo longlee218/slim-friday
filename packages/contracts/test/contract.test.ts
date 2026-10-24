@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { contract, listProcedurePaths } from "../src";
+import { contract, listProcedurePaths, MAX_AVATAR_BYTES } from "../src";
 
 const ALL = [
   "approvals.answer",
@@ -123,4 +123,12 @@ test("happy paths at the edge", () => {
   expect(
     inputOf("config.skills.lookup").safeParse({ source: "https://github.com/o/r" }).success,
   ).toBe(true);
+});
+
+test("avatar create: oversize passes validation (handler answers 413), png is refused", () => {
+  const ok = { kind: "bot", id: "a", size: MAX_AVATAR_BYTES + 1, type: "image/webp" };
+  expect(inputOf("config.avatars.create").safeParse(ok).success).toBe(true);
+  expect(inputOf("config.avatars.create").safeParse({ ...ok, type: "image/png" }).success).toBe(
+    false,
+  );
 });
