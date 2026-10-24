@@ -17,19 +17,27 @@ export function openQuestion(qc: QueryClient, card: QuestionCardDto): void {
   );
 }
 
-/** Stores a receipt for a card (keyed by card id). */
+/** Stores a receipt for a card (keyed by card id); the first receipt wins. */
 function addReceipt(qc: QueryClient, cardId: string, receipt: Receipt): void {
-  qc.setQueryData<Record<string, Receipt>>(receiptsKey(), (r) => ({ ...r, [cardId]: receipt }));
+  qc.setQueryData<Record<string, Receipt>>(receiptsKey(), (r) =>
+    r?.[cardId] ? r : { ...r, [cardId]: receipt },
+  );
 }
 
-/** Moves an approval card from pending into receipts; unknown cards are ignored. */
+/**
+ * Moves an approval card from pending into receipts. A card in neither place is ignored,
+ * so the owner's own answer and the `approval.closed` event give one receipt in any order.
+ * `fallback` is the card on screen, used when it is no longer in the pending list.
+ */
 export function closeApproval(
   qc: QueryClient,
   cardId: string,
-  answer: "once" | "always" | "deny",
+  answer: "once" | "always" | "deny" | "elsewhere",
+  fallback?: ApprovalCardDto,
 ): void {
   const key = orpc.approvals.pending.queryKey();
-  const card = qc.getQueryData<ApprovalCardDto[]>(key)?.find((c) => c.cardId === cardId);
+  const card =
+    qc.getQueryData<ApprovalCardDto[]>(key)?.find((c) => c.cardId === cardId) ?? fallback;
   if (!card) return;
   qc.setQueryData<ApprovalCardDto[]>(key, (l) => l?.filter((c) => c.cardId !== cardId));
   addReceipt(qc, cardId, { kind: "approval", card, answer });
@@ -39,10 +47,12 @@ export function closeApproval(
 export function closeQuestion(
   qc: QueryClient,
   cardId: string,
-  answer: QuestionAnswerDto | null,
+  answer: QuestionAnswerDto | null | "elsewhere",
+  fallback?: QuestionCardDto,
 ): void {
   const key = orpc.questions.pending.queryKey();
-  const card = qc.getQueryData<QuestionCardDto[]>(key)?.find((c) => c.cardId === cardId);
+  const card =
+    qc.getQueryData<QuestionCardDto[]>(key)?.find((c) => c.cardId === cardId) ?? fallback;
   if (!card) return;
   qc.setQueryData<QuestionCardDto[]>(key, (l) => l?.filter((c) => c.cardId !== cardId));
   addReceipt(qc, cardId, { kind: "question", card, answer });

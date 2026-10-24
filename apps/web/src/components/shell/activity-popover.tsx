@@ -1,31 +1,15 @@
 import type { ApprovalCardDto, BotStatusDto } from "@friday/contracts";
 import { useQueryClient } from "@tanstack/react-query";
 import { CircleStop, MessageCircle } from "lucide-react";
-import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { client } from "../../api/client";
 import { refetchStatus } from "../../events/apply-effects";
 import { formatCost, formatDuration } from "../../lib/format";
+import { countdown, useNow } from "../chat/countdown";
 import { Avatar } from "../ui/avatar";
 import { IconButton } from "../ui/button";
 import { Pill } from "../ui/pill";
 import { useAppNavigate } from "./use-app-navigate";
-
-/** Current time, refreshed every second while mounted (the popover is only mounted when open). */
-function useNow(): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, []);
-  return now;
-}
-
-/** `125_000` -> `"2:05"`. */
-const clock = (ms: number) => {
-  const s = Math.max(0, Math.ceil(ms / 1000));
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-};
 
 export interface ActivityPopoverProps {
   status: BotStatusDto[];
@@ -119,7 +103,7 @@ export function ActivityPopover({ status, approvals, avatarOf, onClose }: Activi
                   <div className="t1">{first ? `${a.tool} · ${first}` : a.tool}</div>
                   <div className="t2">
                     {a.botName}
-                    {a.expiresAt !== undefined && ` · Auto-denies in ${clock(a.expiresAt - now)}`}
+                    {a.expiresAt !== undefined && ` · ${countdown(a.expiresAt, now)}`}
                   </div>
                 </div>
                 <Pill tone="amber">Review</Pill>

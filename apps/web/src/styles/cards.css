@@ -1,0 +1,49 @@
+/* approval + question cards: prototype app.css .appr*, .kv, .opts, .opt*, .other-in, .ios-mini-appr* (@keyframes pop is in overlays.css) */
+.appr { margin: 8px 0 10px; border-radius: 14px; background: var(--raised); box-shadow: 0 0 0 1px var(--sep-strong), var(--shadow-card); overflow: hidden; display: grid; grid-template-rows: auto 1fr; transition: box-shadow var(--t-mid); max-width: 560px; }
+.appr-h { display: flex; align-items: center; gap: 8px; padding: 11px 14px 0; }
+.appr-h .t { font-weight: 650; font-size: 13.5px; flex: 1; }
+.appr-body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows var(--t-slow) var(--ease), opacity var(--t-mid); }
+.appr-body > div { overflow: hidden; }
+.appr-in { padding: 6px 14px 12px; }
+.appr p { margin: 0 0 10px; font-size: 13.5px; color: var(--label); }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; font-size: 12.5px; margin-bottom: 12px; padding: 9px 11px; border-radius: 8px; background: var(--well); }
+.kv dt { color: var(--label-2); }
+.kv dd { margin: 0; font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
+.appr-actions { display: flex; align-items: center; gap: 6px; }
+.appr-actions .left { margin-right: auto; font-size: 12px; color: var(--label-2); display: inline-flex; gap: 5px; align-items: center; }
+.appr-receipt { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--label-2); padding: 0 14px; max-height: 0; opacity: 0; transition: max-height var(--t-slow) var(--ease), opacity var(--t-mid) 120ms, padding var(--t-slow) var(--ease); }
+.appr.done .appr-body { grid-template-rows: 0fr; opacity: 0; }
+.appr.done .appr-h { display: none; }
+.appr.done .appr-receipt { max-height: 44px; opacity: 1; padding: 11px 14px; }
+.appr.done { box-shadow: 0 0 0 1px var(--sep); }
+.appr-receipt .ok { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: var(--green-dot); }
+.appr-receipt .ok.deny { background: var(--red-dot); }
+.appr-receipt .ok svg { width: 13px; height: 13px; stroke-width: 2.5; }
+.appr.done .appr-receipt .ok { animation: pop 420ms var(--ease) 120ms both; }
+.ios-mini-appr { display: flex; align-items: center; gap: 10px; margin: 6px 0 10px; padding: 12px; border-radius: 16px; background: var(--amber-fill); }
+.ios-mini-appr .grow { flex: 1; min-width: 0; }
+.ios-mini-appr b { display: block; font-size: 15px; }
+.ios-mini-appr span { font-size: 13px; color: var(--label-2); }
+.ios-mini-appr .btn { height: 32px; border-radius: 16px; font-size: 15px; }
+.ios-mini-appr.done { background: var(--fill); }
+.opts { display: grid; gap: 6px; margin-bottom: 12px; }
+.opt { display: flex; align-items: flex-start; gap: 10px; padding: 9px 11px; border-radius: 10px; box-shadow: 0 0 0 1px var(--sep-strong); background: var(--raised); text-align: left; border: 0; width: 100%; transition: box-shadow var(--t-fast), background var(--t-fast); }
+.opt:hover { background: var(--well); }
+.opt.on { box-shadow: 0 0 0 2px var(--tint); background: var(--tint-soft); }
+.opt .mark { width: 18px; height: 18px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--sep-strong); flex: none; margin-top: 1px; display: grid; place-items: center; transition: background var(--t-fast), box-shadow var(--t-fast); }
+.opt.multi .mark { border-radius: 5px; }
+.opt.on .mark { background: var(--tint-fill); box-shadow: none; color: #fff; }
+.opt .mark svg { width: 12px; height: 12px; stroke-width: 3; opacity: 0; transform: scale(.5); transition: opacity var(--t-fast), transform var(--t-mid) var(--ease); }
+.opt.on .mark svg { opacity: 1; transform: none; }
+.opt b { display: block; font-weight: 550; font-size: 13.5px; }
+.opt span.d { font-size: 12.5px; color: var(--label-2); }
+.other-in { display: none; margin-top: 8px; }
+.opt.on + .other-in, .other-in.show { display: block; }
+.ios-mini-appr.done { gap: 8px; padding: 8px 12px; margin: 4px 0 8px 38px; border-radius: 12px; background: transparent; box-shadow: inset 0 0 0 1px var(--sep); }
+.ios-mini-appr.done > svg { width: 18px; height: 18px; flex: none; }
+.ios-mini-appr.done.deny > svg { color: var(--red); }
+.ios-mini-appr.done.allow > svg { color: var(--green); }
+.bsheet .kv { font-size: 14px; }
+.bsheet .kv dd { font-size: 13px; }
+.bsheet .btn { width: 100%; height: 50px; border-radius: 14px; font-size: 17px; margin-top: 8px; font-weight: 600; }
+.bsheet .btn svg { width: 18px; height: 18px; }
