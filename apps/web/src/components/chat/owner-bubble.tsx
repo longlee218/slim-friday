@@ -1,8 +1,9 @@
 import type { MessageDto } from "@friday/contracts";
+import { Fragment } from "react";
 import { useDirectory } from "../../api/directory";
 import { formatClock } from "../../lib/format";
 import { Avatar } from "../ui/avatar";
-import type { RouteInfo } from "./route-info";
+import { ROUTE_SUFFIX, type RouteInfo } from "./route-info";
 import { useBotFace } from "./use-bot-face";
 
 export interface OwnerBubbleProps {
@@ -14,8 +15,6 @@ export interface OwnerBubbleProps {
   /** Bot ids of the conversation; only their `@name` is highlighted. */
   members?: string[];
 }
-
-const ROUTE_SUFFIX = { direct: "", entry: " · entry", reply: " · reply" } as const;
 
 /** The quoted bot message above a reply: small face, name, one-line excerpt. */
 function ReplyQuote({ reply }: { reply: NonNullable<MessageDto["replyTo"]> }) {
@@ -29,15 +28,20 @@ function ReplyQuote({ reply }: { reply: NonNullable<MessageDto["replyTo"]> }) {
   );
 }
 
-/** "→ Dev", "→ Pia · entry" or "→ Dev · reply" with the bot's small face. */
+/** "→ Dev", "→ Tess, Dev", "→ Pia · entry" or "→ Dev · reply", each with the bot's small face. */
 function RouteMeta({ route }: { route: RouteInfo }) {
-  const bot = useBotFace(route.botId);
+  const dir = useDirectory();
   return (
     <span className="route-meta">
       {"→ "}
-      <Avatar src={bot.src} name={bot.name} size={14} />
-      {bot.name}
-      {ROUTE_SUFFIX[route.kind]}
+      {route.botIds.map((id, i) => (
+        <Fragment key={id}>
+          {i > 0 && ", "}
+          <Avatar src={dir.bots.get(id)?.avatarUrl} name={dir.botName(id)} size={14} />
+          {dir.botName(id)}
+        </Fragment>
+      ))}
+      {ROUTE_SUFFIX[route.reason]}
     </span>
   );
 }

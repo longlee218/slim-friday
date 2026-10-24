@@ -49,7 +49,7 @@ test("owner bubble shows the reply quote and route", () => {
     replyTo: { messageId: 4, botId: "dev", excerpt: "Pushed." },
   });
   const { container } = view(
-    <OwnerBubble message={m} route={{ botId: "dev", kind: "reply" }} members={["dev"]} />,
+    <OwnerBubble message={m} route={{ botIds: ["dev"], reason: "reply" }} members={["dev"]} />,
   );
   const quote = container.querySelector(".quote") as HTMLElement;
   expect(within(quote).getByText("Dev")).toBeTruthy();
@@ -60,11 +60,14 @@ test("owner bubble shows the reply quote and route", () => {
 
 test("owner route copy for direct and entry", () => {
   const m = msg({ author: { kind: "user" } });
-  const a = view(<OwnerBubble message={m} route={{ botId: "dev", kind: "direct" }} />);
+  const a = view(<OwnerBubble message={m} route={{ botIds: ["dev"], reason: "direct" }} />);
   expect(a.container.querySelector(".route-meta")?.textContent).toBe("→ Dev");
   a.unmount();
-  const b = view(<OwnerBubble message={m} route={{ botId: "pia", kind: "entry" }} />);
+  const b = view(<OwnerBubble message={m} route={{ botIds: ["pia"], reason: "entry" }} />);
   expect(b.container.querySelector(".route-meta")?.textContent).toBe("→ Pia · entry");
+  b.unmount();
+  const c = view(<OwnerBubble message={m} route={{ botIds: ["pia", "dev"], reason: "named" }} />);
+  expect(c.container.querySelector(".route-meta")?.textContent).toBe("→ Pia, Dev");
 });
 
 test("owner @name highlights members only, as text", () => {
