@@ -1,6 +1,6 @@
 import { Fingerprint, LoaderCircle } from "lucide-react";
 import { useState } from "react";
-import { useNavigate } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import { authClient } from "../../api/auth-client";
 import { Button } from "../ui/button";
 import { LoginCard } from "./login-card";
@@ -8,6 +8,8 @@ import { LoginCard } from "./login-card";
 /** `/setup-passkey`: the page the sign-in link opens; registers a passkey for this device. */
 export function SetupPasskeyPage() {
   const navigate = useNavigate();
+  // better-auth sends an expired or invalid link here with `?error=...`.
+  const [params] = useSearchParams();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -22,6 +24,18 @@ export function SetupPasskeyPage() {
       setError("Could not create the passkey. Try again.");
       setBusy(false);
     }
+  }
+
+  if (params.get("error")) {
+    return (
+      <LoginCard>
+        <h1>This link expired. Get a new one.</h1>
+        <p>Sign-in links work once and only for a few minutes.</p>
+        <Link className="btn primary" to="/login-link">
+          Get a sign-in link
+        </Link>
+      </LoginCard>
+    );
   }
 
   return (

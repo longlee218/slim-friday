@@ -1,5 +1,6 @@
 import { ORPCError } from "@orpc/client";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { beforeEach, expect, test, vi } from "vitest";
 
@@ -61,4 +62,14 @@ test("unauthorized rpc sends the owner to /login", async () => {
   wireUnauthorized(router);
   handleUnauthorized(new ORPCError("UNAUTHORIZED"));
   await vi.waitFor(() => expect(router.state.location.pathname).toBe("/login"));
+});
+
+test("an unreachable API shows Can't reach Friday and Retry loads the route", async () => {
+  mocks.getSession.mockRejectedValueOnce(new Error("network"));
+  mocks.getSession.mockResolvedValue({ data: { user: { id: "u" } } });
+  const router = createMemoryRouter(appRoutes, { initialEntries: ["/ops"] });
+  render(<RouterProvider router={router} />);
+  expect(await screen.findByText("Can't reach Friday.")).toBeTruthy();
+  await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(await screen.findByText("Ops is not built yet.")).toBeTruthy();
 });

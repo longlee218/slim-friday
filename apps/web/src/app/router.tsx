@@ -4,7 +4,7 @@ import { LoginPage } from "../components/auth/login-page";
 import { SetupPasskeyPage } from "../components/auth/setup-passkey-page";
 import { WelcomePage } from "../components/auth/welcome-page";
 import { RoutePlaceholder } from "../components/shell/route-placeholder";
-import { RequireSession, requireSession } from "./require-session";
+import { RequireSession, requireSession, SessionError } from "./require-session";
 
 /**
  * Every route path of the app (shared contract "Web routes"). Plans 4-5 replace the
@@ -18,6 +18,7 @@ export const appRoutes: RouteObject[] = [
   {
     loader: requireSession,
     element: <RequireSession />,
+    errorElement: <SessionError />,
     children: [
       // Task 16 adds last-chat memory and the phone Chats list.
       { path: "/", element: <Navigate to="/c/bot:friday" replace /> },

@@ -1,5 +1,5 @@
 import { Fingerprint, LoaderCircle, Terminal } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { authClient } from "../../api/auth-client";
 import { Button } from "../ui/button";
@@ -60,8 +60,14 @@ function LinkStep() {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
+  // Busy while the request is in flight; the ref also stops a second click in the same tick.
+  const [sending, setSending] = useState(false);
+  const inFlight = useRef(false);
 
   async function send() {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setSending(true);
     setError("");
     try {
       const res = await authClient.signIn.magicLink({
@@ -72,6 +78,9 @@ function LinkStep() {
       setSent(true);
     } catch {
       setError("Could not request a link. Check the address and that Friday is running.");
+    } finally {
+      inFlight.current = false;
+      setSending(false);
     }
   }
 
@@ -104,7 +113,7 @@ function LinkStep() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
-          <Button variant="primary" type="submit" disabled={!email.trim()}>
+          <Button variant="primary" type="submit" disabled={!email.trim() || sending}>
             Send link
           </Button>
           {error && <p role="alert">{error}</p>}

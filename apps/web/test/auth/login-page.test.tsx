@@ -75,3 +75,22 @@ test("Create passkey calls addPasskey and opens /welcome", async () => {
   await vi.waitFor(() => expect(router.state.location.pathname).toBe("/welcome"));
   expect(await screen.findByText("You're in")).toBeTruthy();
 });
+
+test("a double click on Send link sends one request", async () => {
+  mocks.magicLink.mockReturnValue(new Promise(() => {}));
+  open("/login-link");
+  await userEvent.type(await screen.findByLabelText("Your email"), "owner@example.test");
+  const send = screen.getByRole("button", { name: "Send link" });
+  await userEvent.dblClick(send);
+  expect(mocks.magicLink).toHaveBeenCalledTimes(1);
+  expect((send as HTMLButtonElement).disabled).toBe(true);
+});
+
+test("an expired link shows the notice and a way to a new one", async () => {
+  open("/setup-passkey?error=INVALID_TOKEN");
+  expect(await screen.findByText("This link expired. Get a new one.")).toBeTruthy();
+  expect(screen.queryByRole("button", { name: /Create passkey/ })).toBeNull();
+  expect(screen.getByRole("link", { name: "Get a sign-in link" }).getAttribute("href")).toBe(
+    "/login-link",
+  );
+});
