@@ -1,0 +1,54 @@
+## Friday settings: copy to <AGENT_HOME>/config/settings.yaml and remove "# " before a line to turn it on.
+## Every key is optional; a missing key keeps the shipped default (shown here). Restart Friday after a change.
+## Lines starting "## " explain; lines starting "# " are settings.
+
+## --- Autonomy: when a bot asks you before a tool runs ---------------------------
+## Reads never ask. careful = asks for everything else; balanced = local actions run, asks for writes, external
+## calls and destructive tools; autonomous = asks only for destructive or unknown tools.
+autonomy:
+  level: balanced
+  ## Per-bot level (bot id: level).
+  # bots:
+  #   researcher: autonomous
+  ## Per-tool outcome over the level: allow | ask | ask_always | deny.
+  # tools:
+  #   GitPush: ask_always
+
+## --- Memory providers (optional plugins) ----------------------------------------
+## Without a provider, memory is MEMORY.md + the journal with a local word search (no service needed).
+## Honcho adds search by meaning (other words, other languages). Setup: docs/honcho-setup.md
+## (scripts/setup-ollama.sh, then scripts/setup-honcho.sh). A Honcho on another network also needs HONCHO_API_KEY
+## in .env. Remove the entry to turn it off.
+# memory:
+#   providers:
+#     - id: honcho
+#       baseUrl: http://127.0.0.1:8000
+#       workspace: friday
+
+## --- Where CreateProject makes new repos (absolute or ~/) ------------------------
+# projectsDir: ~/friday-projects
+
+## --- Limits ------------------------------------------------------------------------
+# limits:
+  ## Longest chain of bot-to-bot hand-offs after one message of yours.
+  # maxHops: 8
+  # maxBotMessagesPerConversationPerHour: 60
+  ## The same sender, target and text inside this window counts as a repeat (ms).
+  # repeatWindowMs: 600000
+  # maxSpendPerBotPerDayUsd: 10
+  ## An unanswered approval card is a deny after this long (ms).
+  # approvalTimeoutMs: 600000
+  ## A quiet session is closed (and its notes flushed) after this long (ms).
+  # idleCloseMs: 1800000
+  ## Group messages given to a woken bot as context.
+  # groupContextMessages: 20
+  ## A queued wake older than this at start is not delivered (ms).
+  # wakeExpireMs: 86400000
+  ## Finished wake rows are kept this long (ms).
+  # finishedWakeKeepMs: 259200000
+  ## Most recalled notes added to a turn, and their most characters.
+  # recallNotes: 5
+  # recallChars: 2000
+  ## Most characters of a bot's / a group's MEMORY.md put in the prompt (older notes stay searchable).
+  # memoryPromptChars: 12000
+  # groupMemoryPromptChars: 6000

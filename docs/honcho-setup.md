@@ -12,7 +12,7 @@ Friday's memory works with no provider: `MEMORY.md` and the journal are the sour
 1. `scripts/setup-ollama.sh`: installs Ollama, pulls `bge-m3` (multilingual, 1024 dims).
 2. `scripts/setup-honcho.sh`: clones Honcho into `~/.honcho-server`, writes its `.env` and `docker-compose.friday.yml`, builds and starts `api` + Postgres/pgvector + Redis as compose project `friday-honcho`. Only the api is published, on `127.0.0.1:8000` (`HONCHO_PORT` to change), so it does not clash with another local Postgres or Redis. The first build takes a few minutes.
 3. Check it: `HONCHO_URL=http://127.0.0.1:8000 bun scripts/smoke-honcho.ts` (write, English and Vietnamese search, owner isolation, forget; workspace `friday-smoke`).
-4. Add to `<AGENT_HOME>/config/settings.yaml`, then restart Friday:
+4. In `<AGENT_HOME>/config/settings.yaml` (template with every setting: [`packages/config/defaults/settings.example.yaml`](../packages/config/defaults/settings.example.yaml)), turn on the `memory` block, then restart Friday:
 
 ```yaml
 memory:
