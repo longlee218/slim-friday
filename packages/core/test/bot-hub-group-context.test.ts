@@ -54,3 +54,19 @@ test("a group with no workspaces and no instructions sends none", async () => {
   await flush();
   expect(runtime.nth(0).sent[0]?.groupContext).toBeUndefined();
 });
+
+test("a group turn whose send fails sends the group context again on the next turn", async () => {
+  const { runtime, surface } = hubWith(reader);
+  let failOnce = true;
+  runtime.onTurn = () => {
+    if (failOnce) {
+      failOnce = false;
+      throw new Error("unreadable attachment");
+    }
+  };
+  surface.deliver({ conversationId: "gc", text: "one" });
+  await flush();
+  surface.deliver({ conversationId: "gc", text: "two" });
+  await flush();
+  expect(runtime.nth(0).sent[1]?.groupContext).toContain("use bun");
+});

@@ -382,8 +382,9 @@ export class BotHub implements BotMessenger {
     entry.turnTexts = [];
     entry.sentResults = new Set();
     entry.busy = true;
+    let conv: Conversation | undefined;
     try {
-      const conv = await store.conversations.get(q.conversationId);
+      conv = await store.conversations.get(q.conversationId);
       const context =
         conv?.kind === "group"
           ? await store.messages.recent(q.conversationId, this.limits.groupContextMessages)
@@ -424,6 +425,11 @@ export class BotHub implements BotMessenger {
     } catch (err) {
       // A send that fails (for example an unreadable attachment) must not leave the bot busy for good.
       entry.busy = false;
+      // Nor mark the group memory and context as sent: the next group turn carries them again.
+      if (conv?.kind === "group") {
+        entry.groupMemorySent.delete(conv.groupId);
+        entry.groupContextSent.delete(conv.groupId);
+      }
       entry.currentWakeId = undefined;
       await this.wakeLog.dropped(q.wakeId);
       throw err;

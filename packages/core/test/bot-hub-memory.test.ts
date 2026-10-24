@@ -169,3 +169,22 @@ test("group memory on a turn is capped at groupMemoryPromptChars", async () => {
   expect(caps).toContain(10);
   expect(runtime.nth(0).sent[0]?.groupMemory).toBe("- team use");
 });
+
+test("a group turn whose send fails sends the group memory again on the next turn", async () => {
+  const { memory, texts } = fakeMemory();
+  texts.set("group:g", "- team uses bun");
+  const { runtime, surface } = makeHub(memory);
+  let failOnce = true;
+  runtime.onTurn = () => {
+    if (failOnce) {
+      failOnce = false;
+      throw new Error("unreadable attachment");
+    }
+  };
+  surface.deliver({ conversationId: "gc", text: "one" });
+  await flush();
+  surface.deliver({ conversationId: "gc", text: "two" });
+  await flush();
+  const s = runtime.nth(0);
+  expect(s.sent[1]?.groupMemory).toBe("- team uses bun");
+});
