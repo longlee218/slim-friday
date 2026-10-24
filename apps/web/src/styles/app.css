@@ -13,6 +13,7 @@
 @import "./tickets.css";
 @import "./phone.css";
 @import "./activity.css";
+@import "./settings.css";
 
 /* Tailwind utilities read the design tokens, so light/dark/theme switch flows through. */
 @theme inline {

@@ -111,7 +111,11 @@ test("/tickets/:ref is the ticket page, not a placeholder", async () => {
 
 test("every contract path is routed (placeholder pages)", async () => {
   mocks.getSession.mockResolvedValue({ data: { user: { id: "u" } } });
-  for (const [path, title] of [["/settings/bot/dev/tools", "Settings"]]) {
+  for (const [path, title] of [
+    ["/settings/mcp", "MCP servers"],
+    ["/settings/skills", "Skills & plugins"],
+    ["/settings/account", "Account"],
+  ]) {
     const router = createMemoryRouter(appRoutes, { initialEntries: [path] });
     const { unmount } = renderApp(router);
     expect(await screen.findByText(`${title} is not built yet.`)).toBeTruthy();
@@ -123,7 +127,7 @@ test("unauthorized rpc sends the owner to /login", async () => {
   mocks.getSession.mockResolvedValue({ data: { user: { id: "u" } } });
   const router = createMemoryRouter(appRoutes, { initialEntries: ["/settings"] });
   renderApp(router);
-  await screen.findByText("Settings is not built yet.");
+  await screen.findByText("No bots yet.");
   wireUnauthorized(router);
   // The session is gone, so the sign-in screen stays.
   mocks.getSession.mockResolvedValue({ data: null });
@@ -154,5 +158,5 @@ test("an unreachable API shows Can't reach Friday and Retry loads the route", as
   renderApp(router);
   expect(await screen.findByText("Can't reach Friday.")).toBeTruthy();
   await userEvent.click(screen.getByRole("button", { name: "Retry" }));
-  expect(await screen.findByText("Settings is not built yet.")).toBeTruthy();
+  expect(await screen.findByText("No bots yet.")).toBeTruthy();
 });
