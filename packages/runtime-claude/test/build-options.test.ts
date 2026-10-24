@@ -127,3 +127,51 @@ test("a PreToolUse hook applies the floor to calls the CLI auto-allows", async (
   expect(await preToolUse("Read", { file_path: join(ws1, "a.ts") })).toEqual({ continue: true });
   expect(await preToolUse("Bash", { command: "ls" })).toEqual({ continue: true });
 });
+
+// Extra dirs the app grants to one bot (the Friday bot edits the config dir, reads the templates).
+const cfgDir = join(home, "config");
+const tplDir = join(base, "templates");
+mkdirSync(join(cfgDir, "bots"), { recursive: true });
+mkdirSync(join(tplDir, "code"), { recursive: true });
+const extraConfig = {
+  ...config,
+  extraDirsFor: (b: Bot) =>
+    b.id === "friday" ? { write: [cfgDir], read: [tplDir] } : { write: [], read: [] },
+};
+const buildFor = (b: Bot) =>
+  buildOptions({
+    spec: spec(b).s,
+    config: extraConfig,
+    abort: new AbortController(),
+    scratchDir: scratch,
+  });
+
+test("extra dirs: the granted bot reaches them, the rest of agentHome and others stay denied", async () => {
+  const f = buildFor(bot({ id: "friday", workspaces: [] }));
+  const allow = (t: string, i: Record<string, unknown>) => f.canUseTool?.(t, i, opts);
+  expect(
+    (await allow("Write", { file_path: join(cfgDir, "bots", "x.md"), content: "" }))?.behavior,
+  ).toBe("allow");
+  expect((await allow("Read", { file_path: join(tplDir, "code", "group.yaml") }))?.behavior).toBe(
+    "allow",
+  );
+  expect((await allow("Read", { file_path: join(home, "data", "engine.db") }))?.behavior).toBe(
+    "deny",
+  );
+  expect((await allow("Write", { file_path: join(tplDir, "x"), content: "" }))?.behavior).toBe(
+    "deny",
+  );
+  expect(f.additionalDirectories).toEqual([cfgDir, tplDir]);
+  expect(f.sandbox?.filesystem?.allowWrite).toContain(cfgDir);
+  const other = buildFor(bot({ workspaces: [] }));
+  expect(
+    (
+      await other.canUseTool?.(
+        "Write",
+        { file_path: join(cfgDir, "bots", "x.md"), content: "" },
+        opts,
+      )
+    )?.behavior,
+  ).toBe("deny");
+  expect(other.additionalDirectories).toEqual([]);
+});

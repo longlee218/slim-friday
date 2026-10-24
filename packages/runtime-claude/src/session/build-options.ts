@@ -1,5 +1,5 @@
 import type { McpServerConfig, Options, query } from "@anthropic-ai/claude-agent-sdk";
-import type { BotRuntimeSpec } from "@friday/core";
+import type { Bot, BotRuntimeSpec } from "@friday/core";
 import { sdkEnv } from "../floor/sdk-env";
 import { workerSandbox } from "../floor/worker-sandbox";
 import { floorCheck } from "./floor-check";
@@ -23,6 +23,11 @@ export interface ClaudeRuntimeConfig {
   queryFn?: QueryFn;
   /** True when the SDK still has this session's transcript for `dir` (default: the SDK's `getSessionInfo`). */
   sessionExists?: (sessionId: string, dir: string) => Promise<boolean>;
+  /**
+   * Dirs the app itself grants to one bot (e.g. the Friday bot's config dir). `write` dirs are read-write, `read`
+   * dirs read-only; both stay reachable even inside `agentHome`, the rest of which remains denied.
+   */
+  extraDirsFor?: (bot: Bot) => { write: string[]; read: string[] };
 }
 
 /** What `buildOptions` needs for one session. */
@@ -47,13 +52,15 @@ export function buildOptions(input: BuildOptionsInput): Options {
   const { spec, config, scratchDir } = input;
   const { bot } = spec;
   const cwd = bot.workspaces[0] ?? scratchDir;
-  const writePaths = [...bot.workspaces];
+  const extra = config.extraDirsFor?.(bot) ?? { write: [], read: [] };
+  const writePaths = [...bot.workspaces, ...extra.write];
+  const readPaths = [...writePaths, ...extra.read];
   const floor = {
     writePaths: [...writePaths, scratchDir],
-    readPaths: [...writePaths, scratchDir],
+    readPaths: [...readPaths, scratchDir],
     agentHome: config.agentHome,
     cwd,
-    allowInside: [scratchDir],
+    allowInside: [scratchDir, ...extra.write, ...extra.read],
   };
   const agents = Object.fromEntries(
     bot.subagents.map((s) => [
@@ -71,7 +78,7 @@ export function buildOptions(input: BuildOptionsInput): Options {
     model: bot.model,
     systemPrompt: `You are ${bot.name}, ${bot.title}.\n\n${bot.instructions}`,
     cwd,
-    additionalDirectories: bot.workspaces.slice(1),
+    additionalDirectories: [...bot.workspaces.slice(1), ...extra.write, ...extra.read],
     tools: bot.tools,
     agents,
     settingSources: [],
@@ -87,11 +94,11 @@ export function buildOptions(input: BuildOptionsInput): Options {
     ),
     sandbox: workerSandbox({
       writePaths,
-      readPaths: writePaths,
+      readPaths,
       cwd,
       scratchDir,
       denyPaths: [config.agentHome],
-      allowInside: [scratchDir],
+      allowInside: [scratchDir, ...extra.write, ...extra.read],
     }),
     // The CLI auto-allows reads inside the cwd and extra dirs without calling `canUseTool`; a hook runs for every call,
     // so the floor holds there too (and for Glob / Grep with no path).
