@@ -23,3 +23,16 @@ export function useReducedMotion(): boolean {
   }, []);
   return reduced;
 }
+
+/** True while the primary input can hover (not a touch screen); follows live changes. */
+export function useCanHover(): boolean {
+  const query = "(hover: none)";
+  const [none, setNone] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const onChange = () => setNone(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  return !none;
+}

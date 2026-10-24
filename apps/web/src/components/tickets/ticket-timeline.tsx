@@ -1,4 +1,9 @@
-import type { TicketEventDto, TicketTimelineItemDto } from "@friday/contracts";
+import {
+  type TicketEventDto,
+  TicketPrioritySchema,
+  TicketStatusSchema,
+  type TicketTimelineItemDto,
+} from "@friday/contracts";
 import { ArrowRightLeft, CircleDot, CirclePlus, Flag } from "lucide-react";
 import type { ReactElement } from "react";
 import { type Directory, useDirectory } from "../../api/directory";
@@ -12,6 +17,18 @@ function actorName(e: TicketEventDto, dir: Directory): string {
   return e.actor.kind === "user" ? "You" : "Friday";
 }
 
+/** Display name of the status in `to`; the raw value when it is not a known status. */
+function statusLabel(to: string): string {
+  const s = TicketStatusSchema.safeParse(to);
+  return s.success ? statusName(s.data) : to;
+}
+
+/** Display name of the priority in `to`; the raw value when it is not a known priority. */
+function priorityLabel(to: string): string {
+  const p = TicketPrioritySchema.safeParse(to);
+  return p.success ? priorityName(p.data) : to;
+}
+
 /** Icon and sentence of one change; `to` carries the new status, priority or bot id. */
 function describe(e: TicketEventDto, dir: Directory): { icon: ReactElement; text: string } {
   const who = actorName(e, dir);
@@ -23,13 +40,13 @@ function describe(e: TicketEventDto, dir: Directory): { icon: ReactElement; text
         text: `${who} created the ticket${to ? ` and assigned it to ${dir.botName(to)}` : ""}`,
       };
     case "status":
-      return { icon: <CircleDot />, text: `${who} moved it to ${statusName(to as never)}` };
+      return { icon: <CircleDot />, text: `${who} moved it to ${statusLabel(to)}` };
     case "assignee":
       return { icon: <ArrowRightLeft />, text: `${who} assigned it to ${dir.botName(to)}` };
     case "handoff":
       return { icon: <ArrowRightLeft />, text: `${who} handed it off to ${dir.botName(to)}` };
     case "priority":
-      return { icon: <Flag />, text: `${who} set priority to ${priorityName(to as never)}` };
+      return { icon: <Flag />, text: `${who} set priority to ${priorityLabel(to)}` };
   }
 }
 

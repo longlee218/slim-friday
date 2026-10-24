@@ -20,8 +20,15 @@ interface HastNode {
   children?: HastNode[];
 }
 
+/** Task-box click handling of a caller: the toggle and which source lines hold a counted task. */
+interface TaskToggleProps {
+  onToggle: (line: number) => void;
+  /** False for a box that maps to no counted task; it then stays disabled. */
+  isTask: (line: number) => boolean;
+}
+
 /** Set by a caller that lets the reader tick task boxes: gets the 0-based source line of the box. */
-const TaskToggle = createContext<((line: number) => void) | undefined>(undefined);
+const TaskToggle = createContext<TaskToggleProps | undefined>(undefined);
 
 /** Source line (1-based) of the task item being rendered; the `input` node carries no position. */
 const TaskLine = createContext<number | undefined>(undefined);
@@ -72,7 +79,8 @@ function TaskBox({ type, checked }: ComponentProps<"input"> & { node?: unknown }
   const toggle = useContext(TaskToggle);
   const line = useContext(TaskLine);
   if (type !== "checkbox") return null;
-  const click = toggle && line ? () => toggle(line - 1) : undefined;
+  const click =
+    toggle && line && toggle.isTask(line - 1) ? () => toggle.onToggle(line - 1) : undefined;
   return (
     <>
       <input
@@ -134,14 +142,17 @@ const components: Components = {
 export function BotMarkdown({
   text,
   onToggleTask,
+  isTaskLine = () => true,
 }: {
   text: string;
   /** Makes task boxes clickable; called with the 0-based source line of the box. */
   onToggleTask?: (line: number) => void;
+  /** Tells which 0-based source lines are counted tasks; other boxes stay disabled. */
+  isTaskLine?: (line: number) => boolean;
 }) {
   return (
     <div className="md">
-      <TaskToggle.Provider value={onToggleTask}>
+      <TaskToggle.Provider value={onToggleTask && { onToggle: onToggleTask, isTask: isTaskLine }}>
         <Markdown
           remarkPlugins={[remarkGfm, remarkTicketRefs, remarkCallouts]}
           components={components}

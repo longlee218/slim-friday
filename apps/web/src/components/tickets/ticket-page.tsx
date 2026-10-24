@@ -142,7 +142,11 @@ export function TicketPage({ ticketRef }: { ticketRef: string }) {
               </div>
             )}
             <div className="tp-desc">
-              <BotMarkdown text={md || "No description."} onToggleTask={onToggleTask} />
+              <BotMarkdown
+                text={md || "No description."}
+                onToggleTask={onToggleTask}
+                isTaskLine={(line) => taskIndexAtLine(md, line) >= 0}
+              />
             </div>
             <h3 className="tp-h">Activity</h3>
             <TicketTimeline items={get.data?.timeline ?? []} />

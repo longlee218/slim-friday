@@ -1,5 +1,6 @@
 import type { TicketDto } from "@friday/contracts";
 import { ChevronRight, MessageCircle, Users } from "lucide-react";
+import { toast } from "sonner";
 import { useDirectory } from "../../api/directory";
 import { useAppNavigate } from "../shell/use-app-navigate";
 import { Button } from "../ui/button";
@@ -63,8 +64,16 @@ export function TicketSide({ ticket: t, related }: { ticket: TicketDto; related:
         variant="danger"
         style={{ width: "100%", justifyContent: "center", marginTop: 14 }}
         onClick={() => {
-          update.mutate({ ref: t.ref, status: "closed" });
-          go("/tickets");
+          // Leave the page only once the close is saved; a failure keeps the page and its toast.
+          update.mutate(
+            { ref: t.ref, status: "closed" },
+            {
+              onSuccess: () => {
+                toast(`${t.ref} closed.`);
+                go("/tickets");
+              },
+            },
+          );
         }}
       >
         Close ticket

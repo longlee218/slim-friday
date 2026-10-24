@@ -1,7 +1,8 @@
 import type { TicketDto, TicketTimelineItemDto } from "@friday/contracts";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
+import userEvent from "@testing-library/user-event";
+import { MemoryRouter, useLocation } from "react-router";
 import { beforeEach, expect, test, vi } from "vitest";
 import { PanelsContext } from "../../src/components/shell/use-responsive-panels";
 import { TicketPage } from "../../src/components/tickets/ticket-page";
@@ -24,6 +25,10 @@ beforeEach(() => {
   }));
 });
 
+/** Shows the router's path so a test can see where the page navigated. */
+const Path = () => <output data-testid="path">{useLocation().pathname}</output>;
+const path = () => screen.getByTestId("path").textContent;
+
 /** Renders the page for `ref` with Dev and one direct conversation in the directory cache. */
 function renderPage(ref = "FRI-1") {
   const qc = seededClient({
@@ -34,6 +39,7 @@ function renderPage(ref = "FRI-1") {
     <QueryClientProvider client={qc}>
       <PanelsContext.Provider value={{ toggle: () => {} } as never}>
         <MemoryRouter>
+          <Path />
           <TicketPage ticketRef={ref} />
         </MemoryRouter>
       </PanelsContext.Provider>
@@ -121,4 +127,40 @@ test("side column names the conversation and lists related tickets", async () =>
   expect(screen.getByText("Ticket 2")).toBeTruthy();
   expect(screen.getByRole("button", { name: /Chat with Dev/ })).toBeTruthy();
   expect(screen.getByPlaceholderText("Comment. Dev is woken when you comment.")).toBeTruthy();
+});
+
+test("a box that maps to no counted task is disabled, not clickable", async () => {
+  // An ordered-list task renders a box but is no counted task (task-list.ts counts bullets).
+  serve(ticket(1, { description: "1. [ ] ordered\n- [ ] bullet" }));
+  const { container } = renderPage();
+  await screen.findByText("0 of 1 done");
+  const [ordered, bullet] = [...container.querySelectorAll(".md .cb")];
+  expect(ordered?.hasAttribute("data-chk")).toBe(false);
+  expect(bullet?.hasAttribute("data-chk")).toBe(true);
+  fireEvent.click(ordered as Element);
+  expect(api.update).not.toHaveBeenCalled();
+});
+
+test("Close ticket leaves the page only after the close is saved", async () => {
+  const t = ticket(1);
+  serve(t);
+  let finish: (v: unknown) => void = () => {};
+  api.update.mockReturnValue(new Promise((r) => (finish = r)));
+  renderPage();
+  await userEvent.click(await screen.findByRole("button", { name: "Close ticket" }));
+  await waitFor(() => expect(api.update).toHaveBeenCalled());
+  expect(path()).toBe("/");
+  expect(screen.getByRole("button", { name: "Close ticket" })).toBeTruthy();
+  finish({ ...t, status: "closed", updatedAt: 11 });
+  await waitFor(() => expect(path()).toBe("/tickets"));
+});
+
+test("a failed close keeps the page", async () => {
+  serve(ticket(1));
+  api.update.mockRejectedValue(new Error("boom"));
+  renderPage();
+  await userEvent.click(await screen.findByRole("button", { name: "Close ticket" }));
+  await waitFor(() => expect(api.update).toHaveBeenCalled());
+  await new Promise((r) => setTimeout(r, 50));
+  expect(path()).toBe("/");
 });
