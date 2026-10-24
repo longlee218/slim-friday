@@ -104,3 +104,51 @@ test("migration 0004 upgrades a db created at 0003 without losing messages or au
     expect(tables(db)).toContain(t);
   db.close();
 });
+
+test("migration 0009 marks old finished runs as returned and leaves open ones", () => {
+  const dir = join(import.meta.dir, "../src/migrations");
+  const journal = JSON.parse(readFileSync(join(dir, "meta/_journal.json"), "utf8")).entries as {
+    when: number;
+    tag: string;
+  }[];
+  const f = tmpFile();
+  mkdirSync(join(f, ".."), { recursive: true });
+  const raw = new Database(f, { create: true });
+  // Build the db as it was before 0009: every earlier migration applied and logged.
+  const old = journal.filter((e) => e.tag < "0009");
+  for (const e of old)
+    for (const stmt of readFileSync(join(dir, `${e.tag}.sql`), "utf8").split(
+      "--> statement-breakpoint",
+    ))
+      raw.run(stmt);
+  raw.run(
+    "CREATE TABLE __drizzle_migrations (id INTEGER PRIMARY KEY, hash TEXT NOT NULL, created_at NUMERIC)",
+  );
+  for (const e of old) {
+    const hash = new Bun.CryptoHasher("sha256")
+      .update(readFileSync(join(dir, `${e.tag}.sql`), "utf8"))
+      .digest("hex");
+    raw.run("INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)", [hash, e.when]);
+  }
+  const ins = (id: string, status: string, endedAt: number | null) =>
+    raw.run(
+      "INSERT INTO wakes (id, chain_id, conversation_id, target_bot, sender_kind, intent, hop, text, status, attempts, created_at, ended_at) VALUES (?, 'c', 'k', 'b', 'bot', 'request', 1, 't', ?, 1, 5, ?)",
+      [id, status, endedAt],
+    );
+  ins("done", "done", 9);
+  ins("dropped", "dropped", null);
+  ins("live", "running", null);
+  raw.close();
+
+  const db = openEngineDb(f);
+  const at = (id: string) =>
+    (
+      db.query("SELECT outcome_returned_at AS t FROM wakes WHERE id = ?").get(id) as {
+        t: number | null;
+      }
+    ).t;
+  expect(at("done")).toBe(9);
+  expect(at("dropped")).toBe(5);
+  expect(at("live")).toBeNull();
+  db.close();
+});

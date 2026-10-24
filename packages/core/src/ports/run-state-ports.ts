@@ -23,8 +23,8 @@ export interface SteeringPort {
   releaseClaimed(wakeId: string): Promise<void>;
   deleteForScope(scopeKey: string): Promise<void>;
   /**
-   * Ids of ended runs (done, failed, interrupted, cancelled, blocked, dropped, expired) that still have
-   * unclaimed or claimed rows bound to them, in id order, at most `limit`, after id `after`.
+   * Ids of ended or parked runs (done, failed, interrupted, cancelled, blocked, dropped, expired,
+   * waiting_input) that still have unclaimed or claimed rows bound to them, in id order, at most `limit`, after id `after`.
    */
   endedRuns(limit: number, after?: string): Promise<string[]>;
   /** Scope keys that have held rows (bound to no wake), in key order, at most `limit`, after key `after`. */

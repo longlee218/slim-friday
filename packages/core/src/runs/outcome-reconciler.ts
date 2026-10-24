@@ -12,7 +12,8 @@ const BATCH = 100;
 
 /**
  * How an ended run's status maps to what `settleSteering` knows: a clean end is `done`, a restart cut is
- * `interrupted`, every other end (failed, blocked by a cap, dropped, expired, cancelled by Stop) is a failure.
+ * `interrupted`, every other end (failed, blocked by a cap, dropped, expired) is a failure. A run cancelled by
+ * Stop is not settled: its rows are deleted.
  */
 const SETTLE_AS = {
   done: "done",
@@ -20,8 +21,9 @@ const SETTLE_AS = {
   blocked: "failed",
   dropped: "failed",
   expired: "failed",
-  cancelled: "failed",
   interrupted: "interrupted",
+  // A parked run takes no rows (it does not hold the scope): its rows are given back like a clean end.
+  waiting_input: "done",
 } as const;
 
 /** What the reconciler remembers between passes. */
@@ -79,7 +81,7 @@ async function releaseStaleHeld(ctx: HubContext): Promise<void> {
   );
 }
 
-/** (b) Steering rows bound to an ended run (the process died before its finish settled them). */
+/** (b) Steering rows bound to an ended or parked run (the process died before its finish settled them). */
 async function settleEndedRuns(ctx: HubContext): Promise<void> {
   const { store } = ctx.deps;
   await forEachBatch(
@@ -88,14 +90,22 @@ async function settleEndedRuns(ctx: HubContext): Promise<void> {
     (id: string) => id,
     async (id) => {
       const run = await store.wakes.get(id);
-      const as = run && SETTLE_AS[run.status as keyof typeof SETTLE_AS];
-      if (run && as) await settleSteering(ctx, run, as);
+      if (!run) return;
+      // Stop drops the steering of the run it cancels (it must not come back as a continuation).
+      if (run.status === "cancelled") {
+        await store.steering.deleteClaimed(id);
+        await store.steering.remove((await store.steering.bound(id)).map((r) => r.id));
+        return;
+      }
+      const as = SETTLE_AS[run.status as keyof typeof SETTLE_AS];
+      if (as) await settleSteering(ctx, run, as);
     },
   );
 }
 
 /**
- * (c) Held steering rows in a scope with no open run: nobody will hand them on. `holdOrContinue` creates the
+ * (c) Held steering rows nobody will hand on. `holdOrContinue` decides: it does nothing while a queued, leased
+ * or running run is in the scope (a parked run does not count: it takes no rows) and otherwise creates the
  * continuation; when a cap refuses it (it logs once), the scope is left alone until its first held row changes
  * or a run finishes there (that finish retries by itself). The key names the first row and the time, so a
  * continuation that already ended under the plain key does not make the call a no-op.
@@ -107,7 +117,6 @@ async function continueHeldScopes(ctx: HubContext, state: ReconcileState): Promi
     (after) => store.steering.heldScopes(BATCH, after),
     (scope: string) => scope,
     async (scope) => {
-      if ((await store.wakes.activeInScope(scope)).length > 0) return;
       const first = (await store.steering.held(scope))[0];
       if (!first || state.stuck.has(`${scope}|${first.id}`)) return;
       await holdOrContinue(ctx, scope, `${first.id}@${clock.now()}`);
@@ -115,6 +124,14 @@ async function continueHeldScopes(ctx: HubContext, state: ReconcileState): Promi
         state.stuck.add(`${scope}|${first.id}`);
     },
   );
+}
+
+/** Forget the scopes marked stuck whose marked row is no longer held (it was answered, deleted or bound). */
+async function pruneStuck(ctx: HubContext, state: ReconcileState): Promise<void> {
+  for (const mark of [...state.stuck]) {
+    const [scope = "", rowId] = mark.split("|");
+    if ((await ctx.deps.store.steering.held(scope))[0]?.id !== rowId) state.stuck.delete(mark);
+  }
 }
 
 /** (d) Finished runs whose result or failure was never returned to their sender. */
@@ -133,6 +150,7 @@ export async function reconcileOnce(ctx: HubContext, state: ReconcileState): Pro
     releaseStaleHeld,
     settleEndedRuns,
     (c: HubContext) => continueHeldScopes(c, state),
+    (c: HubContext) => pruneStuck(c, state),
     returnPendingOutcomes,
   ];
   for (const step of steps) {
@@ -147,20 +165,21 @@ export async function reconcileOnce(ctx: HubContext, state: ReconcileState): Pro
 /**
  * Main process only: reconcile once now and then every `limits.reconcileMs` (the next timer is set when a
  * pass ends, so passes never overlap; a guard also refuses a second pass started from outside). Every repair
- * is idempotent, so it is safe next to the live finish paths and after any crash. Returns the stop function.
+ * is idempotent, so it is safe next to the live finish paths and after any crash. Returns the stop function:
+ * it cancels the timer and resolves once a pass that is running has ended (close the db after it).
  */
-export function startOutcomeReconciler(ctx: HubContext, limits: CoreLimits): () => void {
+export function startOutcomeReconciler(ctx: HubContext, limits: CoreLimits): () => Promise<void> {
   const state: ReconcileState = { stuck: new Set() };
   let stopped = false;
-  let running = false;
+  let running: Promise<void> | undefined;
   let cancel = () => {};
   const pass = async () => {
     if (running || stopped) return;
-    running = true;
+    running = reconcileOnce(ctx, state);
     try {
-      await reconcileOnce(ctx, state);
+      await running;
     } finally {
-      running = false;
+      running = undefined;
     }
   };
   const next = () => {
@@ -169,8 +188,9 @@ export function startOutcomeReconciler(ctx: HubContext, limits: CoreLimits): () 
     });
   };
   void pass().finally(() => !stopped && next());
-  return () => {
+  return async () => {
     stopped = true;
     cancel();
+    await running;
   };
 }

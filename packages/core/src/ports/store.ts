@@ -55,13 +55,13 @@ export interface UploadRow {
   at: number;
 }
 
-/** Everything the engine persists. */
 /** Position in a list of wakes ordered by creation time then id: where the next batch read starts. */
 export interface WakeCursor {
   createdAt: number;
   id: string;
 }
 
+/** Everything the engine persists. */
 export interface Store {
   bots: { get(id: BotId): Promise<Bot | undefined>; list(): Promise<Bot[]> };
   groups: { get(id: GroupId): Promise<Group | undefined> };

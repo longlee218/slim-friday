@@ -381,7 +381,16 @@ export class FakeStore implements Store {
       for (const r of this.steerRows((r) => r.scopeKey === scopeKey)) this.steerMap.delete(r.id);
     },
     endedRuns: async (limit: number, after?: string) => {
-      const ended = ["done", "failed", "interrupted", "cancelled", "blocked", "dropped", "expired"];
+      const ended = [
+        "done",
+        "failed",
+        "interrupted",
+        "cancelled",
+        "blocked",
+        "dropped",
+        "expired",
+        "waiting_input",
+      ];
       const ids = new Set<string>();
       for (const r of this.steerMap.values()) {
         const status = r.wakeId ? this.wakeMap.get(r.wakeId)?.status : undefined;

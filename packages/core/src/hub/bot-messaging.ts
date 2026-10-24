@@ -69,7 +69,7 @@ async function deliver(
     );
 
   const author: Author = { kind: "bot", botId: entry.bot.id };
-  const hash = `${target.id}|${req.intent}|${text}`;
+  const hash = `${target.id}|${req.intent}|${req.handoff ? "h" : "-"}|${text}`;
   const n = (entry.sendCounts.get(hash) ?? 0) + 1;
   entry.sendCounts.set(hash, n);
   const outcome = await createRun(ctx, {
@@ -85,7 +85,15 @@ async function deliver(
       parentWakeId: cur.wakeId,
       ...(returnsToSender && { exemptFromHops: true }),
     },
-    dedupeKey: await sendKeyFor(cur.wakeId, target.id, req.intent, text, n),
+    dedupeKey: await sendKeyFor(
+      cur.wakeId,
+      entry.row.cardId,
+      target.id,
+      req.intent,
+      !!req.handoff,
+      text,
+      n,
+    ),
   });
   if (!outcome.ok) return fail(`Not delivered: the ${outcome.reason} limit is reached.`);
   // A replay was posted by the first call; the channel shows each send once.

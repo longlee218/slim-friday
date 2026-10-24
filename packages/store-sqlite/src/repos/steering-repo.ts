@@ -5,8 +5,17 @@ import { steering, wakes } from "../schema/engine-tables";
 
 type Row = typeof steering.$inferSelect;
 
-/** Statuses of a run that has ended (it takes no more steering rows). */
-const ENDED = ["done", "failed", "interrupted", "cancelled", "blocked", "dropped", "expired"];
+/** Statuses of a run that takes no more steering rows: ended, or parked on a card. */
+const ENDED = [
+  "done",
+  "failed",
+  "interrupted",
+  "cancelled",
+  "blocked",
+  "dropped",
+  "expired",
+  "waiting_input",
+];
 
 /** Owner messages sent while a run was busy: held, bound to a wake, claimed by its turn. */
 export function steeringRepo(db: BunSQLiteDatabase): Store["steering"] {

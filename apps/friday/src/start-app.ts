@@ -185,7 +185,7 @@ async function composeApp(deps: AppDeps, opened: Array<() => unknown>) {
       const dailyDone = daily.stop();
       stopWatching();
       stopIdleSweep();
-      stopReconciler();
+      await stopReconciler();
       stopUploadSweeper();
       await botHub.stopAll();
       // A daily run may still use the index and the db.

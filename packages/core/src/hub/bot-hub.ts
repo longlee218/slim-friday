@@ -137,9 +137,9 @@ export class BotHub implements BotMessenger {
 
   /**
    * Main process: repair what a crash left (held runs, steering of ended runs, unreturned results) now and
-   * every `reconcileMs`. Returns the stop function.
+   * every `reconcileMs`. Returns the stop function (it waits for a running pass).
    */
-  startReconciler(): () => void {
+  startReconciler(): () => Promise<void> {
     return startOutcomeReconciler(this.ctx, this.ctx.limits);
   }
 

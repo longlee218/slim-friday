@@ -9,19 +9,24 @@ import { createRun } from "./run-create";
 export const outcomeKey = (wakeId: string): string => `auto-outcome:${wakeId}`;
 
 /**
- * The dedupe key of one tool send (`SendToBot` / `HandOff`) made while run `wakeId` answers. `n` counts the
- * identical sends of one execution of the run, so the same call made again after a cut (a re-run counts from 1
- * again) finds the first send, and two deliberate identical sends in one execution get different keys.
+ * The dedupe key of one tool send (`SendToBot` / `HandOff`) made while run `wakeId` answers:
+ * `send:<wakeId>:<cardId or ->:<sha256(to|intent|handoff|text)>:<n>`. `cardId` is the card the run resumed from
+ * (it persists across cuts and changes with every park), so a deliberate repeat after a card resume is a new
+ * send. `n` counts the identical sends of one execution, so the same call made again after a cut (the re-run
+ * counts from 1 again) finds the first send, and two deliberate identical sends in one execution differ.
  * Async because the hash uses Web Crypto (core cannot import node:crypto).
  */
 export async function sendKeyFor(
   wakeId: string,
+  cardId: string | undefined,
   to: string,
   intent: WakeIntent,
+  handoff: boolean,
   text: string,
   n: number,
 ): Promise<string> {
-  return `send:${wakeId}:${await sha256Hex(`${to}|${intent}|${text}`)}:${n}`;
+  const hash = await sha256Hex(`${to}|${intent}|${handoff ? "handoff" : "-"}|${text}`);
+  return `send:${wakeId}:${cardId ?? "-"}:${hash}:${n}`;
 }
 
 /** Why a run that ended without an answer gives no text of its own (the line after "Could not complete..."). */
@@ -47,8 +52,8 @@ function outcomeOf(row: WakeRow): { intent: WakeIntent; text: string } | undefin
 /**
  * Return the outcome of a finished run to the bot that sent it the work. Only a run woken by a bot with intent
  * request or question, not a hand-off, not a ticket wake, in a group chat, returns anything (the others are
- * not selected by the reconciler, or are marked returned at once). A run that already sent that bot an explicit `result` sends nothing more. The delivery is
- * a run for the sender stored under `outcomeKey`, so a repeat (the reconciler after a crash, or a second call)
+ * not selected by the reconciler, or are marked returned at once). A run that already sent that bot an
+ * explicit `result` sends nothing more. The delivery is a run for the sender stored under `outcomeKey`, so a repeat (the reconciler after a crash, or a second call)
  * never creates a second one. A sender that is gone or capped leaves a dropped or blocked row under the same
  * key; a retry would find it, so that counts as delivered (logged). `outcomeReturnedAt` is set only when the
  * outcome was delivered or there was nothing to send. Throws when the store fails; the caller retries.
