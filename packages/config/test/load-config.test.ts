@@ -22,7 +22,7 @@ test("an empty user dir gives the shipped defaults and no problems", () => {
   const { snapshot, problems } = load(userDir());
   expect(problems).toEqual([]);
   expect([...snapshot.bots.keys()]).toEqual(["friday"]);
-  expect(snapshot.tools).toHaveLength(11);
+  expect(snapshot.tools).toHaveLength(21);
   expect(snapshot.settings.level).toBe("balanced");
   expect(snapshot.limits).toEqual(CORE_DEFAULTS);
 });
@@ -74,7 +74,7 @@ test("user tools replace by name and new ones are appended", () => {
     name: "Bash",
     annotations: { destructiveHint: true },
   });
-  expect(snapshot.tools).toHaveLength(12);
+  expect(snapshot.tools).toHaveLength(22);
   expect(snapshot.tools.at(-1)?.name).toBe("mcp__x__y");
 });
 

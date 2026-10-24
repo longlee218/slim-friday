@@ -12,3 +12,15 @@ tools:
   # Starting a subagent or writing the todo list changes nothing; the subagent's own calls are decided one by one.
   - { name: Agent, annotations: { readOnlyHint: true } }
   - { name: TodoWrite, annotations: { readOnlyHint: true } }
+  # Browser tools that only look; the rest (click, type, ...) ask.
+  - { name: mcp__playwright__browser_navigate, annotations: { readOnlyHint: true, openWorldHint: true } }
+  - { name: mcp__playwright__browser_snapshot, annotations: { readOnlyHint: true, openWorldHint: true } }
+  - { name: mcp__playwright__browser_take_screenshot, annotations: { readOnlyHint: true, openWorldHint: true } }
+  - { name: mcp__playwright__browser_tabs, annotations: { readOnlyHint: true, openWorldHint: true } }
+  - { name: mcp__playwright__browser_wait_for, annotations: { readOnlyHint: true, openWorldHint: true } }
+  - { name: mcp__playwright__browser_console_messages, annotations: { readOnlyHint: true, openWorldHint: true } }
+  - { name: mcp__playwright__browser_network_requests, annotations: { readOnlyHint: true, openWorldHint: true } }
+  # The bot's own memory: bounded by the memory tools' code, so saving needs no card.
+  - { name: mcp__memory__MemorySearch, annotations: { readOnlyHint: true } }
+  - { name: mcp__memory__MemorySave, sandboxed: true }
+  - { name: mcp__memory__MemoryEdit, sandboxed: true }

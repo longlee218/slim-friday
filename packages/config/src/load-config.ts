@@ -10,6 +10,7 @@ import type {
 } from "@friday/core";
 import { buildSettings } from "./build-settings";
 import { type ConfigProblem, readLayer } from "./read-layer";
+import type { McpServerSpec } from "./schemas/mcp-file";
 
 export type { ConfigProblem } from "./read-layer";
 
@@ -26,6 +27,8 @@ export interface ConfigSnapshot {
   settings: PermissionSettings;
   limits: CoreLimits;
   tools: ToolSpec[];
+  /** External MCP servers by name (user file wins), env values not yet expanded. */
+  mcp: Map<string, { server: McpServerSpec; file: string }>;
 }
 
 /**
@@ -91,7 +94,14 @@ export function loadConfig(
     bots.values(),
   );
   return {
-    snapshot: { bots, groups, settings, limits, tools: [...tools.values()] },
+    snapshot: {
+      bots,
+      groups,
+      settings,
+      limits,
+      tools: [...tools.values()],
+      mcp: new Map(layers.flatMap((l) => [...l.mcp])),
+    },
     problems,
     parsed,
   };

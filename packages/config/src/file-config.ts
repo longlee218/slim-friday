@@ -2,6 +2,7 @@ import { mkdirSync, watch } from "node:fs";
 import type { CoreLimits, Group, PermissionSettings, Store, ToolCatalog } from "@friday/core";
 import { diffBots } from "./diff-bots";
 import { type ConfigProblem, type ConfigSnapshot, loadConfig } from "./load-config";
+import { expandServer, type McpServerSpec } from "./schemas/mcp-file";
 
 /** What a reload found. */
 export interface ReloadResult {
@@ -63,6 +64,24 @@ export class FileConfig {
 
   /** Current limits. */
   limits = (): CoreLimits => this.snapshot.limits;
+
+  /**
+   * External MCP servers with `${NAME}` values filled from `env`. A server with a missing value is left out and
+   * named in `problems`, so it is never started half configured.
+   */
+  mcpServers(env: Record<string, string | undefined>): {
+    servers: Record<string, McpServerSpec>;
+    problems: ConfigProblem[];
+  } {
+    const servers: Record<string, McpServerSpec> = {};
+    const problems: ConfigProblem[] = [];
+    for (const [name, { server, file }] of this.snapshot.mcp) {
+      const r = expandServer(server, env);
+      if ("server" in r) servers[name] = r.server;
+      else problems.push({ file, message: `server "${name}" needs ${r.missing.join(", ")}` });
+    }
+    return { servers, problems };
+  }
 
   /** Read the config again. A failure of the whole load keeps the last good snapshot and is reported as a problem. */
   reload(): ReloadResult {

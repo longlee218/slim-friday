@@ -1,0 +1,7 @@
+# External MCP servers any bot may name in its tools (as mcp__<server>__<tool>). A value may hold ${NAME}: it is
+# read from the env; a server with a missing value is not started. A user mcp.yaml adds or replaces servers by name.
+servers:
+  playwright:
+    type: stdio
+    command: npx
+    args: ["-y", "@playwright/mcp@0.0.83", "--headless", "--isolated"]

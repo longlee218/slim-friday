@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { Bot, BotId, Group, GroupId, ToolSpec } from "@friday/core";
 import { parseBotFile } from "./schemas/bot-file";
 import { parseGroupFile } from "./schemas/group-file";
+import { type McpServerSpec, parseMcpFile } from "./schemas/mcp-file";
 import { parseSettingsFile, type SettingsFile } from "./schemas/settings-file";
 import { parseToolsFile } from "./schemas/tools-file";
 
@@ -19,6 +20,8 @@ export interface Layer {
   groups: Map<GroupId, { group: Group; file: string }>;
   settings?: { value: SettingsFile; file: string };
   tools: ToolSpec[];
+  /** External MCP servers by name, with the file each came from. */
+  mcp: Map<string, { server: McpServerSpec; file: string }>;
 }
 
 /** What a read needs: where problems go, the last good parse of each file, and the parses of this read. */
@@ -100,10 +103,14 @@ function readOne<T>(
 export function readLayer(dir: string, ctx: ReadContext): Layer {
   const bots = readAll(dir, "bots", ".md", parseBotFile, ctx);
   const groups = readAll(dir, "groups", ".yaml", parseGroupFile, ctx);
+  const mcp = readOne(dir, "mcp.yaml", parseMcpFile, ctx);
   return {
     bots: new Map([...bots].map(([id, r]) => [id, { bot: r.value, file: r.file }])),
     groups: new Map([...groups].map(([id, r]) => [id, { group: r.value, file: r.file }])),
     settings: readOne(dir, "settings.yaml", parseSettingsFile, ctx),
     tools: readOne(dir, "tools.yaml", parseToolsFile, ctx)?.value ?? [],
+    mcp: new Map(
+      Object.entries(mcp?.value ?? {}).map(([n, server]) => [n, { server, file: mcp?.file ?? "" }]),
+    ),
   };
 }
