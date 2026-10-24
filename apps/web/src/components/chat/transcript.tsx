@@ -13,6 +13,7 @@ import { useSwipeToReply } from "./swipe-to-reply";
 import { buildTranscriptItems } from "./transcript-items";
 import { TranscriptRow } from "./transcript-row";
 import { useConversationMessages } from "./use-conversation-messages";
+import { useLocal } from "./use-local-cache";
 import { useMarkRead } from "./use-mark-read";
 import { useSendMessage } from "./use-send-message";
 import { useTranscriptScroll } from "./use-transcript-scroll";
@@ -26,11 +27,6 @@ export interface TranscriptProps {
   onReply(m: MessageDto): void;
   /** Files dropped anywhere on the transcript (the composer starts their uploads). */
   onDropFiles(files: File[]): void;
-}
-
-/** Reads a client-only cache entry the event stream writes (never fetches). */
-function useLocal<T>(key: readonly unknown[], empty: T): T {
-  return useQuery({ queryKey: key, queryFn: () => empty, enabled: false }).data ?? empty;
 }
 
 /**
