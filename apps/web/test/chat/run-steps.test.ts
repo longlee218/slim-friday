@@ -17,7 +17,8 @@ test("phase", () => {
 
 test("delta only when a count exists", () => {
   expect(stepDelta(step("tool"))).toBeNull();
-  expect(stepDelta({ ...step("tool"), added: 4 })).toEqual({ added: 4, removed: 0 });
+  expect(stepDelta({ ...step("tool"), added: 4 })).toEqual({ added: 4 });
+  expect(stepDelta({ ...step("tool"), removed: 2 })).toEqual({ removed: 2 });
 });
 
 test("worked summary", () => {

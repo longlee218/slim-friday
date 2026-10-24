@@ -22,8 +22,9 @@ export function RunStepList({ steps }: { steps: RunStepDto[] }) {
             {s.target && <span className="mono">{s.target}</span>}
             {delta && (
               <span className="delta">
-                <span className="add">{`+${delta.added}`}</span>{" "}
-                <span className="del">{`−${delta.removed}`}</span>
+                {delta.added !== undefined && <span className="add">{`+${delta.added}`}</span>}
+                {delta.added !== undefined && delta.removed !== undefined && " "}
+                {delta.removed !== undefined && <span className="del">{`−${delta.removed}`}</span>}
               </span>
             )}
           </li>

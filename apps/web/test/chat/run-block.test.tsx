@@ -34,6 +34,30 @@ test("an edit step shows +42 and the minus 3", () => {
   expect(screen.getByText("−3").className).toBe("del");
 });
 
+test("a one-sided delta shows only the side that exists", () => {
+  const { container } = render(
+    <RunBlock run={run([step("tool", "done", { label: "Wrote", added: 12 })])} now={1000} />,
+  );
+  expect(container.querySelector(".delta")?.textContent).toBe("+12");
+  expect(container.querySelector(".del")).toBeNull();
+});
+
+test("worked disclosure shows a stored running step as done, keeps failed", () => {
+  const steps = [step("tool", "running", { id: "a" }), step("command", "failed", { id: "b" })];
+  const { container } = render(<WorkedDisclosure steps={steps} />);
+  const items = container.querySelectorAll(".run-steps li");
+  expect(items[0]?.getAttribute("data-state")).toBe("done");
+  expect(items[0]?.querySelector(".spin")).toBeNull();
+  expect(items[1]?.getAttribute("data-state")).toBe("failed");
+});
+
+test("worked disclosure is hidden when no step is visible", () => {
+  const { container } = render(
+    <WorkedDisclosure steps={[step("thinking", "done"), step("writing", "done", { id: "w" })]} />,
+  );
+  expect(container.querySelector("details.worked")).toBeNull();
+});
+
 test("running step has a spinner, done a check, failed an x; thinking steps hidden", () => {
   const { container } = render(
     <RunBlock
