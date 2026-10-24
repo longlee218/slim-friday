@@ -1,4 +1,5 @@
-import { closeSync, mkdirSync, openSync, readFileSync, unlinkSync, writeSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { linkSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 /** Where the main process's lock lives under the agent home. */
@@ -26,30 +27,37 @@ function holder(path: string): number | undefined {
 }
 
 /**
- * One main process per agent home: create `<AGENT_HOME>/data/main.lock` exclusively with this pid. A lock whose
- * pid is no longer alive (a crash) is taken over; a live holder makes this throw, naming its pid. Returns the
- * release function (removes the file while it still holds this pid). A reused pid of a dead main counts as
- * alive (the owner removes the file by hand).
+ * One main process per agent home: `<AGENT_HOME>/data/main.lock` holds the pid of the main that owns the home.
+ * It is created atomically with its content (the pid goes into a temp file in the same dir, then `link` puts it
+ * in place, which fails when a lock exists), so a lock file is never seen empty or half written by
+ * construction. A lock whose pid is no longer alive (a crash), or that holds no pid (an older or damaged file),
+ * is taken over; a live holder makes this throw, naming its pid. Returns the release function (removes the
+ * file while it still holds this pid). A reused pid of a dead main counts as alive (the owner removes the file
+ * by hand).
  */
 export function acquireMainLock(agentHome: string, pid = process.pid): () => void {
   const path = mainLockPath(agentHome);
   mkdirSync(dirname(path), { recursive: true });
-  for (let tries = 0; tries < 2; tries++) {
-    try {
-      const fd = openSync(path, "wx", 0o600);
-      writeSync(fd, String(pid));
-      closeSync(fd);
-      return () => {
-        if (holder(path) === pid) unlinkSync(path);
-      };
-    } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
-      const other = holder(path);
-      if (other !== undefined && other !== pid && alive(other))
-        throw new Error(`Another Friday main process (pid ${other}) holds ${path}`);
-      // Stale (or our own leftover): remove it and try once more.
-      unlinkSync(path);
+  const temp = `${path}.${pid}.${randomUUID()}.tmp`;
+  writeFileSync(temp, String(pid), { mode: 0o600 });
+  try {
+    for (let tries = 0; tries < 2; tries++) {
+      try {
+        linkSync(temp, path);
+        return () => {
+          if (holder(path) === pid) unlinkSync(path);
+        };
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
+        const other = holder(path);
+        if (other !== undefined && other !== pid && alive(other))
+          throw new Error(`Another Friday main process (pid ${other}) holds ${path}`);
+        // Stale (or our own leftover): remove it and try once more.
+        unlinkSync(path);
+      }
     }
+    throw new Error(`Could not take ${path}`);
+  } finally {
+    unlinkSync(temp);
   }
-  throw new Error(`Could not take ${path}`);
 }

@@ -45,10 +45,10 @@ export function toRunHints(m: HintMessage): RunHint[] {
   const ids = m.ids ?? [];
   switch (m.kind) {
     case "run":
-      // A run hint without ids still means "look now" (e.g. rows a dead worker held).
+      // A run hint without ids still means "look now".
       return ids.length > 0
         ? ids.map((wakeId) => ({ kind: "newRun", wakeId }))
-        : [{ kind: "newRun", wakeId: "" }];
+        : [{ kind: "scan" }];
     case "steer":
       return ids.map((wakeId) => ({ kind: "steer", wakeId }));
     case "card":

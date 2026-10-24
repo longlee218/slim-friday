@@ -18,7 +18,12 @@ export const FAKE_WORKER_RUNTIME = join(import.meta.dir, "fixtures", "fake-worke
  * Main in this process (`startApp` with real worker processes) over a temp home with `workers` workers that run
  * the fake runtime module. Records every event published on main's bus.
  */
-export async function workerHarness(workers: number, home = mkdtempSync(join(tmpdir(), "wf-"))) {
+export async function workerHarness(
+  workers: number,
+  home = mkdtempSync(join(tmpdir(), "wf-")),
+  /** More worker arguments (e.g. `--settle-ms`). */
+  extraArgs: string[] = [],
+) {
   mkdirSync(join(home, "config"), { recursive: true });
   writeFileSync(join(home, "config", "settings.yaml"), `limits:\n  workers: ${workers}\n`);
   const { engine, files, surface } = webParts(home);
@@ -41,7 +46,7 @@ export async function workerHarness(workers: number, home = mkdtempSync(join(tmp
     workers: workerLauncher({
       bootId: boot,
       config: loadConfig({ AGENT_HOME: home }),
-      extraArgs: ["--runtime-module", FAKE_WORKER_RUNTIME],
+      extraArgs: ["--runtime-module", FAKE_WORKER_RUNTIME, ...extraArgs],
       backoffMs: () => 200,
     }),
   });

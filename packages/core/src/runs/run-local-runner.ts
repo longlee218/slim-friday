@@ -58,12 +58,24 @@ export class LocalRunner {
     this.claimer.start();
   }
 
-  /** Abort every run of this process (`shutdown`: their rows go back to queued, no cut) and stop claiming. */
-  async stop(): Promise<void> {
+  /**
+   * Abort every run of this process (`shutdown`: their rows go back to queued, no cut) and stop claiming. With
+   * `maxWaitMs`, waits at most that long for the runs to settle; resolves false when some did not (a session
+   * that ignores its stop), true otherwise.
+   */
+  async stop(maxWaitMs?: number): Promise<boolean> {
     // A run a pass still in progress starts now is aborted by the executor (`closing`).
     this.ctx.closing = true;
     for (const exec of this.ctx.runs.values()) abortRun(exec, { kind: "shutdown" });
-    await this.claimer.stop();
+    const done = this.claimer.stop().then(() => true);
+    if (maxWaitMs === undefined) return done;
+    let cancel = () => {};
+    const late = new Promise<boolean>((r) => {
+      cancel = this.ctx.deps.clock.setTimer(maxWaitMs, () => r(false));
+    });
+    const settled = await Promise.race([done, late]);
+    cancel();
+    return settled;
   }
 
   /** Push the rows bound to run `wakeId` into its turn when this process executes it. */

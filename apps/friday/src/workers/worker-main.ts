@@ -8,18 +8,24 @@ import { startWorker, type WorkerApp } from "./worker-app";
 
 /**
  * Entry of a worker process (spawned by main's supervisor with an IPC channel). Command line: `--boot <bootId>`
- * `--worker <i>`, and the test seam `--runtime-module <file>` (a module exporting `createRuntime(parts)` and
- * optionally `createFiles()`). The config arrives as the first IPC message (`init`). The worker shuts down
- * gracefully (its runs requeued, no cut) when the channel closes (main exited or stops it) or on SIGTERM,
- * then exits 0 (SIGINT is left to main). A failed start exits 1 (the supervisor restarts it after a backoff).
+ * `--worker <i>`, `--settle-ms <ms>` (shutdown wait, default 10 s), and the test seam `--runtime-module <file>`
+ * (a module exporting `createRuntime(parts)` and optionally `createFiles()`). The config arrives as the first IPC message (`init`). The worker shuts down
+ * gracefully (sessions aborted, runs requeued, no cut) when the channel closes (main exited, was killed, or
+ * stops it) or on SIGTERM, and exits within the settle wait plus 5 s even if a run never settles (SIGINT is
+ * left to main). A failed start exits 1 (the supervisor restarts it after a backoff).
  */
 const { values } = parseArgs({
   options: {
     boot: { type: "string" },
     worker: { type: "string" },
     "runtime-module": { type: "string" },
+    "settle-ms": { type: "string" },
   },
 });
+/** How long a shutdown waits for aborted runs to settle (default 10 s; `--settle-ms` for tests). */
+const settleMs = Number(values["settle-ms"] ?? "10000");
+/** A shutdown exits by this time whatever still hangs (closing dbs, flushing logs). */
+const HARD_EXIT_EXTRA_MS = 5_000;
 const index = Number(values.worker ?? "0");
 const log = logger.child({ module: "worker", worker: index });
 
@@ -64,9 +70,11 @@ async function shutdown(reason: string, code = 0): Promise<void> {
   if (closing) return;
   closing = true;
   log.info({ reason }, "worker.shutdown");
+  // An orphan (main died) must never keep renewing leases: exit by the deadline whatever hangs.
+  setTimeout(() => process.exit(code), settleMs + HARD_EXIT_EXTRA_MS);
   try {
     const worker = await starting?.catch(() => undefined);
-    await worker?.stop();
+    await worker?.stop(settleMs);
   } catch (e) {
     log.error({ err: errText(e) }, "worker.shutdown_failed");
   } finally {

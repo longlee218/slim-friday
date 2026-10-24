@@ -101,9 +101,12 @@ export class BotHub implements BotMessenger {
     return (await stopScope(this.ctx, { groupId })).stopped;
   }
 
-  /** Shut down: abort every run of this process (their rows stay claimable) and stop claiming. */
-  async stopAll(): Promise<void> {
-    await this.runner?.stop();
+  /**
+   * Shut down: abort every run of this process (their rows go back to queued) and stop claiming. With
+   * `maxWaitMs`, waits at most that long; resolves false when some run did not settle in time.
+   */
+  async stopAll(maxWaitMs?: number): Promise<boolean> {
+    return (await this.runner?.stop(maxWaitMs)) ?? true;
   }
 
   /** Apply a config reload to the stored runs: removed bots and groups are cancelled, changed scopes reset. */

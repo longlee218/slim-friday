@@ -9,6 +9,8 @@ export interface WorkerHandle {
   disconnect(): void;
   /** Kill the process (used only when it does not exit in time). */
   kill(signal?: NodeJS.Signals): void;
+  /** The process id, when known. */
+  pid?: number;
   /** Settles with the exit code when the process has exited. */
   exited: Promise<number | null>;
 }

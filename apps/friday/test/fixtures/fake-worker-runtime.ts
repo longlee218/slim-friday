@@ -3,7 +3,7 @@ import { FakeRuntime } from "../../../../packages/core/test/fakes/fake-runtime";
 
 /**
  * The test seam a worker process loads with `--runtime-module` (worker-flow tests): a fake runtime that echoes
- * the owner's text, never ends a turn whose text holds "hang", and answers a turn carrying the cut note with
+ * the owner's text, never ends a turn whose text holds "hang", ignores its stop when the text holds "stuck", and answers a turn carrying the cut note with
  * "resumed: <text>".
  */
 export function createRuntime() {
@@ -15,6 +15,11 @@ export function createRuntime() {
       return;
     }
     if (turn.text.includes("hang")) return;
+    // A session that ignores its stop: the run never settles.
+    if (turn.text.includes("stuck")) {
+      s.stop = () => new Promise(() => {});
+      return;
+    }
     s.emit({ type: "text", text: `echo: ${turn.text}` });
     s.emit({ type: "turn_end", costUsd: 0 });
   };

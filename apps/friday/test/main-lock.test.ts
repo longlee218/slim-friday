@@ -1,5 +1,12 @@
 import { expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadConfig } from "../src/config/agent-config";
@@ -63,4 +70,15 @@ test("startEngine refuses to start while another main holds the home, before ope
   expect(existsSync(join(h, "data", "engine.db"))).toBe(false);
   // The other main's lock is left alone.
   expect(readFileSync(mainLockPath(h), "utf8")).toBe(String(process.ppid));
+});
+
+test("a lock file without a pid (older or damaged) is taken over; a fresh lock is never empty", () => {
+  const h = home();
+  mkdirSync(join(h, "data"), { recursive: true });
+  writeFileSync(mainLockPath(h), "");
+  const release = acquireMainLock(h, process.pid);
+  // Created by link from a written temp file: the pid is there from the first moment, and no temp is left.
+  expect(readFileSync(mainLockPath(h), "utf8")).toBe(String(process.pid));
+  expect(readdirSync(join(h, "data")).filter((f) => f.endsWith(".tmp"))).toEqual([]);
+  release();
 });

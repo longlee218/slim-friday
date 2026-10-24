@@ -4,7 +4,9 @@ export type RunHint =
   | { kind: "steer"; wakeId: string }
   | { kind: "cardAnswered"; cardId: string }
   | { kind: "cancel"; wakeIds: string[] }
-  | { kind: "configChanged" };
+  | { kind: "configChanged" }
+  /** Look for claimable runs now, none named (e.g. the rows a dead worker held). */
+  | { kind: "scan" };
 
 /**
  * Tells the workers that something claimable or relevant was written. Best effort: a lost hint costs at

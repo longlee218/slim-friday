@@ -29,6 +29,7 @@ export function workerLauncher(o: {
       const init: MainToWorker = { t: "init", config: o.config };
       child.send(init);
       return {
+        pid: child.pid,
         send: (m) => child.send(m),
         disconnect: () => child.disconnect(),
         kill: (signal) => child.kill(signal),

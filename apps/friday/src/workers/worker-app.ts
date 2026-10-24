@@ -62,7 +62,6 @@ export function startWorker(d: WorkerAppDeps) {
       opened,
     );
     parts.hub.startRunner();
-    opened.push(() => parts.hub.stopAll());
     return {
       /** A hint from main: reload the config files on `config`, then wake the runner. */
       onHint(m: HintMessage): void {
@@ -70,8 +69,13 @@ export function startWorker(d: WorkerAppDeps) {
           for (const p of parts.config.reload().problems) log.warn(p, "config.problem");
         for (const h of toRunHints(m)) incoming.emit(h);
       },
-      /** Graceful shutdown: stop claiming, requeue this worker's runs (no cut), close the dbs. */
-      async stop(): Promise<void> {
+      /**
+       * Graceful shutdown: abort every session (the SDK children go with it), stop claiming, requeue this
+       * worker's runs (no cut), close the dbs. Waits at most `settleMs` for the runs; a run that did not settle
+       * stays `running` (the next main reclaims it with a counted cut) and is logged.
+       */
+      async stop(settleMs: number): Promise<void> {
+        if (!(await parts.hub.stopAll(settleMs))) log.warn({ settleMs }, "worker.runs_unsettled");
         await closeAll(opened, log);
       },
     };

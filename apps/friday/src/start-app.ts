@@ -137,8 +137,8 @@ async function composeApp(deps: AppDeps, opened: Array<() => unknown>) {
       await stopReconciler();
       stopUploadSweeper();
       await workersDone;
-      // In-process mode: this process's runs are requeued here.
-      await botHub.stopAll();
+      // In-process mode: this process's runs are requeued here (a run that ignores its stop is not waited for).
+      if (!(await botHub.stopAll(10_000))) log.warn({}, "app.runs_unsettled");
       // A daily run may still use the index and the db.
       await dailyDone;
       if (memory instanceof WriteThroughMemory) await memory.stop();
