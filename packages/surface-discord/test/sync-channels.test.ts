@@ -69,7 +69,7 @@ test("a channel of a removed bot is left alone and not mapped", async () => {
   const { port, surface } = setup();
   port.channels.push({ id: "gone", name: "x", topic: "friday:bot:ghost" });
   const got: string[] = [];
-  surface.onMessage((m) => got.push(m.conversationId));
+  surface.onMessage(async (m) => got.push(m.conversationId));
   const r = await syncChannels(port, surface, [bot("ann")], []);
   expect(r.conversations.map((c) => c.id)).not.toContain("gone");
   port.emitMessage({ channelId: "gone", text: "hi" });
@@ -88,7 +88,7 @@ test("one failing create is an error and the others still get a channel", async 
 test("mapped channels accept owner messages", async () => {
   const { port, surface } = setup();
   const got: string[] = [];
-  surface.onMessage((m) => got.push(m.conversationId));
+  surface.onMessage(async (m) => got.push(m.conversationId));
   const r = await syncChannels(port, surface, [bot("ann")], []);
   const id = r.conversations[0]?.id ?? "";
   port.emitMessage({ channelId: id, text: "hi" });

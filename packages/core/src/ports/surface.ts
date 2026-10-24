@@ -1,6 +1,6 @@
 import type { BotId } from "../domain/bot";
 import type { ConversationId } from "../domain/conversation";
-import type { Attachment, Author, FileRef } from "../domain/message";
+import type { Attachment, Author, FileRef, IndexedMessage } from "../domain/message";
 import type { QuestionAnswer, QuestionCard } from "../domain/question";
 import type { RunStep } from "../domain/run";
 
@@ -16,10 +16,8 @@ export interface InboundMessage {
   files?: FileRef[];
 }
 
-export interface OutboundMessage {
-  author: Author;
-  text: string;
-}
+/** A message the surface shows: the stored row with its id. */
+export type OutboundMessage = IndexedMessage;
 
 /** What the user is asked when a call needs approval. */
 export interface ApprovalCard {
@@ -46,7 +44,8 @@ export interface Activity {
 
 /** Where the user talks to the bots (chat app, web app). */
 export interface Surface {
-  onMessage(handler: (m: InboundMessage) => void): void;
+  /** The handler resolves with the stored id of the owner's message (undefined: nothing stored). */
+  onMessage(handler: (m: InboundMessage) => Promise<number | undefined>): void;
   post(conversationId: ConversationId, m: OutboundMessage): Promise<void>;
   askApproval(conversationId: ConversationId, card: ApprovalCard): Promise<ApprovalAnswer>;
   showActivity(conversationId: ConversationId, a: Activity): void;

@@ -26,6 +26,7 @@ import { changedGroupContext } from "./group-context";
 import { changedGroupMemory, promptMemory } from "./group-memory";
 import { type IdleCloseHook, reportIdleClose } from "./idle-close";
 import { EMPTY_MEMORY_NOTE } from "./memory-label";
+import { postStored } from "./post-stored";
 import { type PoolEntry, type QueuedWake, SessionPool } from "./session-pool";
 import { type ScopeBot, sessionScope } from "./session-scope";
 import {
@@ -119,45 +120,56 @@ export class BotHub implements BotMessenger {
 
   /** Start listening to the surface. */
   start(): void {
-    this.deps.surface.onMessage((m) => {
+    this.deps.surface.onMessage((m) =>
       this.handle(m).catch(async (err) => {
         // Never lose a failure: tell the user where it happened.
         const why = err instanceof Error ? err.message : String(err);
         this.deps.log?.error({ error: why, conversationId: m.conversationId }, "hub.handle_failed");
         await this.tell(m.conversationId, `Could not deliver the message: ${why}`);
-      });
-    });
+        return undefined;
+      }),
+    );
   }
 
   /** Post a system notice; a notice that cannot be posted is logged, never lost silently. */
   private async tell(conversationId: ConversationId, text: string): Promise<void> {
-    await this.deps.surface
-      .post(conversationId, { author: { kind: "system" }, text })
-      .catch((err) =>
-        this.deps.log?.error(
-          { error: err instanceof Error ? err.message : String(err), conversationId },
-          "hub.notice_failed",
-        ),
-      );
+    await postStored(this.deps, {
+      conversationId,
+      author: { kind: "system" },
+      text,
+      at: this.deps.clock.now(),
+    }).catch((err) =>
+      this.deps.log?.error(
+        { error: err instanceof Error ? err.message : String(err), conversationId },
+        "hub.notice_failed",
+      ),
+    );
   }
 
-  /** A user message: store it and wake the bots it addresses. */
-  async handle(m: InboundMessage): Promise<void> {
+  /** A user message: store it, wake the bots it addresses; resolves with the stored id (undefined: unknown conversation). */
+  async handle(m: InboundMessage): Promise<number | undefined> {
     const { store, clock } = this.deps;
     const conv = await store.conversations.get(m.conversationId);
-    if (!conv) return;
+    if (!conv) return undefined;
     this.noticed = new Set([...this.noticed].filter((k) => !k.startsWith(`${conv.id}|`)));
     const user: Author = { kind: "user" };
-    await store.messages.append({
+    const hasFiles = !!m.files?.length;
+    const id = await store.messages.append({
       conversationId: conv.id,
       author: user,
       text: m.text,
       at: clock.now(),
+      kind: hasFiles && !m.text.trim() ? "file" : "text",
+      ...(m.replyTo !== undefined && { replyTo: m.replyTo }),
+      ...(hasFiles && { files: m.files }),
     });
+    // A message of files only wakes the bot with a short note instead of an empty text.
+    const wakeText = m.text.trim() || `(sent ${m.files?.length ?? 0} file(s))`;
     for (const target of await this.targets(conv, m.text))
-      await this.wake(target, conv.id, user, m.text, 0, {
+      await this.wake(target, conv.id, user, wakeText, 0, {
         ...(m.attachments && { attachments: m.attachments }),
       });
+    return id;
   }
 
   /**
@@ -628,7 +640,7 @@ export class BotHub implements BotMessenger {
     req: SendRequest,
     post: boolean,
   ): Promise<SendResult> {
-    const { store, surface, clock } = this.deps;
+    const { store, clock } = this.deps;
     const fail = (error: string): SendResult => ({ ok: false, error });
     const text = clampBotMessage(req.text);
     if (!text) return fail("The message is empty.");
@@ -673,13 +685,23 @@ export class BotHub implements BotMessenger {
     if (!outcome.ok) return fail(`Not delivered: the ${outcome.reason} limit is reached.`);
     if (req.intent === "result") entry.sentResults.add(target.id);
     if (post) {
-      const line = `→ @${target.name} (${req.handoff ? "hand-off" : req.intent}): ${text}`;
-      await surface
-        .post(conv.id, { author, text: line })
-        .catch((err) =>
-          this.deps.log?.error({ error: errText(err), conversationId: conv.id }, "hub.post_failed"),
-        );
-      await store.messages.append({ conversationId: conv.id, author, text: line, at: clock.now() });
+      // A relay is its own message kind; the surface shows the hand-off from its fields.
+      const state = req.intent === "question" || req.intent === "status" ? req.intent : undefined;
+      await postStored(this.deps, {
+        conversationId: conv.id,
+        author,
+        text,
+        at: clock.now(),
+        kind: "relay",
+        relay: {
+          fromBotId: entry.bot.id,
+          toBotId: target.id,
+          intent: req.handoff ? "handoff" : req.intent === "result" ? "result" : "request",
+          ...(state && { state }),
+        },
+      }).catch((err) =>
+        this.deps.log?.error({ error: errText(err), conversationId: conv.id }, "hub.post_failed"),
+      );
     }
     return {
       ok: true,
@@ -716,11 +738,11 @@ export class BotHub implements BotMessenger {
     const key = `${conversationId}|${reason}`;
     if (this.noticed.has(key)) return;
     this.noticed.add(key);
-    await this.deps.surface
-      .post(conversationId, {
-        author: { kind: "system" },
-        text: `Stopped: ${reason} limit reached.`,
-      })
-      .catch((err) => this.deps.log?.error({ error: errText(err) }, "hub.notice_failed"));
+    await postStored(this.deps, {
+      conversationId,
+      author: { kind: "system" },
+      text: `Stopped: ${reason} limit reached.`,
+      at: this.deps.clock.now(),
+    }).catch((err) => this.deps.log?.error({ error: errText(err) }, "hub.notice_failed"));
   }
 }

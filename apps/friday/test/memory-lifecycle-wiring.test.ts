@@ -86,7 +86,9 @@ test("idle close with one message calls no flushNotes", async () => {
   const home = mkdtempSync(join(tmpdir(), "life-"));
   const { parts } = await boot(home);
   const c = await fridayChat(parts);
-  await say(parts, c, "hello");
+  // The channel's greeting is stored at boot, so "since" falls after it.
+  const since = Date.now() + 5;
+  await say(parts, c, "hello", since + 5);
   await say(parts, c, "old one", 1);
   let called = false;
   await idleFlush({
@@ -98,7 +100,7 @@ test("idle close with one message calls no flushNotes", async () => {
     },
     memoryChanged: parts.memoryChanged,
     log: { error() {}, warn() {} },
-  })({ botId: "friday", key: "friday", conversationIds: [c], since: 1000 });
+  })({ botId: "friday", key: "friday", conversationIds: [c], since });
   expect(called).toBe(false);
 });
 

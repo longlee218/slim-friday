@@ -84,7 +84,7 @@ function setup() {
   });
   surface.mapChannel("ch1", { kind: "bot", botId: "ann" });
   const got: InboundMessage[] = [];
-  surface.onMessage((m) => got.push(m));
+  surface.onMessage(async (m) => got.push(m));
   return { port, got };
 }
 

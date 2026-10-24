@@ -101,6 +101,8 @@ test("a deleted memory-index.db is rebuilt at the next start and search still wo
 
 test("an index that throws on reindex does not fail MemorySave", async () => {
   const home = mkdtempSync(join(tmpdir(), "wire-"));
+  // Messages exist at boot (the channel greetings), so the stub must advance its last id like a real index.
+  let lastId = 0;
   const broken: MemoryIndexStore & MessageIndexStore = {
     docHash: () => undefined,
     docIds: () => [],
@@ -110,8 +112,10 @@ test("an index that throws on reindex does not fail MemorySave", async () => {
     removeDoc() {},
     searchText: () => [],
     close() {},
-    lastMessageId: () => 0,
-    addMessages() {},
+    lastMessageId: () => lastId,
+    addMessages(rows) {
+      lastId = Math.max(lastId, ...rows.map((r) => r.id));
+    },
     searchMessages: () => [],
   };
   const { parts, errors } = await boot(home, { memoryIndex: broken });

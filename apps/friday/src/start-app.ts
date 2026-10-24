@@ -12,6 +12,7 @@ import {
   type MemoryOwner,
   type MessageIndexStore,
   PermissionGate,
+  postStored,
   type Store,
   type TicketBoard,
 } from "@friday/core";
@@ -256,12 +257,15 @@ export async function startApp(deps: AppDeps) {
           : `Group ready: ${(groups.find((g) => g.id === c.groupId)?.members ?? [])
               .map((m) => `@${names.get(m) ?? m}`)
               .join(", ")}`;
-      await surface
-        .post(c.id, {
+      await postStored(
+        { store: engine, surface },
+        {
+          conversationId: c.id,
           author: c.kind === "direct" ? { kind: "bot", botId: c.botId } : { kind: "system" },
           text,
-        })
-        .catch((err) => log.error({ error: why(err) }, "channels.hello"));
+          at: Date.now(),
+        },
+      ).catch((err) => log.error({ error: why(err) }, "channels.hello"));
     }
   };
   const sync = (): Promise<void> => {

@@ -21,10 +21,10 @@ export class FakeSurface implements Surface {
   questions: { conversationId: ConversationId; card: QuestionCard }[] = [];
   runs: { conversationId: ConversationId; botId: BotId; step: RunStep }[] = [];
   private questionAnswer: QuestionAnswer | null | "never" = null;
-  private handler: (m: InboundMessage) => void = () => {};
+  private handler: (m: InboundMessage) => Promise<number | undefined> = async () => undefined;
   private answer: ApprovalAnswer | "never" = "deny";
 
-  onMessage(handler: (m: InboundMessage) => void): void {
+  onMessage(handler: (m: InboundMessage) => Promise<number | undefined>): void {
     this.handler = handler;
   }
   async post(conversationId: ConversationId, message: OutboundMessage): Promise<void> {
@@ -65,7 +65,7 @@ export class FakeSurface implements Surface {
     this.questionAnswer = a;
   }
   /** The user sends a message. */
-  deliver(m: InboundMessage): void {
-    this.handler(m);
+  deliver(m: InboundMessage): Promise<number | undefined> {
+    return this.handler(m);
   }
 }

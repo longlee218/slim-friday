@@ -2,6 +2,7 @@ import type { Author } from "../domain/message";
 import type { Clock } from "../ports/clock";
 import type { Store } from "../ports/store";
 import type { Surface } from "../ports/surface";
+import { postStored } from "./post-stored";
 import type { PoolEntry } from "./session-pool";
 
 /** What the pump needs from the hub. */
@@ -33,8 +34,7 @@ export async function pumpEvents(
       entry.lastActive = clock.now();
       if (e.type === "text") {
         const conversationId = entry.current.conversationId;
-        await surface.post(conversationId, { author: botAuthor, text: e.text });
-        await store.messages.append({
+        await postStored(deps, {
           conversationId,
           author: botAuthor,
           text: e.text,

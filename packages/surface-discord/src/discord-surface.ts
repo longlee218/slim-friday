@@ -54,13 +54,13 @@ export class DiscordSurface implements Surface {
    * The owner's messages in mapped channels with text or files; bots, webhooks and everyone else are ignored
    * (and their files are never downloaded). Files are saved first; a refused one is named in a system reply.
    */
-  onMessage(handler: (m: InboundMessage) => void): void {
+  onMessage(handler: (m: InboundMessage) => Promise<number | undefined>): void {
     this.port.onMessage((m) => {
       if (m.authorId !== this.port.ownerId || m.fromBotOrWebhook) return;
       if (!this.channels.has(m.channelId)) return;
       const hasFiles = !!this.files && !!m.attachments?.length;
       if (!m.text.trim() && !hasFiles) return;
-      if (!hasFiles) return handler({ conversationId: m.channelId, text: m.text });
+      if (!hasFiles) return void handler({ conversationId: m.channelId, text: m.text });
       this.deliverWithFiles(m, handler).catch(() => {});
     });
   }
@@ -68,7 +68,7 @@ export class DiscordSurface implements Surface {
   /** Download the files of `m`, then hand the message over with the saved ones. */
   private async deliverWithFiles(
     m: IncomingMessage,
-    handler: (m: InboundMessage) => void,
+    handler: (m: InboundMessage) => Promise<number | undefined>,
   ): Promise<void> {
     const dir = join(this.files?.inboxDir ?? "", m.channelId, String(this.files?.now()));
     const { saved, refused } = await downloadAttachments(
@@ -80,7 +80,7 @@ export class DiscordSurface implements Surface {
       await this.port.send(m.channelId, `Files not taken: ${refused.join("; ")}`).catch(() => {});
     const text = m.text.trim() || (saved.length ? `(sent ${saved.length} file(s))` : "");
     if (!text) return;
-    handler({
+    await handler({
       conversationId: m.channelId,
       text: m.text.trim() ? m.text : text,
       ...(saved.length && { attachments: saved }),

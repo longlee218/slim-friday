@@ -169,9 +169,12 @@ test("the sent message is posted to the channel under the sender's name and stor
   const post = surface.posts.at(-1);
   expect(post?.conversationId).toBe("gc");
   expect(post?.message.author).toEqual({ kind: "bot", botId: "writer" });
-  expect(post?.message.text).toContain("@Editor");
-  expect(post?.message.text).toContain("please cut the intro");
-  expect(store.msgs.at(-1)?.text).toContain("please cut the intro");
+  expect(post?.message).toMatchObject({
+    kind: "relay",
+    text: "please cut the intro",
+    relay: { fromBotId: "writer", toBotId: "editor", intent: "request" },
+  });
+  expect(store.msgs.at(-1)).toMatchObject({ kind: "relay", text: "please cut the intro" });
 });
 
 test("a bot's text with an @mention no longer wakes anyone", async () => {
