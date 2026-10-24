@@ -50,7 +50,12 @@ export type ToolDecision = { behavior: "allow" } | { behavior: "deny"; reason: s
 
 /** Everything a runtime needs to run one bot. */
 export interface BotRuntimeSpec {
+  /** The bot as shaped for this session's scope (a group session works in the group's workspaces). */
   bot: Bot;
+  /** Key of this session: the bot id (direct) or `<botId>@<groupId>`; the hub always sets it. */
+  sessionKey?: string;
+  /** The group of a group session; unset for the bot's direct session. */
+  groupId?: string;
   /** The runtime calls this before each tool call it cannot settle itself. */
   decide(call: RuntimeToolCall): Promise<ToolDecision>;
   /** The conversation of the turn in progress (undefined between turns); tools use it to find their scope. */

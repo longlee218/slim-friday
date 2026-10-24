@@ -1,6 +1,7 @@
 import { CORE_DEFAULTS, type CoreLimits } from "../config-defaults";
 import type { Bot, BotId } from "../domain/bot";
 import type { Conversation, ConversationId } from "../domain/conversation";
+import type { GroupId } from "../domain/group";
 import type { Attachment, Author } from "../domain/message";
 import type { BlockReason, WakeIntent, WakeRow } from "../domain/wake";
 import type { PermissionGate } from "../permission/permission-gate";
@@ -22,6 +23,7 @@ import { dayOf, pumpEvents } from "./event-pump";
 import { changedGroupMemory } from "./group-memory";
 import { type IdleCloseHook, reportIdleClose } from "./idle-close";
 import { type PoolEntry, type QueuedWake, SessionPool } from "./session-pool";
+import { type ScopeBot, sessionScope } from "./session-scope";
 import {
   AUTO_BLOCK_COMMENT,
   isOpenWork,
@@ -54,6 +56,8 @@ interface WakeOpts {
 /** What /status shows for one running bot. */
 export interface BotStatus {
   botId: BotId;
+  /** The group of a group session; unset for the bot's direct session. */
+  groupId?: GroupId;
   sessionId: string;
   busy: boolean;
   tasks: { taskId: string; description: string }[];
@@ -74,6 +78,8 @@ export interface BotHubDeps {
   recall?: MemorySearcher;
   /** Told (not awaited) about each session `sweepIdle` closes; never about `stop()` or a crash. */
   onIdleClose?: IdleCloseHook;
+  /** Shapes a bot for one session scope (`groupId` unset: its direct session); without it the bot is used as is. */
+  scopeBot?: ScopeBot;
 }
 
 /**
@@ -148,22 +154,39 @@ export class BotHub implements BotMessenger {
       });
   }
 
-  /** Stop one bot's session and its background tasks. */
-  async stop(botId: BotId): Promise<void> {
-    const entry = this.pool.entry(botId);
-    if (!entry) return;
-    entry.stopping = true;
-    this.pool.remove(botId);
-    await entry.session.stop();
+  /**
+   * Stop a bot's sessions and their background tasks: all of them, only the direct one (`"direct"`), or only the
+   * one for group `only`. Sessions still opening are waited for first, so none is left running.
+   */
+  async stop(botId: BotId, only?: "direct" | GroupId): Promise<void> {
+    await this.pool.settled(botId);
+    for (const e of this.pool.entriesOf(botId))
+      if (only === undefined || (only === "direct" ? !e.groupId : e.groupId === only))
+        await this.stopEntry(e);
+  }
+
+  /** Stop the sessions every member keeps for group `groupId` (their direct sessions stay). */
+  async stopGroup(groupId: GroupId): Promise<void> {
+    await this.pool.settled();
+    for (const e of this.pool.list()) if (e.groupId === groupId) await this.stopEntry(e);
   }
 
   async stopAll(): Promise<void> {
-    for (const e of this.pool.list()) await this.stop(e.bot.id);
+    await this.pool.settled();
+    for (const e of this.pool.list()) await this.stopEntry(e);
+  }
+
+  /** Stop one session by its key; another session of the same bot is untouched. */
+  private async stopEntry(entry: PoolEntry): Promise<void> {
+    entry.stopping = true;
+    if (this.pool.entry(entry.key) === entry) this.pool.remove(entry.key);
+    await entry.session.stop();
   }
 
   status(): BotStatus[] {
     return this.pool.list().map((e) => ({
       botId: e.bot.id,
+      ...(e.groupId && { groupId: e.groupId }),
       sessionId: e.session.id,
       busy: e.busy,
       tasks: [...e.tasks].map(([taskId, t]) => ({ taskId, description: t.description })),
@@ -176,7 +199,7 @@ export class BotHub implements BotMessenger {
     for (const e of this.pool.list())
       if (!e.busy && e.tasks.size === 0 && now - e.lastActive >= this.limits.idleCloseMs) {
         reportIdleClose(this.deps.onIdleClose, e, this.deps.log);
-        await this.stop(e.bot.id);
+        await this.stopEntry(e);
       }
   }
 
@@ -234,6 +257,14 @@ export class BotHub implements BotMessenger {
   ): Promise<WakeOutcome> {
     const { store, clock } = this.deps;
     const { conversationId, sender, text, hop } = row;
+    // The session follows the conversation: the bot's direct one, or its one for that group (members only).
+    const conv = await store.conversations.get(conversationId);
+    const group = conv?.kind === "group" ? await store.groups.get(conv.groupId) : undefined;
+    const scope = conv && sessionScope(bot, conv, group, this.deps.scopeBot);
+    if (!scope) {
+      await this.wakeLog.dropped(row.id);
+      return { ok: false, reason: "gone" };
+    }
     // A result that returns to the bot that gave the work is checked as if it were at the last allowed hop.
     const w = {
       conversationId,
@@ -256,7 +287,7 @@ export class BotHub implements BotMessenger {
       return { ok: false, reason: "spend" };
     }
 
-    const entry = await this.pool.get(bot);
+    const entry = await this.pool.get(scope);
     if (!entry.pumping) {
       entry.pumping = true;
       this.runPump(entry).catch((err) =>
@@ -500,7 +531,7 @@ export class BotHub implements BotMessenger {
         }
       },
       onClosed: async (e, crashed, reason) => {
-        if (this.pool.entry(e.bot.id) === e) this.pool.remove(e.bot.id);
+        if (this.pool.entry(e.key) === e) this.pool.remove(e.key);
         // The turn that was running ends here, and the messages that waited behind it are not delivered.
         if (e.currentWakeId) await this.wakeLog.interrupted(e.currentWakeId);
         e.currentWakeId = undefined;
@@ -522,9 +553,9 @@ export class BotHub implements BotMessenger {
     });
   }
 
-  /** A bot's `SendToBot` / `HandOff`: deliver a message to a member of the group it is answering in. */
-  async send(from: BotId, req: SendRequest): Promise<SendResult> {
-    const entry = this.pool.entry(from);
+  /** A bot's `SendToBot` / `HandOff` from session `sessionKey`: deliver a message to a member of its group. */
+  async send(sessionKey: string, req: SendRequest): Promise<SendResult> {
+    const entry = this.pool.entry(sessionKey);
     // Read now: the entry moves on to its next turn while this call awaits.
     const wakeId = entry?.currentWakeId;
     if (!entry || !wakeId || !entry.current.conversationId)

@@ -37,7 +37,7 @@ test("a bot's SendToBot wakes a member with hop + 1; nobody else wakes", async (
   const { runtime, surface, hub } = makeHub();
   surface.deliver({ conversationId: "gc", text: "make it" });
   await flush();
-  await hub.send("writer", { to: "editor", text: "please check", intent: "request" });
+  await hub.send("writer@g", { to: "editor", text: "please check", intent: "request" });
   await flush();
   expect(runtime.opened).toHaveLength(2);
   expect(runtime.opened[1]?.spec.bot.id).toBe("editor");
@@ -107,7 +107,8 @@ test("a tool decision made by a task asks in the conversation that started the t
   surface.answerWith("once");
   await s.spec.decide({ tool: "Unknown", input: {}, taskId: "t1" });
   expect(surface.approvals.at(-1)?.conversationId).toBe("dc");
-  await s.spec.decide({ tool: "Unknown", input: {} });
+  // The group chat runs in the bot's group session, which asks there.
+  await runtime.nth(1).spec.decide({ tool: "Unknown", input: {} });
   expect(surface.approvals.at(-1)?.conversationId).toBe("gc");
 });
 
@@ -147,9 +148,11 @@ test("stop ends the session and status no longer lists it", async () => {
   expect(hub.status()).toEqual([]);
 });
 
-test("I1: a message to a busy bot waits for the end of its turn; the answer goes where it was asked", async () => {
-  const { runtime, surface } = makeHub();
-  surface.deliver({ conversationId: "dc", text: "secret dm" });
+test("I1: a message to a busy session waits for the end of its turn; the answer goes where it was asked", async () => {
+  const { runtime, surface, store } = makeHub();
+  // A second chat of the same group shares the bot's group session.
+  store.convMap.set("gc2", { id: "gc2", kind: "group", groupId: "g" });
+  surface.deliver({ conversationId: "gc2", text: "@editor secret plan" });
   await flush();
   surface.deliver({ conversationId: "gc", text: "@editor hi group" });
   await flush();
@@ -158,7 +161,7 @@ test("I1: a message to a busy bot waits for the end of its turn; the answer goes
   s.emit({ type: "text", text: "dm answer" });
   s.emit({ type: "turn_end", costUsd: 0 });
   await flush();
-  expect(surface.posts.find((p) => p.message.text === "dm answer")?.conversationId).toBe("dc");
+  expect(surface.posts.find((p) => p.message.text === "dm answer")?.conversationId).toBe("gc2");
   expect(s.sent).toHaveLength(2);
   expect(s.sent[1]).toMatchObject({ conversationId: "gc" });
   s.emit({ type: "text", text: "group answer" });

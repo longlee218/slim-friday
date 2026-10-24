@@ -10,6 +10,7 @@ import type { Log } from "../ports/log";
 import type { Memory } from "../ports/memory";
 import type { Store } from "../ports/store";
 import { promptMemory } from "./group-memory";
+import type { SessionScope } from "./session-scope";
 
 /** A background task a bot started, remembered with the conversation that started it. */
 export interface TaskInfo {
@@ -38,6 +39,11 @@ export interface QueuedWake {
 
 /** One open session and what the hub knows about its current work. */
 export interface PoolEntry {
+  /** Session key: the bot id (direct) or `<botId>@<groupId>` (group). */
+  key: string;
+  /** The group of a group session; unset for the bot's direct session. */
+  groupId?: string;
+  /** The bot as shaped for this session's scope. */
   bot: Bot;
   session: BotSession;
   /** Epoch milliseconds of the last send or event. */
@@ -71,10 +77,12 @@ export interface PoolEntry {
   conversations: Set<ConversationId>;
 }
 
-/** Open sessions, one per bot. Opens a new session or resumes the stored one. */
+/** Open sessions, one per bot and scope (direct, or one group). Opens a new session or resumes the stored one. */
 export class SessionPool {
-  private entries = new Map<BotId, PoolEntry>();
-  private opening = new Map<BotId, Promise<PoolEntry>>();
+  /** Open sessions by session key. */
+  private entries = new Map<string, PoolEntry>();
+  /** Sessions being opened, by session key, with their bot (so a stop can wait for them). */
+  private opening = new Map<string, { botId: BotId; pending: Promise<PoolEntry> }>();
 
   constructor(
     private runtime: AgentRuntime,
@@ -88,35 +96,52 @@ export class SessionPool {
     },
   ) {}
 
-  /** The bot's open session, creating (or resuming) it when needed. */
-  get(bot: Bot): Promise<PoolEntry> {
-    const open = this.entries.get(bot.id);
+  /** The scope's open session, creating (or resuming) it when needed. */
+  get(scope: SessionScope): Promise<PoolEntry> {
+    const open = this.entries.get(scope.key);
     if (open) return Promise.resolve(open);
-    let pending = this.opening.get(bot.id);
+    let pending = this.opening.get(scope.key)?.pending;
     if (!pending) {
-      pending = this.create(bot).finally(() => this.opening.delete(bot.id));
-      this.opening.set(bot.id, pending);
+      pending = this.create(scope).finally(() => this.opening.delete(scope.key));
+      this.opening.set(scope.key, { botId: scope.bot.id, pending });
     }
     return pending;
   }
 
-  entry(botId: BotId): PoolEntry | undefined {
-    return this.entries.get(botId);
+  /** The open session with this key. */
+  entry(key: string): PoolEntry | undefined {
+    return this.entries.get(key);
+  }
+
+  /** Every open session of one bot (direct and group ones). */
+  entriesOf(botId: BotId): PoolEntry[] {
+    return this.list().filter((e) => e.bot.id === botId);
   }
 
   list(): PoolEntry[] {
     return [...this.entries.values()];
   }
 
-  /** Forget a session (the stored session id stays, so the next message resumes it). */
-  remove(botId: BotId): void {
-    this.entries.delete(botId);
+  /** Wait until the sessions being opened (of one bot, or all) are open or have failed. */
+  async settled(botId?: BotId): Promise<void> {
+    const pending = [...this.opening.values()]
+      .filter((o) => botId === undefined || o.botId === botId)
+      .map((o) => o.pending);
+    await Promise.allSettled(pending);
   }
 
-  private async create(bot: Bot): Promise<PoolEntry> {
+  /** Forget a session (the stored session id stays, so the next message resumes it). */
+  remove(key: string): void {
+    this.entries.delete(key);
+  }
+
+  private async create(scope: SessionScope): Promise<PoolEntry> {
+    const { bot } = scope;
     const ref: { entry?: PoolEntry } = {};
     const spec: BotRuntimeSpec = {
       bot,
+      sessionKey: scope.key,
+      ...(scope.groupId && { groupId: scope.groupId }),
       // A task's call is asked in the conversation that started the task; any other call in the current one.
       decide: (c) => {
         const e = ref.entry;
@@ -149,19 +174,21 @@ export class SessionPool {
       this.memoryOpts.log,
     );
     if (memory?.trim()) spec.memory = memory;
-    const stored = await this.store.sessions.get(bot.id);
+    const stored = await this.store.sessions.get(scope.key);
     let session: BotSession | undefined;
     if (stored) {
       try {
         session = await this.runtime.resume(stored, spec);
       } catch {
         // The stored session is gone or unreadable: forget it and start a fresh one.
-        await this.store.sessions.clear(bot.id);
+        await this.store.sessions.clear(scope.key);
       }
     }
     session ??= await this.runtime.open(spec);
-    await this.store.sessions.set(bot.id, session.id);
+    await this.store.sessions.set(scope.key, session.id);
     const entry: PoolEntry = {
+      key: scope.key,
+      ...(scope.groupId && { groupId: scope.groupId }),
       bot,
       session,
       lastActive: this.clock.now(),
@@ -178,7 +205,7 @@ export class SessionPool {
       conversations: new Set(),
     };
     ref.entry = entry;
-    this.entries.set(bot.id, entry);
+    this.entries.set(scope.key, entry);
     return entry;
   }
 }

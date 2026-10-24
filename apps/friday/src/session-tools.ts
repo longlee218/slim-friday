@@ -136,6 +136,11 @@ export async function runCommand(
   return { code, out: out + err };
 }
 
+/** A messenger that sends from one session: the hub finds the sender by session key, not by bot id. */
+const sessionMessenger = (messenger: BotMessenger, sessionKey: string): BotMessenger => ({
+  send: (_from, req) => messenger.send(sessionKey, req),
+});
+
 /** What the tools of one session know: the bot, the conversation it answers now, and groups by id. */
 export function toolContext(
   spec: BotRuntimeSpec,
@@ -206,7 +211,9 @@ export function sessionTools(deps: SessionToolsDeps) {
       conversation: () => spec.currentConversation?.(),
       postFile: deps.postFile,
       ...(deps.messenger &&
-        (deps.groupIdsOf?.(spec.bot.id).length ?? 0) > 0 && { messenger: deps.messenger }),
+        (deps.groupIdsOf?.(spec.bot.id).length ?? 0) > 0 && {
+          messenger: sessionMessenger(deps.messenger, spec.sessionKey ?? spec.bot.id),
+        }),
       // Read when the tool runs: the runtime fills `apply` after the session is built.
       effort: {
         max: spec.bot.maxEffort,

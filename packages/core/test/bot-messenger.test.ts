@@ -18,7 +18,7 @@ const req = (to: string, text = "check", extra = {}) => ({
 
 test("send wakes the target with hop + 1 and the sender's running wake as parent", async () => {
   const { hub, runtime, store } = await started();
-  const r = await hub.send("writer", req("editor"));
+  const r = await hub.send("writer@g", req("editor"));
   await flush();
   expect(r.ok).toBe(true);
   const turn = runtime.opened[1]?.sent[0];
@@ -36,14 +36,14 @@ test("send wakes the target with hop + 1 and the sender's running wake as parent
 
 test("send accepts the target by name, in any case", async () => {
   const { hub } = await started();
-  expect((await hub.send("writer", req("EDITOR"))).ok).toBe(true);
+  expect((await hub.send("writer@g", req("EDITOR"))).ok).toBe(true);
 });
 
 test("send is refused for itself, a non-member, an unknown name and a direct chat", async () => {
   const { hub, store, surface } = await started();
   store.botMap.set("ghost", bot("ghost", "Ghost"));
   const err = async (to: string) => {
-    const r = await hub.send("writer", req(to));
+    const r = await hub.send("writer@g", req(to));
     return r.ok ? "ok" : r.error;
   };
   expect(await err("writer")).toContain("itself");
@@ -60,7 +60,9 @@ test("send past the hop limit is refused with a reason the bot can read", async 
   const results: { ok: boolean; error?: string }[] = [];
   runtime.onTurn = (session, turn) => {
     const other = session.spec.bot.id === "writer" ? "editor" : "writer";
-    void hub.send(session.spec.bot.id, req(other, `ping ${turn.hop}`)).then((r) => results.push(r));
+    void hub
+      .send(session.spec.sessionKey ?? "", req(other, `ping ${turn.hop}`))
+      .then((r) => results.push(r));
     session.emit({ type: "turn_end", costUsd: 0 });
   };
   surface.deliver({ conversationId: "gc", text: "start" });
@@ -82,7 +84,7 @@ test("a result to the bot that gave the work passes the hop limit", async () => 
         ? req(other, `ping ${turn.hop}`)
         : { to: other, text: "all done", intent: "result" as const };
     if (turn.hop <= CORE_DEFAULTS.maxHops)
-      void hub.send(session.spec.bot.id, m).then((r) => results.push(r));
+      void hub.send(session.spec.sessionKey ?? "", m).then((r) => results.push(r));
     session.emit({ type: "turn_end", costUsd: 0 });
   };
   surface.deliver({ conversationId: "gc", text: "start" });
@@ -98,15 +100,15 @@ test("a result to the bot that gave the work passes the hop limit", async () => 
 
 test("HandOff to the sender of the running wake is refused", async () => {
   const { hub } = await started();
-  await hub.send("writer", req("editor"));
+  await hub.send("writer@g", req("editor"));
   await flush();
-  const r = await hub.send("editor", req("writer", "back to you", { handoff: true }));
+  const r = await hub.send("editor@g", req("writer", "back to you", { handoff: true }));
   expect(r.ok ? "ok" : r.error).toContain("hand");
 });
 
 test("when a turn woken by a request ends, its last text goes back as a result", async () => {
   const { hub, runtime, store } = await started();
-  await hub.send("writer", req("editor"));
+  await hub.send("writer@g", req("editor"));
   await flush();
   runtime.nth(0).emit({ type: "turn_end", costUsd: 0 });
   await flush();
@@ -123,12 +125,12 @@ test("when a turn woken by a request ends, its last text goes back as a result",
 
 test("no automatic result when the bot already sent a result to that sender", async () => {
   const { hub, runtime } = await started();
-  await hub.send("writer", req("editor"));
+  await hub.send("writer@g", req("editor"));
   await flush();
   runtime.nth(0).emit({ type: "turn_end", costUsd: 0 });
   await flush();
   const editor = runtime.nth(1);
-  await hub.send("editor", { to: "writer", text: "explicit result", intent: "result" });
+  await hub.send("editor@g", { to: "writer", text: "explicit result", intent: "result" });
   editor.emit({ type: "text", text: "closing words" });
   editor.emit({ type: "turn_end", costUsd: 0 });
   await flush();
@@ -137,7 +139,7 @@ test("no automatic result when the bot already sent a result to that sender", as
 
 test("an fyi never triggers an automatic result", async () => {
   const { hub, runtime } = await started();
-  await hub.send("writer", { to: "editor", text: "FYI", intent: "fyi" });
+  await hub.send("writer@g", { to: "editor", text: "FYI", intent: "fyi" });
   await flush();
   runtime.nth(0).emit({ type: "turn_end", costUsd: 0 });
   await flush();
@@ -149,7 +151,7 @@ test("an fyi never triggers an automatic result", async () => {
 
 test("a wake created by HandOff gets no automatic result", async () => {
   const { hub, runtime, store } = await started();
-  await hub.send("writer", req("editor", "you own this", { handoff: true }));
+  await hub.send("writer@g", req("editor", "you own this", { handoff: true }));
   await flush();
   runtime.nth(0).emit({ type: "turn_end", costUsd: 0 });
   await flush();
@@ -163,7 +165,7 @@ test("a wake created by HandOff gets no automatic result", async () => {
 
 test("the sent message is posted to the channel under the sender's name and stored", async () => {
   const { hub, surface, store } = await started();
-  await hub.send("writer", req("editor", "please cut the intro"));
+  await hub.send("writer@g", req("editor", "please cut the intro"));
   const post = surface.posts.at(-1);
   expect(post?.conversationId).toBe("gc");
   expect(post?.message.author).toEqual({ kind: "bot", botId: "writer" });
@@ -181,8 +183,8 @@ test("a bot's text with an @mention no longer wakes anyone", async () => {
 
 test("the same message twice inside the window is refused the second time", async () => {
   const { hub, runtime } = await started();
-  expect((await hub.send("writer", req("editor"))).ok).toBe(true);
-  const second = await hub.send("writer", req("editor"));
+  expect((await hub.send("writer@g", req("editor"))).ok).toBe(true);
+  const second = await hub.send("writer@g", req("editor"));
   expect(second.ok ? "ok" : second.error).toContain("repeat");
   await flush();
   expect(runtime.all().filter((s) => s.spec.bot.id === "editor")).toHaveLength(1);

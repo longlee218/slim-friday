@@ -24,7 +24,7 @@ test("sweepIdle reports the conversations the session answered and when it opene
   await flush();
   clock.advance(CORE_DEFAULTS.idleCloseMs);
   await hub.sweepIdle();
-  expect(seen).toEqual([{ botId: "editor", conversationIds: ["dc"], since: 1_000 }]);
+  expect(seen).toEqual([{ botId: "editor", key: "editor", conversationIds: ["dc"], since: 1_000 }]);
   expect(hub.status()).toEqual([]);
 });
 

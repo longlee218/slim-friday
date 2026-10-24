@@ -8,7 +8,7 @@ test("files from the user reach the turn that answers that message, and no hand-
   surface.deliver({ conversationId: "gc", text: "look", attachments: [file] });
   await flush();
   expect(runtime.nth(0).sent[0]?.attachments).toEqual([file]);
-  await hub.send("writer", { to: "editor", text: "please check", intent: "request" });
+  await hub.send("writer@g", { to: "editor", text: "please check", intent: "request" });
   await flush();
   const handoff = runtime.opened[1]?.sent[0];
   expect(handoff?.hop).toBe(1);

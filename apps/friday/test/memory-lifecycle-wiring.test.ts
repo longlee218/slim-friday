@@ -76,7 +76,7 @@ test("idle close with 2+ messages writes an Idle flush block and it is searchabl
     },
     memoryChanged: parts.memoryChanged,
     log: { error() {} },
-  })({ botId: "friday", conversationIds: [c], since: 0 });
+  })({ botId: "friday", key: "friday", conversationIds: [c], since: 0 });
   expect(seen[0]).toContain("user: we pick postgres for the ledger\nuser: and redis for the queue");
   const hits = await parts.recall.search(friday, "ledger postgres");
   expect(hits.map((h) => h.where)).toEqual([localDay(new Date())]);
@@ -98,7 +98,7 @@ test("idle close with one message calls no flushNotes", async () => {
     },
     memoryChanged: parts.memoryChanged,
     log: { error() {} },
-  })({ botId: "friday", conversationIds: [c], since: 1000 });
+  })({ botId: "friday", key: "friday", conversationIds: [c], since: 1000 });
   expect(called).toBe(false);
 });
 

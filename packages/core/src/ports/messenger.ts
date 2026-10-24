@@ -1,4 +1,3 @@
-import type { BotId } from "../domain/bot";
 import type { WakeIntent } from "../domain/wake";
 
 /** A bot's message to a member of its group. */
@@ -15,5 +14,6 @@ export type SendResult = { ok: true; wakeId: string; note: string } | { ok: fals
 
 /** What a bot's tools use to reach another bot; the hub implements it. */
 export interface BotMessenger {
-  send(from: BotId, req: SendRequest): Promise<SendResult>;
+  /** Send from the session `sessionKey` (the bot id, or `<botId>@<groupId>` for a group session). */
+  send(sessionKey: string, req: SendRequest): Promise<SendResult>;
 }

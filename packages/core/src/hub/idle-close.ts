@@ -1,11 +1,16 @@
 import type { BotId } from "../domain/bot";
 import type { ConversationId } from "../domain/conversation";
+import type { GroupId } from "../domain/group";
 import type { Log } from "../ports/log";
 import type { PoolEntry } from "./session-pool";
 
 /** What the hub tells the app about a session it is closing for being quiet (the app may keep notes of it). */
 export interface IdleClose {
   botId: BotId;
+  /** Key of the closed session: the bot id (direct) or `<botId>@<groupId>`. */
+  key: string;
+  /** The group of a group session; unset for a direct session. */
+  groupId?: GroupId;
   /** Conversations the session answered, in the order it first answered them. */
   conversationIds: ConversationId[];
   /** Epoch milliseconds the session was opened. */
@@ -28,8 +33,10 @@ export function reportIdleClose(
       "hub.idle_close_hook",
     );
   try {
-    const event = {
+    const event: IdleClose = {
       botId: entry.bot.id,
+      key: entry.key,
+      ...(entry.groupId && { groupId: entry.groupId }),
       conversationIds: [...entry.conversations],
       since: entry.openedAt,
     };

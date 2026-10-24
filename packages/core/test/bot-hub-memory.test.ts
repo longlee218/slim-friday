@@ -80,12 +80,14 @@ test("after a compaction the group memory is sent again", async () => {
   expect(s.sent[1]?.groupMemory).toBe("- team uses bun");
 });
 
-test("a background task started in a direct chat cannot use group scope while the bot answers a group", async () => {
+test("a background task started in another conversation cannot use group scope while the bot answers a group", async () => {
   const { memory } = fakeMemory();
-  const { runtime, surface } = makeHub(memory);
+  const { runtime, surface, store } = makeHub(memory);
+  // A second chat of the same group shares the bot's group session.
+  store.convMap.set("gc2", { id: "gc2", kind: "group", groupId: "g" });
   // The owner would allow anything: only the scope rule may deny.
   surface.answerWith("once");
-  surface.deliver({ conversationId: "dc", text: "start a task" });
+  surface.deliver({ conversationId: "gc2", text: "@Editor start a task" });
   await flush();
   const s = runtime.nth(0);
   s.emit({ type: "task_started", taskId: "t1", description: "dig" });

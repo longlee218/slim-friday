@@ -11,7 +11,11 @@ test("two bots that message each other stop at maxHops; the last message is refu
   runtime.onTurn = (session, turn) => {
     const other = session.spec.bot.id === "writer" ? "editor" : "writer";
     void hub
-      .send(session.spec.bot.id, { to: other, text: `ping ${turn.hop}`, intent: "request" })
+      .send(session.spec.sessionKey ?? "", {
+        to: other,
+        text: `ping ${turn.hop}`,
+        intent: "request",
+      })
       .then((r) => results.push(r));
     session.emit({ type: "turn_end", costUsd: 0 });
   };
@@ -43,7 +47,7 @@ test("a bot repeating the same message inside the window is not delivered twice,
   const { runtime, surface, hub } = makeHub();
   surface.deliver({ conversationId: "gc", text: "go" });
   await flush();
-  const send = () => hub.send("writer", { to: "editor", text: "check", intent: "request" });
+  const send = () => hub.send("writer@g", { to: "editor", text: "check", intent: "request" });
   await send();
   await send();
   await flush();

@@ -197,8 +197,9 @@ export async function startApp(deps: AppDeps) {
   // The runtime is built before the hub; a bot's tool calls it only while it runs, when the hub exists.
   let hub: BotHub | undefined;
   const messenger: BotMessenger = {
-    send: async (from, req) =>
-      hub ? hub.send(from, req) : { ok: false, error: "The engine is not ready." },
+    // `sessionKey` names the sending session (bot id, or `<botId>@<groupId>`); see `session-tools.ts`.
+    send: async (sessionKey, req) =>
+      hub ? hub.send(sessionKey, req) : { ok: false, error: "The engine is not ready." },
   };
   const runtime =
     typeof deps.runtime === "function"
