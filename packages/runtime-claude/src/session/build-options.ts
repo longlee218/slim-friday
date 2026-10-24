@@ -3,6 +3,7 @@ import { type Bot, type BotRuntimeSpec, MEMORY_LABEL } from "@friday/core";
 import { isInside, realOrSame } from "../floor/paths";
 import { sdkEnv } from "../floor/sdk-env";
 import { workerSandbox } from "../floor/worker-sandbox";
+import { askOwner } from "./ask-question";
 import { floorCheck } from "./floor-check";
 import { mcpGranted, pickServers, splitTools } from "./mcp-grants";
 import { buildSkillsPlugin } from "./skills-plugin";
@@ -175,6 +176,8 @@ export function buildOptions(input: BuildOptionsInput): Options {
       ],
     },
     async canUseTool(tool, toolInput, opts) {
+      // A question for the owner comes first: it is no grant and no file access.
+      if (tool === "AskUserQuestion") return askOwner(spec, toolInput);
       if (!mcpGranted(tool, mcp, Object.keys(perSession)))
         return { behavior: "deny", message: "tool not granted to this bot" };
       const denied = floorCheck({ tool, input: toolInput }, floor);

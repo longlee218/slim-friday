@@ -39,10 +39,9 @@ test("tool_result carries tool_use_id and is_error", () => {
 });
 
 test("AskUserQuestion input has questions with options and multiSelect", () => {
-  expect(ASK_INPUT_SINGLE.questions[0]).toMatchObject({
-    question: expect.any(String),
-    multiSelect: false,
-  });
+  // Not toMatchObject with expect.any: Bun writes the matcher into the fixture, which the ask tests share.
+  expect(typeof ASK_INPUT_SINGLE.questions[0]?.question).toBe("string");
+  expect(ASK_INPUT_SINGLE.questions[0]?.multiSelect).toBe(false);
   expect(ASK_INPUT_MULTI.questions[0]?.multiSelect).toBe(true);
   expect(ASK_INPUT_SINGLE.questions[0]?.options.length).toBeGreaterThanOrEqual(2);
 });

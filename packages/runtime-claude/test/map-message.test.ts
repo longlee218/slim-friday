@@ -1,6 +1,14 @@
 import { expect, test } from "bun:test";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { mapMessage } from "../src/session/map-message";
+import {
+  ASSISTANT_SUBAGENT_TOOL_USE,
+  ASSISTANT_THINKING,
+  ASSISTANT_TOOL_USE,
+  SPIKE,
+  USER_TOOL_RESULT_ERROR,
+  USER_TOOL_RESULT_OK,
+} from "./fixtures/sdk-shapes";
 
 const m = (x: unknown) => mapMessage(x as SDKMessage);
 const assistant = (content: unknown[], parent: string | null = null) => ({
@@ -20,8 +28,7 @@ test("assistant text becomes one text event, blocks joined", () => {
   ).toEqual([{ type: "text", text: "a\nb" }]);
 });
 
-test("a tool-only or empty assistant message has no event", () => {
-  expect(m(assistant([{ type: "tool_use", name: "Read" }]))).toEqual([]);
+test("an empty assistant message has no event", () => {
   expect(m(assistant([{ type: "text", text: "  " }]))).toEqual([]);
 });
 
@@ -110,4 +117,54 @@ test("a compaction boundary is a compacted event", () => {
   expect(
     mapMessage({ type: "system", subtype: "compact_boundary", compact_metadata: {} } as never),
   ).toEqual([{ type: "compacted" }]);
+});
+
+test("main-thread tool_use and tool_result become tool events", () => {
+  expect(mapMessage(ASSISTANT_TOOL_USE)).toContainEqual({
+    type: "tool_call",
+    toolUseId: expect.any(String),
+    tool: "Read",
+    input: expect.any(Object),
+  });
+  expect(mapMessage(USER_TOOL_RESULT_ERROR)).toEqual([
+    { type: "tool_result", toolUseId: expect.any(String), ok: false },
+  ]);
+  expect(mapMessage(USER_TOOL_RESULT_OK)).toEqual([
+    { type: "tool_result", toolUseId: expect.any(String), ok: true },
+  ]);
+  expect(mapMessage(ASSISTANT_SUBAGENT_TOOL_USE)).toEqual([]);
+  expect(
+    m({
+      type: "user",
+      parent_tool_use_id: "t",
+      message: { content: [{ type: "tool_result", tool_use_id: "x" }] },
+    }),
+  ).toEqual([]);
+  expect(m({ type: "user", parent_tool_use_id: null, message: { content: "plain" } })).toEqual([]);
+});
+
+test("thinking is presence only, once per message", () => {
+  const ev = mapMessage(ASSISTANT_THINKING);
+  if (SPIKE.thinking === "none") expect(ev.some((e) => e.type === "thinking")).toBe(false);
+  else expect(ev).toContainEqual({ type: "thinking" });
+  const two = m(
+    assistant([
+      { type: "thinking", thinking: "secret" },
+      { type: "redacted_thinking" },
+      { type: "text", text: "hi" },
+    ]),
+  );
+  expect(two).toEqual([{ type: "thinking" }, { type: "text", text: "hi" }]);
+  expect(JSON.stringify(two)).not.toContain("secret");
+});
+
+test("events keep block order: thinking, tool calls, then the joined text", () => {
+  const ev = m(
+    assistant([
+      { type: "thinking" },
+      { type: "tool_use", id: "a", name: "Read", input: {} },
+      { type: "text", text: "x" },
+    ]),
+  );
+  expect(ev.map((e) => e.type)).toEqual(["thinking", "tool_call", "text"]);
 });

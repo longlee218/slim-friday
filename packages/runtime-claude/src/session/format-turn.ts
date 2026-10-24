@@ -7,6 +7,7 @@ import {
   INTERRUPTED_NOTE,
   type InboundTurn,
   MEMORY_LABEL,
+  type StoredMessage,
 } from "@friday/core";
 import type { UserContent } from "./input-queue";
 
@@ -21,6 +22,17 @@ function nameOf(author: Author, names: Record<string, string>): string {
   return author.kind;
 }
 
+/** One "Recent messages" line: a relay reads `<from> → <to> (<intent>): <text>`, any other `<author>: <text>`. */
+function contextLine(m: StoredMessage, names: Record<string, string>): string {
+  const r = m.relay;
+  if (m.kind !== "relay" || !r) return `${nameOf(m.author, names)}: ${m.text}`;
+  const name = (id: string) => names[id] ?? id;
+  return `${name(r.fromBotId)} → ${name(r.toBotId)} (${r.intent}): ${m.text}`;
+}
+
+/** Longest quoted text kept in the prompt. */
+const QUOTE_MAX = 300;
+
 /**
  * The text a bot reads for one inbound turn: a header naming the conversation, the sender and the hop,
  * then the message. A group turn with context starts with the recent messages; the last context
@@ -31,7 +43,7 @@ export function formatTurn(turn: InboundTurn, names: Record<string, string>): st
   const last = turn.context.at(-1);
   const recent = last && last.text === turn.text ? turn.context.slice(0, -1) : turn.context;
   const block = recent.length
-    ? `Recent messages:\n${recent.map((m) => `${nameOf(m.author, names)}: ${m.text}`).join("\n")}\n\n`
+    ? `Recent messages:\n${recent.map((m) => contextLine(m, names)).join("\n")}\n\n`
     : "";
   const tickets = turn.tickets ? `${turn.tickets}\n\n` : "";
   const groupContext = turn.groupContext ? `Group context:\n${turn.groupContext}\n\n` : "";
@@ -52,8 +64,11 @@ export function formatTurn(turn: InboundTurn, names: Record<string, string>): st
           ...(turn.handoff && { handoff: true }),
         })
       : turn.text;
+  const quote = turn.quote
+    ? `> Replying to ${nameOf(turn.quote.author, names)}: ${turn.quote.text.slice(0, QUOTE_MAX)}\n`
+    : "";
   const note = turn.interrupted ? `${INTERRUPTED_NOTE}\n\n` : "";
-  return `${tickets}${groupContext}${botMemory}${memory}${recalled}${block}${note}[conversation ${turn.conversationId}] ${nameOf(turn.from, names)} (hop ${turn.hop}):\n${body}`;
+  return `${tickets}${groupContext}${botMemory}${memory}${recalled}${block}${note}[conversation ${turn.conversationId}] ${nameOf(turn.from, names)} (hop ${turn.hop}):\n${quote}${body}`;
 }
 
 /**

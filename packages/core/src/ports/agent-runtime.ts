@@ -33,6 +33,8 @@ export interface InboundTurn {
   tickets?: string;
   /** Files the user attached to this message; only the turn that answers that message carries them, never a hand-off. */
   attachments?: Attachment[];
+  /** The message this turn replies to: who wrote it and what it said; the runtime shows it as a quote line. */
+  quote?: { author: Author; text: string };
 }
 
 /** What a session reports; generic words only. */

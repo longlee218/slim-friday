@@ -1,0 +1,127 @@
+import { expect, test } from "bun:test";
+import { mkdirSync, mkdtempSync, realpathSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { Bot, BotRuntimeSpec, QuestionAnswer, QuestionCard } from "@friday/core";
+import { answerAsk, cardsFromAsk } from "../src/session/ask-question";
+import { buildOptions } from "../src/session/build-options";
+import { ASK_INPUT_MULTI, ASK_INPUT_SINGLE } from "./fixtures/sdk-shapes";
+
+const base = realpathSync(mkdtempSync(join(tmpdir(), "ask-")));
+const home = join(base, "home");
+const scratch = join(home, "runs", "b1");
+mkdirSync(scratch, { recursive: true });
+const bot: Bot = {
+  id: "b1",
+  name: "Ann",
+  title: "Dev",
+  instructions: "x",
+  model: "sonnet",
+  tools: ["AskUserQuestion"],
+  skills: [],
+  subagents: [],
+  workspaces: [],
+};
+const opts = { signal: new AbortController().signal, toolUseID: "t1", requestId: "r1" };
+function canUse(ask?: BotRuntimeSpec["ask"]) {
+  const spec: BotRuntimeSpec = {
+    bot,
+    decide: async () => ({ behavior: "allow" }),
+    ...(ask && { ask }),
+  };
+  const o = buildOptions({
+    spec,
+    config: { agentHome: home, scratchRoot: join(home, "runs") },
+    abort: new AbortController(),
+    scratchDir: scratch,
+  });
+  return (input: Record<string, unknown>) => o.canUseTool?.("AskUserQuestion", input, opts);
+}
+
+test("AskUserQuestion is refused without ask, before the MCP grant check", async () => {
+  expect(await canUse()(ASK_INPUT_SINGLE)).toEqual({
+    behavior: "deny",
+    message: "No one can answer questions here.",
+  });
+});
+
+test("a malformed input is denied with the reason", async () => {
+  const r = await canUse(async () => ({ choices: ["x"] }))({ questions: "x" });
+  expect(r?.behavior).toBe("deny");
+});
+
+test("the owner's answer reaches the tool input; cards name the bot", async () => {
+  const seen: QuestionCard[] = [];
+  const r = await canUse(async (c) => {
+    seen.push(c);
+    return { choices: ["Blue"] };
+  })(ASK_INPUT_SINGLE);
+  expect(seen[0]).toMatchObject({ botId: "b1", botName: "Ann", kind: "single", allowText: true });
+  expect(r).toMatchObject({
+    behavior: "allow",
+    updatedInput: { answers: { [ASK_INPUT_SINGLE.questions[0].question]: "Blue" } },
+  });
+});
+
+test("a timed-out question is a deny and the session goes on", async () => {
+  expect(await canUse(async () => null)(ASK_INPUT_SINGLE)).toEqual({
+    behavior: "deny",
+    message: "The owner did not answer in time.",
+  });
+});
+
+test("a throwing ask is a deny", async () => {
+  expect(
+    await canUse(async () => {
+      throw new Error("boom");
+    })(ASK_INPUT_SINGLE),
+  ).toEqual({ behavior: "deny", message: "question failed" });
+});
+
+test("single, multi and free-text answers fill answers by question", () => {
+  const q = ASK_INPUT_SINGLE.questions[0].question;
+  expect(answerAsk(ASK_INPUT_SINGLE, [{ choices: ["Blue"] }])).toMatchObject({
+    behavior: "allow",
+    updatedInput: { answers: { [q]: "Blue" } },
+  });
+  const multi = answerAsk(ASK_INPUT_MULTI, [{ choices: ["Red", "Blue"] }]);
+  expect(multi.behavior === "allow" && multi.updatedInput.answers).toEqual({
+    [ASK_INPUT_MULTI.questions[0].question]: "Red, Blue",
+  });
+  const free = answerAsk(ASK_INPUT_SINGLE, [{ choices: [], text: "Green please" }]);
+  expect(
+    free.behavior === "allow" && (free.updatedInput.answers as Record<string, string>)[q],
+  ).toBe("Green please");
+  const both = answerAsk(ASK_INPUT_SINGLE, [{ choices: ["Red"], text: "but warm" }]);
+  expect(both).toMatchObject({
+    updatedInput: { answers: { [q]: "Red" }, annotations: { [q]: { notes: "but warm" } } },
+  });
+  expect(answerAsk(ASK_INPUT_SINGLE, [null as QuestionAnswer | null])).toEqual({
+    behavior: "deny",
+    message: "The owner did not answer in time.",
+  });
+});
+
+test("cardsFromAsk refuses a malformed input and detects confirm", () => {
+  expect(typeof cardsFromAsk({ questions: "x" }, "a", "A")).toBe("string");
+  expect(typeof cardsFromAsk({ questions: [{ question: "Q" }] }, "a", "A")).toBe("string");
+  expect(typeof cardsFromAsk({ questions: [] }, "a", "A")).toBe("string");
+  const yn = {
+    question: "Go?",
+    header: "h",
+    multiSelect: false,
+    options: [
+      { label: "Yes", description: "" },
+      { label: "no", description: "" },
+    ],
+  };
+  expect((cardsFromAsk({ questions: [yn] }, "a", "A", 5000) as QuestionCard[])[0]).toMatchObject({
+    kind: "confirm",
+    timeoutMs: 5000,
+  });
+  expect((cardsFromAsk(ASK_INPUT_MULTI, "a", "A") as QuestionCard[])[0].kind).toBe("multi");
+  expect((cardsFromAsk(ASK_INPUT_SINGLE, "a", "A") as QuestionCard[])[0].options[0]).toMatchObject({
+    value: "Red",
+    label: "Red",
+  });
+});
