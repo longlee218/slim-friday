@@ -94,12 +94,14 @@ export function buildOptions(input: BuildOptionsInput): Options {
         prompt: s.prompt,
         tools: s.tools,
         ...(s.model && { model: s.model }),
+        ...(s.effort && { effort: s.effort }),
         background: true,
       },
     ]),
   );
   return {
     model: bot.model,
+    ...(bot.effort && { effort: bot.effort }),
     systemPrompt: `You are ${bot.name}, ${bot.title}.\n\n${bot.instructions}${spec.memory ? `\n\n## Your memory\n${spec.memory}` : ""}`,
     cwd,
     additionalDirectories: [...bot.workspaces.slice(1), ...extra.write, ...extra.read],

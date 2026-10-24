@@ -48,6 +48,15 @@ export class ClaudeRuntime implements AgentRuntime {
       scratchDir,
     });
     const run = (this.config.queryFn ?? query)({ prompt: queue.iterable, options });
+    // `SetEffort` reaches the live query through the holder the app put on the spec.
+    if (spec.effortControl) {
+      const control = spec.effortControl;
+      control.current = bot.effort;
+      control.apply = async (level) => {
+        await run.applyFlagSettings({ effortLevel: level });
+        control.current = level;
+      };
+    }
     return new ClaudeSession(
       id,
       queue,

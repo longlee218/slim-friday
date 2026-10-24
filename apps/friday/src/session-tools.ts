@@ -185,6 +185,12 @@ export function sessionTools(deps: SessionToolsDeps) {
       isSensitive: sensitiveCheck(workspaces, deps.isSensitive),
       conversation: () => spec.currentConversation?.(),
       postFile: deps.postFile,
+      // Read when the tool runs: the runtime fills `apply` after the session is built.
+      effort: {
+        max: spec.bot.maxEffort,
+        apply: (level) =>
+          spec.effortControl?.apply?.(level) ?? Promise.reject(new Error("no session")),
+      },
     });
     if (wantsServer(spec.bot.tools, EFFECTS_MCP_SERVER)) {
       const ctx: EffectsContext = {

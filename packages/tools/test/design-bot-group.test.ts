@@ -170,3 +170,22 @@ test("write_bot refuses a tool named twice (padding of the approval card)", asyn
   });
   expect(r.isError).toBe(true);
 });
+
+test("write_bot writes effort and maxEffort into the header", async () => {
+  const { ctx, configDir } = setup();
+  const t = createBotDesignTool(ctx);
+  const r = await call(t, {
+    action: "write_bot",
+    id: "thinker",
+    name: "Thinker",
+    title: "Planner",
+    model: "sonnet",
+    instructions: "Plan.",
+    effort: "medium",
+    maxEffort: "high",
+  });
+  expect(r.isError).toBeUndefined();
+  const text = readFileSync(join(configDir, "bots", "thinker.md"), "utf8");
+  expect(text).toContain("effort: medium");
+  expect(text).toContain("maxEffort: high");
+});

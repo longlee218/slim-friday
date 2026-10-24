@@ -1,5 +1,6 @@
 import type { Bot } from "../domain/bot";
 import type { ConversationId } from "../domain/conversation";
+import type { EffortControl } from "../domain/effort";
 import type { Attachment, Author, StoredMessage } from "../domain/message";
 import type { RuntimeToolCall } from "../domain/tool";
 
@@ -43,6 +44,8 @@ export interface BotRuntimeSpec {
   decide(call: RuntimeToolCall): Promise<ToolDecision>;
   /** The conversation of the turn in progress (undefined between turns); tools use it to find their scope. */
   currentConversation?: () => ConversationId | undefined;
+  /** Lets the `SetEffort` tool reach the session; the runtime fills it in. */
+  effortControl?: EffortControl;
   /** The bot's own memory, read when the session opens; the runtime adds it to the system prompt. */
   memory?: string;
 }

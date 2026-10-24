@@ -11,6 +11,8 @@ export interface FakeQuery {
   end(): void;
   /** Make the SDK stream throw. */
   fail(err: Error): void;
+  /** Settings the session applied to the live query (`applyFlagSettings`). */
+  applied(): unknown[];
   /** Options the session passed to `query`. */
   options(): Options;
   /** Texts of the user messages the session fed in so far (drained in the background). */
@@ -26,6 +28,7 @@ export function fakeQuery(): FakeQuery {
     | { resolve: (r: IteratorResult<SDKMessage>) => void; reject: (e: Error) => void }
     | undefined;
   let opts: Options | undefined;
+  const applied: unknown[] = [];
   const sent: string[] = [];
   const sentRaw: unknown[] = [];
 
@@ -66,7 +69,10 @@ export function fakeQuery(): FakeQuery {
       },
       [Symbol.asyncDispose]: async () => {},
     };
-    return Object.assign(it, { interrupt: async () => {} });
+    return Object.assign(it, {
+      interrupt: async () => {},
+      applyFlagSettings: async (s: unknown) => void applied.push(s),
+    });
   }) as unknown as QueryFn;
 
   return {
@@ -74,6 +80,7 @@ export function fakeQuery(): FakeQuery {
     emit: (m) => push({ done: false, value: m as SDKMessage }),
     end: () => push({ done: true, value: undefined }),
     fail: (err) => push(err),
+    applied: () => [...applied],
     options: () => opts as Options,
     sent: () => [...sent],
     sentContent: () => [...sentRaw],

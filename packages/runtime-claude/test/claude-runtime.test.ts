@@ -150,3 +150,26 @@ test("resume throws when the stored session is gone, so the hub can start a fres
   });
   await expect(rt.resume("gone", spec)).rejects.toThrow("gone");
 });
+
+test("the bot's effort and its subagents' effort reach the SDK options", async () => {
+  const { fq, rt } = setup();
+  const withEffort: Bot = {
+    ...bot,
+    effort: "medium",
+    subagents: [{ name: "h", description: "d", prompt: "p", tools: [], effort: "high" }],
+  };
+  await rt.open({ ...spec, bot: withEffort });
+  const o = fq.options() as { effort?: string; agents?: Record<string, { effort?: string }> };
+  expect(o.effort).toBe("medium");
+  expect(o.agents?.h?.effort).toBe("high");
+});
+
+test("effortControl.apply changes the effort of the live query", async () => {
+  const { fq, rt } = setup();
+  const effortControl: BotRuntimeSpec["effortControl"] = {};
+  await rt.open({ ...spec, bot: { ...bot, effort: "low" }, effortControl });
+  expect(effortControl?.current).toBe("low");
+  await effortControl?.apply?.("high");
+  expect(fq.applied()).toEqual([{ effortLevel: "high" }]);
+  expect(effortControl?.current).toBe("high");
+});

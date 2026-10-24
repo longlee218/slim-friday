@@ -110,3 +110,15 @@ test("a bot file may name an avatar; a path-like avatar is refused", () => {
   for (const bad of ["../x", "a/b", ".hidden", "x.png"])
     expect(() => parseBotFile("ann", file(bad))).toThrow();
 });
+
+test("effort and maxEffort parse; a ceiling under the start level and an unknown level are refused", () => {
+  const withHeader = (extra: string) =>
+    `---\nname: Ann\ntitle: Dev\nmodel: sonnet\n${extra}\n---\nBe brief.\n`;
+  const bot = parseBotFile("ann", withHeader("effort: low\nmaxEffort: xhigh"));
+  expect(bot.effort).toBe("low");
+  expect(bot.maxEffort).toBe("xhigh");
+  expect(() => parseBotFile("ann", withHeader("effort: high\nmaxEffort: low"))).toThrow();
+  expect(() => parseBotFile("ann", withHeader("effort: extreme"))).toThrow();
+  const sub = withHeader("subagents:\n  - {name: h, description: d, prompt: p, effort: max}");
+  expect(parseBotFile("ann", sub).subagents[0]?.effort).toBe("max");
+});

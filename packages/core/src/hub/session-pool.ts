@@ -107,6 +107,7 @@ export class SessionPool {
           bot.name,
         );
       },
+      effortControl: {},
       currentConversation: () => (ref.entry?.busy ? ref.entry.current.conversationId : undefined),
     };
     // A memory that cannot be read must not keep the bot from answering.

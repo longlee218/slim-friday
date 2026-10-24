@@ -72,6 +72,8 @@ export function writeBot(ctx: DesignContext, a: DesignArgs): string {
     workspaces: a.workspaces ?? [],
     ...(subagents.length > 0 && { subagents }),
     ...(a.autonomy && { autonomy: a.autonomy }),
+    ...(a.effort && { effort: a.effort }),
+    ...(a.maxEffort && { maxEffort: a.maxEffort }),
     ...(a.avatar && { avatar: a.avatar }),
   };
   const text = `---\n${toYaml(header)}---\n${body}\n`;

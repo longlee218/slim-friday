@@ -33,6 +33,8 @@ tools:
   - { name: mcp__memory__MemoryEdit, sandboxed: true }
   # Sending a file to the chat: the tool checks the path itself (workspace or scratch dir only), so no card.
   - { name: mcp__chat__PostFile, sandboxed: true }
+  # Changes only the thinking effort of the session, capped by the bot file's maxEffort: no side effect outside the run.
+  - { name: mcp__chat__SetEffort, annotations: { readOnlyHint: true } }
   # Deleting moves to the trash (kept 7 days): destructive, so it asks, but not irreversible.
   - { name: mcp__effects__DeletePaths, annotations: { destructiveHint: true, idempotentHint: true, openWorldHint: false }, scopeKeys: [paths] }
   - { name: mcp__effects__GitPush, annotations: { destructiveHint: false, openWorldHint: true }, scopeKeys: [workspace, remote, branch] }
@@ -42,4 +44,4 @@ tools:
   - { name: mcp__design__BotLookup, annotations: { readOnlyHint: true } }
   # Writes the owner's config (bots, skills, MCP servers that run code): asked at every level, never "Always allow".
   # scopeKeys put the risky fields on the approval card, in this order (the card is cut at a fixed length).
-  - { name: mcp__design__BotDesign, annotations: { destructiveHint: true, idempotentHint: false, openWorldHint: true }, scopeKeys: [action, id, overwrite, autonomy, server, tools, workspaces, skills, source, name, members] }
+  - { name: mcp__design__BotDesign, annotations: { destructiveHint: true, idempotentHint: false, openWorldHint: true }, scopeKeys: [action, id, overwrite, autonomy, effort, maxEffort, server, tools, workspaces, skills, source, name, members] }

@@ -1,3 +1,4 @@
+import { EFFORT_LEVELS } from "@friday/core";
 import { z } from "zod";
 
 /** Input of `BotDesign` (one flat shape: `action` says which fields count). */
@@ -17,6 +18,13 @@ export const DESIGN_SHAPE = {
     .optional()
     .describe("Absolute paths of existing dirs the owner gave."),
   autonomy: z.enum(["careful", "balanced", "autonomous"]).optional(),
+  effort: z.enum(EFFORT_LEVELS).optional().describe("Thinking effort the bot starts at."),
+  maxEffort: z
+    .enum(EFFORT_LEVELS)
+    .optional()
+    .describe(
+      "Highest effort the bot may raise itself to with SetEffort; needs mcp__chat__SetEffort in tools.",
+    ),
   avatar: z.string().optional(),
   members: z.array(z.string()).optional(),
   entryBot: z.string().optional(),

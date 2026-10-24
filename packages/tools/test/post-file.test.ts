@@ -33,6 +33,7 @@ function setup(current: string | null = "c1", wsIsBase = false) {
     scratchDir: scratch,
     agentHome: home,
     isSensitive: (real) => basename(real).startsWith(".env"),
+    effort: {},
     conversation: () => current ?? undefined,
     postFile: async (conversationId, botId, file, caption) => {
       posts.push({ conversationId, botId, file, ...(caption && { caption }) });
