@@ -57,3 +57,26 @@ limits:
   ## Most characters of a bot's / a group's MEMORY.md put in the prompt (older notes stay searchable).
   # memoryPromptChars: 12000
   # groupMemoryPromptChars: 6000
+  ## Worker loops that run bot turns, and runs one worker executes at the same time.
+  # workers: 2
+  # runsPerWorker: 4
+  ## A run lease expires this long after its last heartbeat; the heartbeat interval (ms).
+  # leaseMs: 300000
+  # heartbeatMs: 60000
+  ## How often a run checks for a cancel (ms), and the fallback scan for queued runs (ms).
+  # fenceCheckMs: 1000
+  # scanMs: 5000
+  ## A run queued longer than this before it starts is logged as a warning (ms).
+  # queueDelayWarnMs: 30000
+  ## A stream with no event for this long is cut (ms).
+  # streamIdleMs: 180000
+  ## Retries of a transient failure, failures of a run's setup, and times a cut run is re-sent.
+  # transientRetries: 5
+  # setupFailures: 8
+  # cutAttempts: 3
+  ## An unanswered approval card gets one reminder after this long (ms).
+  # cardReminderMs: 14400000
+  ## How often stale runs are repaired (ms).
+  # reconcileMs: 30000
+  ## No new run starts below this much free memory (MB).
+  # minFreeMemoryMb: 512
