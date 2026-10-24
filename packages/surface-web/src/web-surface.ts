@@ -17,6 +17,7 @@ import type {
 } from "@friday/core";
 import { CardDesk } from "./card-desk";
 import { EventBus } from "./event-bus";
+import { createUpload, sendOwnerMessage } from "./inbound";
 import { toMessageDto } from "./message-dto";
 import { postBotFile } from "./post-bot-file";
 
@@ -46,6 +47,16 @@ export class WebSurface implements Surface {
 
   onMessage(handler: (m: InboundMessage) => Promise<number | undefined>): void {
     this.handler = handler;
+  }
+
+  /** Hand out an upload slot for a file of the owner (presigned PUT, checked at send). */
+  createUpload(i: { conversationId: string; name: string; type: string; size: number }) {
+    return createUpload(this.deps, i);
+  }
+
+  /** Check the owner's message and uploads, save the files for the bot, hand it to the hub. */
+  send(i: { conversationId: string; text: string; uploadIds?: string[]; replyTo?: number }) {
+    return sendOwnerMessage(this.deps, this.handler, i);
   }
 
   /** Publish the message, then the unread count when a bot or the system wrote it. */
