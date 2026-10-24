@@ -1,5 +1,12 @@
 import { expect, test } from "bun:test";
-import { existsSync, mkdtempSync, readdirSync, readFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ConsolidateFn, MemoryOwner } from "@friday/core";
@@ -207,4 +214,20 @@ test("a replacement of another kind is added as a new note, the old line stays i
   const file = readFileSync(join(root, "bots", "ann", "MEMORY.md"), "utf8");
   expect(file).toContain("## Preferences\n- owner wants answers in Vietnamese");
   expect(file).toMatch(/## Facts\n- owner's bank account is at Vietcombank/);
+});
+
+test("a hand-written day over the caps is still sent whole", async () => {
+  const root = mkdtempSync(join(tmpdir(), "cons-"));
+  const mem = new FileMemory(root, () => now);
+  const dir = join(root, "bots", "ann", "journal");
+  mkdirSync(dir, { recursive: true });
+  const lines = Array.from({ length: 400 }, (_, i) => `- hand note ${i} about the release plan`);
+  writeFileSync(join(dir, "2026-10-21.md"), `# Journal 2026-10-21\n${lines.join("\n")}\n`);
+  let got: string[] = [];
+  const r = await consolidateOwner(mem, ann, now, async (_m, notes) => {
+    got = notes;
+    return [];
+  });
+  expect(got).toHaveLength(400);
+  expect(r.through).toBe("2026-10-21");
 });

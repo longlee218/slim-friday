@@ -19,8 +19,8 @@ const MAX_CHARS = JOURNAL_MAX_LINES * (MEMORY_NOTE_MAX_CHARS + 1);
 
 /**
  * Notes of the complete days after the owner's mark, oldest day first, within the caps. A day that does not fit
- * whole is left for the next run; the first day always fits whole (the caps cover a full day file), so the mark
- * never passes a note that was not sent.
+ * whole is left for the next run; the first day is always sent whole (also a hand-edited one over the caps), so the
+ * mark never passes a note that was not sent.
  */
 function pendingNotes(root: string, owner: MemoryOwner, today: string) {
   const mark = readConsolidatedMark(root, owner) ?? "";
@@ -32,11 +32,8 @@ function pendingNotes(root: string, owner: MemoryOwner, today: string) {
     const dayNotes = journalNotes(root, owner, day);
     const size = dayNotes.reduce((n, s) => n + s.length, 0);
     if (through && (notes.length + dayNotes.length > MAX_NOTES || chars + size > MAX_CHARS)) break;
-    for (const n of dayNotes) {
-      if (notes.length >= MAX_NOTES || chars + n.length > MAX_CHARS) break;
-      notes.push(n);
-      chars += n.length;
-    }
+    notes.push(...dayNotes);
+    chars += size;
     through = day;
   }
   return { notes, through };
