@@ -57,7 +57,7 @@ interface WakeOpts {
   ticketId?: string;
   rewake?: boolean;
   /** The message this one replies to; sent with the turn, never stored with the wake. */
-  quote?: { author: Author; text: string };
+  quote?: QueuedWake["quote"];
 }
 
 /** What /status shows for one running bot. */
@@ -268,7 +268,7 @@ export class BotHub implements BotMessenger {
     opts: {
       exemptFromHops?: boolean;
       interrupted?: boolean;
-      quote?: { author: Author; text: string };
+      quote?: QueuedWake["quote"];
     } = {},
   ): Promise<WakeOutcome> {
     const { store, clock } = this.deps;

@@ -26,7 +26,11 @@ test("the woken bot gets the quote; a reply to another conversation's message is
   await surface.deliver({ conversationId: "gc", text: "hello", replyTo: 2 });
   await flush();
   const writer = runtime.opened.find((s) => s.spec.bot.id === "writer");
+  expect(writer).toBeDefined();
+  expect(writer?.sent[0]?.text).toBe("hello");
   expect(writer?.sent[0]?.quote).toBeUndefined();
+  const editor = runtime.opened.find((s) => s.spec.bot.id === "editor");
+  expect(editor?.sent.some((t) => t.text === "hello")).toBe(false);
 });
 
 test("a reply to the owner's own message goes to the entry bot and keeps the quote", async () => {
