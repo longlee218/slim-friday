@@ -67,10 +67,18 @@ export interface Store {
     add(g: Grant): Promise<void>;
     revoke(id: string): Promise<void>;
   };
+  /**
+   * Runtime session ids by session key: `<botId>` (direct) or `<botId>@<groupId>` (group).
+   * Ids never contain `@`. Older rows (key = bot id) stay valid as direct sessions.
+   */
   sessions: {
-    get(botId: BotId): Promise<string | undefined>;
-    set(botId: BotId, sessionId: string): Promise<void>;
-    clear(botId: BotId): Promise<void>;
+    get(key: string): Promise<string | undefined>;
+    set(key: string, sessionId: string): Promise<void>;
+    clear(key: string): Promise<void>;
+    /** Removes the key `botId` and every `botId@*`. */
+    clearBot(botId: BotId): Promise<void>;
+    /** Removes every `*@groupId`. */
+    clearGroup(groupId: GroupId): Promise<void>;
   };
   spend: {
     add(botId: BotId, day: string, usd: number): Promise<void>;

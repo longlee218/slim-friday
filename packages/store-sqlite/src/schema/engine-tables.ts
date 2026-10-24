@@ -41,7 +41,10 @@ export const grants = sqliteTable(
   (t) => [index("grants_bot_idx").on(t.botId)],
 );
 
-/** The SDK session id of each bot (kept so the next message resumes it). */
+/**
+ * The SDK session id per session key (kept so the next message resumes it). The `bot_id`
+ * column holds the key: `<botId>` (direct) or `<botId>@<groupId>` (group).
+ */
 export const sessions = sqliteTable("sessions", {
   botId: text("bot_id").primaryKey(),
   sessionId: text("session_id").notNull(),

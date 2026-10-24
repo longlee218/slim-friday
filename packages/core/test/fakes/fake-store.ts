@@ -6,6 +6,7 @@ import type {
   ConversationId,
   Grant,
   Group,
+  GroupId,
   Store,
   StoredMessage,
   Ticket,
@@ -20,7 +21,7 @@ export class FakeStore implements Store {
   convMap = new Map<ConversationId, Conversation>();
   msgs: StoredMessage[] = [];
   grantList: Grant[] = [];
-  sessionMap = new Map<BotId, string>();
+  sessionMap = new Map<string, string>();
   spendMap = new Map<string, number>();
   auditLog: AuditEntry[] = [];
 
@@ -57,12 +58,20 @@ export class FakeStore implements Store {
     },
   };
   sessions = {
-    get: async (botId: BotId) => this.sessionMap.get(botId),
-    set: async (botId: BotId, id: string) => {
-      this.sessionMap.set(botId, id);
+    get: async (key: string) => this.sessionMap.get(key),
+    set: async (key: string, id: string) => {
+      this.sessionMap.set(key, id);
     },
-    clear: async (botId: BotId) => {
-      this.sessionMap.delete(botId);
+    clear: async (key: string) => {
+      this.sessionMap.delete(key);
+    },
+    clearBot: async (botId: BotId) => {
+      for (const k of [...this.sessionMap.keys()])
+        if (k === botId || k.startsWith(`${botId}@`)) this.sessionMap.delete(k);
+    },
+    clearGroup: async (groupId: GroupId) => {
+      for (const k of [...this.sessionMap.keys()])
+        if (k.endsWith(`@${groupId}`)) this.sessionMap.delete(k);
     },
   };
   spend = {

@@ -76,6 +76,26 @@ test("sessions set, overwrite and clear", async () => {
   expect(await s.sessions.get("b1")).toBeUndefined();
 });
 
+test("sessions clearBot and clearGroup remove only their own keys", async () => {
+  const keys = ["a", "a@g", "b@g", "ab"];
+  const open = async () => {
+    const s = openEngineStore(":memory:");
+    for (const [i, k] of keys.entries()) await s.sessions.set(k, `s${i + 1}`);
+    return s;
+  };
+  const left = async (s: Awaited<ReturnType<typeof open>>) => {
+    const out: string[] = [];
+    for (const k of keys) if ((await s.sessions.get(k)) !== undefined) out.push(k);
+    return out;
+  };
+  const s1 = await open();
+  await s1.sessions.clearBot("a");
+  expect(await left(s1)).toEqual(["b@g", "ab"]);
+  const s2 = await open();
+  await s2.sessions.clearGroup("g");
+  expect(await left(s2)).toEqual(["a", "ab"]);
+});
+
 test("spend.add adds up per bot and day", async () => {
   const s = openEngineStore(":memory:");
   await s.spend.add("b1", "2026-10-24", 0.5);
