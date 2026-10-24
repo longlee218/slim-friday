@@ -1,6 +1,8 @@
 import type { BotId } from "../domain/bot";
 import type { ConversationId } from "../domain/conversation";
-import type { Attachment, Author } from "../domain/message";
+import type { Attachment, Author, FileRef } from "../domain/message";
+import type { QuestionAnswer, QuestionCard } from "../domain/question";
+import type { RunStep } from "../domain/run";
 
 /** A message from the user, as the surface delivers it. */
 export interface InboundMessage {
@@ -8,6 +10,10 @@ export interface InboundMessage {
   text: string;
   /** Files the user attached, already saved. */
   attachments?: Attachment[];
+  /** Id of the message this one replies to. */
+  replyTo?: number;
+  /** The stored copies of the attachments. */
+  files?: FileRef[];
 }
 
 export interface OutboundMessage {
@@ -17,6 +23,8 @@ export interface OutboundMessage {
 
 /** What the user is asked when a call needs approval. */
 export interface ApprovalCard {
+  /** The bot that asks; set by the permission gate. */
+  botId?: BotId;
   botName: string;
   tool: string;
   summary: string;
@@ -42,6 +50,10 @@ export interface Surface {
   post(conversationId: ConversationId, m: OutboundMessage): Promise<void>;
   askApproval(conversationId: ConversationId, card: ApprovalCard): Promise<ApprovalAnswer>;
   showActivity(conversationId: ConversationId, a: Activity): void;
+  /** Ask the owner a bot's question; resolves `null` when nobody answers in time. */
+  askQuestion(conversationId: ConversationId, card: QuestionCard): Promise<QuestionAnswer | null>;
+  /** Show one step of the bot's run in progress. */
+  showRun(conversationId: ConversationId, botId: BotId, step: RunStep): void;
   /** Send a file (already checked by the caller) under the author's name, with an optional caption. */
   postFile(
     conversationId: ConversationId,

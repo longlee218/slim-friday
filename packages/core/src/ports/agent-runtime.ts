@@ -2,6 +2,7 @@ import type { Bot } from "../domain/bot";
 import type { ConversationId } from "../domain/conversation";
 import type { EffortControl } from "../domain/effort";
 import type { Attachment, Author, StoredMessage } from "../domain/message";
+import type { QuestionAnswer, QuestionCard } from "../domain/question";
 import type { RuntimeToolCall } from "../domain/tool";
 import type { WakeIntent } from "../domain/wake";
 
@@ -37,7 +38,11 @@ export interface InboundTurn {
 /** What a session reports; generic words only. */
 export type RuntimeEvent =
   | { type: "text"; text: string }
-  | { type: "tool_call"; tool: string; input: Record<string, unknown> }
+  | { type: "tool_call"; toolUseId: string; tool: string; input: Record<string, unknown> }
+  /** The tool call `toolUseId` finished; `ok` is false when it failed. */
+  | { type: "tool_result"; toolUseId: string; ok: boolean }
+  /** The model is thinking (no text is carried). */
+  | { type: "thinking" }
   | { type: "task_started"; taskId: string; description: string }
   | {
       type: "task_done";
@@ -69,6 +74,8 @@ export interface BotRuntimeSpec {
   effortControl?: EffortControl;
   /** The bot's own memory, read when the session opens; the runtime adds it to the system prompt. */
   memory?: string;
+  /** Asks the owner a question the bot raised; resolves `null` when nobody answers. */
+  ask?: (card: QuestionCard) => Promise<QuestionAnswer | null>;
 }
 
 /** A long-lived conversation with one bot. */

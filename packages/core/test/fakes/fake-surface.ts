@@ -3,9 +3,13 @@ import type {
   ApprovalAnswer,
   ApprovalCard,
   Author,
+  BotId,
   ConversationId,
   InboundMessage,
   OutboundMessage,
+  QuestionAnswer,
+  QuestionCard,
+  RunStep,
   Surface,
 } from "../../src";
 
@@ -14,6 +18,9 @@ export class FakeSurface implements Surface {
   posts: { conversationId: ConversationId; message: OutboundMessage }[] = [];
   activities: { conversationId: ConversationId; activity: Activity }[] = [];
   approvals: { conversationId: ConversationId; card: ApprovalCard }[] = [];
+  questions: { conversationId: ConversationId; card: QuestionCard }[] = [];
+  runs: { conversationId: ConversationId; botId: BotId; step: RunStep }[] = [];
+  private questionAnswer: QuestionAnswer | null | "never" = null;
   private handler: (m: InboundMessage) => void = () => {};
   private answer: ApprovalAnswer | "never" = "deny";
 
@@ -36,6 +43,15 @@ export class FakeSurface implements Surface {
   ): Promise<void> {
     this.files.push({ conversationId, author, name: file.name, ...(caption && { caption }) });
   }
+  askQuestion(conversationId: ConversationId, card: QuestionCard): Promise<QuestionAnswer | null> {
+    this.questions.push({ conversationId, card });
+    return this.questionAnswer === "never"
+      ? new Promise(() => {})
+      : Promise.resolve(this.questionAnswer);
+  }
+  showRun(conversationId: ConversationId, botId: BotId, step: RunStep): void {
+    this.runs.push({ conversationId, botId, step });
+  }
   showActivity(conversationId: ConversationId, activity: Activity): void {
     this.activities.push({ conversationId, activity });
   }
@@ -43,6 +59,10 @@ export class FakeSurface implements Surface {
   /** The user's answer to the next approval cards; "never" leaves them unanswered. */
   answerWith(a: ApprovalAnswer | "never"): void {
     this.answer = a;
+  }
+  /** The user's answer to the next question cards; "never" leaves them unanswered. */
+  answerQuestionWith(a: QuestionAnswer | null | "never"): void {
+    this.questionAnswer = a;
   }
   /** The user sends a message. */
   deliver(m: InboundMessage): void {

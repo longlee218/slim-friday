@@ -1,6 +1,7 @@
 import { expect, mock, test } from "bun:test";
 import type { AgentRuntime, Clock, Store, StoredMessage, Surface, ToolCatalog } from "../src";
 import { FakeClock } from "./fakes/fake-clock";
+import { FakeFileStore } from "./fakes/fake-file-store";
 import { FakeRuntime } from "./fakes/fake-runtime";
 import { FakeStore } from "./fakes/fake-store";
 import { FakeSurface } from "./fakes/fake-surface";
@@ -22,4 +23,21 @@ test("fakes implement the ports", async () => {
   clock.setTimer(10, fn);
   (clock as FakeClock).advance(10);
   expect(fn).toHaveBeenCalledTimes(1);
+});
+
+test("FakeFileStore round trip and failNext", async () => {
+  const files = new FakeFileStore();
+  await files.put("k", new Uint8Array([1, 2, 3]), "image/png");
+  expect(await files.stat("k")).toEqual({ size: 3, contentType: "image/png" });
+  expect(Array.from(await files.readHead("k", 2))).toEqual([1, 2]);
+  await files.delete("k");
+  expect(await files.stat("k")).toBeUndefined();
+  expect(files.deleted).toEqual(["k"]);
+  expect(files.presignPut("k", 600, "image/png")).toBe("fake://put/k?exp=600&type=image/png");
+  expect(files.presignGet("k", 900, { downloadName: "a.png" })).toBe(
+    "fake://get/k?exp=900&dl=a.png",
+  );
+  files.failNext("stat");
+  await expect(files.stat("k")).rejects.toThrow();
+  expect(await files.stat("k")).toBeUndefined();
 });

@@ -8,6 +8,9 @@ import type {
   ConversationId,
   InboundMessage,
   OutboundMessage,
+  QuestionAnswer,
+  QuestionCard,
+  RunStep,
   Surface,
 } from "@friday/core";
 import { ApprovalCards } from "./approval-cards";
@@ -119,6 +122,17 @@ export class DiscordSurface implements Surface {
   showActivity(conversationId: ConversationId, a: Activity): void {
     if (a.kind === "typing") this.port.typing(conversationId).catch(() => {});
   }
+
+  /** Questions are not supported on Discord (removed in a later task): nobody answers. */
+  askQuestion(
+    _conversationId: ConversationId,
+    _card: QuestionCard,
+  ): Promise<QuestionAnswer | null> {
+    return Promise.resolve(null);
+  }
+
+  /** Run steps are not shown on Discord. */
+  showRun(_conversationId: ConversationId, _botId: BotId, _step: RunStep): void {}
 
   /** Ask the owner with a card of buttons; resolves on their click. */
   askApproval(conversationId: ConversationId, card: ApprovalCard): Promise<ApprovalAnswer> {
