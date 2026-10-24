@@ -4,6 +4,7 @@ import { isInside, realOrSame } from "../floor/paths";
 import { sdkEnv } from "../floor/sdk-env";
 import { workerSandbox } from "../floor/worker-sandbox";
 import { floorCheck } from "./floor-check";
+import { mcpGranted, pickServers, splitTools } from "./mcp-grants";
 
 /** The SDK `query` signature; tests inject a fake. */
 export type QueryFn = typeof query;
@@ -20,6 +21,8 @@ export interface ClaudeRuntimeConfig {
   env?: Record<string, string | undefined>;
   /** MCP servers any bot may name in its tools. */
   mcpServers?: Record<string, McpServerConfig>;
+  /** MCP servers built for one session (in-process tools that need the bot or its conversation); never shared. */
+  mcpServersFor?: (spec: BotRuntimeSpec) => Record<string, McpServerConfig>;
   /** Replaces the SDK `query` (tests). */
   queryFn?: QueryFn;
   /** True when the SDK still has this session's transcript for `dir` (default: the SDK's `getSessionInfo`). */
@@ -68,6 +71,9 @@ export function buildOptions(input: BuildOptionsInput): Options {
     cwd,
     allowInside: [scratchDir, ...extra.write, ...extra.read],
   };
+  const { builtIn, mcp } = splitTools(bot.tools);
+  const perSession = config.mcpServersFor?.(spec) ?? {};
+  const mcpServers = pickServers(mcp, config.mcpServers ?? {}, perSession);
   const agents = Object.fromEntries(
     bot.subagents.map((s) => [
       s.name,
@@ -85,14 +91,14 @@ export function buildOptions(input: BuildOptionsInput): Options {
     systemPrompt: `You are ${bot.name}, ${bot.title}.\n\n${bot.instructions}`,
     cwd,
     additionalDirectories: [...bot.workspaces.slice(1), ...extra.write, ...extra.read],
-    tools: bot.tools,
+    tools: builtIn,
     agents,
     settingSources: [],
     permissionMode: "default",
     abortController: input.abort,
     ...(input.resume && { resume: input.resume }),
     ...(input.sessionId && { sessionId: input.sessionId }),
-    ...(config.mcpServers && { mcpServers: config.mcpServers }),
+    ...(Object.keys(mcpServers).length && { mcpServers }),
     env: sdkEnv(
       { hasRealAuth: !!config.oauthToken, oauthToken: config.oauthToken },
       config.env ?? {},
@@ -133,6 +139,8 @@ export function buildOptions(input: BuildOptionsInput): Options {
       ],
     },
     async canUseTool(tool, toolInput, opts) {
+      if (!mcpGranted(tool, mcp, Object.keys(perSession)))
+        return { behavior: "deny", message: "tool not granted to this bot" };
       const denied = floorCheck({ tool, input: toolInput }, floor);
       if (denied) return { behavior: "deny", message: denied };
       try {

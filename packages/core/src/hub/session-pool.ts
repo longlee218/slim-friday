@@ -95,6 +95,7 @@ export class SessionPool {
           bot.name,
         );
       },
+      currentConversation: () => (ref.entry?.busy ? ref.entry.current.conversationId : undefined),
     };
     const stored = await this.store.sessions.get(bot.id);
     let session: BotSession | undefined;

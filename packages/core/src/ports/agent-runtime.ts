@@ -35,6 +35,8 @@ export interface BotRuntimeSpec {
   bot: Bot;
   /** The runtime calls this before each tool call it cannot settle itself. */
   decide(call: RuntimeToolCall): Promise<ToolDecision>;
+  /** The conversation of the turn in progress (undefined between turns); tools use it to find their scope. */
+  currentConversation?: () => ConversationId | undefined;
 }
 
 /** A long-lived conversation with one bot. */

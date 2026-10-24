@@ -188,3 +188,35 @@ test("a workspace that reaches the agent home by `..` or a symlink is refused", 
   for (const w of [join(base, "x", "..", "home", "data"), join(link, "data"), link])
     expect(() => build(spec(bot({ workspaces: [w] })).s)).toThrow("agent home");
 });
+
+// MCP: built-in names go to `tools`, `mcp__` names pick servers; per-session servers come from the app.
+const mcpConfig = {
+  ...config,
+  mcpServers: {
+    playwright: { type: "stdio" as const, command: "npx" },
+    other: { type: "stdio" as const, command: "x" },
+  },
+  mcpServersFor: () => ({ memory: { type: "stdio" as const, command: "mem" } }),
+};
+const buildMcp = (tools: string[], s = spec(bot({ tools }))) =>
+  buildOptions({ spec: s.s, config: mcpConfig, abort: new AbortController(), scratchDir: scratch });
+
+test("mcp names pick servers and never reach the built-in tools list; an unknown server is ignored", () => {
+  const o = buildMcp(["Read", "mcp__playwright__browser_navigate", "mcp__ghost"]);
+  expect(o.tools).toEqual(["Read"]);
+  expect(Object.keys(o.mcpServers ?? {}).sort()).toEqual(["memory", "playwright"]);
+});
+
+test("an MCP tool the bot did not name is denied before decide; a named or per-session one reaches decide", async () => {
+  const s = spec(bot({ tools: ["mcp__playwright__browser_navigate"] }));
+  const o = buildMcp([], s);
+  const r = await o.canUseTool?.("mcp__playwright__browser_click", {}, opts);
+  expect(r?.behavior).toBe("deny");
+  expect(s.calls).toEqual([]);
+  await o.canUseTool?.("mcp__playwright__browser_navigate", {}, opts);
+  await o.canUseTool?.("mcp__memory__MemorySave", {}, opts);
+  expect(s.calls.map((c) => c.tool)).toEqual([
+    "mcp__playwright__browser_navigate",
+    "mcp__memory__MemorySave",
+  ]);
+});

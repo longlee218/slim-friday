@@ -212,3 +212,14 @@ test("I6: a tool decision made while the session opens (no conversation yet) is 
   expect(early).toEqual({ behavior: "deny", reason: "no conversation to ask in" });
   expect(surface.approvals).toHaveLength(0);
 });
+
+test("the session spec tells the runtime which conversation the bot answers now", async () => {
+  const { runtime, surface } = makeHub();
+  surface.deliver({ conversationId: "dc", text: "hello" });
+  await flush();
+  const s = runtime.nth(0);
+  expect(s.spec.currentConversation?.()).toBe("dc");
+  s.emit({ type: "turn_end", costUsd: 0 });
+  await flush();
+  expect(s.spec.currentConversation?.()).toBeUndefined();
+});
