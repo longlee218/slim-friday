@@ -5,6 +5,7 @@ import { groupsRouter } from "../routers/config/groups-router";
 import { controlRouter } from "../routers/control-router";
 import { conversationsRouter } from "../routers/conversations-router";
 import { eventsRouter } from "../routers/events-router";
+import { opsRouter } from "../routers/ops/ops-router";
 import { ticketsRouter } from "../routers/tickets/tickets-router";
 import { authed } from "./implementer";
 import { type AppRouterInput, type LooseNode, stubHandlers, stubRouter } from "./stub-router";
@@ -28,6 +29,7 @@ export const appRouter = authed.router({
   control: controlRouter,
   events: eventsRouter,
   tickets: ticketsRouter,
+  ops: opsRouter,
 });
 
 /** Sorted dot paths whose handler is still a stub. */

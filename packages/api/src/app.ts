@@ -1,4 +1,4 @@
-import type { BotHub, FileStore, Group, Store } from "@friday/core";
+import type { BotHub, CoreLimits, FileStore, Group, Store } from "@friday/core";
 import type { WebSurface } from "@friday/surface-web";
 import { ORPCError, onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
@@ -34,6 +34,8 @@ export interface ApiDeps {
   cdnUrl?: string;
   /** Every group in the config files (core `Store.groups` has no `list`). */
   listGroups: () => Promise<Group[]>;
+  /** The spend cap the ops view shows (from the loaded config). */
+  limits: Pick<CoreLimits, "maxSpendPerBotPerDayUsd">;
   /** Empty the trash; returns how many entries were removed. */
   purge: () => number;
 }
@@ -41,7 +43,7 @@ export interface ApiDeps {
 /** The fields the engine adds to `ApiDeps` (plan 2). */
 export type EngineDeps = Pick<
   ApiDeps,
-  "hub" | "store" | "surface" | "files" | "purge" | "listGroups"
+  "hub" | "store" | "surface" | "files" | "purge" | "listGroups" | "limits"
 >;
 
 /** Build the HTTP app: log, CORS, Origin check, then health, auth and the owner-only RPC. */

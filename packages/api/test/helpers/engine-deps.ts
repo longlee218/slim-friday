@@ -84,5 +84,13 @@ export function engineHarness() {
 /** Just the engine fields of `ApiDeps`, over the same fakes (for tests that build the app themselves). */
 export function fakeEngine(): EngineDeps {
   const { hub, store, surface, files } = engineHarness();
-  return { hub, store, surface, files, purge: () => 0, listGroups: async () => [] };
+  return {
+    hub,
+    store,
+    surface,
+    files,
+    purge: () => 0,
+    listGroups: async () => [],
+    limits: { maxSpendPerBotPerDayUsd: 10 },
+  };
 }
