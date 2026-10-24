@@ -56,6 +56,10 @@ export class FileConfig {
   /** Every group of the current snapshot (the channel sync needs the list). */
   listGroups = async (): Promise<Group[]> => [...this.snapshot.groups.values()];
 
+  /** Ids of the groups `botId` is a member of (sync: read when a session opens). */
+  groupIdsOf = (botId: string): string[] =>
+    [...this.snapshot.groups.values()].filter((g) => g.members.includes(botId)).map((g) => g.id);
+
   /** The tools and their annotations. */
   readonly catalog: ToolCatalog = { list: async () => this.snapshot.tools };
 

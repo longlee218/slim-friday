@@ -9,6 +9,7 @@ import { logEvent, logger } from "../../../src/observability/logger";
 import { fridayExtraDirs } from "./friday-bot";
 import { memoryFlush } from "./memory-flush";
 import { sessionTools } from "./session-tools";
+import { sharedDirsFor } from "./shared-dirs";
 import { type RuntimeParts, startApp } from "./start-app";
 
 const log = logger.child({ module: "engine" });
@@ -51,7 +52,11 @@ export async function startEngine(
         agentHome,
         scratchRoot: join(agentHome, "scratch"),
         env,
-        extraDirsFor: fridayExtraDirs(configDir, TEMPLATES_DIR),
+        extraDirsFor: (bot) => {
+          const friday = fridayExtraDirs(configDir, TEMPLATES_DIR)(bot);
+          const shared = sharedDirsFor(agentHome, parts.config.groupIdsOf)(bot.id);
+          return { write: [...friday.write, ...shared], read: friday.read };
+        },
         mcpServers: () => parts.config.mcpServers(env).servers,
         mcpServersFor: sessionTools({
           memory: parts.memory,

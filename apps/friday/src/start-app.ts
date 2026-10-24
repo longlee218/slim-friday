@@ -1,13 +1,21 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { DEFAULTS_DIR, FileConfig, TEMPLATES_DIR } from "@friday/config";
-import { type AgentRuntime, BotHub, type Clock, PermissionGate, type Store } from "@friday/core";
+import {
+  type AgentRuntime,
+  type Bot,
+  BotHub,
+  type Clock,
+  PermissionGate,
+  type Store,
+} from "@friday/core";
 import { openEngineStore } from "@friday/store-sqlite";
 import { type DiscordPort, DiscordSurface, syncChannels } from "@friday/surface-discord";
 import { FileMemory, pruneJournals } from "@friday/tools";
 import { appCommands } from "./app-commands";
 import { AVATARS_DIR, resolveAvatar } from "./avatars";
 import { withFridayDirs } from "./friday-bot";
+import { sharedDirsFor, withSharedDirs } from "./shared-dirs";
 import { systemClock } from "./system-clock";
 
 /** How often quiet sessions are closed. */
@@ -69,14 +77,17 @@ export async function startApp(deps: AppDeps) {
   mkdirSync(join(agentHome, "data"), { recursive: true });
   const engine = openEngineStore(join(agentHome, "data", "engine.db"));
   // Bots and groups come from files; the Friday bot also gets its real dirs.
+  /** A bot with its real dirs filled in: the Friday bot's config dirs, and the shared folders of its groups. */
+  const withBotDirs = (b: Bot): Bot =>
+    withSharedDirs(withFridayDirs(b, dirs), sharedDirsFor(agentHome, config.groupIdsOf)(b.id));
   const store: Store = {
     ...engine,
     bots: {
       get: async (id) => {
         const b = await config.bots.get(id);
-        return b && withFridayDirs(b, dirs);
+        return b && withBotDirs(b);
       },
-      list: async () => (await config.bots.list()).map((b) => withFridayDirs(b, dirs)),
+      list: async () => (await config.bots.list()).map(withBotDirs),
     },
     groups: config.groups,
   };

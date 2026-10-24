@@ -133,3 +133,16 @@ test("a file that fails on the very first load is just a problem", async () => {
   expect(problems).toHaveLength(1);
   expect(await config.bots.get("b")).toBeUndefined();
 });
+
+test("groupIdsOf lists the groups a bot is a member of, from the current snapshot", () => {
+  const dir = newDir();
+  put(dir, "ann", botText("Ann"));
+  put(dir, "bob", botText("Bob"));
+  mkdirSync(join(dir, "groups"), { recursive: true });
+  writeFileSync(join(dir, "groups", "duo.yaml"), "name: Duo\nmembers: [ann, bob]\nentryBot: ann\n");
+  writeFileSync(join(dir, "groups", "solo.yaml"), "name: Solo\nmembers: [bob]\nentryBot: bob\n");
+  const { config } = make(dir);
+  expect(config.groupIdsOf("ann")).toEqual(["duo"]);
+  expect(config.groupIdsOf("bob").sort()).toEqual(["duo", "solo"]);
+  expect(config.groupIdsOf("nobody")).toEqual([]);
+});
