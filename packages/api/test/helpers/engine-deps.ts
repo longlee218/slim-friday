@@ -63,7 +63,7 @@ export function engineHarness() {
     purge: () => 0,
     listGroups: async () => [...store.groupMap.values()],
     now: () => clock.now(),
-    limits: { maxSpendPerBotPerDayUsd: 10 },
+    limits: () => ({ maxSpendPerBotPerDayUsd: 10 }),
     log,
   } as unknown as ApiDeps;
   const client = createRouterClient(appRouter, {
@@ -91,6 +91,6 @@ export function fakeEngine(): EngineDeps {
     files,
     purge: () => 0,
     listGroups: async () => [],
-    limits: { maxSpendPerBotPerDayUsd: 10 },
+    limits: () => ({ maxSpendPerBotPerDayUsd: 10 }),
   };
 }

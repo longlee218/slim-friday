@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import type { WakeRow } from "@friday/core";
+import type { ApiDeps } from "../src/index";
 import { engineHarness } from "./helpers/engine-deps";
 
 /** A wake row with only the fields a test varies. */
@@ -41,6 +42,16 @@ test("spend returns the rows and the cap from deps", async () => {
     rows: [{ botId: "a", day: "2026-10-02", usd: 1.5 }],
     capPerBotPerDayUsd: 10,
   });
+});
+
+test("spend reads the cap on every call (a config reload shows at once)", async () => {
+  const h = engineHarness();
+  let cap = 10;
+  // CoreLimits types the cap as its default literal; a reloaded config holds any number.
+  h.deps.limits = () => ({ maxSpendPerBotPerDayUsd: cap }) as ReturnType<ApiDeps["limits"]>;
+  cap = 25;
+  const r = await h.client.ops.spend({ from: "2026-10-01", to: "2026-10-05" });
+  expect(r.capPerBotPerDayUsd).toBe(25);
 });
 
 test("wakes filters by status and since, newest first, with no text", async () => {

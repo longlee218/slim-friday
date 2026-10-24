@@ -164,7 +164,7 @@ export async function startEngine(
       files,
       purge: () => purgeTrash(agentHome),
       listGroups: app.config.listGroups,
-      limits: app.config.limits(),
+      limits: () => app.config.limits(),
     },
   }).catch(async (err) => {
     surface.cancelAll();

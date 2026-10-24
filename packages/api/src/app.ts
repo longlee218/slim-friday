@@ -34,8 +34,8 @@ export interface ApiDeps {
   cdnUrl?: string;
   /** Every group in the config files (core `Store.groups` has no `list`). */
   listGroups: () => Promise<Group[]>;
-  /** The spend cap the ops view shows (from the loaded config). */
-  limits: Pick<CoreLimits, "maxSpendPerBotPerDayUsd">;
+  /** The spend cap the ops view shows, read on every call (follows a config reload). */
+  limits: () => Pick<CoreLimits, "maxSpendPerBotPerDayUsd">;
   /** Empty the trash; returns how many entries were removed. */
   purge: () => number;
 }

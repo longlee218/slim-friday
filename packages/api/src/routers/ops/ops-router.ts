@@ -36,7 +36,7 @@ export const opsRouter = {
       throw errors.BAD_REQUEST({ message: `Range is longer than ${MAX_SPEND_DAYS} days.` });
     return {
       rows: await context.deps.store.spend.range(input.from, input.to),
-      capPerBotPerDayUsd: context.deps.limits.maxSpendPerBotPerDayUsd,
+      capPerBotPerDayUsd: context.deps.limits().maxSpendPerBotPerDayUsd,
     };
   }),
 };
