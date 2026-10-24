@@ -82,8 +82,9 @@ export function PhoneTicketsTab() {
   const [segment, setSegment] = useState<PhoneSegment>("open");
   const scroll = useRef<HTMLDivElement>(null);
   const index = SEGMENTS.findIndex((s) => s.id === segment);
+  const inSegment = tickets.filter((t) => phoneSegment(t) === segment);
   const sections = SECTIONS[segment]
-    .map((status) => ({ status, items: tickets.filter((t) => t.status === status) }))
+    .map((status) => ({ status, items: inSegment.filter((t) => t.status === status) }))
     .filter((s) => s.items.length > 0);
 
   return (

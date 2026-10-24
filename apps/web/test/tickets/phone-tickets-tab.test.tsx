@@ -90,8 +90,8 @@ test("a row pushes the ticket view, whose back reads Tickets", async () => {
   await userEvent.click(await screen.findByText("Fix the build"));
   expect(router.state.location.pathname).toBe("/tickets/FRI-2");
   api.get.mockResolvedValue({ ticket: TICKETS[1], timeline: [], related: [] });
-  const back = await screen.findAllByRole("button", { name: "Tickets" });
-  expect(back.length).toBeGreaterThan(0);
+  const nav = document.querySelector(".ios-nav.solid .back")?.closest(".ios-nav") as HTMLElement;
+  expect(await within(nav).findByRole("button", { name: "Tickets" })).toBeTruthy();
 });
 
 test("the status bottom sheet saves the picked status", async () => {
@@ -129,4 +129,29 @@ test("the comment box posts a comment", async () => {
   await userEvent.type(await screen.findByLabelText("Comment"), "hello");
   await userEvent.click(screen.getByRole("button", { name: "Send comment" }));
   await waitFor(() => expect(api.comment).toHaveBeenCalledWith({ ref: "FRI-1", text: "hello" }));
+});
+
+test("Blocked on the phone asks why, then saves status and reason", async () => {
+  const t = TICKETS[0] as (typeof TICKETS)[number];
+  api.get.mockResolvedValue({ ticket: t, timeline: [], related: [] });
+  api.update.mockResolvedValue({
+    ...t,
+    status: "blocked",
+    blockedReason: "No keys",
+    updatedAt: 11,
+  });
+  renderPhone(withTickets(phoneClient()), "/tickets/FRI-1");
+  await userEvent.click(await screen.findByRole("button", { name: "Status" }));
+  await userEvent.click(within(await screen.findByRole("dialog")).getByText("Blocked"));
+  expect(api.update).not.toHaveBeenCalled();
+  await userEvent.type(screen.getByLabelText("Why blocked?"), "No keys");
+  await userEvent.click(screen.getByRole("button", { name: "Block" }));
+  await waitFor(() =>
+    expect(api.update).toHaveBeenCalledWith({
+      ref: "FRI-1",
+      status: "blocked",
+      blockedReason: "No keys",
+      expectedUpdatedAt: 10,
+    }),
+  );
 });

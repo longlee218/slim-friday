@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { ArrowUp, ChevronRight, Link as LinkIcon, MessageCircle, Users } from "lucide-react";
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { orpc } from "../../api/client";
@@ -12,14 +12,12 @@ import { useBackLabel } from "../phone/phone-shell";
 import { taskIndexAtLine, toggleTask } from "./task-list";
 import { TicketDetail } from "./ticket-detail";
 import { TicketTimeline } from "./ticket-timeline";
-import { useCommentTicket } from "./use-comment-ticket";
+import { useCommentDraft } from "./use-comment-draft";
 import { useUpdateTicket } from "./use-update-ticket";
 
 /** Comment composer pinned under the scroll body (prototype `.ios-composer`). */
 function CommentComposer({ ticketRef }: { ticketRef: string }) {
-  const comment = useCommentTicket(ticketRef);
-  const [text, setText] = useState("");
-  const body = text.trim();
+  const { text, setText, disabled, send } = useCommentDraft(ticketRef);
   return (
     <div className="ios-composer">
       <div className="box">
@@ -34,8 +32,8 @@ function CommentComposer({ ticketRef }: { ticketRef: string }) {
           type="button"
           className="send"
           aria-label="Send comment"
-          disabled={!body || comment.isPending}
-          onClick={() => comment.mutate(body, { onSuccess: () => setText("") })}
+          disabled={disabled}
+          onClick={send}
         >
           <ArrowUp />
         </button>
@@ -117,7 +115,13 @@ export function PhoneTicketView({ ticketRef }: { ticketRef: string }) {
         ref={scroll}
         style={{ paddingTop: "calc(var(--safe-t) + 60px)" }}
       >
-        <div style={{ padding: "6px 16px 14px", font: "650 22px/1.25 var(--font-display)" }}>
+        <div
+          style={{
+            padding: "6px 16px 14px",
+            font: "650 22px/1.25 var(--font-display)",
+            letterSpacing: "-0.02em",
+          }}
+        >
           {t.title}
         </div>
         <div className="inset ph-props" style={{ padding: "2px 16px" }}>
@@ -152,7 +156,7 @@ export function PhoneTicketView({ ticketRef }: { ticketRef: string }) {
           <TicketTimeline items={get.data?.timeline ?? []} />
         </div>
         <div className="inset">
-          <button type="button" className="irow danger" onClick={close}>
+          <button type="button" className="irow danger" disabled={update.isPending} onClick={close}>
             <div className="grow" style={{ textAlign: "center" }}>
               Close ticket
             </div>

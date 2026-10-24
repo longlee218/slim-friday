@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { ChevronRight, Link as LinkIcon, MessageCircle } from "lucide-react";
-import { useState } from "react";
 import { orpc } from "../../api/client";
 import { useDirectory } from "../../api/directory";
 import { BotMarkdown } from "../markdown/bot-markdown";
@@ -12,17 +11,12 @@ import { taskIndexAtLine, taskProgress, toggleTask } from "./task-list";
 import { TicketSide } from "./ticket-side";
 import { PriorityPill } from "./ticket-status";
 import { TicketTimeline } from "./ticket-timeline";
-import { useCommentTicket } from "./use-comment-ticket";
+import { useCommentDraft } from "./use-comment-draft";
 import { useUpdateTicket } from "./use-update-ticket";
 
 /** Comment box under the activity; posting wakes the assignee on the server. */
 function CommentBox({ ticketRef, assignee }: { ticketRef: string; assignee?: string }) {
-  const comment = useCommentTicket(ticketRef);
-  const [text, setText] = useState("");
-  const send = () => {
-    const body = text.trim();
-    if (body) comment.mutate(body, { onSuccess: () => setText("") });
-  };
+  const { text, setText, disabled, send } = useCommentDraft(ticketRef);
   return (
     <div className="tp-comment">
       <textarea
@@ -34,7 +28,7 @@ function CommentBox({ ticketRef, assignee }: { ticketRef: string; assignee?: str
         onChange={(e) => setText(e.target.value)}
       />
       <div className="acts">
-        <Button variant="primary" disabled={!text.trim() || comment.isPending} onClick={send}>
+        <Button variant="primary" disabled={disabled} onClick={send}>
           Comment
         </Button>
       </div>
