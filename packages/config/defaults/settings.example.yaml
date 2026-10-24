@@ -29,13 +29,18 @@ autonomy:
 # projectsDir: ~/friday-projects
 
 ## --- Limits ------------------------------------------------------------------------
-# limits:
+## A limit line works only under `limits:` (keep its two-space indent). A bad file is refused whole and logged as
+## `config.problem`.
+limits:
+  ## Daily budget of each bot in USD (estimated at API prices, also on an OAuth plan); over it, new messages to
+  ## that bot are refused with "spend limit reached" until the next day.
+  maxSpendPerBotPerDayUsd: 10
   ## Longest chain of bot-to-bot hand-offs after one message of yours.
   # maxHops: 8
+  ## Most messages bots post in one conversation per hour.
   # maxBotMessagesPerConversationPerHour: 60
   ## The same sender, target and text inside this window counts as a repeat (ms).
   # repeatWindowMs: 600000
-  # maxSpendPerBotPerDayUsd: 10
   ## An unanswered approval card is a deny after this long (ms).
   # approvalTimeoutMs: 600000
   ## A quiet session is closed (and its notes flushed) after this long (ms).
