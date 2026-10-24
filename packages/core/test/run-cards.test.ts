@@ -34,7 +34,8 @@ test("ask writes one card and parks the run, worker freed", async () => {
   expect(h.store.cardMap.get(h.cardId)?.status).toBe("open");
   expect(wakes(h)[0]).toMatchObject({ status: "waiting_input", cardId: h.cardId });
   expect(h.first.stopped).toBe(true);
-  expect(h.hub.status()).toEqual([]);
+  // Parked, not busy: the row is listed as parked.
+  expect(await h.hub.status()).toMatchObject([{ botId: "editor", busy: false, parked: true }]);
   expect([...h.store.attemptMap.values()].map((a) => a.status)).toEqual(["parked"]);
 });
 

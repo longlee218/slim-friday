@@ -26,7 +26,16 @@ const claimable = (bootId: string, now: number) => sql`(
 /** The claim, lease, fence and scope queries of the run queue (the rest of `Store["wakes"]`). */
 export function runClaim(
   db: BunSQLiteDatabase,
-): Pick<Store["wakes"], "claimNext" | "transition" | "renew" | "activeInScope"> {
+): Pick<
+  Store["wakes"],
+  | "claimNext"
+  | "transition"
+  | "renew"
+  | "activeInScope"
+  | "activeOfBot"
+  | "activeOfGroup"
+  | "inFlight"
+> {
   return {
     async claimNext({ owner, bootId, now, leaseMs }) {
       // IMMEDIATE takes the write lock first, so two connections cannot pick the same row.
@@ -96,6 +105,40 @@ export function runClaim(
         .select()
         .from(wakes)
         .where(and(eq(wakes.scopeKey, scopeKey), inArray(wakes.status, ACTIVE)))
+        .orderBy(asc(wakes.createdAt), asc(wakes.id))
+        .all()
+        .map(fromRow);
+    },
+    async activeOfBot(botId) {
+      return db
+        .select()
+        .from(wakes)
+        .where(and(eq(wakes.targetBot, botId), inArray(wakes.status, ACTIVE)))
+        .orderBy(asc(wakes.createdAt), asc(wakes.id))
+        .all()
+        .map(fromRow);
+    },
+    async activeOfGroup(groupId) {
+      // Scope keys end in `@<groupId>` (ids never contain `@`); a suffix compare needs no LIKE escaping.
+      const suffix = `@${groupId}`;
+      return db
+        .select()
+        .from(wakes)
+        .where(
+          and(
+            sql`substr(${wakes.scopeKey}, -${suffix.length}) = ${suffix}`,
+            inArray(wakes.status, ACTIVE),
+          ),
+        )
+        .orderBy(asc(wakes.createdAt), asc(wakes.id))
+        .all()
+        .map(fromRow);
+    },
+    async inFlight() {
+      return db
+        .select()
+        .from(wakes)
+        .where(inArray(wakes.status, ["leased", "running", "waiting_input"]))
         .orderBy(asc(wakes.createdAt), asc(wakes.id))
         .all()
         .map(fromRow);

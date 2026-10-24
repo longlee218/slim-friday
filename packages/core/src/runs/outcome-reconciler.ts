@@ -3,6 +3,7 @@ import type { WakeRow } from "../domain/wake";
 import type { HubContext } from "../hub/hub-context";
 import { errText } from "../hub/hub-types";
 import { outcomeKey, returnOutcome } from "./outcome-outbox";
+import { withdrawCardsOfCancelled } from "./run-card-withdraw";
 import { settleSteering } from "./run-continuation";
 import { HOLD_UNTIL } from "./run-create";
 import { holdOrContinue } from "./run-steering";
@@ -144,7 +145,7 @@ async function returnPendingOutcomes(ctx: HubContext): Promise<void> {
   );
 }
 
-/** One reconcile pass: the four repairs in order; a failing repair is logged and the next one still runs. */
+/** One reconcile pass: the repairs in order (the last withdraws cards of cancelled runs); a failing repair is logged and the next one still runs. */
 export async function reconcileOnce(ctx: HubContext, state: ReconcileState): Promise<void> {
   const steps = [
     releaseStaleHeld,
@@ -152,6 +153,7 @@ export async function reconcileOnce(ctx: HubContext, state: ReconcileState): Pro
     (c: HubContext) => continueHeldScopes(c, state),
     (c: HubContext) => pruneStuck(c, state),
     returnPendingOutcomes,
+    withdrawCardsOfCancelled,
   ];
   for (const step of steps) {
     try {

@@ -8,10 +8,11 @@ import type { ApprovalAnswer, InboundMessage } from "../ports/surface";
 import { ChainGuard } from "../routing/chain-guard";
 import { startOutcomeReconciler } from "../runs/outcome-reconciler";
 import { type AnswerCardResult, answerCard, remindWaitingCards } from "../runs/run-card-answer";
-import { abortRun, type RunExec } from "../runs/run-exec";
+import { applyConfigChange, type ConfigChange } from "../runs/run-config-change";
 import { InProcessHints } from "../runs/run-hints";
 import { intakeOwnerMessage } from "../runs/run-intake";
 import { LocalRunner } from "../runs/run-local-runner";
+import { stopScope } from "../runs/run-stop";
 import type { Ticket } from "../tickets/ticket";
 import { TicketBoard } from "../tickets/ticket-board";
 import { sendFromSession } from "./bot-messaging";
@@ -84,21 +85,17 @@ export class BotHub implements BotMessenger {
   }
 
   /**
-   * Stop the runs this process executes for a bot: all of them, only the direct one (`"direct"`), or only the
-   * one for group `only`. Each is cancelled and its session (with its background tasks) stopped; resolves once
-   * they have ended, including runs whose session is still opening.
+   * Stop the runs of a bot (any process): all of them, only the direct one (`"direct"`), or only the one for
+   * group `only`. Queued and parked runs are cancelled too, their cards withdrawn, and the sessions of runs in
+   * this process stopped before this resolves. Returns how many runs were cancelled.
    */
-  async stop(botId: BotId, only?: "direct" | GroupId): Promise<void> {
-    await this.stopWhere(
-      (e) =>
-        e.bot.id === botId &&
-        (only === undefined || (only === "direct" ? !e.groupId : e.groupId === only)),
-    );
+  async stop(botId: BotId, only?: "direct" | GroupId): Promise<number> {
+    return (await stopScope(this.ctx, { botId, ...(only && { only }) })).stopped;
   }
 
-  /** Stop the runs of every member in group `groupId` (their direct runs go on). */
-  async stopGroup(groupId: GroupId): Promise<void> {
-    await this.stopWhere((e) => e.groupId === groupId);
+  /** Stop the runs of every member in group `groupId` (their direct runs go on). Returns how many were cancelled. */
+  async stopGroup(groupId: GroupId): Promise<number> {
+    return (await stopScope(this.ctx, { groupId })).stopped;
   }
 
   /** Shut down: abort every run of this process (their rows stay claimable) and stop claiming. */
@@ -106,23 +103,33 @@ export class BotHub implements BotMessenger {
     await this.runner?.stop();
   }
 
-  /** Cancel the matching runs and wait until their executions have ended. */
-  private async stopWhere(match: (e: RunExec) => boolean): Promise<void> {
-    const hit = [...this.ctx.runs.values()].filter(match);
-    for (const e of hit) abortRun(e, { kind: "stopped" });
-    await Promise.all(hit.map((e) => e.ended));
+  /** Apply a config reload to the stored runs: removed bots and groups are cancelled, changed scopes reset. */
+  configChanged(change: ConfigChange): Promise<void> {
+    return applyConfigChange(this.ctx, change);
   }
 
-  /** One entry per run executing in this process. */
-  status(): BotStatus[] {
-    return [...this.ctx.runs.values()].map((e) => ({
-      botId: e.bot.id,
-      ...(e.groupId && { groupId: e.groupId }),
-      sessionId: e.session?.id ?? "",
-      busy: e.turnOpen,
-      openedAt: e.openedAt,
-      tasks: [...e.tasks].map(([taskId, t]) => ({ taskId, description: t.description })),
-    }));
+  /** One entry per run a worker holds or that is parked on a card, read from the rows (any process). */
+  async status(): Promise<BotStatus[]> {
+    const rows = await this.deps.store.wakes.inFlight();
+    return Promise.all(
+      rows.map(async (w) => {
+        const at = w.scopeKey.indexOf("@");
+        // Background tasks live in the executing process; only a run of this process knows them.
+        const local = [...this.ctx.runs.values()].find((e) => e.row.id === w.id);
+        return {
+          botId: w.targetBot,
+          ...(at >= 0 && { groupId: w.scopeKey.slice(at + 1) }),
+          sessionId: (await this.deps.store.sessions.get(w.scopeKey)) ?? "",
+          busy: w.status !== "waiting_input",
+          parked: w.status === "waiting_input",
+          openedAt: w.startedAt ?? w.createdAt,
+          tasks: [...(local?.tasks ?? [])].map(([taskId, t]) => ({
+            taskId,
+            description: t.description,
+          })),
+        };
+      }),
+    );
   }
 
   /** The owner answers card `cardId` (web button): the run is requeued, or told in place while it still runs. */

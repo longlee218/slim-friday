@@ -28,7 +28,7 @@ test("sweepIdle reports a quiet scope's conversations and its last flush time, o
   await hub.sweepIdle();
   // Never flushed before: the messages since the run was created (incl. its trigger) are new, not the whole history.
   expect(seen).toEqual([{ botId: "editor", key: "editor", conversationIds: ["dc"], since: 999 }]);
-  expect(hub.status()).toEqual([]);
+  expect(await hub.status()).toEqual([]);
   await hub.sweepIdle();
   expect(seen).toHaveLength(1);
 });
@@ -64,6 +64,6 @@ test("a hook that throws is logged and the session still closes", async () => {
   clock.advance(CORE_DEFAULTS.idleCloseMs);
   await hub.sweepIdle();
   await flush();
-  expect(hub.status()).toEqual([]);
+  expect(await hub.status()).toEqual([]);
   expect(log.of("hub.idle_close_hook")).toHaveLength(1);
 });

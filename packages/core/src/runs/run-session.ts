@@ -30,14 +30,16 @@ export interface OpenedRunSession {
 /**
  * Open the scope's session for one run. What goes into the system prompt is read fresh: the bot memory (a
  * group scope gets only the bot's preferences and lessons) and, for a group scope, the group context and memory. The stored session id is resumed, else a new session opens; a stored id that will
- * not resume is cleared. A scope marked `resetPending` gets a fresh session, unless it has an open card (a parked
- * approval keeps its own session until it is resolved); the mark and the stored effort are cleared then. A session that will not open
+ * not resume is cleared. A scope marked `resetPending` gets a fresh session, unless it has an open card or the run resumes a card's answer (a parked
+ * approval keeps its own session until it is resolved and resumed); the mark and the stored effort are cleared then. A session that will not open
  * (workspace, MCP server, runtime start) throws `SetupError`, so the run is retried as a setup failure.
  */
 export async function openRunSession(
   d: RunSessionDeps,
   scope: SessionScope,
   spec: Omit<BotRuntimeSpec, "memory">,
+  /** The run resumes a card's answer: it keeps its own session, so a pending reset waits for a later open. */
+  resumesCard = false,
 ): Promise<OpenedRunSession> {
   const { store } = d;
   // A memory that cannot be read must not keep the bot from answering.
@@ -56,7 +58,9 @@ export async function openRunSession(
     : undefined;
   const state = await store.scopes.get(scope.key);
   const fresh =
-    state?.resetPending === true && (await store.cards.openForScope(scope.key)).length === 0;
+    state?.resetPending === true &&
+    !resumesCard &&
+    (await store.cards.openForScope(scope.key)).length === 0;
   const full: BotRuntimeSpec = {
     ...spec,
     // A fresh session starts at the bot's own effort, not the old session's SetEffort level.

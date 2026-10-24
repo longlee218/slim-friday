@@ -200,6 +200,12 @@ export interface Store {
     renew(id: string, owner: string, fence: number, until: number): Promise<boolean>;
     /** Queued, leased, running and waiting_input rows of a scope, oldest first. */
     activeInScope(scopeKey: string): Promise<WakeRow[]>;
+    /** Queued, leased, running and waiting_input rows targeting bot `botId` (any scope), oldest first. */
+    activeOfBot(botId: BotId): Promise<WakeRow[]>;
+    /** The same rows of every group scope `<botId>@<groupId>` of group `groupId`, oldest first. */
+    activeOfGroup(groupId: GroupId): Promise<WakeRow[]>;
+    /** Rows a worker holds or that are parked: leased, running and waiting_input, oldest first (the status view). */
+    inFlight(): Promise<WakeRow[]>;
     /**
      * Finished runs whose outcome still has to go back to the bot that sent them: status done, failed,
      * interrupted, cancelled, expired or dropped; sender a bot; intent request or question; not a hand-off;

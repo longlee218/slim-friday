@@ -5,14 +5,14 @@ import type { ApiDeps } from "../app";
 const utcDay = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
 /**
- * One entry per bot with an open session: `working` when any of its sessions is busy, every
+ * One entry per bot with a run in flight (running or parked on a card): `working` when any of its runs is busy, every
  * background task, the first task as `label`, today's spend and the oldest session's start.
  */
 export async function botStatusDtos(
   deps: Pick<ApiDeps, "hub" | "store" | "now">,
 ): Promise<BotStatusDto[]> {
-  const byBot = new Map<string, ReturnType<ApiDeps["hub"]["status"]>>();
-  for (const s of deps.hub.status()) byBot.set(s.botId, [...(byBot.get(s.botId) ?? []), s]);
+  const byBot = new Map<string, Awaited<ReturnType<ApiDeps["hub"]["status"]>>>();
+  for (const s of await deps.hub.status()) byBot.set(s.botId, [...(byBot.get(s.botId) ?? []), s]);
   const day = utcDay(deps.now());
   return Promise.all(
     [...byBot].map(async ([botId, sessions]) => {

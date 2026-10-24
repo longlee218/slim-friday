@@ -299,7 +299,24 @@ export class FakeStore implements Store {
         )
         .sort((a, b) => a.createdAt - b.createdAt)
         .map((w) => ({ ...w })),
+    activeOfBot: async (botId: string) => this.activeRows((w) => w.targetBot === botId),
+    activeOfGroup: async (groupId: string) =>
+      this.activeRows((w) => w.scopeKey.endsWith(`@${groupId}`)),
+    inFlight: async () =>
+      [...this.wakeMap.values()]
+        .filter((w) => ["leased", "running", "waiting_input"].includes(w.status))
+        .sort((a, b) => a.createdAt - b.createdAt)
+        .map((w) => ({ ...w })),
   };
+  /** Copies of the active rows (queued, leased, running, waiting_input) that match, oldest first. */
+  private activeRows(match: (w: WakeRow) => boolean): WakeRow[] {
+    return [...this.wakeMap.values()]
+      .filter(
+        (w) => match(w) && ["queued", "leased", "running", "waiting_input"].includes(w.status),
+      )
+      .sort((a, b) => a.createdAt - b.createdAt)
+      .map((w) => ({ ...w }));
+  }
   /** Attempts by id, for assertions. */
   attemptMap = new Map<string, Record<string, unknown>>();
   attempts = {

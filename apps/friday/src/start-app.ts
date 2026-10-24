@@ -151,7 +151,7 @@ async function composeApp(deps: AppDeps, opened: Array<() => unknown>) {
   const stopWatching = watchConfigReload({
     config,
     hub: botHub,
-    engine,
+    store,
     sync,
     log,
     onConfigChanged: deps.onConfigChanged,

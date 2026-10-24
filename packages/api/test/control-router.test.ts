@@ -27,11 +27,11 @@ test("stop with neither id is BAD_REQUEST; unknown ids are NOT_FOUND", async () 
 
 test("stop of a group conversation stops only that group's sessions", async () => {
   const h = await setup();
-  const before = h.hub.status();
+  const before = await h.hub.status();
   const inGroup = before.filter((s) => s.groupId === "g").length;
   expect(inGroup).toBeGreaterThan(0);
   expect(await h.client.control.stop({ conversationId: "group:g" })).toEqual({ stopped: inGroup });
-  const after = h.hub.status();
+  const after = await h.hub.status();
   expect(after.some((s) => s.groupId === "g")).toBe(false);
   expect(after.some((s) => !s.groupId && s.botId === "a")).toBe(true);
 });
@@ -39,10 +39,10 @@ test("stop of a group conversation stops only that group's sessions", async () =
 test("stop of a direct conversation keeps the bot's group session; stop by bot stops all", async () => {
   const h = await setup();
   await h.client.control.stop({ conversationId: "bot:a" });
-  expect(h.hub.status().some((s) => s.botId === "a" && !s.groupId)).toBe(false);
-  expect(h.hub.status().some((s) => s.botId === "a" && s.groupId === "g")).toBe(true);
+  expect((await h.hub.status()).some((s) => s.botId === "a" && !s.groupId)).toBe(false);
+  expect((await h.hub.status()).some((s) => s.botId === "a" && s.groupId === "g")).toBe(true);
   expect((await h.client.control.stop({ botId: "a" })).stopped).toBe(1);
-  expect(h.hub.status().some((s) => s.botId === "a")).toBe(false);
+  expect((await h.hub.status()).some((s) => s.botId === "a")).toBe(false);
 });
 
 test("status shows spendToday, the session start and the bot name", async () => {

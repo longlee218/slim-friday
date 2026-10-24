@@ -54,13 +54,13 @@ test("a group message and a direct message open two sessions with their own scop
   expect(direct.spec.sessionKey).toBe("editor");
   expect(direct.spec.groupId).toBeUndefined();
   expect(direct.spec.bot.workspaces).toEqual(["/own"]);
-  expect(h.hub.status().map((s) => s.groupId)).toEqual(["g", undefined]);
+  expect((await h.hub.status()).map((s) => s.groupId)).toEqual(["g", undefined]);
 });
 
 test("both sessions are busy at once and each answer posts in its own conversation", async () => {
   const h = scoped();
   const [group, direct] = await openBoth(h);
-  expect(h.hub.status().every((s) => s.busy)).toBe(true);
+  expect((await h.hub.status()).every((s) => s.busy)).toBe(true);
   direct.emit({ type: "text", text: "direct answer" });
   group.emit({ type: "text", text: "group answer" });
   await flush();
@@ -77,7 +77,7 @@ test("stop(bot, 'direct') closes only the direct session; stop(bot) closes all",
   expect(group.stopped).toBe(false);
   await h.hub.stop("editor");
   expect(group.stopped).toBe(true);
-  expect(h.hub.status()).toEqual([]);
+  expect(await h.hub.status()).toEqual([]);
 });
 
 test("stopGroup closes the group sessions of every member, not their direct ones", async () => {
@@ -89,7 +89,7 @@ test("stopGroup closes the group sessions of every member, not their direct ones
   await h.hub.stopGroup("g");
   expect(group.stopped && writer.stopped).toBe(true);
   expect(direct.stopped).toBe(false);
-  expect(h.hub.status().map((s) => s.botId)).toEqual(["editor"]);
+  expect((await h.hub.status()).map((s) => s.botId)).toEqual(["editor"]);
 });
 
 test("send by session key reaches a group member; an unknown key is refused", async () => {
@@ -184,7 +184,7 @@ test("stop while the session is still opening leaves no registered session", asy
   release();
   await stopping;
   await flush();
-  expect(h.hub.status()).toEqual([]);
+  expect(await h.hub.status()).toEqual([]);
   expect(h.runtime.nth(0).stopped).toBe(true);
 });
 

@@ -1,6 +1,5 @@
 import type { FileConfig } from "@friday/config";
-import type { BotHub, Log } from "@friday/core";
-import type { EngineStore } from "@friday/store-sqlite";
+import type { BotHub, Log, Store } from "@friday/core";
 
 /** Why a failure happened, as text. */
 const why = (err: unknown): string => (err instanceof Error ? err.message : String(err));
@@ -9,7 +8,8 @@ const why = (err: unknown): string => (err instanceof Error ? err.message : Stri
 export interface ConfigReloadDeps {
   config: FileConfig;
   hub: BotHub;
-  engine: EngineStore;
+  /** The composed store: the bots and groups as the reloaded config now has them. */
+  store: Pick<Store, "bots" | "groups">;
   /** Gives new bots and groups their conversations (queued, one at a time). */
   sync: () => Promise<void>;
   /** Called once the reload has synced (the web surface publishes `config.changed`). */
@@ -18,22 +18,30 @@ export interface ConfigReloadDeps {
 }
 
 /**
- * Watch the config dir. On a change: restart changed bots (every session) and the sessions of groups whose
- * workspaces changed, each with a fresh session id; then sync the conversations and report the change.
- * Returns the stop function.
+ * Watch the config dir. On a change the stored runs follow it (`hub.configChanged`): a removed bot or group has
+ * its queued and parked runs cancelled and its running ones stopped; a changed one gets a fresh session at its
+ * next open (a running run keeps its config, a parked one resumes on its own session). Then the conversations
+ * are synced and the change reported. Returns the stop function.
  */
 export function watchConfigReload(d: ConfigReloadDeps): () => void {
   return d.config.watch((r) => {
     for (const p of r.problems) d.log.warn(p, "config.problem");
     void (async () => {
+      const removedBots: string[] = [];
+      const removedGroups: string[] = [];
+      const resetScopes: string[] = [];
+      // A changed bot: its direct scope and its scope in every group it is a member of.
       for (const id of r.changedBots) {
-        await d.hub.stop(id);
-        await d.engine.sessions.clearBot(id);
+        if (!(await d.store.bots.get(id))) removedBots.push(id);
+        else resetScopes.push(id, ...d.config.groupIdsOf(id).map((g) => `${id}@${g}`));
       }
+      // A changed group: the group scope of each member.
       for (const id of r.changedGroups) {
-        await d.hub.stopGroup(id);
-        await d.engine.sessions.clearGroup(id);
+        const group = await d.store.groups.get(id);
+        if (!group) removedGroups.push(id);
+        else resetScopes.push(...group.members.map((m) => `${m}@${id}`));
       }
+      await d.hub.configChanged({ removedBots, removedGroups, resetScopes });
       await d.sync();
       d.onConfigChanged?.();
     })().catch((err) => d.log.error({ error: why(err) }, "config.reload"));

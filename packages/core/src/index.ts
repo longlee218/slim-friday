@@ -41,6 +41,7 @@ export * from "./routing/group-context";
 export * from "./routing/parse-mentions";
 export * from "./routing/route-message";
 export * from "./runs/run-card-answer";
+export type { ConfigChange } from "./runs/run-config-change";
 export * from "./runs/run-rules";
 export * from "./tickets/ticket";
 export * from "./tickets/ticket-board";

@@ -103,11 +103,17 @@ async function runSession(
     if (exec.stop) return { kind: "stopped" };
     const spec = runSpec(ctx, exec, state?.effort);
     const deps = { ...ctx.deps, limits: ctx.limits };
-    const opened = await untilStop(exec, openRunSession(deps, scope, spec), (o) => {
-      void o.session.stop().catch(() => {});
-    });
-    if (!opened || exec.stop) return { kind: "stopped" };
+    const opened = await untilStop(
+      exec,
+      openRunSession(deps, scope, spec, exec.row.cardId !== undefined),
+      (o) => {
+        void o.session.stop().catch(() => {});
+      },
+    );
+    if (!opened) return { kind: "stopped" };
+    // Registered before the stop check: a stop that landed while the session opened closes it with the run.
     exec.session = opened.session;
+    if (exec.stop) return { kind: "stopped" };
     persistEffort(ctx, exec.key, spec);
     const turn = await untilStop(
       exec,

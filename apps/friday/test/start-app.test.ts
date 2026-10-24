@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { TEMPLATES_DIR } from "@friday/config";
@@ -68,9 +68,9 @@ async function boot(files: Record<string, string> = {}, before?: (home: string) 
 }
 
 /** Wait until `fn` is true (the app reacts to files and messages asynchronously). */
-async function until(fn: () => boolean, ms = 3000) {
-  for (let t = 0; t < ms && !fn(); t += 25) await Bun.sleep(25);
-  expect(fn()).toBe(true);
+async function until(fn: () => boolean | Promise<boolean>, ms = 3000) {
+  for (let t = 0; t < ms && !(await fn()); t += 25) await Bun.sleep(25);
+  expect(await fn()).toBe(true);
 }
 
 test("start: chat-app-keyed conversations are deleted; each bot and group gets its fixed conversation", async () => {
@@ -140,15 +140,32 @@ test("a config reload adds bot:<id> and group:<id> and publishes config.changed"
   expect(texts("group:team")).toEqual(["Group ready: @Ann"]);
 });
 
-test("editing a bot stops its running run's session and forgets the stored session id", async () => {
+test("editing a bot: the running run keeps its session; the next open starts a fresh one", async () => {
   const { home, say, runtime, app, engine } = await boot({ "bots/ann.md": botText("Ann") });
-  // The run stays busy (no turn end), so the edit finds it running.
+  // The first run stays busy (no turn end), so the edit finds it running.
   runtime.onTurn = (s: FakeSession) => s.emit({ type: "text", text: "working" });
   say("bot:ann", "hi");
-  await until(() => runtime.opened.length === 1 && app.hub.status().length === 1);
+  await until(() => runtime.opened.length === 1);
   put(home, { "bots/ann.md": botText("Ann").replace("Be brief.", "Be long.") });
+  await until(async () => (await engine.scopes.get("ann"))?.resetPending === true);
+  // The run was not stopped by the edit.
+  expect(runtime.nth(0).stopped).toBe(false);
+  expect((await app.hub.status()).length).toBe(1);
+  await app.hub.stop("ann");
+  runtime.onTurn = (s: FakeSession) => s.emit({ type: "turn_end", costUsd: 0 });
+  say("bot:ann", "again");
+  await until(() => runtime.opened.length === 2);
+  expect((await engine.scopes.get("ann"))?.resetPending).toBe(false);
+});
+
+test("removing a bot cancels its running run and forgets its session id", async () => {
+  const { home, say, runtime, app, engine } = await boot({ "bots/ann.md": botText("Ann") });
+  runtime.onTurn = (s: FakeSession) => s.emit({ type: "text", text: "working" });
+  say("bot:ann", "hi");
+  await until(() => runtime.opened.length === 1);
+  rmSync(join(home, "config", "bots", "ann.md"));
   await until(() => runtime.nth(0).stopped);
-  await until(() => app.hub.status().length === 0);
+  await until(async () => (await app.hub.status()).length === 0);
   expect(await engine.sessions.get("ann")).toBeUndefined();
 });
 
@@ -196,29 +213,20 @@ test("a bot's saved memory reaches its session spec", async () => {
   expect(runtime.nth(0).spec.memory).toContain("owner likes tea");
 });
 
-test("changing a group's workspaces stops its running run and forgets its session id; the direct one stays", async () => {
+test("changing a group's workspaces marks each member's group scope for a fresh session; the direct one stays", async () => {
   const group = "name: Team\nmembers: [ann]\nentryBot: ann\n";
-  const { home, say, runtime, app, engine } = await boot({
+  const { home, say, runtime, engine } = await boot({
     "bots/ann.md": botText("Ann"),
     "groups/team.yaml": group,
   });
-  // Direct runs end at once; the group run stays busy, so the change finds it running.
-  runtime.onTurn = (s: FakeSession) => {
-    s.emit({ type: "text", text: `reply:${s.spec.bot.name}` });
-    if (!s.spec.groupId) s.emit({ type: "turn_end", costUsd: 0 });
-  };
   say("bot:ann", "hi");
   say("group:team", "hi team");
   await until(() => runtime.opened.length === 2);
-  await until(() => app.hub.status().length === 1 && app.hub.status()[0]?.groupId === "team");
-  expect(await engine.sessions.get("ann@team")).toBeDefined();
   const ws = mkdtempSync(join(tmpdir(), "ws-"));
   put(home, { "groups/team.yaml": `${group}workspaces: [${ws}]\n` });
-  await until(() => app.hub.status().length === 0);
-  const groupSession = runtime.opened.find((s) => s.spec.groupId === "team");
-  expect(groupSession?.stopped).toBe(true);
-  expect(await engine.sessions.get("ann@team")).toBeUndefined();
-  expect(await engine.sessions.get("ann")).toBeDefined();
+  await until(async () => (await engine.scopes.get("ann@team"))?.resetPending === true);
+  expect((await engine.scopes.get("ann"))?.resetPending).toBeFalsy();
+  expect(await engine.sessions.get("ann@team")).toBeDefined();
 });
 
 test("a group session names only its group's roster and shared dir; the direct one names all", async () => {

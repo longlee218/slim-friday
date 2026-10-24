@@ -51,7 +51,10 @@ export interface BotStatus {
   /** The group of a group session; unset for the bot's direct session. */
   groupId?: GroupId;
   sessionId: string;
+  /** A worker holds the run (false: it is parked on a card and no worker is busy with it). */
   busy: boolean;
+  /** The run is parked on an approval or question card. */
+  parked: boolean;
   tasks: { taskId: string; description: string }[];
   /** Epoch ms the session was opened or resumed. */
   openedAt: number;

@@ -65,7 +65,7 @@ test("a crashing session is dropped, a notice is posted, the next message resume
   first.fail(new Error("crash"));
   await flush();
   expect(surface.posts.some((p) => p.message.author.kind === "system")).toBe(true);
-  expect(hub.status()).toEqual([]);
+  expect(await hub.status()).toEqual([]);
   surface.deliver({ conversationId: "dc", text: "two" });
   await flush();
   expect(runtime.resumed).toHaveLength(1);
@@ -77,14 +77,14 @@ test("status lists running tasks; text after task_done goes to the conversation 
   const { runtime, surface, hub, store } = makeHub();
   // A second chat of the same group shares editor's group session.
   store.convMap.set("gc2", { id: "gc2", kind: "group", groupId: "g" });
-  const editorTasks = () =>
-    hub.status().find((r) => r.botId === "editor" && r.groupId === "g")?.tasks;
+  const editorTasks = async () =>
+    (await hub.status()).find((r) => r.botId === "editor" && r.groupId === "g")?.tasks;
   surface.deliver({ conversationId: "gc2", text: "@editor research this" });
   await flush();
   const s = runtime.nth(0);
   s.emit({ type: "task_started", taskId: "t1", description: "dig" });
   await flush();
-  expect(editorTasks()).toEqual([{ taskId: "t1", description: "dig" }]);
+  expect(await editorTasks()).toEqual([{ taskId: "t1", description: "dig" }]);
   s.emit({ type: "turn_end", costUsd: 0 });
   await flush();
   // the same session is now asked in the other chat of the group meanwhile
@@ -97,7 +97,7 @@ test("status lists running tasks; text after task_done goes to the conversation 
   await flush();
   s.emit({ type: "task_done", taskId: "t1", status: "completed", summary: "found" });
   await flush();
-  expect(editorTasks()).toEqual([]);
+  expect(await editorTasks()).toEqual([]);
   s.emit({ type: "text", text: "the research result" });
   await flush();
   expect(surface.posts.at(-1)?.conversationId).toBe("gc2");
@@ -139,7 +139,7 @@ test("sweepIdle closes a quiet session; the next message resumes it", async () =
   clock.advance(CORE_DEFAULTS.idleCloseMs);
   await hub.sweepIdle();
   expect(runtime.opened[0]?.stopped).toBe(true);
-  expect(hub.status()).toEqual([]);
+  expect(await hub.status()).toEqual([]);
   surface.deliver({ conversationId: "dc", text: "two" });
   await flush();
   expect(runtime.resumed).toHaveLength(1);
@@ -163,7 +163,7 @@ test("stop ends the session and status no longer lists it", async () => {
   await flush();
   await hub.stop("editor");
   expect(runtime.opened[0]?.stopped).toBe(true);
-  expect(hub.status()).toEqual([]);
+  expect(await hub.status()).toEqual([]);
 });
 
 test("I1: a message to a busy session waits for the end of its turn; the answer goes where it was asked", async () => {
@@ -219,7 +219,7 @@ test("I3: an error event stops the session so it cannot run twice on one transcr
   runtime.nth(0).emit({ type: "error", message: "boom", retryable: false });
   await flush();
   expect(runtime.nth(0).stopped).toBe(true);
-  expect(hub.status()).toEqual([]);
+  expect(await hub.status()).toEqual([]);
   expect(surface.posts.some((p) => p.message.author.kind === "system")).toBe(true);
 });
 
