@@ -4,9 +4,13 @@ import { dirname, join } from "node:path";
 import { readSkillsLock } from "./skills-lock-hash";
 
 /** Every .ts file under `dir` (relative to the repo root), with its source. */
+/** The app code the scan covered as root `src/` (packages hold new code with legitimate SDK names such as `task_id`). */
+const appSources = () => sources("apps/friday/src");
+
 function sources(dir: string): { file: string; text: string }[] {
   const out: { file: string; text: string }[] = [];
   for (const e of readdirSync(dir, { withFileTypes: true })) {
+    if (e.name === "node_modules") continue;
     const p = join(dir, e.name);
     if (e.isDirectory()) out.push(...sources(p));
     else if (p.endsWith(".ts")) out.push({ file: p, text: readFileSync(p, "utf8") });
@@ -227,7 +231,7 @@ const EXEMPT: string[] = [
 ];
 
 test("src and test hold no retired message / turn / task name", () => {
-  const files = [...sources("src"), ...sources("test")].filter(
+  const files = [...appSources(), ...sources("test")].filter(
     (f) => !EXEMPT.some((e) => f.file.endsWith(e)),
   );
   expect(files.length).toBeGreaterThan(10);
@@ -307,7 +311,7 @@ const ROLE_NAMES: Record<string, RegExp> = {
 
 test("src holds no `dev` or `assistant` role name", () => {
   const hits: string[] = [];
-  for (const f of sources("src"))
+  for (const f of appSources())
     for (const [name, re] of Object.entries(ROLE_NAMES))
       if (re.test(f.text)) hits.push(`${f.file}: ${name}`);
   expect(hits).toEqual([]);
@@ -362,7 +366,7 @@ const OLD_LEAD_EXEMPT = [
 
 test("src, test, living docs and app-owned skills hold no `lead` role or engine name", () => {
   const code = [
-    ...sources("src"),
+    ...appSources(),
     ...sources("test"),
     ...sources("scripts"),
     { file: "package.json", text: readFileSync("package.json", "utf8") },

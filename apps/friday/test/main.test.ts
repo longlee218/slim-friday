@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { loadConfig } from "../../../src/config/agent-config";
+import { loadConfig } from "../src/config/agent-config";
 import { startEngine } from "../src/main";
 
 const full = {

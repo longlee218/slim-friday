@@ -8,8 +8,6 @@
   "files": {
     "ignoreUnknown": false,
     "includes": [
-      "src/**",
-      "!src/storage/migrations",
       "test/**",
       "packages/**",
       "apps/**",
@@ -46,9 +44,7 @@
   },
   "overrides": [
     {
-      "includes": [
-        "test/**"
-      ],
+      "includes": ["test/**", "apps/*/test/**", "packages/*/test/**"],
       "linter": {
         "rules": {
           "style": {

@@ -8,12 +8,12 @@ node_modules
 .claude/
 /plans/*/skill-workspace/
 
-# Pinned native binaries (too big for git; checked by sha256 from src/config/data/pinned-binaries.yaml)
-/pinned-bin/
-
 # frontend assets (owner, ignored for now)
 /public/
 
 # Local tool output (not part of the repo)
 /.impeccable/
 /.playwright-mcp/
+
+# Subagent-driven-development workspace (local progress ledger)
+/.superpowers/

@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   CHILD_ENV_DENY,
   isChildEnvDenied,
-} from "../packages/runtime-claude/src/floor/child-env-deny";
+} from "../../../packages/runtime-claude/src/floor/child-env-deny";
 import { ENV_SCHEMA_KEYS } from "../src/config/agent-config";
 
 describe("child env deny list (config/data/child-env-deny.yaml)", () => {

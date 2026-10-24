@@ -1,5 +1,5 @@
 import { tool } from "@anthropic-ai/claude-agent-sdk";
-import { TICKET_PRIORITIES, TICKET_STATUSES } from "@friday/core";
+import { TICKET_STATUSES } from "@friday/core";
 import { z } from "zod";
 import { textResult } from "../../../tool-result";
 import { resolveBot, type TicketsContext, ticketView } from "../../tickets-context";

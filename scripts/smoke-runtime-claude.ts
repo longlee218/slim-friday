@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Bot, BotRuntimeSpec } from "@friday/core";
 import { ClaudeRuntime } from "@friday/runtime-claude";
-import { HAIKU_MODEL } from "../src/config/model-ids";
+import { HAIKU_MODEL } from "../apps/friday/src/config/model-ids";
 
 const token = Bun.env.CLAUDE_CODE_OAUTH_TOKEN;
 if (!token) throw new Error("CLAUDE_CODE_OAUTH_TOKEN missing (put it in .env)");

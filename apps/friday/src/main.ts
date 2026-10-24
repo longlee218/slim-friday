@@ -7,13 +7,13 @@ import {
   isSensitivePath,
 } from "@friday/runtime-claude";
 import { connectDiscord } from "@friday/surface-discord";
-import type { AgentConfig } from "../../../src/config/agent-config";
-import { HAIKU_SUMMARY_MODEL } from "../../../src/config/model-ids";
-import { readProcessEnv } from "../../../src/config/process-env";
-import { logEvent, logger } from "../../../src/observability/logger";
+import type { AgentConfig } from "./config/agent-config";
+import { HAIKU_SUMMARY_MODEL } from "./config/model-ids";
+import { readProcessEnv } from "./config/process-env";
 import { designContextFor } from "./design-context";
 import { fridayExtraDirs } from "./friday-bot";
 import { memoryFlush } from "./memory-flush";
+import { logEvent, logger } from "./observability/logger";
 import { sessionTools } from "./session-tools";
 import { sharedDirsFor } from "./shared-dirs";
 import { skillDirs } from "./skills-dirs";

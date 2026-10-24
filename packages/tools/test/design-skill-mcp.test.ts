@@ -192,7 +192,7 @@ test("write_skill refuses the lock file name and a case-only clash with an exist
 test("set_mcp refuses references to the engine's own secrets and references outside env and headers", async () => {
   const { ctx } = setup();
   const t = createBotDesignTool(ctx);
-  const ref = (n: string) => "$" + `{${n}}`;
+  const ref = (n: string) => `\${${n}}`;
   const bad = [
     { ...stdio, env: { X: ref("DISCORD_TOKEN") } },
     { ...stdio, env: { X: ref("CLAUDE_CODE_OAUTH_TOKEN") } },

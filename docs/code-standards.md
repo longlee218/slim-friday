@@ -13,8 +13,8 @@ Last updated: 2026-10-24 (after plan 7). Contributor view: [CONTRIBUTING.md](../
 ## Rules
 - Reuse a library before writing custom code. Keep it simple.
 - Comment every exported item and every non-obvious block.
-- Logging: never `console.*` in source; use the shared pino logger (`src/observability/logger.ts`).
-- Env: only `src/config` and `apps/friday` read `process.env`. Packages take the env as an argument.
+- Logging: never `console.*` in source; use the shared pino logger (`apps/friday/src/observability/logger.ts`).
+- Env: only `apps/friday/src/config` reads `process.env`. Packages take the env as an argument.
 - SQL only inside `packages/store-sqlite`.
 - Safety floor is code, not data: path, secret and sandbox rules cannot be changed from config files.
 - Validate input with zod at the edge. Errors name the variable or path, never the secret value.

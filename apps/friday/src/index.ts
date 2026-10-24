@@ -1,8 +1,8 @@
 import { errText } from "@friday/tools";
-import { startEngine } from "../apps/friday/src/main";
 import type { AgentConfig } from "./config/agent-config";
 import { bootFriday } from "./lifecycle/boot";
 import { loadBootState } from "./lifecycle/boot-checks";
+import { startEngine } from "./main";
 import { flushAxiom, logEvent, logger } from "./observability/logger";
 
 const log = logger.child({ module: "index" });

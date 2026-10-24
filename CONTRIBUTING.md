@@ -22,7 +22,7 @@ Scan tests enforce these (`packages/*/test/boundary.test.ts`):
 
 - `core` imports only itself. It defines the ports.
 - `runtime-claude`, `surface-discord`, `store-sqlite`, `tools` import `core` and their own libraries (the SDK, discord.js, drizzle, zod) and node. They never import each other.
-- `config` and `apps/friday` compose them. Only `src/config` and `apps/friday` read `process.env`.
+- `config` and `apps/friday` compose them. Only `apps/friday/src/config` reads `process.env`.
 - SQL lives only in `store-sqlite`. No `console.*` in source: use the shared pino logger.
 
 ## Adding a tool

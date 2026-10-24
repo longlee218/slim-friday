@@ -1,11 +1,12 @@
 import { expect, test } from "bun:test";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
+import { Glob } from "bun";
 
-// Logging goes through pino only; this guards src/ against console.* creeping in.
-test("no console.* in src/", async () => {
-  const proc = Bun.spawn(["grep", "-rn", "console\\.", join(import.meta.dir, "..", "src")], {
-    stdout: "pipe",
-  });
-  const out = await new Response(proc.stdout).text();
-  expect(out).toBe("");
+// Logging goes through pino only; this guards apps/ and packages/ source against console.* creeping in.
+test("no console.* in apps/*/src and packages/*/src", () => {
+  const offenders: string[] = [];
+  for (const file of new Glob("{apps,packages}/*/src/**/*.ts").scanSync(".")) {
+    if (/\bconsole\./.test(readFileSync(file, "utf8"))) offenders.push(file);
+  }
+  expect(offenders).toEqual([]);
 });
