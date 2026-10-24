@@ -72,3 +72,14 @@ test("an owner id that is not a valid id is refused", async () => {
   const { mem } = fresh();
   await expect(mem.read({ kind: "bot", botId: "../x" })).rejects.toThrow();
 });
+
+test("an edit or a save never makes two bullets with one id", async () => {
+  const { mem } = fresh();
+  await mem.save(bot, "alpha");
+  await mem.save(bot, "beta");
+  const beta = mem.listBullets(bot).find((b) => b.text === "beta");
+  expect((await code(mem.edit(bot, beta?.id ?? "", "alpha"))).code).toBe("duplicate");
+  expect((await code(mem.save(bot, "alpha", "lesson"))).code).toBe("duplicate");
+  const ids = mem.listBullets(bot).map((b) => b.id);
+  expect(new Set(ids).size).toBe(ids.length);
+});

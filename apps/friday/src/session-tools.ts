@@ -1,3 +1,4 @@
+import { realpathSync } from "node:fs";
 import { relative } from "node:path";
 import type { BotRuntimeSpec, Store } from "@friday/core";
 import {
@@ -55,8 +56,8 @@ export interface SessionToolsDeps {
   run?: EffectsContext["run"];
 }
 
-/** Run argv in `cwd` with a timeout; stdout and stderr are returned together. */
-async function runCommand(
+/** Run argv in `cwd` with only `env` and a timeout; stdout and stderr are returned together. */
+export async function runCommand(
   cmd: string[],
   cwd: string,
   env: Record<string, string>,
@@ -85,6 +86,25 @@ export function toolContext(
   };
 }
 
+/**
+ * The `isSensitive(real)` of a bot's effect tools: the path relative to the workspace it is in, with each workspace
+ * resolved to its real path first (a real target under a symlinked or `/var` workspace still gets the right rel).
+ */
+export function sensitiveCheck(workspaces: string[], isSensitive: (rel: string) => boolean) {
+  const roots = workspaces.map((w) => {
+    try {
+      return realpathSync.native(w);
+    } catch {
+      return w;
+    }
+  });
+  return (real: string) =>
+    roots.some((r) => {
+      const rel = relative(r, real);
+      return !rel.startsWith("..") && isSensitive(rel);
+    });
+}
+
 /** True when the bot names the effects server or one of its tools. */
 const wantsEffects = (tools: string[]) =>
   tools.some(
@@ -108,8 +128,7 @@ export function sessionTools(deps: SessionToolsDeps) {
         botId: spec.bot.id,
         workspaces,
         home: deps.home,
-        // checkInsideWorkspace only asks about paths inside a workspace, so a relative path from one of them is right.
-        isSensitive: (real) => workspaces.some((w) => deps.isSensitive(relative(w, real))),
+        isSensitive: sensitiveCheck(workspaces, deps.isSensitive),
         run,
       };
       servers[EFFECTS_MCP_SERVER] = effectsServer(ctx, deps.projectsDir(), spec.bot.tools);

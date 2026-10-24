@@ -269,3 +269,18 @@ test("the PostCompact hook hands the main thread's summary to onCompact without 
   }, "agent-1");
   expect(sub).toEqual([]);
 });
+
+test("mcpServers may be a function, read at every session build", () => {
+  let servers: Record<string, { type: "stdio"; command: string }> = {};
+  const live = { ...config, mcpServers: () => servers };
+  const make = () =>
+    buildOptions({
+      spec: spec(bot({ tools: ["mcp__web__fetch"] })).s,
+      config: live,
+      abort: new AbortController(),
+      scratchDir: scratch,
+    });
+  expect(make().mcpServers).toBeUndefined();
+  servers = { web: { type: "stdio", command: "w" } };
+  expect(Object.keys(make().mcpServers ?? {})).toEqual(["web"]);
+});

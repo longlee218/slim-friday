@@ -54,6 +54,12 @@ export function checkInsideWorkspace(
   isSensitive: (real: string) => boolean,
 ): { real: string; workspace: string } | string {
   if (!isAbsolute(path)) return `not an absolute path: ${path}`;
+  // A link would be followed to its target: refuse it, the caller names the real path instead.
+  try {
+    if (lstatSync(path).isSymbolicLink()) return `is a link (name its target instead): ${path}`;
+  } catch {
+    // Missing: resolveReal below decides.
+  }
   let real: string;
   try {
     real = resolveReal(path);

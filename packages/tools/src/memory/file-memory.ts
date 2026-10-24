@@ -78,7 +78,13 @@ export class FileMemory implements Memory {
     if (!text) throw new MemoryError("empty");
     const bullet = formatBullet(text, localDay(this.now()));
     this.locked(owner, (cur) => {
-      if (hasBullet(cur, kind as MemoryKind, bullet)) throw new MemoryError("duplicate");
+      // The id ignores the section, so the same note under another kind would share an id: refuse it too.
+      const id = bulletHash(bullet);
+      if (
+        hasBullet(cur, kind as MemoryKind, bullet) ||
+        bulletsOf(cur).some((b) => bulletHash(b.line) === id)
+      )
+        throw new MemoryError("duplicate");
       return insertBullet(cur, kind as MemoryKind, bullet);
     });
   }
@@ -101,6 +107,13 @@ export class FileMemory implements Memory {
       const lines = cur.split("\n");
       const hit = bulletsOf(cur).find((b) => bulletHash(b.line) === id);
       if (!hit) throw new MemoryError("not_found");
+      const line = clean === null ? null : formatBullet(clean, localDay(this.now()));
+      // A replacement equal to another bullet would give two bullets one id (later edits reach only the first).
+      if (
+        line &&
+        bulletsOf(cur).some((b) => b.index !== hit.index && bulletHash(b.line) === bulletHash(line))
+      )
+        throw new MemoryError("duplicate");
       backupFile(
         join(this.dirOf(owner), "backups"),
         "MEMORY.md",
@@ -109,7 +122,7 @@ export class FileMemory implements Memory {
         BACKUPS_KEPT,
       );
       if (clean === null) lines.splice(hit.index, 1);
-      else lines[hit.index] = formatBullet(clean, localDay(this.now()));
+      else if (line) lines[hit.index] = line;
       return lines.join("\n");
     });
   }

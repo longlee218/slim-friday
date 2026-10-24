@@ -1,10 +1,16 @@
 import { expect, test } from "bun:test";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Bot, BotRuntimeSpec, Store } from "@friday/core";
 import { FileMemory, resolveOwner } from "@friday/tools";
-import { commandEnv, sessionTools, toolContext } from "../src/session-tools";
+import {
+  commandEnv,
+  runCommand,
+  sensitiveCheck,
+  sessionTools,
+  toolContext,
+} from "../src/session-tools";
 
 const bot = (tools: string[]): Bot =>
   ({
@@ -77,4 +83,26 @@ test("commands of the effect tools get only the allowed env names", () => {
   expect(
     commandEnv({ PATH: "/bin", HOME: "/h", GH_TOKEN: "g", DISCORD_TOKEN: "d", OAUTH: "o" }),
   ).toEqual({ PATH: "/bin", HOME: "/h", GH_TOKEN: "g" });
+});
+
+test("runCommand passes only the given env and reports the exit code", async () => {
+  const r = await runCommand(["sh", "-c", 'echo "$KEEP-$DROP"; exit 3'], tmpdir(), {
+    KEEP: "k",
+    PATH: "/bin:/usr/bin",
+  });
+  expect(r).toEqual({ code: 3, out: "k-\n" });
+});
+
+test("the sensitive check works from the real workspace path (a symlinked workspace too)", () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "sens-")));
+  mkdirSync(join(root, "real", "keys-docs"), { recursive: true });
+  symlinkSync(join(root, "real"), join(root, "ws"));
+  const seen: string[] = [];
+  const check = sensitiveCheck([join(root, "ws")], (rel) => {
+    seen.push(rel);
+    return rel.endsWith(".env");
+  });
+  expect(check(join(root, "real", "a", ".env"))).toBe(true);
+  expect(check(join(root, "real", "keys-docs", "a.md"))).toBe(false);
+  expect(seen).toContain(join("a", ".env"));
 });

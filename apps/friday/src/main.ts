@@ -2,12 +2,12 @@ import { join } from "node:path";
 import { TEMPLATES_DIR } from "@friday/config";
 import { ClaudeRuntime, extractNotes, isSensitivePath } from "@friday/runtime-claude";
 import { connectDiscord } from "@friday/surface-discord";
-import { appendJournal } from "@friday/tools";
 import type { AgentConfig } from "../../../src/config/agent-config";
 import { HAIKU_SUMMARY_MODEL } from "../../../src/config/model-ids";
 import { readProcessEnv } from "../../../src/config/process-env";
 import { logEvent, logger } from "../../../src/observability/logger";
 import { fridayExtraDirs } from "./friday-bot";
+import { memoryFlush } from "./memory-flush";
 import { sessionTools } from "./session-tools";
 import { type RuntimeParts, startApp } from "./start-app";
 
@@ -44,15 +44,15 @@ export async function startEngine(
     const env = readProcessEnv();
     const memoryDir = join(agentHome, "memory");
     const runtime = (parts: RuntimeParts) => {
-      const mcp = parts.config.mcpServers(env);
-      for (const p of mcp.problems) log.warn(p, "config.problem");
+      // Missing env values are reported once at start; the servers are read again for every new session.
+      for (const p of parts.config.mcpServers(env).problems) log.warn(p, "config.problem");
       return new ClaudeRuntime({
         oauthToken: config.oauthToken,
         agentHome,
         scratchRoot: join(agentHome, "scratch"),
         env,
         extraDirsFor: fridayExtraDirs(configDir, TEMPLATES_DIR),
-        mcpServers: mcp.servers,
+        mcpServers: () => parts.config.mcpServers(env).servers,
         mcpServersFor: sessionTools({
           memory: parts.memory,
           store: parts.store,
@@ -62,19 +62,16 @@ export async function startEngine(
           env,
         }),
         // After a compaction, keep what matters in the bot's journal (never in MEMORY.md, which the bot curates).
-        onCompact: (spec, summary) => {
-          extractNotes(summary, { model: HAIKU_SUMMARY_MODEL, env, oauthToken: config.oauthToken })
-            .then((notes) =>
-              appendJournal(
-                memoryDir,
-                { kind: "bot", botId: spec.bot.id },
-                "Flush",
-                notes,
-                new Date(),
-              ),
-            )
-            .catch((err) => log.error({ error: String(err), botId: spec.bot.id }, "memory.flush"));
-        },
+        onCompact: memoryFlush(
+          memoryDir,
+          (summary) =>
+            extractNotes(summary, {
+              model: HAIKU_SUMMARY_MODEL,
+              env,
+              oauthToken: config.oauthToken,
+            }),
+          log,
+        ),
       });
     };
     const app = await startApp({ port, runtime, agentHome, log });

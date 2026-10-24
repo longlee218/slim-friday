@@ -19,8 +19,8 @@ export interface ClaudeRuntimeConfig {
   scratchRoot: string;
   /** Source env of the child (the caller reads it from the process; this package never does). */
   env?: Record<string, string | undefined>;
-  /** MCP servers any bot may name in its tools. */
-  mcpServers?: Record<string, McpServerConfig>;
+  /** MCP servers any bot may name in its tools (a function is read at every session build). */
+  mcpServers?: Record<string, McpServerConfig> | (() => Record<string, McpServerConfig>);
   /** MCP servers built for one session (in-process tools that need the bot or its conversation); never shared. */
   mcpServersFor?: (spec: BotRuntimeSpec) => Record<string, McpServerConfig>;
   /** Replaces the SDK `query` (tests). */
@@ -75,7 +75,10 @@ export function buildOptions(input: BuildOptionsInput): Options {
   };
   const { builtIn, mcp } = splitTools(bot.tools);
   const perSession = config.mcpServersFor?.(spec) ?? {};
-  const mcpServers = pickServers(mcp, config.mcpServers ?? {}, perSession);
+  // A function is read at every session build, so an edited config reaches the next session.
+  const configured =
+    typeof config.mcpServers === "function" ? config.mcpServers() : (config.mcpServers ?? {});
+  const mcpServers = pickServers(mcp, configured, perSession);
   const agents = Object.fromEntries(
     bot.subagents.map((s) => [
       s.name,

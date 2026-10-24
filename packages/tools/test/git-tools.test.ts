@@ -176,3 +176,24 @@ test("CreateProject makes an initialised repo and refuses a bad name or an exist
   expect((await call(create, { name: "Bad Name" })).isError).toBe(true);
   expect((await call(create, { name: "shop" })).isError).toBe(true);
 });
+
+test("a merge killed by the timeout is aborted and the bot's branch comes back", async () => {
+  const { ws, ctx, calls } = setup();
+  git(ws, "checkout", "-b", "feat");
+  const killed: EffectsContext = {
+    ...ctx,
+    run: async (cmd, cwd) => {
+      if (!cmd.includes("--no-ff")) return ctx.run(cmd, cwd);
+      calls.push(cmd);
+      return { code: 143, out: "" };
+    },
+  };
+  const r = await call(createMergeBranchTool(killed), {
+    workspace: ws,
+    from: "feat",
+    into: "main",
+  });
+  expect(r.isError).toBe(true);
+  expect(calls.some((c) => c.includes("--abort"))).toBe(true);
+  expect(git(ws, "rev-parse", "--abbrev-ref", "HEAD")).toBe("feat");
+});

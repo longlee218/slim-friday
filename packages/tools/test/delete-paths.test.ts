@@ -100,3 +100,13 @@ test("a dir holding a sensitive file or a nested .git is refused and stays", asy
     expect(existsSync(p)).toBe(true);
   }
 });
+
+test("a symlink inside the workspace is refused, and its target stays", async () => {
+  const { ws, tool } = setup();
+  mkdirSync(join(ws, "data"));
+  symlinkSync(join(ws, "data"), join(ws, "lnk"));
+  const r = await call(tool, { paths: [join(ws, "lnk")], reason: "x" });
+  expect(r.isError).toBe(true);
+  expect(r.content[0]?.text).toContain("link");
+  expect(existsSync(join(ws, "data"))).toBe(true);
+});
