@@ -15,11 +15,13 @@ import type { Store } from "../ports/store";
 import type { InboundMessage, Surface } from "../ports/surface";
 import { clampBotMessage, nextHop } from "../routing/bot-messages";
 import { ChainGuard } from "../routing/chain-guard";
+import type { ProjectRulesReader } from "../routing/group-context";
 import { routeMessage } from "../routing/route-message";
 import { type Ticket, ticketRef } from "../tickets/ticket";
 import { TicketBoard } from "../tickets/ticket-board";
 import { recalledBlock } from "./auto-recall";
 import { dayOf, pumpEvents } from "./event-pump";
+import { changedGroupContext } from "./group-context";
 import { changedGroupMemory } from "./group-memory";
 import { type IdleCloseHook, reportIdleClose } from "./idle-close";
 import { type PoolEntry, type QueuedWake, SessionPool } from "./session-pool";
@@ -80,6 +82,8 @@ export interface BotHubDeps {
   onIdleClose?: IdleCloseHook;
   /** Shapes a bot for one session scope (`groupId` unset: its direct session); without it the bot is used as is. */
   scopeBot?: ScopeBot;
+  /** Reads a project dir's own rules (the app implements it); without it no project rules are sent. */
+  projectRules?: ProjectRulesReader;
 }
 
 /**
@@ -393,6 +397,10 @@ export class BotHub implements BotMessenger {
             this.deps.log,
           )
         : undefined;
+      const group = conv?.kind === "group" ? await store.groups.get(conv.groupId) : undefined;
+      const groupContext = conv
+        ? await changedGroupContext(entry, conv, group, this.deps.projectRules)
+        : undefined;
       const tickets = await ticketContextFor(store, q.text);
       const recalled = await this.recalledFor(entry, conv, q.text);
       await this.wakeLog.started(q.wakeId);
@@ -409,6 +417,7 @@ export class BotHub implements BotMessenger {
         context,
         ...(tickets && { tickets }),
         ...(q.attachments && { attachments: q.attachments }),
+        ...(groupContext !== undefined && { groupContext }),
         ...(groupMemory !== undefined && { groupMemory }),
         ...(recalled && { recalled }),
       });

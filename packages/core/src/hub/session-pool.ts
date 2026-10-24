@@ -71,6 +71,8 @@ export interface PoolEntry {
   memoryShown: string;
   /** Group memory text last sent to this session, by group; a new session starts empty. */
   groupMemorySent: Map<string, string>;
+  /** Group context text last sent to this session, by group. */
+  groupContextSent: Map<string, string>;
   /** Epoch milliseconds the session was opened or resumed. */
   openedAt: number;
   /** Conversations this session answered (reported when it closes for being quiet). */
@@ -201,6 +203,7 @@ export class SessionPool {
       stopping: false,
       memoryShown: spec.memory ?? "",
       groupMemorySent: new Map(),
+      groupContextSent: new Map(),
       openedAt: this.clock.now(),
       conversations: new Set(),
     };

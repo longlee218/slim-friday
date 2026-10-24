@@ -62,3 +62,19 @@ test("formatTurn puts the recalled block after group memory and before recent me
     ),
   ).toBe(true);
 });
+
+test("group context is printed before the group memory", () => {
+  const text = formatTurn(
+    {
+      conversationId: "g1",
+      from: { kind: "user" },
+      text: "go",
+      hop: 0,
+      context: [],
+      groupContext: "X",
+      groupMemory: "M",
+    },
+    {},
+  );
+  expect(text.startsWith("Group context:\nX\n\nGroup memory:\nM\n\n")).toBe(true);
+});

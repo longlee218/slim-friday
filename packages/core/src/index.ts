@@ -28,6 +28,7 @@ export * from "./ports/surface";
 export * from "./ports/tool-catalog";
 export * from "./routing/bot-messages";
 export * from "./routing/chain-guard";
+export * from "./routing/group-context";
 export * from "./routing/parse-mentions";
 export * from "./routing/route-message";
 export * from "./tickets/ticket";

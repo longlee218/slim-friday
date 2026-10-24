@@ -60,6 +60,7 @@ export async function pumpEvents(
       } else if (e.type === "compacted") {
         // The summary may have dropped the group memory the bot was shown: send it again on the next group turn.
         entry.groupMemorySent.clear();
+        entry.groupContextSent.clear();
       } else if (e.type === "turn_end") {
         entry.busy = false;
         await store.spend.add(entry.bot.id, dayOf(clock.now()), e.costUsd);

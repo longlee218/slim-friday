@@ -20,6 +20,8 @@ export interface InboundTurn {
   handoff?: boolean;
   /** The previous turn on this message was cut by a restart; the bot should check what is done first. */
   interrupted?: boolean;
+  /** The group's instructions, working dirs and project rules; set on a group turn only when they changed since the bot last saw them. */
+  groupContext?: string;
   /** The group's memory; set on a group turn only when it changed since the bot last saw it. */
   groupMemory?: string;
   /** `<recalled_memory>` block: notes from earlier sessions that match the message. */
