@@ -3,7 +3,7 @@ import { z } from "zod";
 import { textResult } from "../../../tool-result";
 import type { EffectsContext } from "../../effects-context";
 import { moveToTrash } from "../../trash-store";
-import { checkInsideWorkspace } from "../../workspace-paths";
+import { checkInsideWorkspace, protectedInside } from "../../workspace-paths";
 import { DELETE_PATHS_MAX, DELETE_PATHS_TOOL } from "./constants";
 import { DELETE_PATHS_DESCRIPTION } from "./prompt";
 
@@ -24,6 +24,9 @@ export function createDeletePathsTool(ctx: EffectsContext) {
       for (const p of new Set(paths)) {
         const c = checkInsideWorkspace(p, ctx.workspaces, ctx.isSensitive);
         if (typeof c === "string") return textResult(`Refused, nothing deleted: ${c}`, true);
+        // A dir goes whole: what it holds gets the same protection as the dir itself.
+        const inside = protectedInside(c.real, ctx.isSensitive);
+        if (inside) return textResult(`Refused, nothing deleted: ${inside}`, true);
         reals.push(c.real);
       }
       // Each path is checked again right before it moves: a link swapped in meanwhile stops the move.

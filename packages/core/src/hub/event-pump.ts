@@ -57,6 +57,9 @@ export async function pumpEvents(
         entry.tasks.delete(e.taskId);
         // The result is the bot's next turn; it speaks where the task began.
         if (task) entry.current = { conversationId: task.conversationId, hop: task.hop };
+      } else if (e.type === "compacted") {
+        // The summary may have dropped the group memory the bot was shown: send it again on the next group turn.
+        entry.groupMemorySent.clear();
       } else if (e.type === "turn_end") {
         entry.busy = false;
         await store.spend.add(entry.bot.id, dayOf(clock.now()), e.costUsd);

@@ -105,3 +105,9 @@ test("other messages map to nothing", () => {
   expect(m({ type: "system", subtype: "init", session_id: "s" })).toEqual([]);
   expect(m({ type: "stream_event" })).toEqual([]);
 });
+
+test("a compaction boundary is a compacted event", () => {
+  expect(
+    mapMessage({ type: "system", subtype: "compact_boundary", compact_metadata: {} } as never),
+  ).toEqual([{ type: "compacted" }]);
+});

@@ -36,3 +36,18 @@ test("extractNotes returns [] on prose or an error", async () => {
     [],
   );
 });
+
+test("extractNotes scrubs the env like a bot's: no API key or base URL, the OAuth token on top", async () => {
+  const { queryFn, seen } = fake("[]");
+  await extractNotes("s", {
+    model: "m",
+    queryFn,
+    oauthToken: "tok",
+    env: { PATH: "/bin", ANTHROPIC_API_KEY: "k", ANTHROPIC_BASE_URL: "http://x" },
+  });
+  const env = seen.options?.env as Record<string, string | undefined>;
+  expect(env.ANTHROPIC_API_KEY).toBeUndefined();
+  expect(env.ANTHROPIC_BASE_URL).toBeUndefined();
+  expect(env.CLAUDE_CODE_OAUTH_TOKEN).toBe("tok");
+  expect(env.PATH).toBe("/bin");
+});

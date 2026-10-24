@@ -94,6 +94,13 @@ export class SessionPool {
           "";
         if (!conversationId)
           return Promise.resolve({ behavior: "deny", reason: "no conversation to ask in" });
+        // A tool resolves "group" scope from the conversation the bot answers now; a task started elsewhere must not
+        // reach that group.
+        if (c.taskId && c.input.scope === "group" && conversationId !== e?.current.conversationId)
+          return Promise.resolve({
+            behavior: "deny",
+            reason: "group scope is not reachable from a task started in another conversation",
+          });
         return this.gate.decide(
           { tool: c.tool, input: c.input, botId: bot.id, conversationId },
           bot.name,

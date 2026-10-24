@@ -1,4 +1,5 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
+import { sdkEnv } from "../floor/sdk-env";
 import type { QueryFn } from "./build-options";
 
 /** Longest summary text sent to the extraction call. */
@@ -33,7 +34,13 @@ function parseNotes(text: string): string[] {
  */
 export async function extractNotes(
   summary: string,
-  opts: { model: string; queryFn?: QueryFn; env?: Record<string, string | undefined> },
+  opts: {
+    model: string;
+    queryFn?: QueryFn;
+    /** Source env (scrubbed like a bot's: no API key or base URL can redirect the call). */
+    env?: Record<string, string | undefined>;
+    oauthToken?: string;
+  },
 ): Promise<string[]> {
   try {
     const run = (opts.queryFn ?? query)({
@@ -44,7 +51,13 @@ export async function extractNotes(
         tools: [],
         maxTurns: 1,
         settingSources: [],
-        ...(opts.env && { env: opts.env }),
+        env: sdkEnv(
+          { hasRealAuth: !!opts.oauthToken, oauthToken: opts.oauthToken },
+          opts.env ?? {},
+          {
+            oneShot: true,
+          },
+        ),
       },
     });
     for await (const m of run)

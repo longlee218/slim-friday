@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Bot, BotRuntimeSpec, Store } from "@friday/core";
 import { FileMemory, resolveOwner } from "@friday/tools";
-import { sessionTools, toolContext } from "../src/session-tools";
+import { commandEnv, sessionTools, toolContext } from "../src/session-tools";
 
 const bot = (tools: string[]): Bot =>
   ({
@@ -71,4 +71,10 @@ test("the tool context follows the current conversation: a group save lands in t
     "team uses bun",
   );
   expect(await toolContext(specOf(bot([])), store).conversation()).toBeUndefined();
+});
+
+test("commands of the effect tools get only the allowed env names", () => {
+  expect(
+    commandEnv({ PATH: "/bin", HOME: "/h", GH_TOKEN: "g", DISCORD_TOKEN: "d", OAUTH: "o" }),
+  ).toEqual({ PATH: "/bin", HOME: "/h", GH_TOKEN: "g" });
 });

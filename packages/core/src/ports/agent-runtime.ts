@@ -28,6 +28,8 @@ export type RuntimeEvent =
       summary: string;
     }
   | { type: "turn_end"; costUsd: number }
+  /** The main thread's context was compacted: what the bot was shown earlier may be gone. */
+  | { type: "compacted" }
   | { type: "error"; message: string; retryable: boolean };
 
 export type ToolDecision = { behavior: "allow" } | { behavior: "deny"; reason: string };

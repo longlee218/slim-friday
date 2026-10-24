@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { EffectsContext } from "../src/effects/effects-context";
+import { effectsTools } from "../src/effects/effects-server";
 import { isPlainName } from "../src/effects/git-args";
 import { createCreateProjectTool } from "../src/effects/tools/CreateProjectTool/create-project-tool";
 import { createCreatePullRequestTool } from "../src/effects/tools/CreatePullRequestTool/create-pull-request-tool";
@@ -101,8 +102,43 @@ test("MergeBranch merges a clean branch", async () => {
   git(ws, "commit", "-m", "b");
   const r = await call(createMergeBranchTool(ctx), { workspace: ws, from: "feat", into: "main" });
   expect(r.isError).toBeUndefined();
-  expect(git(ws, "rev-parse", "--abbrev-ref", "HEAD")).toBe("main");
-  expect(existsSync(join(ws, "b.txt"))).toBe(true);
+  // Back on the branch the bot was on; main has the merge.
+  expect(git(ws, "rev-parse", "--abbrev-ref", "HEAD")).toBe("feat");
+  expect(git(ws, "show", "main:b.txt")).toBe("b");
+});
+
+test("a repo config that can run commands is refused before git runs; hooks never run", async () => {
+  const { base, ws, ctx } = setup();
+  const marker = join(base, "pwned");
+  git(ws, "config", "core.fsmonitor", `touch ${marker}`);
+  const merge = await call(createMergeBranchTool(ctx), {
+    workspace: ws,
+    from: "main",
+    into: "main",
+  });
+  expect(merge.isError).toBe(true);
+  expect(text(merge)).toContain("core.fsmonitor");
+  expect(existsSync(marker)).toBe(false);
+  git(ws, "config", "--unset", "core.fsmonitor");
+  writeFileSync(join(ws, ".git", "hooks", "pre-push"), `#!/bin/sh\ntouch ${marker}\n`, {
+    mode: 0o755,
+  });
+  git(ws, "checkout", "-b", "feat");
+  const push = await call(createGitPushTool(ctx), {
+    workspace: ws,
+    remote: "origin",
+    branch: "feat",
+  });
+  expect(push.isError).toBeUndefined();
+  expect(existsSync(marker)).toBe(false);
+});
+
+test("effectsTools gives only the tools the bot names (all for the whole server)", () => {
+  const { ctx } = setup();
+  const names = (tools: string[]) => effectsTools(ctx, "/p", tools).map((t) => t.name);
+  expect(names(["mcp__effects__GitPush"])).toEqual(["GitPush"]);
+  expect(names(["mcp__effects"])).toHaveLength(5);
+  expect(names(["Read"])).toEqual([]);
 });
 
 test("CreatePullRequest passes exactly the expected argv to gh and returns the URL", async () => {
@@ -114,20 +150,18 @@ test("CreatePullRequest passes exactly the expected argv to gh and returns the U
     title: "Add b",
     body: "Body",
   });
-  expect(calls).toEqual([
-    [
-      "gh",
-      "pr",
-      "create",
-      "--base",
-      "main",
-      "--head",
-      "feat",
-      "--title",
-      "Add b",
-      "--body",
-      "Body",
-    ],
+  expect(calls.at(-1)).toEqual([
+    "gh",
+    "pr",
+    "create",
+    "--base",
+    "main",
+    "--head",
+    "feat",
+    "--title",
+    "Add b",
+    "--body",
+    "Body",
   ]);
   expect(text(r)).toBe("https://github.com/o/r/pull/7");
 });

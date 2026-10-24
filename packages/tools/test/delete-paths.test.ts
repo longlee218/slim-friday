@@ -88,3 +88,15 @@ test("purgeTrash empties the trash and counts what it removed", async () => {
   expect(readdirSync(trashRoot(home))).toEqual([]);
   expect(purgeTrash(home)).toBe(0);
 });
+
+test("a dir holding a sensitive file or a nested .git is refused and stays", async () => {
+  const { ws, tool } = setup();
+  mkdirSync(join(ws, "cfg"));
+  writeFileSync(join(ws, "cfg", ".env"), "K=1");
+  mkdirSync(join(ws, "vendor", "lib", ".git"), { recursive: true });
+  for (const p of [join(ws, "cfg"), join(ws, "vendor")]) {
+    const r = await call(tool, { paths: [p], reason: "x" });
+    expect(r.isError).toBe(true);
+    expect(existsSync(p)).toBe(true);
+  }
+});

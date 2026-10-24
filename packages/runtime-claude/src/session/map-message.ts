@@ -52,6 +52,7 @@ export function mapMessage(message: SDKMessage): RuntimeEvent[] {
         summary: m.summary ?? "",
       },
     ];
+  if (m.type === "system" && m.subtype === "compact_boundary") return [{ type: "compacted" }];
   if (m.type === "result") {
     const ended = m.subtype === "error_max_turns" || (m.subtype === "success" && !m.is_error);
     if (ended) return [{ type: "turn_end", costUsd: m.total_cost_usd ?? 0 }];

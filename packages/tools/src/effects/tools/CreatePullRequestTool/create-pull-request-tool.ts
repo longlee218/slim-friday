@@ -2,7 +2,7 @@ import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { textResult } from "../../../tool-result";
 import type { EffectsContext } from "../../effects-context";
-import { badName, grantedWorkspace, isPlainName, NOT_GRANTED } from "../../git-args";
+import { badName, grantedWorkspace, isPlainName, NOT_GRANTED, runGit } from "../../git-args";
 import { CREATE_PULL_REQUEST_TOOL, PR_BODY_MAX, PR_TITLE_MAX } from "./constants";
 import { CREATE_PULL_REQUEST_DESCRIPTION } from "./prompt";
 
@@ -26,6 +26,9 @@ export function createCreatePullRequestTool(ctx: EffectsContext) {
       if (!isPlainName(head)) return textResult(badName("head"), true);
       const cwd = grantedWorkspace(ctx, workspace);
       if (!cwd) return textResult(NOT_GRANTED, true);
+      // gh runs git in the repo too: the same config check first (a no-op git call carries it).
+      const check = await runGit(ctx, cwd, ["--version"]);
+      if (typeof check === "string") return textResult(check, true);
       // argv, no shell: the title and body are single arguments whatever they contain.
       const r = await ctx.run(
         ["gh", "pr", "create", "--base", base, "--head", head, "--title", title, "--body", body],

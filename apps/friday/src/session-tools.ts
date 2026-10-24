@@ -13,6 +13,32 @@ import {
 /** Longest a git or gh command of an effect tool may run. */
 const RUN_TIMEOUT_MS = 120_000;
 
+/** Env names a git or gh command of an effect tool keeps: the owner's git / gh / ssh auth, nothing of the app. */
+const COMMAND_ENV = [
+  "PATH",
+  "HOME",
+  "USER",
+  "LANG",
+  "TMPDIR",
+  "SSH_AUTH_SOCK",
+  "GH_TOKEN",
+  "GITHUB_TOKEN",
+  "GIT_AUTHOR_NAME",
+  "GIT_AUTHOR_EMAIL",
+  "GIT_COMMITTER_NAME",
+  "GIT_COMMITTER_EMAIL",
+];
+
+/** The env of an effect tool's command: only `COMMAND_ENV` names (no Discord or Claude token reaches git or gh). */
+export function commandEnv(env: Record<string, string | undefined>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const name of COMMAND_ENV) {
+    const v = env[name];
+    if (v !== undefined) out[name] = v;
+  }
+  return out;
+}
+
 /** What the per-session tools are built from. */
 export interface SessionToolsDeps {
   memory: FileMemory;
@@ -23,13 +49,19 @@ export interface SessionToolsDeps {
   projectsDir: () => string;
   /** True for a sensitive path relative to its workspace (`.env`, keys...). */
   isSensitive: (rel: string) => boolean;
+  /** Source env; commands get only `commandEnv` of it. */
+  env?: Record<string, string | undefined>;
   /** Runs a command (argv, no shell); tests replace it. */
   run?: EffectsContext["run"];
 }
 
 /** Run argv in `cwd` with a timeout; stdout and stderr are returned together. */
-async function runCommand(cmd: string[], cwd: string): Promise<{ code: number; out: string }> {
-  const p = Bun.spawn(cmd, { cwd, stdout: "pipe", stderr: "pipe", timeout: RUN_TIMEOUT_MS });
+async function runCommand(
+  cmd: string[],
+  cwd: string,
+  env: Record<string, string>,
+): Promise<{ code: number; out: string }> {
+  const p = Bun.spawn(cmd, { cwd, env, stdout: "pipe", stderr: "pipe", timeout: RUN_TIMEOUT_MS });
   const [out, err, code] = await Promise.all([
     new Response(p.stdout).text(),
     new Response(p.stderr).text(),
@@ -64,6 +96,8 @@ const wantsEffects = (tools: string[]) =>
  * Built per session so the tools act for that bot only.
  */
 export function sessionTools(deps: SessionToolsDeps) {
+  const env = commandEnv(deps.env ?? {});
+  const run = deps.run ?? ((cmd: string[], cwd: string) => runCommand(cmd, cwd, env));
   return (spec: BotRuntimeSpec) => {
     const servers: Record<string, ReturnType<typeof memoryServer>> = {
       [MEMORY_MCP_SERVER]: memoryServer(deps.memory, toolContext(spec, deps.store)),
@@ -76,9 +110,9 @@ export function sessionTools(deps: SessionToolsDeps) {
         home: deps.home,
         // checkInsideWorkspace only asks about paths inside a workspace, so a relative path from one of them is right.
         isSensitive: (real) => workspaces.some((w) => deps.isSensitive(relative(w, real))),
-        run: deps.run ?? runCommand,
+        run,
       };
-      servers[EFFECTS_MCP_SERVER] = effectsServer(ctx, deps.projectsDir());
+      servers[EFFECTS_MCP_SERVER] = effectsServer(ctx, deps.projectsDir(), spec.bot.tools);
     }
     return servers;
   };

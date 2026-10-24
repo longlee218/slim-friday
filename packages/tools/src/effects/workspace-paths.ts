@@ -1,4 +1,4 @@
-import { lstatSync, realpathSync } from "node:fs";
+import { type Dirent, lstatSync, readdirSync, realpathSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 /** The git dir name: nothing under it is ever touched by an effect tool. */
@@ -73,4 +73,31 @@ export function checkInsideWorkspace(
     return { real, workspace: root };
   }
   return `outside your workspaces (or a workspace root): ${path}`;
+}
+
+/** Most entries one dir check walks; a bigger tree is refused rather than half checked. */
+const MAX_WALK = 10_000;
+
+/**
+ * Why the dir `real` must not be moved as a whole: it holds a git dir or a sensitive file at any depth, or it is too
+ * big to check. Undefined when it is safe (or not a dir). Links are not followed.
+ */
+export function protectedInside(
+  real: string,
+  isSensitive: (real: string) => boolean,
+): string | undefined {
+  let entries: Dirent[];
+  try {
+    if (!lstatSync(real).isDirectory()) return undefined;
+    entries = readdirSync(real, { withFileTypes: true, recursive: true });
+  } catch {
+    return `cannot read: ${real}`;
+  }
+  if (entries.length > MAX_WALK) return `too many files to check: ${real}`;
+  for (const e of entries) {
+    const p = join(e.parentPath, e.name);
+    if (e.name === GIT_DIR) return `holds a git dir: ${p}`;
+    if (isSensitive(p)) return `holds a protected file: ${p}`;
+  }
+  return undefined;
 }

@@ -58,3 +58,44 @@ test("a direct turn never carries group memory; a failing read still sends the t
   expect(b.runtime.nth(0).sent).toHaveLength(1);
   expect(b.runtime.nth(0).spec.memory).toBeUndefined();
 });
+
+test("after a compaction the group memory is sent again", async () => {
+  const { memory, texts } = fakeMemory();
+  texts.set("group:g", "- team uses bun");
+  const { runtime, surface } = makeHub(memory);
+  surface.deliver({ conversationId: "gc", text: "one" });
+  await flush();
+  const s = runtime.nth(0);
+  s.emit({ type: "compacted" });
+  s.emit({ type: "turn_end", costUsd: 0 });
+  await flush();
+  surface.deliver({ conversationId: "gc", text: "two" });
+  await flush();
+  expect(s.sent[1]?.groupMemory).toBe("- team uses bun");
+});
+
+test("a background task started in a direct chat cannot use group scope while the bot answers a group", async () => {
+  const { memory } = fakeMemory();
+  const { runtime, surface } = makeHub(memory);
+  // The owner would allow anything: only the scope rule may deny.
+  surface.answerWith("once");
+  surface.deliver({ conversationId: "dc", text: "start a task" });
+  await flush();
+  const s = runtime.nth(0);
+  s.emit({ type: "task_started", taskId: "t1", description: "dig" });
+  s.emit({ type: "turn_end", costUsd: 0 });
+  await flush();
+  surface.deliver({ conversationId: "gc", text: "@Editor hello group" });
+  await flush();
+  const d = await Promise.race([
+    s.spec.decide({ tool: "mcp__memory__MemorySave", input: { scope: "group" }, taskId: "t1" }),
+    Bun.sleep(300).then(() => "timeout"),
+  ]);
+  expect(d).toMatchObject({ behavior: "deny" });
+  const own = await s.spec.decide({
+    tool: "mcp__memory__MemorySave",
+    input: { scope: "bot" },
+    taskId: "t1",
+  });
+  expect(own).toEqual({ behavior: "allow" });
+});

@@ -43,11 +43,6 @@ export async function startEngine(
   try {
     const env = readProcessEnv();
     const memoryDir = join(agentHome, "memory");
-    // The flush call needs the same login as the bots.
-    const flushEnv = {
-      ...env,
-      ...(config.oauthToken && { CLAUDE_CODE_OAUTH_TOKEN: config.oauthToken }),
-    };
     const runtime = (parts: RuntimeParts) => {
       const mcp = parts.config.mcpServers(env);
       for (const p of mcp.problems) log.warn(p, "config.problem");
@@ -64,10 +59,11 @@ export async function startEngine(
           home: agentHome,
           projectsDir: parts.config.projectsDir,
           isSensitive: isSensitivePath,
+          env,
         }),
         // After a compaction, keep what matters in the bot's journal (never in MEMORY.md, which the bot curates).
         onCompact: (spec, summary) => {
-          extractNotes(summary, { model: HAIKU_SUMMARY_MODEL, env: flushEnv })
+          extractNotes(summary, { model: HAIKU_SUMMARY_MODEL, env, oauthToken: config.oauthToken })
             .then((notes) =>
               appendJournal(
                 memoryDir,

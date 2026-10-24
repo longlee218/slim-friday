@@ -2,7 +2,7 @@ import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { textResult } from "../../../tool-result";
 import type { EffectsContext } from "../../effects-context";
-import { badName, grantedWorkspace, isPlainName, NOT_GRANTED } from "../../git-args";
+import { badName, grantedWorkspace, isPlainName, NOT_GRANTED, runGit } from "../../git-args";
 import { GIT_PUSH_TOOL } from "./constants";
 import { GIT_PUSH_DESCRIPTION } from "./prompt";
 
@@ -24,7 +24,8 @@ export function createGitPushTool(ctx: EffectsContext) {
       if (!isPlainName(branch)) return textResult(badName("branch"), true);
       const cwd = grantedWorkspace(ctx, workspace);
       if (!cwd) return textResult(NOT_GRANTED, true);
-      const r = await ctx.run(["git", "push", remote, `${branch}:${branch}`], cwd);
+      const r = await runGit(ctx, cwd, ["push", remote, `${branch}:${branch}`]);
+      if (typeof r === "string") return textResult(r, true);
       return textResult(r.out.trim() || (r.code === 0 ? "pushed" : "push failed"), r.code !== 0);
     },
     { annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true } },
