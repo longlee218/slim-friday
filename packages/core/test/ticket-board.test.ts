@@ -53,14 +53,17 @@ describe("TicketBoard", () => {
     const { board } = setup();
     expect(await board.create(writer, { title: "   " })).toEqual({
       ok: false,
+      code: "invalid",
       error: "Invalid ticket.",
     });
     expect(await board.create(writer, { title: "x".repeat(201) })).toEqual({
       ok: false,
+      code: "invalid",
       error: "Invalid ticket.",
     });
     expect(await board.create(writer, { title: "a", assigneeBotId: "ghost" })).toEqual({
       ok: false,
+      code: "unknown_bot",
       error: "Unknown bot.",
     });
   });
@@ -85,6 +88,7 @@ describe("TicketBoard", () => {
     expect(woken).toEqual([]);
     expect(await board.update(writer, { id: t.ticket.id, assigneeBotId: "ghost" })).toEqual({
       ok: false,
+      code: "unknown_bot",
       error: "Unknown bot.",
     });
   });
@@ -99,6 +103,7 @@ describe("TicketBoard", () => {
     expect(todo.ok && todo.ticket.completedAt).toBeUndefined();
     expect(await board.update(writer, { id: t.ticket.id, status: "bogus" as never })).toEqual({
       ok: false,
+      code: "invalid",
       error: "status must be one of todo, doing, review, blocked, done, closed.",
     });
   });
@@ -113,8 +118,16 @@ describe("TicketBoard", () => {
       const r = await board.get(ref);
       expect(r.ok && r.ticket.title).toBe("c");
     }
-    expect(await board.get("FRI-9")).toEqual({ ok: false, error: "Ticket FRI-9 not found." });
-    expect(await board.get("ABC-1")).toEqual({ ok: false, error: "Ticket ABC-1 not found." });
+    expect(await board.get("FRI-9")).toEqual({
+      ok: false,
+      code: "not_found",
+      error: "Ticket FRI-9 not found.",
+    });
+    expect(await board.get("ABC-1")).toEqual({
+      ok: false,
+      code: "not_found",
+      error: "Ticket ABC-1 not found.",
+    });
   });
 
   test("list hides closed unless asked, pages by cursor with 50 per page, cuts descriptions to 200", async () => {
@@ -137,7 +150,11 @@ describe("TicketBoard", () => {
     expect(p2.ok && p2.nextCursor).toBeUndefined();
     const only = await board.list({ status: "closed" });
     expect(only.ok && only.tickets.map((t) => t.title)).toEqual(["closed"]);
-    expect(await board.list({ cursor: "!!" })).toEqual({ ok: false, error: "cursor is invalid." });
+    expect(await board.list({ cursor: "!!" })).toEqual({
+      ok: false,
+      code: "invalid",
+      error: "cursor is invalid.",
+    });
   });
 
   test("comment refuses an empty body", async () => {
@@ -146,10 +163,12 @@ describe("TicketBoard", () => {
     if (!t.ok) throw new Error("create");
     expect(await board.comment(writer, { id: t.ticket.id, body: "  " })).toEqual({
       ok: false,
+      code: "invalid",
       error: "Invalid ticket.",
     });
     expect(await board.comment(writer, { id: "FRI-77", body: "x" })).toEqual({
       ok: false,
+      code: "not_found",
       error: "Ticket not found.",
     });
   });

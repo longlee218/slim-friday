@@ -258,6 +258,8 @@ export class FakeStore implements Store {
       if (opts?.ifUpdatedAt !== undefined && opts.ifUpdatedAt !== t.updatedAt)
         return "conflict" as const;
       const { blockedReason, ...rest } = patch;
+      // Like the real repo, an explicit undefined keeps the stored value.
+      for (const [k, v] of Object.entries(rest)) if (v === undefined) delete (rest as never)[k];
       Object.assign(t, rest, { updatedAt: Math.max(now, t.updatedAt + 1) });
       if (blockedReason !== undefined) t.blockedReason = blockedReason ?? undefined;
       if (t.status !== "blocked") t.blockedReason = undefined;

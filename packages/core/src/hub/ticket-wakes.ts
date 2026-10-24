@@ -55,7 +55,11 @@ export async function checkUnfinished(ctx: HubContext, e: PoolEntry): Promise<vo
     const t = await store.tickets.get(cur.id);
     if (!t || t.assigneeBotId !== e.bot.id || !isOpenWork(t)) return;
     if (!cur.rewake) return await wakeForTicket(ctx, t, e.bot.id, true);
-    await store.tickets.update(t.id, { status: "blocked" }, clock.now());
+    // Through the board: it records a status change by the system and keeps the reason on the ticket.
+    await ctx.tickets.update(
+      { kind: "system" },
+      { id: t.id, status: "blocked", blockedReason: AUTO_BLOCK_COMMENT },
+    );
     await store.tickets.addComment({
       ticketId: t.id,
       author: { kind: "system" },

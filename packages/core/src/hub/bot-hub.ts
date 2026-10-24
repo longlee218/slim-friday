@@ -32,6 +32,12 @@ export class BotHub implements BotMessenger {
   readonly tickets: TicketBoard;
 
   constructor(private deps: BotHubDeps) {
+    this.tickets = new TicketBoard({
+      store: deps.store,
+      clock: deps.clock,
+      wake: (t, botId, actor) => this.wakeForTicket(t, botId, false, actor),
+      ...(deps.onTicketChange && { onChange: deps.onTicketChange }),
+    });
     const limits = deps.limits ?? CORE_DEFAULTS;
     this.ctx = {
       deps,
@@ -44,16 +50,12 @@ export class BotHub implements BotMessenger {
       }),
       guard: new ChainGuard(deps.clock, limits),
       wakeLog: new WakeLog(deps.store, deps.clock, deps.log),
+      tickets: this.tickets,
       noticed: new Set(),
       admit: (row, bot, opts) => admit(this.ctx, row, bot, opts),
       wake: (botId, conversationId, sender, text, hop, opts) =>
         wake(this.ctx, botId, conversationId, sender, text, hop, opts),
     };
-    this.tickets = new TicketBoard({
-      store: deps.store,
-      clock: deps.clock,
-      wake: (t, botId, actor) => this.wakeForTicket(t, botId, false, actor),
-    });
   }
 
   /** Start listening to the surface. */

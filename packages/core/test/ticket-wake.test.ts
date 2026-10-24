@@ -100,6 +100,13 @@ describe("unfinished tickets", () => {
     expect(after?.status).toBe("blocked");
     const comments = await h.store.tickets.comments(t.id);
     expect(comments.at(-1)?.body).toBe("Left open after two turns; blocked automatically.");
+    expect(after?.blockedReason).toBe("Left open after two turns; blocked automatically.");
+    expect((await h.store.ticketEvents.list(t.id)).at(-1)).toMatchObject({
+      kind: "status",
+      from: "todo",
+      to: "blocked",
+      actor: { kind: "system" },
+    });
     expect(
       h.surface.posts.some(
         (p) => p.conversationId === "dc" && p.message.text.includes(`FRI-${t.number}`),

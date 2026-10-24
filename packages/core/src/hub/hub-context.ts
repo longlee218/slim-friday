@@ -3,6 +3,7 @@ import type { Bot } from "../domain/bot";
 import type { ConversationId } from "../domain/conversation";
 import type { WakeRow } from "../domain/wake";
 import type { ChainGuard } from "../routing/chain-guard";
+import type { TicketBoard } from "../tickets/ticket-board";
 import { type BotHubDeps, errText, type WakeOpts, type WakeOutcome } from "./hub-types";
 import { postStored } from "./post-stored";
 import type { SessionPool } from "./session-pool";
@@ -15,6 +16,8 @@ export interface HubContext {
   pool: SessionPool;
   guard: ChainGuard;
   wakeLog: WakeLog;
+  /** The shared board; the hub changes tickets through it so history and listeners stay right. */
+  tickets: TicketBoard;
   /** Caps already announced; cleared when the user writes again in that conversation. */
   noticed: Set<string>;
   /** Check the caps for a stored wake, then hand it to the bot's session (late-bound: the parts call each other). */

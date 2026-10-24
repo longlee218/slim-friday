@@ -40,4 +40,5 @@ export * from "./routing/route-message";
 export * from "./tickets/ticket";
 export * from "./tickets/ticket-board";
 export * from "./tickets/ticket-context";
+export * from "./tickets/ticket-reads";
 export * from "./tickets/ticket-timeline";
