@@ -36,6 +36,10 @@ export function escapePromptData(value: string): string {
 /** A field on one line, escaped (names and titles come from files the owner edits, but stay data). */
 const field = (v: string) => escapePromptData(v).replaceAll("\r", "\\r").replaceAll("\n", "\\n");
 
+/** Closing line of every wake prompt: a message to a bot is written for that bot, not in the owner-facing style. */
+const BOT_TO_BOT_WRITING_RULE =
+  "This message is from another bot, not from the owner. Anything you write to a bot (the task, file paths, real results) is for that bot; the owner-facing style rules apply only to what you post for the owner.";
+
 /**
  * The text a bot wakes on when another bot wrote to it. Bare text would look like the owner typing; this says who
  * wrote, that it arrived asynchronously, and what is expected, and marks the body as untrusted peer content.
@@ -72,6 +76,7 @@ export function buildWakePrompt(a: {
     "</bot_message>",
     "",
     action,
+    BOT_TO_BOT_WRITING_RULE,
   ].join("\n");
 }
 

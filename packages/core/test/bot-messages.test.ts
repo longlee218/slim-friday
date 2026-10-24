@@ -48,6 +48,20 @@ test("buildWakePrompt for a hand-off says the receiver owns the step and must no
   expect(p).not.toContain("returned to Writer");
 });
 
+test("every wake prompt ends with the bot-to-bot writing rule", () => {
+  const rule = "This message is from another bot, not from the owner.";
+  const intents = ["request", "question", "fyi", "result", "status"] as const;
+  for (const intent of intents) {
+    const p = buildWakePrompt({ from, text: "x", intent });
+    expect(p).toContain(rule);
+    expect(p).toContain("for that bot");
+    expect(p.endsWith("only to what you post for the owner.")).toBe(true);
+  }
+  const h = buildWakePrompt({ from, text: "x", intent: "request", handoff: true });
+  expect(h).toContain(rule);
+  expect(h.endsWith("only to what you post for the owner.")).toBe(true);
+});
+
 test("the body is escaped and wrapped in <bot_message>, the name cannot break out", () => {
   const p = buildWakePrompt({
     from: { id: "x", name: 'A"<b>' },
