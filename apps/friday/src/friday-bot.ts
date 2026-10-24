@@ -1,4 +1,3 @@
-import { join } from "node:path";
 import type { Bot } from "@friday/core";
 
 /** Id of the shipped bot that builds other bots and groups. */
@@ -19,12 +18,10 @@ export function withFridayDirs(bot: Bot, dirs: { configDir: string; templatesDir
 }
 
 /**
- * Dirs the app grants to the Friday bot only: write on the bot and group files (not `settings.yaml` or `tools.yaml`,
- * which hold the permission policy), read on the templates.
+ * Dirs the app grants to the Friday bot only: read on the templates. It has no write grant: the config dir is written
+ * only through the `BotDesign` tool, which runs in the engine and checks every field.
  */
-export function fridayExtraDirs(configDir: string, templatesDir: string) {
+export function fridayExtraDirs(templatesDir: string) {
   return (b: Bot): { write: string[]; read: string[] } =>
-    b.id === FRIDAY_BOT_ID
-      ? { write: [join(configDir, "bots"), join(configDir, "groups")], read: [templatesDir] }
-      : { write: [], read: [] };
+    b.id === FRIDAY_BOT_ID ? { write: [], read: [templatesDir] } : { write: [], read: [] };
 }

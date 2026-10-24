@@ -3,7 +3,7 @@ import { isAbsolute, join, relative, sep } from "node:path";
 import { resolveReal } from "../../effects/workspace-paths";
 import type { DesignArgs } from "../design-args";
 import type { DesignContext } from "../design-context";
-import { atomicWrite, need, Refused, replaceDir, skillFront } from "../design-util";
+import { atomicWrite, need, Refused, replaceDir, skillFront, toYaml } from "../design-util";
 import { refuseExisting, skillName } from "./write-skill";
 
 /** Most files and bytes of an installed skill. */
@@ -75,6 +75,6 @@ export async function installSkill(ctx: DesignContext, a: DesignArgs): Promise<s
   const lock = existsSync(lockFile)
     ? ((Bun.YAML.parse(readFileSync(lockFile, "utf8")) as Record<string, unknown> | null) ?? {})
     : {};
-  atomicWrite(lockFile, Bun.YAML.stringify({ ...lock, [name]: { source, sha } }));
+  atomicWrite(lockFile, toYaml({ ...lock, [name]: { source, sha } }));
   return `Installed skill ${name} (${files.size} files) from ${source} at ${sha}.`;
 }

@@ -6,6 +6,7 @@ export {
   DEFAULT_SKILLS_DIR,
   DEFAULTS_DIR,
   loadConfig,
+  RESERVED_BOT_IDS,
 } from "./load-config";
 export { parseBotFile } from "./schemas/bot-file";
 export { parseGroupFile } from "./schemas/group-file";

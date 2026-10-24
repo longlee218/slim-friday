@@ -2,6 +2,7 @@ import { afterEach, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { TEMPLATES_DIR } from "@friday/config";
 import { openEngineStore } from "@friday/store-sqlite";
 import { FakeRuntime, type FakeSession } from "../../../packages/core/test/fakes/fake-runtime";
 import { FakeDiscordPort } from "../../../packages/surface-discord/test/fake-discord-port";
@@ -59,12 +60,12 @@ test("start: the Friday bot has a channel and says it is ready under its own nam
   });
 });
 
-test("an owner message reaches Friday with the real dirs in its instructions and the reply is posted", async () => {
-  const { home, port, runtime, channel } = await boot();
+test("an owner message reaches Friday with the real template dir in its instructions and the reply is posted", async () => {
+  const { port, runtime, channel } = await boot();
   port.emitMessage({ channelId: channel("friday"), text: "hi" });
   await until(() => port.sentAs.some((m) => m.text === "reply:Friday"));
   const instructions = runtime.nth(0).spec.bot.instructions;
-  expect(instructions).toContain(join(home, "config"));
+  expect(instructions).toContain(TEMPLATES_DIR);
   expect(instructions).not.toContain("<config dir>");
   expect(instructions).not.toContain("<template dir>");
 });

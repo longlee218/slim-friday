@@ -12,6 +12,9 @@ import { dirname, join } from "node:path";
 /** How an env reference looks in a config value (spelled in two parts so lint does not read it as a template). */
 export const ENV_REF_EXAMPLE = "$" + "{NAME}";
 
+/** YAML in block style, one key per line (the default stringify writes one flow-style line). */
+export const toYaml = (value: unknown): string => `${Bun.YAML.stringify(value, null, 2)}\n`;
+
 /** A refusal: the message goes back to the model as the tool result. */
 export class Refused extends Error {}
 

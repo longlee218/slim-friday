@@ -60,6 +60,26 @@ export class FileConfig {
   groupIdsOf = (botId: string): string[] =>
     [...this.snapshot.groups.values()].filter((g) => g.members.includes(botId)).map((g) => g.id);
 
+  /** Id, name and title of every bot of the current snapshot. */
+  botSummaries = (): { id: string; name: string; title: string }[] =>
+    [...this.snapshot.bots.values()].map((b) => ({ id: b.id, name: b.name, title: b.title }));
+
+  /** Id, name and members of every group of the current snapshot. */
+  groupSummaries = (): { id: string; name: string; members: string[] }[] =>
+    [...this.snapshot.groups.values()].map((g) => ({ id: g.id, name: g.name, members: g.members }));
+
+  /** Names of every tool in the catalog. */
+  toolNames = (): string[] => this.snapshot.tools.map((t) => t.name);
+
+  /** Names of the configured MCP servers (shipped and the owner's). */
+  mcpNames = (): string[] => [...this.snapshot.mcp.keys()];
+
+  /** True when a bot other than `exceptId` already uses `name` (any case). */
+  nameTaken = (name: string, exceptId: string): boolean =>
+    [...this.snapshot.bots.values()].some(
+      (b) => b.id !== exceptId && b.name.toLowerCase() === name.toLowerCase(),
+    );
+
   /** The tools and their annotations. */
   readonly catalog: ToolCatalog = { list: async () => this.snapshot.tools };
 

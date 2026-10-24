@@ -6,6 +6,7 @@ import type { AgentConfig } from "../../../src/config/agent-config";
 import { HAIKU_SUMMARY_MODEL } from "../../../src/config/model-ids";
 import { readProcessEnv } from "../../../src/config/process-env";
 import { logEvent, logger } from "../../../src/observability/logger";
+import { designContextFor } from "./design-context";
 import { fridayExtraDirs } from "./friday-bot";
 import { memoryFlush } from "./memory-flush";
 import { sessionTools } from "./session-tools";
@@ -35,7 +36,6 @@ export async function startEngine(
   const guildId = need("DISCORD_GUILD_ID", config.discordGuildId);
   const ownerId = need("OWNER_DISCORD_ID", config.ownerDiscordId);
 
-  const configDir = join(agentHome, "config");
   const port = await connect({
     token,
     guildId,
@@ -55,12 +55,13 @@ export async function startEngine(
         skillDirs: skillDirs(agentHome),
         env,
         extraDirsFor: (bot) => {
-          const friday = fridayExtraDirs(configDir, TEMPLATES_DIR)(bot);
+          const friday = fridayExtraDirs(TEMPLATES_DIR)(bot);
           const shared = sharedDirsFor(agentHome, parts.config.groupIdsOf)(bot.id);
           return { write: [...friday.write, ...shared], read: friday.read };
         },
         mcpServers: () => parts.config.mcpServers(env).servers,
         mcpServersFor: sessionTools({
+          design: designContextFor({ config: parts.config, agentHome }),
           memory: parts.memory,
           store: parts.store,
           home: agentHome,

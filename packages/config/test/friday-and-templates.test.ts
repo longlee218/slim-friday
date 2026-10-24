@@ -1,25 +1,29 @@
 import { expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DEFAULTS_DIR, loadConfig } from "../src/load-config";
+import { DEFAULT_SKILLS_DIR, DEFAULTS_DIR, loadConfig } from "../src/load-config";
 import { loadTemplate } from "../src/templates";
 
 const ALLOWED = ["Read", "Glob", "Grep", "Write", "Edit", "Bash", "WebSearch", "WebFetch"];
 
-test("the shipped defaults include the Friday bot with every tool of the catalog", () => {
+test("the shipped Friday bot designs through BotDesign: no file tools, its skills ship, every tool is in the catalog", () => {
   const userDir = mkdtempSync(join(tmpdir(), "cfg-"));
   const { snapshot, problems } = loadConfig({ defaultsDir: DEFAULTS_DIR, userDir });
   expect(problems).toEqual([]);
   const f = snapshot.bots.get("friday");
   expect(f?.name).toBe("Friday");
-  // Memory and chat tools come with every bot and MCP servers are opt-in; every SDK and effect tool must be named.
-  const named = snapshot.tools
-    .map((t) => t.name)
-    .filter((n) => !/^mcp__(memory|chat|playwright)__/.test(n));
-  expect(named.filter((n) => !f?.tools.includes(n))).toEqual([]);
+  const tools = f?.tools ?? [];
+  for (const t of ["mcp__design__BotDesign", "mcp__design__BotLookup", "Bash", "WebFetch"])
+    expect(tools).toContain(t);
+  // The config dir is written only through BotDesign.
+  for (const t of ["Read", "Write", "Edit", "NotebookEdit"]) expect(tools).not.toContain(t);
+  const catalog = new Set(snapshot.tools.map((t) => t.name));
+  expect(tools.filter((t) => !catalog.has(t))).toEqual([]);
+  expect(f?.skills).toEqual(["bot-design", "skill-install", "skill-creator"]);
+  for (const s of f?.skills ?? [])
+    expect(existsSync(join(DEFAULT_SKILLS_DIR, s, "SKILL.md"))).toBe(true);
   expect(f?.workspaces).toEqual([]);
-  expect(f?.instructions).toContain("<config dir>");
   expect(f?.instructions).toContain("<template dir>");
 });
 
@@ -51,8 +55,7 @@ test("a user bot file with the reserved id friday is reported and ignored", () =
   );
   const { snapshot, problems } = loadConfig({ defaultsDir: DEFAULTS_DIR, userDir });
   const tools = snapshot.bots.get("friday")?.tools ?? [];
-  expect(tools).not.toContain("own");
-  expect(tools).toContain("Bash");
+  expect(tools).toContain("mcp__design__BotDesign");
   expect(tools).toContain("mcp__effects__CreateProject");
   expect(problems.map((p) => p.message).join()).toContain("reserved");
 });

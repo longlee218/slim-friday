@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import type { DesignArgs } from "../design-args";
 import type { DesignContext } from "../design-context";
-import { atomicWrite, need, plainId, Refused } from "../design-util";
+import { atomicWrite, need, plainId, Refused, toYaml } from "../design-util";
 
 /** `write_group`: members must be bots that exist (not a reserved one); checked with the app's parser. */
 export function writeGroup(ctx: DesignContext, a: DesignArgs): string {
@@ -14,7 +14,7 @@ export function writeGroup(ctx: DesignContext, a: DesignArgs): string {
   }
   const entryBot = need(a.entryBot, "entryBot");
   if (!members.includes(entryBot)) throw new Refused("entryBot must be one of the members.");
-  const text = Bun.YAML.stringify({
+  const text = toYaml({
     name: need(a.name, "name"),
     members,
     entryBot,

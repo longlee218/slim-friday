@@ -23,6 +23,11 @@ tools:
   # The bot's own memory: bounded by the memory tools' code, so saving needs no card.
   # A skill only loads instructions the owner put in the bot's own list: no card.
   - { name: Skill, annotations: { readOnlyHint: true } }
+  - { name: TaskCreate, annotations: { readOnlyHint: true } }
+  - { name: TaskGet, annotations: { readOnlyHint: true } }
+  - { name: TaskUpdate, annotations: { readOnlyHint: true } }
+  - { name: TaskList, annotations: { readOnlyHint: true } }
+  - { name: TaskStop, annotations: { readOnlyHint: true } }
   - { name: mcp__memory__MemorySearch, annotations: { readOnlyHint: true } }
   - { name: mcp__memory__MemorySave, sandboxed: true }
   - { name: mcp__memory__MemoryEdit, sandboxed: true }
@@ -34,3 +39,6 @@ tools:
   - { name: mcp__effects__CreatePullRequest, annotations: { destructiveHint: false, openWorldHint: true }, scopeKeys: [workspace, base] }
   - { name: mcp__effects__MergeBranch, annotations: { destructiveHint: true, idempotentHint: false, openWorldHint: false }, scopeKeys: [workspace, into] }
   - { name: mcp__effects__CreateProject, annotations: { destructiveHint: false, openWorldHint: false } }
+  - { name: mcp__design__BotLookup, annotations: { readOnlyHint: true } }
+  # Writes the owner's config (bots, skills, MCP servers that run code): asked at every level, never "Always allow".
+  - { name: mcp__design__BotDesign, annotations: { destructiveHint: true, idempotentHint: false, openWorldHint: true } }

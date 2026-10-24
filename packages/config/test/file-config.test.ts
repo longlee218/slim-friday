@@ -51,7 +51,7 @@ test("load serves bots, groups, catalog, settings and limits from the snapshot",
   expect((await config.bots.get("a"))?.name).toBe("A");
   expect(await config.bots.list()).toHaveLength(2); // A and the shipped Friday bot
   expect(await config.groups.get("g")).toBeUndefined();
-  expect(await config.catalog.list()).toHaveLength(28);
+  expect(await config.catalog.list()).toHaveLength(35);
   expect(await config.listGroups()).toEqual([]);
   expect(config.settings().level).toBe("balanced");
   expect(config.limits().maxHops).toBe(8);
@@ -145,4 +145,18 @@ test("groupIdsOf lists the groups a bot is a member of, from the current snapsho
   expect(config.groupIdsOf("ann")).toEqual(["duo"]);
   expect(config.groupIdsOf("bob").sort()).toEqual(["duo", "solo"]);
   expect(config.groupIdsOf("nobody")).toEqual([]);
+});
+
+test("summaries, tool names, mcp names and name checks come from the current snapshot", () => {
+  const dir = newDir();
+  put(dir, "ann", botText("Ann"));
+  mkdirSync(join(dir, "groups"), { recursive: true });
+  writeFileSync(join(dir, "groups", "solo.yaml"), "name: Solo\nmembers: [ann]\nentryBot: ann\n");
+  const { config } = make(dir);
+  expect(config.botSummaries().map((b) => b.id)).toEqual(["ann", "friday"]);
+  expect(config.groupSummaries()).toEqual([{ id: "solo", name: "Solo", members: ["ann"] }]);
+  expect(config.toolNames()).toContain("Bash");
+  expect(config.mcpNames()).toContain("playwright");
+  expect(config.nameTaken("ANN", "bob")).toBe(true);
+  expect(config.nameTaken("Ann", "ann")).toBe(false);
 });

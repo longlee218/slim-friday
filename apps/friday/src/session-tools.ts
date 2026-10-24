@@ -5,6 +5,9 @@ import {
   CHAT_MCP_SERVER,
   type ChatContext,
   chatServer,
+  DESIGN_MCP_SERVER,
+  type DesignContext,
+  designServer,
   EFFECTS_MCP_SERVER,
   type EffectsContext,
   effectsServer,
@@ -91,6 +94,8 @@ export interface SessionToolsDeps {
   postFile: ChatContext["postFile"];
   /** Runs a command (argv, no shell); tests replace it. */
   run?: EffectsContext["run"];
+  /** The design context of a session (for a bot that names the `design` server). */
+  design?: (spec: BotRuntimeSpec, run: EffectsContext["run"]) => DesignContext;
 }
 
 /** Run argv in `cwd` with only `env` and a timeout; stdout and stderr are returned together. */
@@ -150,14 +155,13 @@ export function sensitiveCheck(workspaces: string[], isSensitive: (rel: string) 
     });
 }
 
-/** True when the bot names the effects server or one of its tools. */
-const wantsEffects = (tools: string[]) =>
-  tools.some(
-    (t) => t === `mcp__${EFFECTS_MCP_SERVER}` || t.startsWith(`mcp__${EFFECTS_MCP_SERVER}__`),
-  );
+/** True when the bot names a server (all of it) or one of its tools. */
+const wantsServer = (tools: string[], server: string) =>
+  tools.some((t) => t === `mcp__${server}` || t.startsWith(`mcp__${server}__`));
 
 /**
- * The in-process MCP servers of one session: `memory` for every bot, `effects` only for a bot that names it.
+ * The in-process MCP servers of one session: `memory` and `chat` for every bot, `effects` and `design` only for a bot
+ * that names them.
  * Built per session so the tools act for that bot only.
  */
 export function sessionTools(deps: SessionToolsDeps) {
@@ -181,7 +185,7 @@ export function sessionTools(deps: SessionToolsDeps) {
       conversation: () => spec.currentConversation?.(),
       postFile: deps.postFile,
     });
-    if (wantsEffects(spec.bot.tools)) {
+    if (wantsServer(spec.bot.tools, EFFECTS_MCP_SERVER)) {
       const ctx: EffectsContext = {
         botId: spec.bot.id,
         workspaces,
@@ -191,6 +195,8 @@ export function sessionTools(deps: SessionToolsDeps) {
       };
       servers[EFFECTS_MCP_SERVER] = effectsServer(ctx, deps.projectsDir(), spec.bot.tools);
     }
+    if (deps.design && wantsServer(spec.bot.tools, DESIGN_MCP_SERVER))
+      servers[DESIGN_MCP_SERVER] = designServer(deps.design(spec, run));
     return servers;
   };
 }

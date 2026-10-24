@@ -2,7 +2,7 @@ import { statSync } from "node:fs";
 import { isAbsolute, join, relative, sep } from "node:path";
 import type { DesignArgs } from "../design-args";
 import type { DesignContext } from "../design-context";
-import { atomicWrite, listSkills, need, plainId, Refused } from "../design-util";
+import { atomicWrite, listSkills, need, plainId, Refused, toYaml } from "../design-util";
 
 /** True when the tool name is in the catalog, or names an MCP server the app knows (whole server or one tool). */
 function toolKnown(ctx: DesignContext, tool: string, catalog: Set<string>): boolean {
@@ -49,7 +49,7 @@ export function writeBot(ctx: DesignContext, a: DesignArgs): string {
     ...(a.autonomy && { autonomy: a.autonomy }),
     ...(a.avatar && { avatar: a.avatar }),
   };
-  const text = `---\n${Bun.YAML.stringify(header)}---\n${body}\n`;
+  const text = `---\n${toYaml(header)}---\n${body}\n`;
   try {
     ctx.checkBot(id, text);
   } catch (err) {

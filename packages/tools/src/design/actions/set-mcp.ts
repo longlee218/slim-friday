@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { redactText } from "../../text/redact";
 import type { DesignArgs } from "../design-args";
 import type { DesignContext } from "../design-context";
-import { atomicWrite, ENV_REF_EXAMPLE, need, Refused } from "../design-util";
+import { atomicWrite, ENV_REF_EXAMPLE, need, Refused, toYaml } from "../design-util";
 
 /** Server names the app keeps for its own in-process servers. */
 const RESERVED = ["memory", "effects", "chat", "design"];
@@ -46,7 +46,7 @@ export function setMcp(ctx: DesignContext, a: DesignArgs): string {
           ...(s.env && { env: s.env }),
         }
       : { type: "http", url: need(s.url, "server.url"), ...(s.headers && { headers: s.headers }) };
-  const text = Bun.YAML.stringify({ servers: { ...servers, [name]: entry } });
+  const text = toYaml({ servers: { ...servers, [name]: entry } });
   try {
     ctx.checkMcp(text);
   } catch (err) {
