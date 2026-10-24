@@ -196,3 +196,15 @@ test("at most 3 replacements a run; more, or a number out of range, are added as
   expect(file).toContain("delta four updated");
   expect(file).toContain("epsilon five new");
 });
+
+test("a replacement of another kind is added as a new note, the old line stays in its section", async () => {
+  const { root, mem } = setup();
+  await mem.save(ann, "owner wants answers in Vietnamese", "preference");
+  const r = await consolidateOwner(mem, ann, now, async () => [
+    { kind: "fact", note: "owner's bank account is at Vietcombank", replaces: 1 },
+  ]);
+  expect(r.promoted).toBe(1);
+  const file = readFileSync(join(root, "bots", "ann", "MEMORY.md"), "utf8");
+  expect(file).toContain("## Preferences\n- owner wants answers in Vietnamese");
+  expect(file).toMatch(/## Facts\n- owner's bank account is at Vietcombank/);
+});

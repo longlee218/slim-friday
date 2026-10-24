@@ -66,10 +66,13 @@ export async function consolidateOwner(
   let skipped = 0;
   let replaced = 0;
   for (const p of picked) {
-    const target =
+    // A replacement must keep the kind of the line it replaces: the section decides who sees a note (a fact moved
+    // under Preferences would reach group sessions), so another kind is added as a new note instead.
+    const named =
       p.replaces !== undefined && replaced < MAX_REPLACED_PER_RUN
         ? bullets[p.replaces - 1]
         : undefined;
+    const target = named?.kind === p.kind ? named : undefined;
     // An update often shares most words with the line it replaces: compare against the other notes only.
     const others = target ? kept.filter((t) => t !== target.text) : kept;
     if (worthKeeping(p.note, others) !== "keep") {
