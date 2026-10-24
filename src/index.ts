@@ -1,3 +1,5 @@
+import { startEngine } from "../apps/friday/src/main";
+import type { AgentConfig } from "./config/agent-config";
 import { bootFriday } from "./lifecycle/boot";
 import { loadBootState } from "./lifecycle/boot-checks";
 import { logEvent, logger } from "./observability/logger";
@@ -13,12 +15,13 @@ function fail(message: string): never {
 
 /** Boot: config checks, infrastructure, graceful shutdown on SIGINT / SIGTERM. */
 async function main(): Promise<void> {
-  let agentHome: string;
+  let config: AgentConfig;
   try {
-    agentHome = loadBootState().config.agentHome;
+    config = loadBootState().config;
   } catch (err) {
     return fail(errText(err));
   }
+  const { agentHome } = config;
   const ac = new AbortController();
   let crashed = false;
   for (const sig of ["SIGINT", "SIGTERM"] as const) {
@@ -36,7 +39,11 @@ async function main(): Promise<void> {
     });
   }
   try {
-    await bootFriday({ agentHome, signal: ac.signal });
+    await bootFriday({
+      agentHome,
+      signal: ac.signal,
+      startEngine: (signal) => startEngine({ config, agentHome, signal }),
+    });
   } catch (err) {
     return fail(errText(err));
   }

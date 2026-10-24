@@ -1,5 +1,5 @@
 import { expect, setDefaultTimeout, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync } from "node:fs";
+import { mkdirSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
@@ -70,32 +70,10 @@ test("exits 1 when AGENT_HOME sits inside a git working tree", async () => {
   expect(r.log).toContain("AGENT_HOME is inside a git working tree");
 });
 
-test("boots with only a credential: creates the persona files, logs engine.absent, exits 0 on SIGTERM", async () => {
+test("boots with only a credential: refuses on the missing Discord token, exits 1", async () => {
+  // The engine now needs Discord: a credential alone is not enough.
   const home = mkdtempSync(join(tmpdir(), "friday-idx-"));
-  const proc = Bun.spawn(["bun", "run", join(import.meta.dir, "..", "src", "index.ts")], {
-    cwd: home,
-    env: {
-      PATH: process.env.PATH!,
-      HOME: process.env.HOME!,
-      AGENT_HOME: home,
-      CLAUDE_CODE_OAUTH_TOKEN: "tok",
-    },
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-  const logFile = workspacePaths(home).appLog();
-  // Wait (bounded) for the boot line, then ask the process to stop.
-  for (let i = 0; i < 100; i++) {
-    if (readLogLines(logFile).some((l) => l.msg === "engine.absent")) break;
-    await Bun.sleep(100);
-  }
-  // The process must stay up with no signal (a pending promise alone does not hold Bun's loop).
-  await Bun.sleep(1500);
-  expect(proc.exitCode).toBeNull();
-  proc.kill("SIGTERM");
-  expect(await proc.exited).toBe(0);
-  expect(readLogLines(logFile).some((l) => l.event === "app.shutdown")).toBe(true);
-  const p = workspacePaths(home);
-  for (const f of [p.identity, p.soul, p.user, p.memory, p.agents, p.bootstrap])
-    expect(existsSync(f)).toBe(true);
+  const r = await runIndex({ CLAUDE_CODE_OAUTH_TOKEN: "tok" }, home);
+  expect(r.code).toBe(1);
+  expect(r.log).toContain("DISCORD_TOKEN missing");
 });
