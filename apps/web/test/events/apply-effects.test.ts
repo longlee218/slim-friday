@@ -127,6 +127,13 @@ describe("applyEffects", () => {
     expect(spy).toHaveBeenCalledWith({ queryKey: orpc.conversations.list.key() });
   });
 
+  test("patchTicket invalidates the ticket list when no page holds the ticket", () => {
+    const spy = vi.spyOn(qc, "invalidateQueries");
+    const ticket = { id: "1", ref: "FRI-1", status: "todo", updatedAt: 1 } as never;
+    applyEffects(qc, [{ op: "patchTicket", ticket }], noop);
+    expect(spy).toHaveBeenCalledWith({ queryKey: orpc.tickets.list.key() });
+  });
+
   test("resync invalidates everything", () => {
     const spy = vi.spyOn(qc, "invalidateQueries");
     applyEffects(qc, [{ op: "invalidate", scope: "all" }], noop);

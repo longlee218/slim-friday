@@ -41,10 +41,9 @@ describe("reduceEvent", () => {
     expect(reduceEvent({ type: "status", bots }, view)).toEqual([{ op: "setStatus", bots }]);
   });
 
-  test("ticket and config.changed invalidate their scopes", () => {
-    expect(reduceEvent({ type: "ticket" } as never, view)).toEqual([
-      { op: "invalidate", scope: "tickets" },
-    ]);
+  test("ticket patches the cache; config.changed invalidates its scope", () => {
+    const ticket = { id: "1" } as never;
+    expect(reduceEvent({ type: "ticket", ticket }, view)).toEqual([{ op: "patchTicket", ticket }]);
     expect(reduceEvent({ type: "config.changed" }, view)).toEqual([
       { op: "invalidate", scope: "config" },
     ]);

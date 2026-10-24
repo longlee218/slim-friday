@@ -6,6 +6,7 @@ import type {
   QuestionAnswerDto,
   QuestionCardDto,
   RunStepDto,
+  TicketDto,
 } from "@friday/contracts";
 
 /** One cache change (or side effect) derived from a server event. */
@@ -23,6 +24,7 @@ export type CacheEffect =
   | { op: "setUnread"; conversationId: string; unread: number }
   | { op: "setStatus"; bots: BotStatusDto[] }
   | { op: "refetchStatus" }
+  | { op: "patchTicket"; ticket: TicketDto }
   | { op: "invalidate"; scope: "tickets" | "config" | "all" }
   | { op: "notify"; conversationId: string; botId?: string; title: string; text: string };
 
@@ -107,7 +109,7 @@ export function reduceEvent(e: FridayEvent, view: ReducerView): CacheEffect[] {
       // setStatus also ends the runs of every bot the list does not show as working.
       return [{ op: "setStatus", bots: e.bots }];
     case "ticket":
-      return [{ op: "invalidate", scope: "tickets" }];
+      return [{ op: "patchTicket", ticket: e.ticket }];
     case "config.changed":
       return [{ op: "invalidate", scope: "config" }];
     case "resync":

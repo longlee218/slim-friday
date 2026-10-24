@@ -1,6 +1,7 @@
 import type { BotStatusDto } from "@friday/contracts";
 import type { QueryClient } from "@tanstack/react-query";
 import { orpc } from "../api/client";
+import { patchTicket } from "../components/tickets/ticket-cache";
 import { closeApproval, closeQuestion, openApproval, openQuestion } from "./apply-cards";
 import { appendMessage, setUnread } from "./apply-messages";
 import { endRun, endRunsExcept, runStep, runTail, startRun } from "./apply-runs";
@@ -82,6 +83,9 @@ export function applyEffects(qc: QueryClient, effects: CacheEffect[], notify: No
         break;
       case "refetchStatus":
         refetchStatus(qc);
+        break;
+      case "patchTicket":
+        patchTicket(qc, e.ticket);
         break;
       case "invalidate":
         if (e.scope === "all") void qc.invalidateQueries();
