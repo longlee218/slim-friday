@@ -23,10 +23,13 @@ const implemented = [
   "config.bots.get",
   "config.bots.save",
   "config.bots.delete",
+  "config.bots.setAvatar",
+  "config.avatars.",
   "config.groups.list",
   "config.groups.get",
   "config.groups.save",
   "config.groups.delete",
+  "config.groups.setAvatar",
   "config.skills.",
   "config.mcp.",
   "config.owner.",
@@ -38,16 +41,13 @@ const expected = listProcedurePaths(contract)
 test("every procedure but the implemented ones is still a stub", () =>
   expect(stubbedProcedures()).toEqual(expected));
 
-test("11 stubs left (avatars, setAvatar and memory; the rest of config is real)", () =>
-  expect(stubbedProcedures()).toHaveLength(11));
+test("only memory is still a stub", () =>
+  expect(stubbedProcedures().every((p) => p.startsWith("memory."))).toBe(true));
 
 test("a stub throws the typed NOT_IMPLEMENTED error", async () => {
-  await expect(client.config.avatars.list()).rejects.toMatchObject({
+  await expect(client.memory.list({ owner: "bot:a" })).rejects.toMatchObject({
     code: "NOT_IMPLEMENTED",
     status: 501,
-  });
-  await expect(client.config.bots.setAvatar({ id: "a", preset: "p" })).rejects.toMatchObject({
-    code: "NOT_IMPLEMENTED",
   });
 });
 

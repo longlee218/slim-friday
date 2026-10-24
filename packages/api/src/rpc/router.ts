@@ -1,5 +1,6 @@
 import { approvalsRouter, questionsRouter } from "../routers/cards-router";
 import { chatRouter } from "../routers/chat-router";
+import { avatarsRouter } from "../routers/config/avatars-router";
 import { botsRouter } from "../routers/config/bots-router";
 import { groupsRouter } from "../routers/config/groups-router";
 import { mcpRouter } from "../routers/config/mcp-router";
@@ -19,11 +20,12 @@ const stubs = stubRouter() as unknown as { config: Record<string, Record<string,
 /** The whole API; later plans replace subtrees: `{ ...stubRouter(), conversations: conversationsRouter }`. */
 export const appRouter = authed.router({
   ...(stubs as unknown as AppRouterInput),
-  // Bots, groups, owner files, MCP and skills are real; avatars, `setAvatar` and memory stay stubs.
+  // Bots, groups, owner files, MCP and skills are real; only memory stays a stub.
   config: {
     ...stubs.config,
     bots: { ...stubs.config.bots, ...botsRouter },
     groups: { ...stubs.config.groups, ...groupsRouter },
+    avatars: avatarsRouter,
     owner: ownerRouter,
     mcp: mcpRouter,
     skills: skillsRouter,

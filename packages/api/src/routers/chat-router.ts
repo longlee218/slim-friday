@@ -1,12 +1,10 @@
 import { isImageType } from "@friday/surface-web";
+import { encodeKey } from "../encode-key";
 import { authed } from "../rpc/implementer";
 import { toOrpcError } from "../surface-errors";
 
 /** Seconds a file download link stays valid. */
 const FILE_URL_SECONDS = 900;
-
-/** Encode each path segment of an R2 key for a URL; `/` stays. */
-const encodeKey = (key: string): string => key.split("/").map(encodeURIComponent).join("/");
 
 /** Sending messages and files. */
 export const chatRouter = {

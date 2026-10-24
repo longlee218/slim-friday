@@ -64,10 +64,20 @@ export class FakeConfigAdmin implements ConfigAdmin {
     this.fail("deleteGroup", [id]);
     this.groups.delete(id);
   }
-  setAvatar(_t: AvatarTarget, _a: string | null) {
-    return {};
+  /** The last value `setAvatar` stored (`null` = cleared) and the shipped preset names. */
+  lastAvatar: string | null | undefined;
+  presetNames: string[] = [];
+  setAvatar(t: AvatarTarget, a: string | null) {
+    this.fail("setAvatar", [t, a]);
+    const entry = (t.kind === "bot" ? this.bots : this.groups).get(t.id);
+    if (!entry) throw new AdminError("NOT_FOUND", `no ${t.kind} ${t.id}`);
+    const previous = entry.avatar;
+    if (a === null) delete entry.avatar;
+    else entry.avatar = a;
+    this.lastAvatar = a;
+    return previous === undefined ? {} : { previous };
   }
-  presets = () => [];
+  presets = () => this.presetNames;
   readOwnerFile(f: OwnerFile) {
     this.fail("readOwnerFile", [f]);
     return this.owner[f];

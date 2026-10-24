@@ -64,10 +64,10 @@ async function login(t: Fresh, app = t.app) {
 }
 
 const purge = (app: Fresh["app"], headers: Record<string, string>) =>
-  app.request(`${API}/rpc/config/avatars/list`, {
+  app.request(`${API}/rpc/memory/list`, {
     method: "POST",
     headers: { "content-type": "application/json", ...headers },
-    body: JSON.stringify({ json: {} }),
+    body: JSON.stringify({ json: { owner: "bot:a" } }),
   });
 
 test("POST /rpc with the right origin but no cookie -> 401", async () => {
@@ -201,7 +201,7 @@ test("a throwing getSession is 401 and logs session_error", async () => {
   expect(res.status).toBe(401);
   expect(t.logs).toContainEqual({
     event: "auth.failed",
-    route: "/rpc/config/avatars/list",
+    route: "/rpc/memory/list",
     status: 401,
     reason: "session_error",
   });
