@@ -7,6 +7,9 @@ const EXCERPT_LENGTH = 140;
 /** Image types shown inline (the same list the upload check accepts). */
 const IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
 
+/** True when a stored mime type is one of the inline image types. */
+export const isImageType = (mimeType: string): boolean => IMAGE_TYPES.has(mimeType);
+
 /** Collapse whitespace to one line, then cut to `EXCERPT_LENGTH` code points. */
 function excerptOf(text: string): string {
   return [...text.replace(/\s+/g, " ").trim()].slice(0, EXCERPT_LENGTH).join("");
@@ -19,7 +22,7 @@ function toFileDto(f: FileRef): FileDto {
     name: f.name,
     mimeType: f.mimeType,
     size: f.size,
-    kind: IMAGE_TYPES.has(f.mimeType) ? "image" : "file",
+    kind: isImageType(f.mimeType) ? "image" : "file",
     ...(f.width !== undefined && { width: f.width }),
     ...(f.height !== undefined && { height: f.height }),
   };

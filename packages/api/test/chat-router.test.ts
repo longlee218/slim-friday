@@ -111,3 +111,44 @@ test("file: an image has no dl, a pdf has dl=report.pdf, both exp=900", async ()
   expect(doc.url).toContain("exp=900");
   expect(doc.url).toContain("dl=report.pdf");
 });
+
+const CDN = "https://img.example.com";
+
+test("file: an image with cdnUrl is served from the CDN, nothing presigned", async () => {
+  const h = setup();
+  h.deps.cdnUrl = CDN;
+  await seedFile(h, ID, "pic.png", "image/png");
+  const res = await h.client.chat.file({ id: ID });
+  expect(res.url).toBe(`${CDN}/files/bot%3Aa/${ID}/pic.png`);
+});
+
+test("file: a key with a space or colon is encoded per segment", async () => {
+  const h = setup();
+  h.deps.cdnUrl = CDN;
+  await h.store.files.insert({
+    id: ID,
+    key: "files/bot:a/x y/p:q.png",
+    conversationId: "bot:a",
+    name: "p:q.png",
+    mimeType: "image/png",
+    size: 3,
+    source: "bot",
+    at: 1,
+  });
+  expect((await h.client.chat.file({ id: ID })).url).toBe(`${CDN}/files/bot%3Aa/x%20y/p%3Aq.png`);
+});
+
+test("file: a pdf with cdnUrl is still presigned with dl=", async () => {
+  const h = setup();
+  h.deps.cdnUrl = CDN;
+  await seedFile(h, ID, "report.pdf", "application/pdf");
+  const res = await h.client.chat.file({ id: ID });
+  expect(res.url).not.toContain(CDN);
+  expect(res.url).toContain("dl=report.pdf");
+});
+
+test("file: an image without cdnUrl is presigned", async () => {
+  const h = setup();
+  await seedFile(h, ID, "pic.png", "image/png");
+  expect((await h.client.chat.file({ id: ID })).url).toContain("exp=900");
+});

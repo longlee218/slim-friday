@@ -1,11 +1,12 @@
+import { isImageType } from "@friday/surface-web";
 import { authed } from "../rpc/implementer";
 import { toOrpcError } from "../surface-errors";
 
 /** Seconds a file download link stays valid. */
 const FILE_URL_SECONDS = 900;
 
-/** Image types shown inline (the web surface's list); anything else downloads under its name. */
-const IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
+/** Encode each path segment of an R2 key for a URL; `/` stays. */
+const encodeKey = (key: string): string => key.split("/").map(encodeURIComponent).join("/");
 
 /** Sending messages and files. */
 export const chatRouter = {
@@ -19,7 +20,10 @@ export const chatRouter = {
   file: authed.chat.file.handler(async ({ input, context, errors }) => {
     const row = await context.deps.store.files.get(input.id);
     if (!row) throw errors.NOT_FOUND();
-    const image = IMAGE_TYPES.has(row.mimeType);
+    const image = isImageType(row.mimeType);
+    // Images go through the owner's public CDN when set; everything else is presigned.
+    const cdn = context.deps.cdnUrl;
+    if (image && cdn) return { url: `${cdn}/${encodeKey(row.key)}` };
     return {
       url: context.deps.files.presignGet(
         row.key,

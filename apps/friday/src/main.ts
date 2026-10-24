@@ -143,6 +143,7 @@ export async function startEngine(opts: {
     agentHome,
     port: config.apiPort,
     ...web,
+    cdnUrl: config.cdnUrl,
     log,
     engine: { hub: app.hub, store: app.store, surface, files, purge: () => purgeTrash(agentHome) },
   }).catch(async (err) => {

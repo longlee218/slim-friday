@@ -50,8 +50,9 @@ prefixes:
   - DISCORD_ # the retired chat surface: a stale .env may still hold its token
   - ANTHROPIC_ # provider vars are set again by the app for the child
 
-# Schema keys that are on purpose NOT denied (the agent may see them). None today.
-passthrough: []
+# Schema keys that are on purpose NOT denied (the agent may see them).
+passthrough:
+  - CDN # public image domain, not a secret (owner 2026-10-25)
 
 # Extra denies for a dispatched WORKER's process: its Bash tool inherits the SDK child's env, and a worker runs repo code. The
 # app's own provider credentials are added AFTER this filter (runtime/sdk-env.ts) and the SDK strips them from the tools' env

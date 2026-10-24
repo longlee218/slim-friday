@@ -63,3 +63,17 @@ describe("web API env vars", () => {
     });
   });
 });
+
+describe("CDN env var", () => {
+  test("unset gives undefined", () => {
+    expect(load({}).cdnUrl).toBeUndefined();
+  });
+
+  test("a trailing slash is stripped", () => {
+    expect(load({ CDN: "https://img.example.com/" }).cdnUrl).toBe("https://img.example.com");
+  });
+
+  test.each(["http://img.example.com", "img.example.com"])("%s is refused", (v) => {
+    expect(() => load({ CDN: v })).toThrow(/CDN/);
+  });
+});

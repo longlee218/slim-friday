@@ -30,6 +30,8 @@ export interface ApiDeps {
   /** The web surface: uploads, owner messages, the event bus and cards. */
   surface: WebSurface;
   files: FileStore;
+  /** Public https origin of the owner's CDN on the bucket (no trailing `/`); images are served from it when set. */
+  cdnUrl?: string;
   /** Empty the trash; returns how many entries were removed. */
   purge: () => number;
 }

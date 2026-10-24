@@ -20,6 +20,8 @@ export interface ApiServerOptions {
   authSecret: string;
   ownerEmail: string;
   log: ApiLog;
+  /** Public CDN URL for images; undefined = presigned. */
+  cdnUrl?: string;
   /** Engine handles for the engine-backed routes (hub, store, surface, files, purge). */
   engine: EngineDeps;
 }
@@ -51,6 +53,7 @@ export async function startApiServer(
       webOrigin: o.webOrigin,
       ownerEmail: o.ownerEmail,
       log: o.log,
+      cdnUrl: o.cdnUrl,
       now: systemClock.now,
       dbReachable: authDb.ping,
       ...o.engine,

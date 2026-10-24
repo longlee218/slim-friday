@@ -27,6 +27,16 @@ const originUrl = z
     { message: "must be an origin like https://host" },
   );
 
+/** Optional https URL of the CDN; a trailing `/` is stripped. */
+const cdnOrigin = z
+  .string()
+  .trim()
+  .optional()
+  .transform((v) => (v ? v.replace(/\/+$/, "") : undefined))
+  .refine((v) => v === undefined || /^https:\/\/[^/\s]/.test(v), {
+    message: "CDN must be an https URL",
+  });
+
 /** Raw env schema. The web and R2 vars are optional here; the bot entry enforces them (`startEngine`). */
 const envSchema = z.object({
   CLAUDE_CODE_OAUTH_TOKEN: secret,
@@ -55,6 +65,8 @@ const envSchema = z.object({
   R2_ACCESS_KEY_ID: secret,
   R2_SECRET_ACCESS_KEY: secret,
   R2_BUCKET: secret,
+  /** Public custom domain on the R2 bucket; images are served from it. Not a secret. */
+  CDN: cdnOrigin,
 });
 
 /** Names of the env variables the app itself reads: each must be classified in the runtime's child-env deny list. */
@@ -78,6 +90,8 @@ export interface AgentConfig {
   authSecret?: string;
   /** The owner's login email, lower-cased. */
   ownerEmail?: string;
+  /** Public https URL of the CDN (no trailing `/`); undefined = presigned URLs everywhere. */
+  cdnUrl?: string;
   /** R2 credentials and bucket; each undefined when unset (`startEngine` requires all four). Keys: never log. */
   r2: {
     accountId: string | undefined;
@@ -108,6 +122,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     publicApiUrl: e.PUBLIC_API_URL,
     authSecret: e.AUTH_SECRET,
     ownerEmail: e.OWNER_EMAIL,
+    cdnUrl: e.CDN,
     r2: {
       accountId: e.R2_ACCOUNT_ID,
       accessKeyId: e.R2_ACCESS_KEY_ID,
