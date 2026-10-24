@@ -2,6 +2,8 @@
 
 export * from "./chat/chat-context";
 export * from "./chat/chat-server";
+export * from "./design/design-context";
+export * from "./design/design-server";
 export * from "./effects/effects-context";
 export * from "./effects/effects-server";
 export { isPlainName } from "./effects/git-args";

@@ -1,0 +1,87 @@
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { dirname, join } from "node:path";
+
+/** How an env reference looks in a config value (spelled in two parts so lint does not read it as a template). */
+export const ENV_REF_EXAMPLE = "$" + "{NAME}";
+
+/** A refusal: the message goes back to the model as the tool result. */
+export class Refused extends Error {}
+
+/** Bot, group and skill ids: lowercase, start with a letter, at most 32 chars (skills also allow `.` and `_`). */
+export const ID_RE = /^[a-z][a-z0-9-]{0,31}$/;
+export const SKILL_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+
+/** A required text field, trimmed; refuses when it is missing or blank. */
+export function need(value: string | undefined, field: string): string {
+  const v = value?.trim();
+  if (!v) throw new Refused(`${field} is required.`);
+  return v;
+}
+
+/** A plain id (bot, group, MCP server); refuses anything else. */
+export function plainId(value: string | undefined, field = "id"): string {
+  const v = need(value, field);
+  if (!ID_RE.test(v))
+    throw new Refused(
+      `${field} must be lowercase letters, digits and "-", starting with a letter (max 32).`,
+    );
+  return v;
+}
+
+/** Write a file in one step: a temp file next to it, then a rename. Creates the dir. */
+export function atomicWrite(file: string, text: string): void {
+  mkdirSync(dirname(file), { recursive: true });
+  const tmp = `${file}.${process.pid}.tmp`;
+  writeFileSync(tmp, text);
+  renameSync(tmp, file);
+}
+
+/** Front matter `name` and `description` of a SKILL.md text (undefined when absent). */
+export function skillFront(text: string): { name?: string; description?: string } {
+  const head = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text)?.[1] ?? "";
+  const get = (k: string) =>
+    new RegExp(`^${k}:\\s*(.+)$`, "m")
+      .exec(head)?.[1]
+      ?.trim()
+      .replace(/^["']|["']$/g, "");
+  return { name: get("name"), description: get("description") };
+}
+
+/** Skills found in `dirs` (first dir wins on a repeated name): name, description and the dir that holds it. */
+export function listSkills(dirs: string[]): { name: string; description: string; dir: string }[] {
+  const seen = new Map<string, { name: string; description: string; dir: string }>();
+  for (const dir of dirs) {
+    if (!existsSync(dir)) continue;
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const file = join(dir, e.name, "SKILL.md");
+      if (!e.isDirectory() || seen.has(e.name) || !existsSync(file)) continue;
+      seen.set(e.name, {
+        name: e.name,
+        description: skillFront(readFileSync(file, "utf8")).description ?? "",
+        dir: join(dir, e.name),
+      });
+    }
+  }
+  return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** Put a dir in place from `files` (rel path → content), replacing any dir already there. Built aside, then renamed. */
+export function replaceDir(target: string, files: Map<string, Buffer | string>): void {
+  const tmp = `${target}.${process.pid}.tmp`;
+  rmSync(tmp, { recursive: true, force: true });
+  for (const [rel, content] of files) {
+    const file = join(tmp, rel);
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, content);
+  }
+  rmSync(target, { recursive: true, force: true });
+  renameSync(tmp, target);
+}
