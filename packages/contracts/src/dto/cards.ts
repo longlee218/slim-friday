@@ -1,0 +1,49 @@
+import { z } from "zod";
+import { ConversationIdSchema } from "../ids";
+
+/** The owner's answer to an approval card. */
+export const ApprovalAnswerSchema = z.enum(["once", "always", "deny"]);
+export type ApprovalAnswer = z.infer<typeof ApprovalAnswerSchema>;
+
+/** A tool-permission card waiting for the owner. */
+export const ApprovalCardDtoSchema = z.object({
+  cardId: z.string(),
+  conversationId: ConversationIdSchema,
+  botId: z.string(),
+  botName: z.string(),
+  tool: z.string(),
+  summary: z.string(),
+  scope: z.record(z.string(), z.string()),
+  offerAlways: z.boolean(),
+  expiresAt: z.number().optional(),
+});
+export type ApprovalCardDto = z.infer<typeof ApprovalCardDtoSchema>;
+
+/** One choice of a question card. */
+export const QuestionOptionDtoSchema = z.object({
+  value: z.string(),
+  label: z.string(),
+  description: z.string().optional(),
+});
+export type QuestionOptionDto = z.infer<typeof QuestionOptionDtoSchema>;
+
+/** A question a bot asks the owner. */
+export const QuestionCardDtoSchema = z.object({
+  cardId: z.string(),
+  conversationId: ConversationIdSchema,
+  botId: z.string(),
+  botName: z.string(),
+  question: z.string(),
+  kind: z.enum(["single", "multi", "confirm"]),
+  options: z.array(QuestionOptionDtoSchema),
+  allowText: z.boolean(),
+  expiresAt: z.number().optional(),
+});
+export type QuestionCardDto = z.infer<typeof QuestionCardDtoSchema>;
+
+/** The owner's answer to a question card. */
+export const QuestionAnswerDtoSchema = z.object({
+  choices: z.array(z.string()),
+  text: z.string().optional(),
+});
+export type QuestionAnswerDto = z.infer<typeof QuestionAnswerDtoSchema>;
