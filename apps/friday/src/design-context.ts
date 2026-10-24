@@ -1,3 +1,4 @@
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   DEFAULTS_DIR,
@@ -10,6 +11,7 @@ import {
 import type { BotRuntimeSpec } from "@friday/core";
 import { isChildEnvDenied } from "@friday/runtime-claude";
 import { type DesignContext, type EffectsContext, GIT_HARDEN, GIT_RUN_ENV } from "@friday/tools";
+import { AVATARS_DIR } from "./avatars";
 import { sessionScratchDir } from "./session-tools";
 import { skillDirs } from "./skills-dirs";
 
@@ -42,6 +44,24 @@ export function designContextFor(deps: DesignDeps) {
     botSummaries: config.botSummaries,
     groupSummaries: config.groupSummaries,
     nameTaken: config.nameTaken,
+    // The shipped avatars and the owner's own (`config/avatars/<name>.png`).
+    presetAvatars: () => [
+      ...new Set(
+        [AVATARS_DIR, join(agentHome, "config", "avatars")].flatMap((d) =>
+          existsSync(d)
+            ? readdirSync(d)
+                .filter((f) => f.endsWith(".png"))
+                .map((f) => f.slice(0, -4))
+            : [],
+        ),
+      ),
+    ],
+    // The owner's bot file first, then the shipped one.
+    readBotFile: (id) => {
+      const dirs = [join(agentHome, "config", "bots"), join(DEFAULTS_DIR, "bots")];
+      const file = dirs.map((d) => join(d, `${id}.md`)).find((f) => existsSync(f));
+      return file ? readFileSync(file, "utf8") : undefined;
+    },
     checkBot: (id, text) => void parseBotFile(id, text),
     checkGroup: (id, text) => void parseGroupFile(id, text),
     checkMcp: (text) => void parseMcpFile(text),

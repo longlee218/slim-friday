@@ -48,6 +48,8 @@ export function setup(over: Partial<DesignContext> = {}) {
     mcpNames: () => ["playwright"],
     botSummaries: () => [{ id: "friday", name: "Friday", title: "team builder" }],
     groupSummaries: () => [],
+    presetAvatars: () => ["fox"],
+    readBotFile: () => undefined,
     nameTaken: () => false,
     // A stand-in for the real parsers: the text must at least carry a name line.
     checkBot: (_id, text) => {

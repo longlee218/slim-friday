@@ -1,5 +1,6 @@
 /** Built-in tools: file memory, memory tools, effect tools. */
 
+export * from "./admin/config-admin";
 export * from "./chat/chat-context";
 export * from "./chat/chat-server";
 export * from "./design/design-context";

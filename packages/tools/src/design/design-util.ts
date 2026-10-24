@@ -17,8 +17,19 @@ export const ENV_REF_EXAMPLE = "$" + "{NAME}";
 /** YAML in block style, one key per line (the default stringify writes one flow-style line). */
 export const toYaml = (value: unknown): string => `${Bun.YAML.stringify(value, null, 2)}\n`;
 
-/** A refusal: the message goes back to the model as the tool result. */
-export class Refused extends Error {}
+/**
+ * A refusal: the message goes back to the model as the tool result. `field` names the input field it is about (the
+ * settings admin shows it on the form); `cause` is the parser error it wraps.
+ */
+export class Refused extends Error {
+  constructor(
+    message: string,
+    readonly field?: string,
+    cause?: unknown,
+  ) {
+    super(message, cause === undefined ? undefined : { cause });
+  }
+}
 
 /** Bot, group and skill ids: lowercase, start with a letter, at most 32 chars (skills also allow `.` and `_`). */
 export const ID_RE = /^[a-z][a-z0-9-]{0,31}$/;
@@ -27,7 +38,7 @@ export const SKILL_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 /** A required text field, trimmed; refuses when it is missing or blank. */
 export function need(value: string | undefined, field: string): string {
   const v = value?.trim();
-  if (!v) throw new Refused(`${field} is required.`);
+  if (!v) throw new Refused(`${field} is required.`, field);
   return v;
 }
 
@@ -37,6 +48,7 @@ export function plainId(value: string | undefined, field = "id"): string {
   if (!ID_RE.test(v))
     throw new Refused(
       `${field} must be lowercase letters, digits and "-", starting with a letter (max 32).`,
+      field,
     );
   return v;
 }
