@@ -154,3 +154,14 @@ test("MemorySave tells which scope fits which note", () => {
     "knowledge about the group's project or way of working goes to group; facts about the owner go to bot",
   );
 });
+
+test("MemorySave in a group session does not reveal a hidden note through duplicate", async () => {
+  const { mem } = setup();
+  await mem.save({ kind: "bot", botId: "ann" }, "owner's bank is in Hanoi");
+  await mem.save({ kind: "bot", botId: "ann" }, "owner wants short answers", "preference");
+  const save = createMemorySaveTool(mem, { ...ctx("g1"), groupId: "team" });
+  expect(text(await call(save, { note: "owner's bank is in Hanoi" }))).toBe("saved");
+  expect(text(await call(save, { note: "owner wants short answers", kind: "preference" }))).toBe(
+    "duplicate",
+  );
+});

@@ -1,8 +1,10 @@
 import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { textResult } from "../../../tool-result";
+import { bulletHash } from "../../bullet-hash";
 import { type FileMemory, MemoryError, memoryErrorText } from "../../file-memory";
-import { resolveOwner, type ToolSessionContext } from "../../memory-owner";
+import { resolveOwner, type ToolSessionContext, visibleNotes } from "../../memory-owner";
+import { sanitizeBullet } from "../../sanitize-bullet";
 import { MEMORY_SAVE_MAX_CHARS, MEMORY_SAVE_TOOL } from "./constants";
 import { MEMORY_SAVE_DESCRIPTION } from "./prompt";
 
@@ -30,6 +32,16 @@ export function createMemorySaveTool(memory: FileMemory, ctx: ToolSessionContext
         await memory.save(owner, note, kind);
         return textResult("saved");
       } catch (err) {
+        // In a group session a copy of a hidden private note reads as saved (the note is stored), so the reply
+        // cannot be used to test whether a private fact exists.
+        if (
+          err instanceof MemoryError &&
+          err.code === "duplicate" &&
+          owner.kind === "bot" &&
+          ctx.groupId &&
+          !visibleNotes(memory, owner, ctx).some((n) => n.id === bulletHash(sanitizeBullet(note)))
+        )
+          return textResult("saved");
         if (err instanceof MemoryError) return textResult(memoryErrorText(err), true);
         throw err;
       }
