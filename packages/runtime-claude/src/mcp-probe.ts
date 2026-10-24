@@ -27,6 +27,8 @@ function toSdkServer(s: McpServerInput) {
 export function createMcpProbe(deps: {
   /** The child env of the SDK process (already expanded and scrubbed by the caller). */
   env: Record<string, string>;
+  /** Where the server starts; an empty dir, so a server under test finds no `.env` of the engine. */
+  cwd?: string;
   timeoutMs?: number;
   /** The SDK `query`; tests inject a fake. */
   query?: typeof query;
@@ -57,6 +59,7 @@ export function createMcpProbe(deps: {
           settingSources: [],
           tools: [],
           env: deps.env,
+          ...(deps.cwd && { cwd: deps.cwd }),
         },
       });
       // A timer, not the clock; every wait is raced against it so a stalled SDK cannot hold the probe.

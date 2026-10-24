@@ -18,6 +18,22 @@ const bot = (name: string, body = "Be brief.", extra = "") =>
   `---\nname: ${name}\ntitle: T\nmodel: sonnet\n${extra}---\n${body}\n`;
 const load = (dir: string, defaultsDir = DEFAULTS_DIR) => loadConfig({ defaultsDir, userDir: dir });
 
+test("a user bot with the reserved id owner is refused", () => {
+  const dirs = mkdtempSync(join(tmpdir(), "reserved-owner-"));
+  mkdirSync(join(dirs, "user", "bots"), { recursive: true });
+  mkdirSync(join(dirs, "defaults"), { recursive: true });
+  writeFileSync(
+    join(dirs, "user", "bots", "owner.md"),
+    "---\nname: O\ntitle: T\nmodel: m\n---\nHi.\n",
+  );
+  const { snapshot, problems } = loadConfig({
+    defaultsDir: join(dirs, "defaults"),
+    userDir: join(dirs, "user"),
+  });
+  expect(snapshot.bots.has("owner")).toBe(false);
+  expect(problems.some((p) => p.message.includes("reserved"))).toBe(true);
+});
+
 test("an empty user dir gives the shipped defaults and no problems", () => {
   const { snapshot, problems } = load(userDir());
   expect(problems).toEqual([]);

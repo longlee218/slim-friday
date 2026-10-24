@@ -1,6 +1,8 @@
 import type { Store } from "../ports/store";
-import { NO_OWNER_NOTE } from "./rules-label";
 import type { PoolEntry } from "./session-pool";
+
+/** What a session is told when the owner emptied both SOUL.md and USER.md. */
+const NO_OWNER_NOTE = "(none)";
 
 /**
  * The owner's SOUL and USER text a turn must carry: the current text when it differs from what the session last saw

@@ -51,6 +51,13 @@ test("probe maps pending then connected, passes no-model options and always clos
   });
 });
 
+test("the probe starts the server in the given cwd", async () => {
+  const f = fakeProbeQuery([{ name: "s", status: "connected", tools: [] }]);
+  const probe = createMcpProbe({ env: {}, cwd: "/some/empty/dir", query: f.queryFn });
+  await probe("s", http);
+  expect(f.seen.options?.cwd).toBe("/some/empty/dir");
+});
+
 test("stdio input becomes a stdio SDK config", async () => {
   const f = fakeProbeQuery([{ name: "s", status: "connected", tools: [] }]);
   const probe = createMcpProbe({ env: {}, query: f.queryFn });

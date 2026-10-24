@@ -1,3 +1,4 @@
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import type { EngineDeps } from "@friday/api";
 import { expandServer, type FileConfig } from "@friday/config";
@@ -37,11 +38,24 @@ export interface SettingsDeps {
 function mcpProbeOf(d: SettingsDeps): McpProbe {
   const probeEnv: Record<string, string> = { PATH: d.pathEnv };
   if (d.env.HOME) probeEnv.HOME = d.env.HOME;
-  const probe = createMcpProbe({ env: probeEnv, ...(d.probeQuery && { query: d.probeQuery }) });
+  const root = join(d.agentHome, "data", "mcp-probe");
   return async (name, server) => {
     const r = expandServer(server, d.env);
     if ("missing" in r) return { status: "failed", error: `needs ${r.missing.join(", ")}` };
-    return probe(name, r.server);
+    // A fresh empty dir (0700) per probe, removed afterwards: the server never starts in the engine's cwd, where a
+    // `.env` could be read, and one probe leaves nothing for the next.
+    mkdirSync(root, { recursive: true, mode: 0o700 });
+    const cwd = mkdtempSync(join(root, "p-"));
+    try {
+      const probe = createMcpProbe({
+        env: probeEnv,
+        cwd,
+        ...(d.probeQuery && { query: d.probeQuery }),
+      });
+      return await probe(name, r.server);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
   };
 }
 

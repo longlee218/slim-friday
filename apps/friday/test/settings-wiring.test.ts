@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { mkdtempSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DEFAULTS_DIR, FileConfig } from "@friday/config";
@@ -87,8 +87,11 @@ function probeSettings(env: Record<string, string>) {
   const home = mkdtempSync(join(tmpdir(), "settings-probe-"));
   const { config } = FileConfig.load({ defaultsDir: DEFAULTS_DIR, userDir: join(home, "config") });
   const options: Record<string, unknown>[] = [];
+  /** What the probe dir held while each probe ran. */
+  const dirsSeen: string[][] = [];
   const query = ((a: { options: Record<string, unknown> }) => {
     options.push(a.options);
+    dirsSeen.push(readdirSync(String(a.options.cwd)));
     return {
       mcpServerStatus: async () => [{ name: "gh", status: "connected", tools: [{ name: "t" }] }],
       interrupt: async () => {},
@@ -104,7 +107,7 @@ function probeSettings(env: Record<string, string>) {
     pathEnv: "/usr/bin",
     probeQuery: query,
   });
-  return { settings, options };
+  return { settings, options, dirsSeen, home };
 }
 
 test("the probe refuses a server whose ${NAME} is missing, without starting it", async () => {
@@ -139,4 +142,14 @@ test("the probe starts the expanded server with an env that holds no engine secr
     },
   });
   expect(options[0]?.env).toEqual({ PATH: "/usr/bin", HOME: "/home/x" });
+});
+
+test("the probe runs in an empty private dir under the agent home, removed afterwards", async () => {
+  const { settings, options, dirsSeen, home } = probeSettings({});
+  await settings.probe("gh", { type: "stdio", command: "x" });
+  const cwd = String(options[0]?.cwd);
+  expect(cwd.startsWith(join(home, "data", "mcp-probe"))).toBe(true);
+  expect(dirsSeen[0]).toEqual([]);
+  expect(dirsSeen[0]).not.toContain(".env");
+  expect(existsSync(cwd)).toBe(false);
 });
