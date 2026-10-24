@@ -95,6 +95,7 @@ export class FakeStore implements Store {
     delete: async (id: string) => {
       this.fileMap.delete(id);
     },
+    hasKey: async (key: string) => [...this.fileMap.values()].some((f) => f.key === key),
   };
   uploadMap = new Map<string, UploadRow>();
   uploads = {

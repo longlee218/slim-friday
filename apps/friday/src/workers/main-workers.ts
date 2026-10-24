@@ -69,7 +69,8 @@ export function mainWorkers(d: MainWorkersDeps) {
         log: d.log,
         clock: d.clock,
         ...(d.launcher.backoffMs && { backoffMs: d.launcher.backoffMs }),
-        // The process is gone: its leases end now and the other workers are told to look.
+        // The process is gone (the launcher killed its process group, SDK children too, before `exited`
+        // settled): its leases end now and the other workers are told to look.
         onExit: async (i) => {
           const owner = workerOwner(d.launcher.bootId, i);
           const ids = await t.store.wakes.expireLeasesOf(owner, d.clock.now());

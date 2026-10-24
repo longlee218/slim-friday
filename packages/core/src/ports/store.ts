@@ -120,6 +120,8 @@ export interface Store {
     insert(f: FileRow): Promise<void>;
     get(id: string): Promise<FileRow | undefined>;
     delete(id: string): Promise<void>;
+    /** True when a files row holds object `key` (the upload sweeper must keep that object). */
+    hasKey(key: string): Promise<boolean>;
   };
   uploads: {
     insert(u: UploadRow): Promise<void>;

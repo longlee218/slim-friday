@@ -100,6 +100,20 @@ test("a queued wake older than 24 hours becomes expired with a notice", async ()
   expect(surface.posts.at(-1)?.message.text).toContain("expired");
 });
 
+test("an old queued run that already ran (graceful requeue) or has an answered card is not expired", async () => {
+  const store = oldStore();
+  await store.wakes.insert(row("req", { createdAt: 0, leaseFence: 1, startedAt: 5 }));
+  await store.wakes.insert(row("card", { createdAt: 0, scopeKey: "s2", cardId: "c1" }));
+  await store.wakes.insert(row("never", { createdAt: 0, scopeKey: "s3" }));
+  const { hub, log } = restart(store, CORE_DEFAULTS.wakeExpireMs + 1);
+  await hub.recover();
+  await flush();
+  expect((await store.wakes.get("req"))?.status).not.toBe("expired");
+  expect((await store.wakes.get("card"))?.status).not.toBe("expired");
+  expect((await store.wakes.get("never"))?.status).toBe("expired");
+  expect(log.of("wake.redelivered")).toHaveLength(2);
+});
+
 test("a wake whose bot or conversation is gone becomes dropped", async () => {
   const store = oldStore();
   await store.wakes.insert(row("w1", { targetBot: "ghost" }));

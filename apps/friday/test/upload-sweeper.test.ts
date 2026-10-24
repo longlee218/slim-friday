@@ -89,3 +89,23 @@ test("an upload a send took after the list was read is kept (the row is read aga
   expect(files.objects.has(usedKey) && files.objects.has(claimedKey)).toBe(true);
   expect(await store.uploads.get("used-now")).toBeDefined();
 });
+
+test("a stale claimed upload whose key a files row holds is kept with its object", async () => {
+  const store = new FakeStore();
+  const files = new FakeFileStore();
+  const key = await seed(store, files, "stored", 2 * DAY + 1, "claimed");
+  // The send stored the message (and its files row), then died before marking the upload used.
+  await store.files.insert({
+    id: "f1",
+    key,
+    conversationId: "bot:ann",
+    name: "a.txt",
+    mimeType: "text/plain",
+    size: 1,
+    source: "upload",
+    at: NOW - 2 * DAY,
+  });
+  expect(await sweepUploads(store, files, NOW, recorder().log)).toBe(0);
+  expect(files.deleted).toEqual([]);
+  expect(await store.uploads.get("stored")).toBeDefined();
+});

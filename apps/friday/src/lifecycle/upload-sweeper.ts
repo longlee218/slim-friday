@@ -15,10 +15,12 @@ const why = (err: unknown): string => (err instanceof Error ? err.message : Stri
 
 /**
  * Delete every unused upload older than a day (a claimed one: older than two days): the R2 object first, then the
- * row. A failed object delete keeps the row, so the next sweep retries it; it is logged. Returns the rows deleted.
+ * row. A failed object delete keeps the row, so the next sweep retries it; it is logged. An upload whose key a
+ * `files` row holds is kept: a send stored the message but died before marking it used (its replay marks it).
+ * Returns the rows deleted.
  */
 export async function sweepUploads(
-  store: Pick<Store, "uploads">,
+  store: Pick<Store, "uploads" | "files">,
   files: FileStore,
   now: number,
   log: Log,
@@ -33,7 +35,7 @@ export async function sweepUploads(
     try {
       // Read again just before deleting: a send may have claimed or used the upload since the list was read.
       const u = await store.uploads.get(listed.id);
-      if (!sweepable(u)) continue;
+      if (!sweepable(u) || (await store.files.hasKey(u.key))) continue;
       await files.delete(u.key);
       await store.uploads.delete(u.id);
       removed++;
@@ -47,7 +49,7 @@ export async function sweepUploads(
 
 /** Sweep now and every 6 hours; the timer never keeps the process alive. Returns the stop function. */
 export function startUploadSweeper(
-  store: Pick<Store, "uploads">,
+  store: Pick<Store, "uploads" | "files">,
   files: FileStore,
   log: Log,
   now: () => number = Date.now,

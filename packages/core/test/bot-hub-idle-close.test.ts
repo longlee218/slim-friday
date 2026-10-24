@@ -105,3 +105,36 @@ test("a flush that keeps failing is given up after three tries", async () => {
   expect(calls).toBe(3);
   expect((await store.scopes.get("editor"))?.lastFlushedAt).toBeGreaterThan(0);
 });
+
+test("a scope with a leased or running row (a worker runs it) is not flushed", async () => {
+  const { surface, runtime, clock, hub, store, seen } = hubWithHook();
+  surface.deliver({ conversationId: "dc", text: "hi" });
+  await flush();
+  clock.advance(10);
+  runtime.nth(0).emit({ type: "turn_end", costUsd: 0 });
+  await flush();
+  clock.advance(CORE_DEFAULTS.idleCloseMs);
+  // Another process holds a run of the same scope.
+  await store.wakes.insert({
+    id: "w-worker",
+    chainId: "w-worker",
+    conversationId: "dc",
+    targetBot: "editor",
+    sender: { kind: "user" },
+    intent: "request",
+    hop: 0,
+    text: "long task",
+    status: "running",
+    attempts: 1,
+    createdAt: clock.now(),
+    scopeKey: "editor",
+    priority: "interactive",
+    leaseOwner: "boot:w1",
+    leaseFence: 1,
+    cuts: 0,
+    transientRetries: 0,
+    setupFailures: 0,
+  });
+  await hub.sweepIdle();
+  expect(seen).toHaveLength(0);
+});

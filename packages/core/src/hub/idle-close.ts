@@ -34,7 +34,8 @@ function failsOf(ctx: HubContext): Map<string, number> {
 /**
  * Tell the hook about every scope whose last run finished at least `idleCloseMs` ago and that was not flushed
  * since, then mark it flushed once the hook succeeded. Driven by the finish time stored per scope, not by
- * a session closing (a run closes its session when it ends). A scope with a run executing in this process is skipped.
+ * a session closing (a run closes its session when it ends). A scope with a run executing in this process, or a
+ * `leased`/`running` row in the store (a worker process runs it), is skipped.
  */
 export async function sweepQuietScopes(ctx: HubContext, hook?: IdleCloseHook): Promise<void> {
   if (!hook) return;
@@ -42,6 +43,8 @@ export async function sweepQuietScopes(ctx: HubContext, hook?: IdleCloseHook): P
   const now = clock.now();
   for (const key of await store.scopes.quiet(now - ctx.limits.idleCloseMs + 1)) {
     if (ctx.runs.has(key)) continue;
+    const active = await store.wakes.activeInScope(key);
+    if (active.some((w) => w.status === "leased" || w.status === "running")) continue;
     const [botId = key, groupId] = key.split("@");
     const conversationIds = groupId
       ? (await store.conversations.list())

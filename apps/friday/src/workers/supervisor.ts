@@ -7,7 +7,7 @@ export interface WorkerHandle {
   send(m: MainToWorker): void;
   /** Close the IPC channel: the worker shuts down gracefully (requeues its runs) and exits. */
   disconnect(): void;
-  /** Kill the process (used only when it does not exit in time). */
+  /** Kill the process and its children (used only when it does not exit in time). */
   kill(signal?: NodeJS.Signals): void;
   /** The process id, when known. */
   pid?: number;

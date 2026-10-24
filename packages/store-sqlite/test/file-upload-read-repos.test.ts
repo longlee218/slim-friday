@@ -35,6 +35,8 @@ test("files: insert and get; unknown id is undefined", async () => {
   const plain: FileRow = { ...f, id: "f2", width: undefined, height: undefined, source: "upload" };
   await s.files.insert(plain);
   expect((await s.files.get("f2"))?.width).toBeUndefined();
+  expect(await s.files.hasKey(f.key)).toBe(true);
+  expect(await s.files.hasKey("no/such/key")).toBe(false);
 });
 
 test("uploads: insert, markUsed, pendingBefore, delete", async () => {

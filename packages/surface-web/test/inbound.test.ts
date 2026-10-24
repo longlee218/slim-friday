@@ -292,3 +292,35 @@ test("a routing throw after the append keeps the files rows and the uploads used
   expect(r.messageId).toBe((await store.messages.byNonce("bot:a", "k2")) ?? -1);
   expect(store.fileMap.size).toBe(1);
 });
+
+test("a nonce replay after a crash mid-send marks the uploads used and carries the stored files", async () => {
+  // The state a crash after the append leaves: upload claimed, files row and message stored, nothing routed.
+  const key = await seed("c1", { mimeType: "image/png", bytes: PNG, size: PNG.length });
+  await store.uploads.claim("c1");
+  const file = {
+    id: "f1",
+    key,
+    conversationId: "bot:a",
+    name: "f.bin",
+    mimeType: "image/png",
+    size: PNG.length,
+    source: "upload" as const,
+    at: 1,
+  };
+  await store.files.insert(file);
+  const files = [{ fileId: "f1", name: "f.bin", mimeType: "image/png", size: PNG.length }];
+  const { id } = await store.messages.appendOnce(
+    { conversationId: "bot:a", author: { kind: "user" }, text: "t", at: 1, kind: "text", files },
+    "k3",
+  );
+  surface.onMessage(async (m) => {
+    handled.push(m);
+    return id;
+  });
+  const r = await send(["c1"], { clientNonce: "k3" });
+  expect(r.messageId).toBe(id);
+  expect(await store.uploads.get("c1")).toMatchObject({ state: "used", messageId: id });
+  expect(handled[0]?.files).toEqual(files);
+  expect(handled[0]?.attachments?.[0]).toMatchObject({ name: "1-f.bin", mimeType: "image/png" });
+  expect(readFileSync(handled[0]?.attachments?.[0]?.path as string)).toEqual(PNG);
+});

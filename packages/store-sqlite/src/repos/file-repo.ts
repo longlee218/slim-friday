@@ -14,6 +14,9 @@ export function fileRepo(db: BunSQLiteDatabase): Store["files"] {
     async delete(id) {
       db.delete(files).where(eq(files.id, id)).run();
     },
+    async hasKey(key) {
+      return !!db.select({ id: files.id }).from(files).where(eq(files.key, key)).limit(1).get();
+    },
     async get(id) {
       const r = db.select().from(files).where(eq(files.id, id)).get();
       if (!r) return undefined;

@@ -14,8 +14,8 @@ Friday is a self-hosted personal agent on the Claude Agent SDK (Bun + TypeScript
 | `packages/tools/` | built-in tools as per-session MCP servers: file memory (`FileMemory`), journal, search, memory tools; effect tools (`DeletePaths` + trash, `GitPush`, `CreatePullRequest`, `MergeBranch`, `CreateProject`); `chat` server (`PostFile`, `SendToBot`, `HandOff`); `tickets` server (`TicketList`, `TicketGet`, `TicketCreate`, `TicketUpdate`, `TicketComment`) |
 | `packages/memory-honcho/` | optional memory provider plugin: Honcho v3 client (`fetch`, bounded), URL rule, `honchoSource` (`RecallSource` with write/forget), `honchoPlugin` (imports core only) |
 | `apps/friday/` | composition root: `startApp` (config, db, memory, surface, gate, hub, channel sync, reload, journal prune, `/purge`), `startEngine` (Discord + Claude runtime with MCP servers and the memory flush), `sessionTools`, Friday bot dirs |
-| `apps/friday/src/workers/` | supervisor and worker processes: spawn and restart, IPC protocol (hints, live events, surface calls), worker app, main lock; `limits.workers: 0` runs the same code in the main process |
-| `apps/friday/src/index.ts`, `apps/friday/src/lifecycle/` | process entry, boot checks, trash and home-retention sweepers |
+| `apps/friday/src/workers/` | supervisor and worker processes: spawn and restart, IPC protocol (hints, live events, surface calls), worker app, worker process groups; `limits.workers: 0` runs the same code in the main process |
+| `apps/friday/src/index.ts`, `apps/friday/src/lifecycle/` | process entry, boot checks, main lock (`main-lock.ts`), trash, upload and home-retention sweepers |
 | `apps/friday/src/config/`, `apps/friday/src/observability/` | env and home paths (the only place that reads env besides `apps/friday`), pino logger |
 | `docs/ports/` | one page per port: interface, fake, steps to add an adapter |
 
