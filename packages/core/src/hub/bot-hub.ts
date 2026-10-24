@@ -289,31 +289,40 @@ export class BotHub implements BotMessenger {
       const next: WakeRow = { ...r, status: "queued", attempts: cut ? r.attempts + 1 : r.attempts };
       await store.wakes.update(r.id, { status: "queued", attempts: next.attempts });
       this.wakeLog.redelivered(next);
-      await this.admit(next, bot, {
-        ...(cut && { interrupted: true }),
-        ...(r.hop > this.limits.maxHops && { exemptFromHops: true }),
-      });
+      // One bad row (a vanished attachment, a session that will not open) must not strand the rest.
+      try {
+        await this.admit(next, bot, {
+          ...(cut && { interrupted: true }),
+          ...(r.hop > this.limits.maxHops && { exemptFromHops: true }),
+        });
+      } catch (err) {
+        this.deps.log?.error({ error: errText(err), wakeId: r.id }, "hub.recover_failed");
+        await this.wakeLog.dropped(r.id).catch(() => {});
+      }
     }
   }
 
   /** Send one message into the bot's session. */
   private async dispatch(entry: PoolEntry, q: QueuedWake): Promise<void> {
     const { store, surface, clock } = this.deps;
-    const conv = await store.conversations.get(q.conversationId);
-    const context =
-      conv?.kind === "group"
-        ? await store.messages.recent(q.conversationId, this.limits.groupContextMessages)
-        : [];
-    const groupMemory = conv ? await changedGroupMemory(entry, conv, this.deps.memory) : undefined;
+    // Claim the bot before the first await: a wake that arrives meanwhile sees it busy and waits.
     entry.current = { conversationId: q.conversationId, hop: q.hop };
     entry.currentWakeId = q.wakeId;
     entry.turnTexts = [];
     entry.sentResults = new Set();
     entry.busy = true;
-    await this.wakeLog.started(q.wakeId);
-    entry.lastActive = clock.now();
-    surface.showActivity(q.conversationId, { kind: "typing", botId: entry.bot.id });
     try {
+      const conv = await store.conversations.get(q.conversationId);
+      const context =
+        conv?.kind === "group"
+          ? await store.messages.recent(q.conversationId, this.limits.groupContextMessages)
+          : [];
+      const groupMemory = conv
+        ? await changedGroupMemory(entry, conv, this.deps.memory)
+        : undefined;
+      await this.wakeLog.started(q.wakeId);
+      entry.lastActive = clock.now();
+      surface.showActivity(q.conversationId, { kind: "typing", botId: entry.bot.id });
       entry.session.send({
         conversationId: q.conversationId,
         from: q.sender,
@@ -343,16 +352,23 @@ export class BotHub implements BotMessenger {
         if (e.currentWakeId) await this.wakeLog.firstText(e.currentWakeId);
       },
       onTurnEnd: async (e) => {
-        e.busy = false;
+        // The bot stays busy until this wake is closed, so a wake that arrives meanwhile waits in the queue.
+        const wakeId = e.currentWakeId;
         await this.returnOutcome(e);
-        if (e.currentWakeId) await this.wakeLog.done(e.currentWakeId);
+        if (wakeId) await this.wakeLog.done(wakeId);
         e.currentWakeId = undefined;
         // A queued message that cannot be sent is reported; the next one still gets its turn.
-        for (let next = e.queue.shift(); next; next = e.queue.shift()) {
+        for (;;) {
+          const next = e.queue.shift();
+          if (!next) {
+            e.busy = false;
+            break;
+          }
           try {
             await this.dispatch(e, next);
             break;
           } catch (err) {
+            e.busy = true; // keep the claim while the failure is reported
             const why = err instanceof Error ? err.message : String(err);
             this.deps.log?.error({ error: why, botId: e.bot.id }, "hub.dispatch_failed");
             await this.tell(next.conversationId, `Could not deliver the message: ${why}`);
@@ -490,9 +506,11 @@ export class BotHub implements BotMessenger {
     const key = `${conversationId}|${reason}`;
     if (this.noticed.has(key)) return;
     this.noticed.add(key);
-    await this.deps.surface.post(conversationId, {
-      author: { kind: "system" },
-      text: `Stopped: ${reason} limit reached.`,
-    });
+    await this.deps.surface
+      .post(conversationId, {
+        author: { kind: "system" },
+        text: `Stopped: ${reason} limit reached.`,
+      })
+      .catch((err) => this.deps.log?.error({ error: errText(err) }, "hub.notice_failed"));
   }
 }

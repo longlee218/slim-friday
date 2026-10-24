@@ -146,3 +146,23 @@ test("a recovered wake still stops at the spend cap", async () => {
   expect(runtime.opened).toHaveLength(0);
   expect(await store.wakes.get("w1")).toMatchObject({ status: "blocked", blockReason: "spend" });
 });
+
+test("a row that cannot be delivered is dropped and the next one still is", async () => {
+  const store = oldStore();
+  await store.wakes.insert(row("w1", { conversationId: "gc", targetBot: "writer" }));
+  await store.wakes.insert(row("w2"));
+  const { hub, runtime } = restart(store);
+  const open = runtime.open.bind(runtime);
+  let first = true;
+  runtime.open = async (spec) => {
+    if (first) {
+      first = false;
+      throw new Error("session will not open");
+    }
+    return open(spec);
+  };
+  await hub.recover();
+  await flush();
+  expect((await store.wakes.get("w1"))?.status).toBe("dropped");
+  expect((await store.wakes.get("w2"))?.status).toBe("running");
+});
