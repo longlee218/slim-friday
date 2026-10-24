@@ -157,9 +157,12 @@ export class CardDesk {
   }
 
   /** Close every open card (shutdown): approvals `deny`, questions `null`. */
-  cancelAll(): void {
-    for (const id of [...this.approvals.keys()]) this.closeApproval(id, "deny");
-    for (const id of [...this.questions.keys()]) this.closeQuestion(id, null);
+  cancelAll = (): void => this.cancelWhere(() => true);
+
+  /** Close the open cards `pred` accepts (a stopped bot or conversation): approvals `deny`, questions `null`. */
+  cancelWhere(pred: (c: { conversationId: string; botId: string }) => boolean): void {
+    for (const [id, o] of [...this.approvals]) if (pred(o.dto)) this.closeApproval(id, "deny");
+    for (const [id, o] of [...this.questions]) if (pred(o.dto)) this.closeQuestion(id, null);
   }
 
   /** Start the card timer (the default timeout when none is given, so no card stays open forever). */

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getEventMeta } from "@orpc/server";
 import { createApiApp, ensureOwner } from "../src/index";
+import { parseLastEventId } from "../src/routers/events-router";
 import { engineHarness } from "./helpers/engine-deps";
 import { testAuth } from "./helpers/test-auth";
 
@@ -84,4 +85,32 @@ test("the SSE response through the app carries the proxy headers", async () => {
   expect(res.headers.get("cache-control")).toBe("no-cache, no-transform");
   expect(res.headers.get("x-accel-buffering")).toBe("no");
   await res.body?.cancel();
+});
+
+test("lastEventId: 0 replays everything, garbage is resync, absent is live only", async () => {
+  const h = engineHarness();
+  await h.surface.post("bot:a", botMessage);
+  expect(parseLastEventId(0)).toBe(0);
+  expect(parseLastEventId(undefined, "0")).toBe(0);
+  expect(parseLastEventId(undefined, "abc")).toBe(-1);
+  expect(parseLastEventId(undefined, "1.5")).toBe(-1);
+  expect(parseLastEventId(undefined, "NaN")).toBe(-1);
+  expect(parseLastEventId(-3)).toBe(-1);
+  expect(parseLastEventId(1.5)).toBe(-1);
+  expect(parseLastEventId()).toBeUndefined();
+  // The bus answers -1 with one resync.
+  const it = await h.client.events.subscribe({ lastEventId: -1 });
+  expect((await it.next()).value).toEqual({ type: "resync" });
+  await it.return?.();
+});
+
+test("after the iterator is returned the bus has no subscriber left", async () => {
+  const h = engineHarness();
+  const it = await h.client.events.subscribe({});
+  const next = it.next();
+  while (h.surface.bus.subscriberCount() === 0) await new Promise((r) => setTimeout(r, 1));
+  await h.surface.post("bot:a", botMessage);
+  await next;
+  await it.return?.();
+  expect(h.surface.bus.subscriberCount()).toBe(0);
 });

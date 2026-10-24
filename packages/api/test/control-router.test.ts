@@ -59,3 +59,23 @@ test("purge returns the count from deps", async () => {
   h.deps.purge = () => 4;
   expect(await h.client.control.purge()).toEqual({ purged: 4 });
 });
+
+test("stop closes the open cards of the stopped bot as deny, other bots' cards stay", async () => {
+  const h = await setup();
+  const card = (botId: string, botName: string) =>
+    h.surface.cards.askApproval(`bot:${botId}`, {
+      botId,
+      botName,
+      tool: "Bash",
+      summary: "ls",
+      scope: {},
+      offerAlways: false,
+    });
+  const mine = card("a", "Ann");
+  const other = card("b", "Ben");
+  await h.client.control.stop({ botId: "a" });
+  expect(await mine).toBe("deny");
+  expect(h.surface.cards.pendingApprovals().map((c) => c.botId)).toEqual(["b"]);
+  h.surface.cards.cancelAll();
+  expect(await other).toBe("deny");
+});
