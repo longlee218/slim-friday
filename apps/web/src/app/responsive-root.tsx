@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { matchPath, Outlet, useLocation } from "react-router";
 import { PhoneShell } from "../components/phone/phone-shell";
 import { AppShell } from "../components/shell/app-shell";
+import { CommandPalette } from "../components/shell/command-palette";
 import { Inspector } from "../components/shell/inspector";
 import { navHistory } from "../components/shell/nav-history";
 import { useNotifier } from "../components/shell/notification-toast";
@@ -41,7 +42,7 @@ export function ResponsiveRoot() {
     notify: phone ? NO_NOTIFY : notify,
   });
   useTabTitle();
-  const [_paletteOpen, setPaletteOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const openPalette = useCallback(() => setPaletteOpen(true), []);
 
   return (
@@ -61,7 +62,7 @@ export function ResponsiveRoot() {
             inspector={chatId ? <Inspector conversationId={chatId} /> : undefined}
           />
         )}
-        {/* Task 17 mounts <CommandPalette open={_paletteOpen} onOpenChange={setPaletteOpen} /> here. */}
+        <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} asSheet={phone} />
       </PaletteContext.Provider>
     </ConnectionContext.Provider>
   );

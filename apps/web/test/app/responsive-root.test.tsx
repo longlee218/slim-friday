@@ -158,3 +158,18 @@ test("the phone follows navigation into the last chat memory", () => {
   renderRoot("/c/bot:pia");
   expect(navHistory.lastChat).toBe("/c/bot:pia");
 });
+
+test("⌘K opens the palette and Esc closes it without closing a floating panel", async () => {
+  window.innerWidth = 800;
+  renderRoot("/c/bot:dev");
+  // Sidebar is closed below 900 px; ⌘0 floats it open.
+  fireEvent.keyDown(window, { code: "Digit0", metaKey: true });
+  expect(document.querySelector(".mac")?.classList.contains("nosb")).toBe(false);
+  fireEvent.keyDown(window, { code: "KeyK", metaKey: true });
+  const field = await screen.findByPlaceholderText("Search bots, groups, actions");
+  fireEvent.keyDown(field, { key: "Escape" });
+  await waitFor(() =>
+    expect(screen.queryByPlaceholderText("Search bots, groups, actions")).toBeNull(),
+  );
+  expect(document.querySelector(".mac")?.classList.contains("nosb")).toBe(false);
+});
