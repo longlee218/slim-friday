@@ -3,7 +3,8 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider, useLocation } from "react-router";
 import { beforeEach, expect, test, vi } from "vitest";
-import { Sidebar, trailingMark } from "../../src/components/shell/sidebar";
+import { Sidebar } from "../../src/components/shell/sidebar";
+import { trailingMark } from "../../src/components/shell/sidebar-row";
 import { approval, bot, conv, group, seededClient, status } from "./fixtures";
 
 const Path = () => <output data-testid="path">{useLocation().pathname}</output>;

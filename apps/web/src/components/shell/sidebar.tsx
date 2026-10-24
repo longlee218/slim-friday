@@ -19,8 +19,6 @@ import { Kbd } from "../ui/kbd";
 import { SidebarRow, Trailing, trailingMark } from "./sidebar-row";
 import { useAppNavigate } from "./use-app-navigate";
 
-export { trailingMark } from "./sidebar-row";
-
 /** The icon cell of a workspace row. */
 const Ico = ({ children }: { children: ReactNode }) => <span className="sb-ico">{children}</span>;
 
