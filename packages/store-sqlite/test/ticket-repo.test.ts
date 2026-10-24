@@ -96,12 +96,19 @@ const owner = { kind: "user" } as const;
 test("update with a stale ifUpdatedAt returns conflict and changes nothing", async () => {
   const s = openEngineStore(":memory:");
   const t = await s.tickets.create(input("a", { createdAt: 1000 }));
-  const a = await s.tickets.update(t.id, { status: "doing" }, 1000, { ifUpdatedAt: 1000 });
-  expect(a).toMatchObject({ status: "doing", updatedAt: 1001 }); // same ms: +1
-  expect(await s.tickets.update(t.id, { status: "review" }, 1000, { ifUpdatedAt: 1000 })).toBe(
+  const a = await s.tickets.update(t.id, { status: "blocked", blockedReason: "vault" }, 1000, {
+    ifUpdatedAt: 1000,
+  });
+  expect(a).toMatchObject({ status: "blocked", updatedAt: 1001 }); // same ms: +1
+  expect(await s.tickets.update(t.id, { status: "review" }, 2000, { ifUpdatedAt: 1000 })).toBe(
     "conflict",
   );
-  expect((await s.tickets.get(t.id))?.status).toBe("doing");
+  // Nothing of the refused write lands: status, reason and updatedAt stay as they were.
+  expect(await s.tickets.get(t.id)).toMatchObject({
+    status: "blocked",
+    blockedReason: "vault",
+    updatedAt: 1001,
+  });
   expect(await s.tickets.update("missing", { status: "doing" }, 5)).toBeUndefined();
 });
 
