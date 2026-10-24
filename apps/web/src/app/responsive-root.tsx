@@ -95,7 +95,6 @@ export function ResponsiveRoot() {
                 <>
                   <Shortcuts onPalette={openPalette} />
                   <Outlet />
-                  {newTicketSheet}
                 </>
               }
               inspector={
@@ -107,6 +106,8 @@ export function ResponsiveRoot() {
               }
             />
           )}
+          {/* Outside <main>: a click in the sheet must not count as a click outside a floating drawer. */}
+          {newTicketSheet}
           <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} asSheet={phone} />
         </NewTicketContext.Provider>
       </PaletteContext.Provider>

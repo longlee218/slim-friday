@@ -35,7 +35,7 @@ test("shows the status at once, then rolls back and toasts on CONFLICT", async (
   let reject!: (e: unknown) => void;
   update.mockReturnValue(new Promise((_, r) => (reject = r)));
   const invalidate = vi.spyOn(qc, "invalidateQueries");
-  const { result } = renderHook(() => useUpdateTicket(), { wrapper });
+  const { result } = renderHook(() => useUpdateTicket("FRI-1"), { wrapper });
   act(() => result.current.mutate({ ref: "FRI-1", status: "doing" }));
   await waitFor(() => expect(status()).toBe("doing"));
   expect(update).toHaveBeenCalledWith({ ref: "FRI-1", status: "doing", expectedUpdatedAt: 42 });
@@ -49,8 +49,33 @@ test("shows the status at once, then rolls back and toasts on CONFLICT", async (
 
 test("a success keeps the server version", async () => {
   update.mockResolvedValue(ticket(1, { status: "doing", updatedAt: 50 }));
-  const { result } = renderHook(() => useUpdateTicket(), { wrapper });
+  const { result } = renderHook(() => useUpdateTicket("FRI-1"), { wrapper });
   await act(() => result.current.mutateAsync({ ref: "FRI-1", status: "doing" }));
   expect(status()).toBe("doing");
+  expect(toast).not.toHaveBeenCalled();
+});
+
+test("closing works when only the list is cached and sends the cached updatedAt", async () => {
+  update.mockResolvedValue(ticket(1, { status: "closed", updatedAt: 50 }));
+  const { result } = renderHook(() => useUpdateTicket("FRI-1"), { wrapper });
+  await act(() => result.current.mutateAsync({ ref: "FRI-1", status: "closed" }));
+  expect(update).toHaveBeenCalledWith({ ref: "FRI-1", status: "closed", expectedUpdatedAt: 42 });
+  expect(toast).not.toHaveBeenCalled();
+});
+
+test("two quick edits run in order and the second uses the version the first saved", async () => {
+  let first!: (t: TicketDto) => void;
+  update
+    .mockReturnValueOnce(new Promise((r) => (first = r)))
+    .mockResolvedValueOnce(ticket(1, { status: "doing", priority: "high", updatedAt: 60 }));
+  const { result } = renderHook(() => useUpdateTicket("FRI-1"), { wrapper });
+  act(() => {
+    result.current.mutate({ ref: "FRI-1", status: "doing" });
+    result.current.mutate({ ref: "FRI-1", priority: "high" });
+  });
+  await waitFor(() => expect(update).toHaveBeenCalledTimes(1));
+  await act(async () => first(ticket(1, { status: "doing", updatedAt: 50 })));
+  await waitFor(() => expect(update).toHaveBeenCalledTimes(2));
+  expect(update.mock.calls[1]![0].expectedUpdatedAt).toBe(50);
   expect(toast).not.toHaveBeenCalled();
 });

@@ -117,7 +117,7 @@ export function Sidebar({ onPalette }: { onPalette: () => void }) {
             <SquareKanban size={16} strokeWidth={1.75} />
           </Ico>
           <span className="name">Tickets</span>
-          {open > 0 && <span className="sub num">{open}</span>}
+          <span className="sub num">{open}</span>
         </SidebarRow>
         <SidebarRow href="/ops" on={pathname.startsWith("/ops")}>
           <Ico>

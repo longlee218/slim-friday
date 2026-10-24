@@ -11,7 +11,7 @@ export function TicketTable({ tickets, selected, onSelect, onOpen }: TicketListP
   const now = Date.now();
   const onKey = (e: KeyboardEvent, ref: string) => {
     if (e.target !== e.currentTarget) return;
-    if (e.key === "Enter") onOpen(ref);
+    if (e.key === "Enter") (selected === ref ? onOpen : onSelect)(ref);
     else if (e.key === " ") onSelect(ref);
     else return;
     e.preventDefault();

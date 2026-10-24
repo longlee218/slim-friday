@@ -8,7 +8,7 @@ import { UnassignedFace } from "./unassigned-face";
 const STATUSES: TicketStatus[] = ["todo", "doing", "blocked", "review", "done"];
 const PRIORITIES: TicketPriority[] = ["urgent", "high", "normal", "low"];
 
-/** Status select; `closed` is reachable only through Close ticket, so a closed ticket lists it too. */
+/** Status select over the five board statuses; `closed` is set only by Close ticket. */
 export function StatusSelect({
   value,
   onChange,

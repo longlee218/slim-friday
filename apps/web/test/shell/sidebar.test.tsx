@@ -84,7 +84,7 @@ test("the open conversation row carries the shared selection element", () => {
 test("sections, workspace rows and footer", async () => {
   renderSidebar(seed);
   for (const t of ["Bots", "Groups", "Workspace"]) expect(screen.getByText(t)).toBeTruthy();
-  expect(screen.getByRole("link", { name: "Tickets" })).toBeTruthy();
+  expect(screen.getByRole("link", { name: /^Tickets\s*0$/ })).toBeTruthy();
   expect(screen.getByRole("link", { name: "Activity" })).toBeTruthy();
   expect(screen.getByRole("link", { name: "Settings" })).toBeTruthy();
   expect(screen.getByRole("link", { name: /Owner/ }).getAttribute("href")).toBe(

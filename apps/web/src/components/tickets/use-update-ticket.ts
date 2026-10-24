@@ -41,22 +41,36 @@ function optimistic(t: TicketDto, input: UpdateInput): TicketDto {
   };
 }
 
+/** `updatedAt` each call saw before its optimistic patch (a close removes the ticket from the cache). */
+const basedOn = new WeakMap<UpdateInput, number>();
+
 /**
- * Owner edit of a ticket. The change shows at once; the call carries the cached `updatedAt` as
- * `expectedUpdatedAt`, so a write made elsewhere in between is refused (`CONFLICT`). Any failure
- * restores the snapshot; a conflict also says so and refetches the ticket.
+ * Owner edit of ticket `ref`. The change shows at once; the call carries the ticket's `updatedAt`
+ * as `expectedUpdatedAt`, so a write made elsewhere in between is refused (`CONFLICT`). Edits of
+ * one ticket run one after another (mutation scope), and each reads the version the previous
+ * one saved, so two quick edits do not conflict with each other. Any failure restores the
+ * snapshot; a conflict also says so and refetches the ticket.
  */
-export function useUpdateTicket() {
+export function useUpdateTicket(ref: string) {
   const qc = useQueryClient();
   return useMutation<TicketDto, Error, UpdateInput, { snapshot?: TicketDto }>({
+    scope: { id: `ticket:${ref}` },
     mutationFn: (input) => {
-      const current = cachedTicket(qc, input.ref);
-      if (!current) throw new Error("Ticket is not loaded.");
-      return client.tickets.update({ ...input, expectedUpdatedAt: current.updatedAt });
+      // Newest known version: the cache after the previous edit saved, else what this call saw.
+      const expected = Math.max(
+        cachedTicket(qc, input.ref)?.updatedAt ?? 0,
+        basedOn.get(input) ?? 0,
+      );
+      if (expected === 0) throw new Error("Ticket is not loaded.");
+      return client.tickets.update({ ...input, expectedUpdatedAt: expected });
     },
     onMutate: (input) => {
+      // Read before patching: a close drops the ticket from the list.
       const snapshot = cachedTicket(qc, input.ref);
-      if (snapshot) patchTicket(qc, optimistic(snapshot, input));
+      if (snapshot) {
+        basedOn.set(input, snapshot.updatedAt);
+        patchTicket(qc, optimistic(snapshot, input));
+      }
       return { snapshot };
     },
     onError: (error, input, ctx) => {

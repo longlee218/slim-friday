@@ -12,6 +12,9 @@ export function useSelectedTicket(): string | null {
   return pathname === "/tickets" ? params.get(PARAM) : null;
 }
 
+/** True while the drawer is the reason the inspector column is open (shared by every caller). */
+let openedByDrawer = false;
+
 /**
  * Opens the drawer on a ticket (or closes it with `null`) by editing the URL, so a reload and
  * Back keep it. Opening also opens the inspector column if the window hides it (outside the
@@ -25,7 +28,14 @@ export function useSelectTicket(): (ref: string | null) => void {
   return useCallback(
     (ref) => {
       setParams(ref ? { [PARAM]: ref } : {}, { replace: true });
-      if (ref && !inspectorOpen) toggle?.("inspector");
+      if (ref && !inspectorOpen) {
+        openedByDrawer = true;
+        toggle?.("inspector");
+      } else if (!ref && openedByDrawer) {
+        // Closing the drawer puts the column back as it was before the drawer opened it.
+        openedByDrawer = false;
+        if (inspectorOpen) toggle?.("inspector");
+      }
     },
     [setParams, inspectorOpen, toggle],
   );

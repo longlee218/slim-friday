@@ -29,7 +29,7 @@ export function useAllTickets(): { tickets: TicketDto[]; isLoading: boolean } {
     }
   }, [hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage, loaded]);
   const tickets = useMemo(() => q.data?.pages.flatMap((p) => p.items) ?? [], [q.data]);
-  return { tickets, isLoading: q.isLoading || hasNextPage === true };
+  return { tickets, isLoading: q.isLoading || (hasNextPage === true && !isFetchNextPageError) };
 }
 
 /** Tickets per board column, newest first as served; `closed` has no column and is left out. */

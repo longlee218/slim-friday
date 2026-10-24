@@ -24,7 +24,7 @@ export interface TicketDrawerProps {
 function Latest({ ticket, onClose }: { ticket: TicketDto; onClose: () => void }) {
   const get = useQuery(orpc.tickets.get.queryOptions({ input: { ref: ticket.ref } }));
   const comment = useCommentTicket(ticket.ref);
-  const update = useUpdateTicket();
+  const update = useUpdateTicket(ticket.ref);
   const [text, setText] = useState("");
   const comments = (get.data?.timeline ?? []).flatMap((i) =>
     i.type === "comment" ? [i.comment] : [],
@@ -91,7 +91,7 @@ export function TicketDrawer({ ticketRef, onClose }: TicketDrawerProps) {
           <>
             <div className="td-title">{t.title}</div>
             <div className="insp-sec" style={{ paddingTop: 0 }}>
-              <TicketDetail ticket={t} />
+              <TicketDetail key={t.ref} ticket={t} />
             </div>
             <InspectorSection title="Description">
               <div className="td-desc clamp">
@@ -101,7 +101,7 @@ export function TicketDrawer({ ticketRef, onClose }: TicketDrawerProps) {
                 Open full ticket
               </button>
             </InspectorSection>
-            <Latest ticket={t} onClose={onClose} />
+            <Latest key={t.ref} ticket={t} onClose={onClose} />
           </>
         ) : (
           <div className="td-title">{isLoading ? "Loading" : "Closed or gone."}</div>

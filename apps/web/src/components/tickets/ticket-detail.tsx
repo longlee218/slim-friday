@@ -22,7 +22,7 @@ const Row = ({ label, children }: { label: string; children: ReactNode }) => (
  */
 export function TicketDetail({ ticket: t }: { ticket: TicketDto }) {
   const dir = useDirectory();
-  const update = useUpdateTicket();
+  const update = useUpdateTicket(t.ref);
   const [asking, setAsking] = useState(false);
   const [why, setWhy] = useState("");
   const creator = t.createdBy.kind === "bot" ? t.createdBy.botId : null;
