@@ -5,6 +5,7 @@ import { appRouter } from "@friday/api";
 import type { FridayEvent } from "@friday/contracts";
 import { createRouterClient } from "@orpc/server";
 import { FakeRuntime } from "../../../packages/core/test/fakes/fake-runtime";
+import { unwiredSettings } from "../src/settings-placeholder";
 import { startApp } from "../src/start-app";
 import { webParts } from "./web-fixture";
 
@@ -45,7 +46,7 @@ export async function webHarness(files: Record<string, string> = {}) {
     surface,
     files: fileStore,
     purge: () => 0,
-    listGroups: app.config.listGroups,
+    settings: unwiredSettings,
     now: () => Date.now(),
     log,
   };
