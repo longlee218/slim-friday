@@ -45,3 +45,13 @@ test("a failed or non-JSON answer is undefined; an empty array is []", async () 
   ).toBeUndefined();
   expect(await consolidateNotes(input, { model: "m", queryFn: fake("[]").queryFn })).toEqual([]);
 });
+
+test("a large memory is cut so every note and the closing tag reach the model", async () => {
+  const { queryFn, seen } = fake("[]");
+  const notes = Array.from({ length: 100 }, (_, i) => `note ${i} ${"n".repeat(180)}`);
+  await consolidateNotes({ memory: "m".repeat(50_000), notes }, { model: "m", queryFn });
+  const prompt = String(seen.prompt);
+  expect(prompt).toContain(`100. ${notes[99]}`);
+  expect(prompt.endsWith("</notes>")).toBe(true);
+  expect(prompt.length).toBeLessThanOrEqual(40_000);
+});

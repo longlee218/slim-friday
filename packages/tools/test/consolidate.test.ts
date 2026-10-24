@@ -97,3 +97,22 @@ test("consolidateAll covers bots and groups with valid ids", async () => {
   expect(n).toBe(4);
   expect(readConsolidatedMark(root, { kind: "group", groupId: "team" })).toBe("2026-10-21");
 });
+
+test("an abort stops consolidateAll: a pending ask is given up and no mark moves", async () => {
+  const { root, mem } = setup();
+  const ac = new AbortController();
+  let asked = 0;
+  const run = consolidateAll(
+    mem,
+    now,
+    () => {
+      asked++;
+      ac.abort();
+      return new Promise(() => {});
+    },
+    ac.signal,
+  );
+  expect(await run).toBe(0);
+  expect(asked).toBe(1);
+  expect(readConsolidatedMark(root, ann)).toBeUndefined();
+});

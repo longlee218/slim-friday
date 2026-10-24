@@ -7,6 +7,16 @@ import type { extractNotes } from "./extract-notes";
 const MAX_INPUT = 40000;
 /** Most notes one consolidation promotes. */
 const MAX_PROMOTED = 10;
+/** A consolidation call that has not answered by then is given up (the mark stays). */
+const CALL_TIMEOUT_MS = 120_000;
+
+/** An abort controller that fires after `ms` (the timer does not keep the process alive). */
+function timeoutController(ms: number): AbortController {
+  const ac = new AbortController();
+  setTimeout(() => ac.abort(), ms).unref?.();
+  return ac;
+}
+
 /** Kinds a promoted note may have (the MEMORY.md sections). */
 const KINDS = new Set<string>(["decision", "fact", "preference", "lesson"]);
 
@@ -45,17 +55,20 @@ export async function consolidateNotes(
   input: { memory: string; notes: string[] },
   opts: Parameters<typeof extractNotes>[1],
 ): Promise<PromotedNote[] | undefined> {
-  const notes = input.notes.map((n, i) => `${i + 1}. ${n}`).join("\n");
-  const prompt = `<memory>\n${input.memory}\n</memory>\n\n<notes>\n${notes}\n</notes>`;
+  // The notes are sent whole (the caller caps them); only the memory, context for the model, is cut to fit.
+  const notes = `<notes>\n${input.notes.map((n, i) => `${i + 1}. ${n}`).join("\n")}\n</notes>`;
+  const room = Math.max(0, MAX_INPUT - notes.length - "<memory>\n\n</memory>\n\n".length);
+  const prompt = `<memory>\n${input.memory.slice(0, room)}\n</memory>\n\n${notes}`;
   try {
     const run = (opts.queryFn ?? query)({
-      prompt: prompt.slice(0, MAX_INPUT),
+      prompt,
       options: {
         model: opts.model,
         systemPrompt: SYSTEM_PROMPT,
         tools: [],
         maxTurns: 1,
         settingSources: [],
+        abortController: timeoutController(CALL_TIMEOUT_MS),
         env: sdkEnv(
           { hasRealAuth: !!opts.oauthToken, oauthToken: opts.oauthToken },
           opts.env ?? {},

@@ -63,13 +63,20 @@ export async function consolidateOwner(
 
 /**
  * Consolidate every bot and group that has a memory dir. One owner failing (a busy file, a bad dir name) does not
- * stop the others; its mark stays, so the next run retries it. Returns the notes promoted in total.
+ * stop the others; its mark stays, so the next run retries it. `signal` ends the run early. Returns the notes promoted.
  */
 export async function consolidateAll(
   memory: FileMemory,
   now: Date,
   ask: ConsolidateFn,
+  signal?: AbortSignal,
 ): Promise<number> {
+  // On abort a pending call is given up as failed (undefined), so no mark moves and no further owner is asked.
+  const stopped = new Promise<undefined>((r) =>
+    signal?.addEventListener("abort", () => r(undefined)),
+  );
+  const guarded: ConsolidateFn = (m, n) =>
+    signal ? Promise.race([ask(m, n), stopped]) : ask(m, n);
   const owners: MemoryOwner[] = [];
   for (const [dir, make] of [
     ["bots", (id: string): MemoryOwner => ({ kind: "bot", botId: id })],
@@ -80,8 +87,9 @@ export async function consolidateAll(
   }
   let total = 0;
   for (const owner of owners) {
+    if (signal?.aborted) break;
     try {
-      total += (await consolidateOwner(memory, owner, now, ask)).promoted;
+      total += (await consolidateOwner(memory, owner, now, guarded)).promoted;
     } catch {
       // Left for the next run.
     }
