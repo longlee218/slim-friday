@@ -1,6 +1,7 @@
 export * from "./approval-cards";
 export * from "./channel-topic";
 export * from "./commands";
+export * from "./discord-js-port";
 export * from "./discord-port";
 export * from "./discord-surface";
 export * from "./split-text";
