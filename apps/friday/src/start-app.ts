@@ -35,6 +35,7 @@ import { homePaths } from "./config/home-paths";
 import { withFridayDirs } from "./friday-bot";
 import { idleFlush } from "./idle-flush";
 import { providerSources } from "./memory-plugins";
+import { readProjectRules } from "./project-rules";
 import { scopeBotFor } from "./scope-bot";
 import { systemClock } from "./system-clock";
 
@@ -227,6 +228,7 @@ export async function startApp(deps: AppDeps) {
     }),
     limits: config.limits(),
     scopeBot: scopeBotFor(agentHome, config),
+    projectRules: readProjectRules,
     log,
   });
   hub = botHub;
