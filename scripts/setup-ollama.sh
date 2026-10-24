@@ -4,6 +4,7 @@
 # What it does, each step skipped when already done:
 #   1. installs Ollama (Homebrew on macOS, the official script on Linux)
 #   2. starts the Ollama server (brew service on macOS, `ollama serve` in the background on Linux)
+#      with OLLAMA_KEEP_ALIVE=-1: the model stays loaded (a cold load takes seconds, longer than Friday's 3 s recall)
 #   3. waits until the API answers
 #   4. pulls the embedding model (and the chat model when OLLAMA_CHAT_MODEL is set)
 #   5. checks the OpenAI-compatible /v1/embeddings endpoint and prints the vector size Honcho needs
@@ -39,23 +40,24 @@ else
   esac
 fi
 
-# 2. Start the server when it is not answering yet.
+# 2. Start the server with the model kept loaded (OLLAMA_KEEP_ALIVE=-1).
 api_up() { curl -fsS "$OLLAMA_URL/api/version" >/dev/null 2>&1; }
-if api_up; then
-  say "Ollama server already running at $OLLAMA_URL"
+if [ "$(uname -s)" = Darwin ] && command -v brew >/dev/null 2>&1; then
+  # launchd passes this to the brew service; it is lost on reboot, so run this script again after one.
+  launchctl setenv OLLAMA_KEEP_ALIVE -1
+  say "Starting Ollama as a brew service (models stay loaded)"
+  brew services restart ollama
+elif api_up; then
+  say "Ollama server already running at $OLLAMA_URL (set OLLAMA_KEEP_ALIVE=-1 in its env to keep models loaded)"
 else
   case "$(uname -s)" in
-    Darwin)
-      say "Starting Ollama as a brew service (runs at login)"
-      brew services start ollama
-      ;;
     Linux)
       if command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files ollama.service >/dev/null 2>&1; then
         say "Starting the ollama systemd service"
         sudo systemctl enable --now ollama
       else
         say "Starting ollama serve in the background (log: /tmp/ollama.log)"
-        nohup ollama serve >/tmp/ollama.log 2>&1 &
+        OLLAMA_KEEP_ALIVE=-1 nohup ollama serve >/tmp/ollama.log 2>&1 &
       fi
       ;;
   esac

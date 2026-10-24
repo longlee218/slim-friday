@@ -23,6 +23,7 @@ memory:
 Stop: `docker compose -p friday-honcho -f ~/.honcho-server/docker-compose.friday.yml down` (add `-v` to delete its data).
 
 ## Notes on the setup
+- Ollama must keep `bge-m3` loaded (`OLLAMA_KEEP_ALIVE=-1`, set by `scripts/setup-ollama.sh`): by default it unloads a model after 5 idle minutes, the reload takes seconds, and recall gives Honcho 3 s, so the log shows `memory.recall` `timeout`. On macOS the setting is lost on reboot: run the script again.
 - Verified live 2026-10-24 (M1 Pro, Ollama `bge-m3`): notes created by the API are searchable at once without the deriver; a warm write takes about 0.4 s (the first one several seconds while Ollama loads the model), a search 0.1-0.2 s; an English note is found by a Vietnamese query.
 - The script turns off the Honcho features Friday does not use (deriver, summary, dream, message embeddings). Honcho still needs a chat model in its settings to start; it points at Ollama `qwen3:8b` (`OLLAMA_CHAT_MODEL`) but Friday never calls it, so the model does not have to be pulled.
 - `EMBEDDING_VECTOR_DIMENSIONS` is fixed per database. To change the embedding model, `down -v` and run the script again with `FORCE_ENV=1 EMBED_MODEL=<model>`.
