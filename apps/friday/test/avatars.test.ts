@@ -16,3 +16,7 @@ test("the owner's avatar wins over the shipped one; unknown or missing names giv
   expect(resolveAvatar("nope", [a, b])).toBeUndefined();
   expect(resolveAvatar(undefined, [a, b])).toBeUndefined();
 });
+
+test("resolveAvatar returns undefined for an upload: value (no local file)", () => {
+  expect(resolveAvatar("upload:123e4567-e89b-42d3-a456-426614174000", [])).toBeUndefined();
+});

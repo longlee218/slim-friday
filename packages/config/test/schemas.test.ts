@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { splitFrontMatter } from "../src/parse/front-matter";
+import { isUploadAvatar } from "../src/schemas/avatar";
 import { parseBotFile } from "../src/schemas/bot-file";
 import { parseGroupFile } from "../src/schemas/group-file";
 import { parseSettingsFile } from "../src/schemas/settings-file";
@@ -123,4 +124,28 @@ test("effort and maxEffort parse; a ceiling under the start level and an unknown
   expect(() => parseBotFile("ann", withHeader("effort: extreme"))).toThrow();
   const sub = withHeader("subagents:\n  - {name: h, description: d, prompt: p, effort: max}");
   expect(parseBotFile("ann", sub).subagents[0]?.effort).toBe("max");
+});
+
+const UUID = "123e4567-e89b-42d3-a456-426614174000";
+const botWith = (avatar: string) =>
+  BOT.replace("autonomy: careful", `autonomy: careful\navatar: ${avatar}`);
+
+test("a bot avatar may be a preset name or upload:<uuid>; other values are refused", () => {
+  expect(parseBotFile("ann", botWith(`upload:${UUID}`)).avatar).toBe(`upload:${UUID}`);
+  expect(parseBotFile("ann", botWith("fox")).avatar).toBe("fox");
+  for (const bad of ["upload:../x", "../a.png", "upload:"]) {
+    expect(() => parseBotFile("ann", botWith(bad))).toThrow();
+  }
+});
+
+test("a group avatar passes through; without one the group has none", () => {
+  const base = "name: Team\nmembers: [ann]\nentryBot: ann\n";
+  expect(parseGroupFile("team", `${base}avatar: hedgehog-3\n`).avatar).toBe("hedgehog-3");
+  expect(parseGroupFile("team", base)).not.toHaveProperty("avatar");
+  expect(() => parseGroupFile("team", `${base}avatar: ../a\n`)).toThrow();
+});
+
+test("isUploadAvatar returns the upload id or undefined", () => {
+  expect(isUploadAvatar(`upload:${UUID}`)).toBe(UUID);
+  expect(isUploadAvatar("fox")).toBeUndefined();
 });
