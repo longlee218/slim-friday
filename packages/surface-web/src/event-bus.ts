@@ -1,6 +1,6 @@
 import type { FridayEvent } from "@friday/contracts";
 
-/** One event with its bus id (ids start at 1 and grow by 1). */
+/** One event with its bus id (ids start after the bus's start id and grow by 1). */
 export interface BusItem {
   id: number;
   event: FridayEvent;
@@ -29,11 +29,20 @@ interface Subscriber {
 export class EventBus {
   /** The last `size` events, oldest first. */
   private buffer: BusItem[] = [];
-  private last = 0;
+  private last: number;
   private subs = new Set<Subscriber>();
 
-  /** `size`: events kept for replay and the most a subscriber may leave unread. */
-  constructor(private readonly size = 500) {}
+  /**
+   * `size`: events kept for replay and the most a subscriber may leave unread.
+   * `startId`: the id before the first event; a later boot starts higher, so an id from a
+   * previous run is older than the buffer and gets a `resync` instead of a silent gap.
+   */
+  constructor(
+    private readonly size = 500,
+    startId = 0,
+  ) {
+    this.last = startId;
+  }
 
   /** Store the event, hand it to every subscriber and return its id. */
   publish(event: FridayEvent): number {
@@ -53,7 +62,7 @@ export class EventBus {
     return item.id;
   }
 
-  /** Id of the newest event (0 before the first). */
+  /** Id of the newest event (the start id before the first). */
   lastId(): number {
     return this.last;
   }

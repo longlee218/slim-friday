@@ -11,6 +11,7 @@ import {
 } from "./inbound-checks";
 import { toFileRef } from "./message-dto";
 import { safeName } from "./safe-name";
+import { sizeOf } from "./size-of";
 import { SurfaceError } from "./surface-error";
 import type { WebSurfaceDeps } from "./web-surface";
 
@@ -96,6 +97,8 @@ export async function sendOwnerMessage(
       const path = join(dir, name);
       // `wx`: never overwrite or follow an existing file.
       await writeFile(path, bytes, { flag: "wx", mode: 0o600 });
+      // Pixel size for images only; unreadable bytes mean no size, never a refusal.
+      const dims = u.mimeType.startsWith("image/") ? sizeOf(bytes) : undefined;
       const row: FileRow = {
         id: randomUUID(),
         key: u.key,
@@ -103,6 +106,7 @@ export async function sendOwnerMessage(
         name: safeName(u.name),
         mimeType: u.mimeType,
         size: bytes.length,
+        ...dims,
         source: "upload",
         at: deps.clock.now(),
       };

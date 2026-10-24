@@ -36,13 +36,16 @@ export interface WebSurfaceDeps {
 
 /** The core `Surface` for the web app: everything outbound becomes an event on the bus. */
 export class WebSurface implements Surface {
-  readonly bus = new EventBus(REPLAY_EVENTS);
+  readonly bus: EventBus;
   readonly cards: CardDesk;
   /** The inbound handler; the inbound side (owner messages) calls it. */
   protected handler?: (m: InboundMessage) => Promise<number | undefined>;
 
   constructor(protected deps: WebSurfaceDeps) {
-    this.cards = new CardDesk(this.bus, deps.clock);
+    // Ids start from boot time, so a tab's id from a previous run is older than the buffer: resync.
+    this.bus = new EventBus(REPLAY_EVENTS, deps.clock.now() * 1000);
+    // A closed card changes the unread count of its conversation.
+    this.cards = new CardDesk(this.bus, deps.clock, (c) => void this.publishUnreadSafe(c));
   }
 
   onMessage(handler: (m: InboundMessage) => Promise<number | undefined>): void {
@@ -70,10 +73,14 @@ export class WebSurface implements Surface {
     if (m.author.kind !== "user") await this.publishUnread(c);
   }
 
-  /** Unread messages plus open cards of the conversation. */
-  private async publishUnread(c: ConversationId): Promise<void> {
-    const unread = (await this.deps.store.reads.unread(c)) + this.cards.openIn(c);
-    this.bus.publish({ type: "unread", conversationId: c, unread });
+  /** Unread messages plus open cards of the conversation (one number for the list and the event). */
+  async unreadOf(c: ConversationId): Promise<number> {
+    return (await this.deps.store.reads.unread(c)) + this.cards.openIn(c);
+  }
+
+  /** Publish the conversation's unread count. */
+  async publishUnread(c: ConversationId): Promise<void> {
+    this.bus.publish({ type: "unread", conversationId: c, unread: await this.unreadOf(c) });
   }
 
   /** Publish unread without ever failing the caller (a card must always get its answer). */

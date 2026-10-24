@@ -9,10 +9,10 @@ import {
   type Store,
   type Surface,
 } from "@friday/core";
-import { imageSize } from "image-size";
 import { imageType } from "./image-type";
 import { toFileRef } from "./message-dto";
 import { safeName } from "./safe-name";
+import { sizeOf } from "./size-of";
 
 /** What posting a bot file needs. */
 export interface PostBotFileDeps {
@@ -21,16 +21,6 @@ export interface PostBotFileDeps {
   clock: Clock;
   surface: Surface;
   log?: Log;
-}
-
-/** Pixel size of an image, or `undefined` when the bytes cannot be read as one. */
-function sizeOf(bytes: Uint8Array): { width: number; height: number } | undefined {
-  try {
-    const { width, height } = imageSize(bytes);
-    return width && height ? { width, height } : undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 /**

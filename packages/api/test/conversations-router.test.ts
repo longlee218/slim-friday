@@ -96,3 +96,28 @@ test("markRead with a bogus or foreign message id is NOT_FOUND and leaves unread
   }
   expect(await h.store.reads.get("bot:a")).toBe(0);
 });
+
+test("markRead publishes the new unread count; list counts open cards too", async () => {
+  const h = engineHarness();
+  h.addBot("a", "Ann");
+  h.store.convMap.set("bot:a", { id: "bot:a", kind: "direct", botId: "a" });
+  const id = await h.store.messages.append(fromBot("bot:a", "a", "hello"));
+  const seen: unknown[] = [];
+  const orig = h.surface.bus.publish.bind(h.surface.bus);
+  h.surface.bus.publish = (e) => {
+    seen.push(e);
+    return orig(e);
+  };
+  await h.client.conversations.markRead({ id: "bot:a", messageId: id });
+  expect(seen).toContainEqual({ type: "unread", conversationId: "bot:a", unread: 0 });
+  void h.surface.cards.askQuestion("bot:a", {
+    botId: "a",
+    botName: "Ann",
+    question: "Q?",
+    kind: "single",
+    options: [{ value: "x", label: "x" }],
+    allowText: false,
+    timeoutMs: 600_000,
+  });
+  expect((await h.client.conversations.list())[0]?.unread).toBe(1);
+});

@@ -144,3 +144,14 @@ test("abort while next() is pending resolves it as done", async () => {
   expect((await pending).done).toBe(true);
   expect(bus.subscriberCount()).toBe(0);
 });
+
+test("an id from a previous run is older than the buffer: resync, not a silent gap", async () => {
+  const sig = new AbortController().signal;
+  const before = new EventBus(500, 1_000_000);
+  let n = 0;
+  for (let i = 0; i < 5; i++) n = before.publish(ev);
+  // Engine restarted later: its ids start from a later clock, past anything the old run issued.
+  const after = new EventBus(500, 2_000_000);
+  for (let i = 0; i < 10; i++) after.publish(ev);
+  expect((await firstN(after.subscribe(n, sig), 1))[0]?.event).toEqual({ type: "resync" });
+});

@@ -20,16 +20,17 @@ const botMessage = {
   at: 1,
 };
 
-test("subscribe yields a posted message as event id 1", async () => {
+test("subscribe yields a posted message as the next event id", async () => {
   const h = engineHarness();
   const it = await h.client.events.subscribe({});
   const next = it.next();
   // The generator subscribes on its first pull; wait until it has.
   while (h.surface.bus.subscriberCount() === 0) await new Promise((r) => setTimeout(r, 1));
+  const expected = h.surface.bus.lastId() + 1;
   await h.surface.post("bot:a", botMessage);
   const first = await next;
   expect(first.value).toMatchObject({ type: "message", message: { text: "hello" } });
-  expect(getEventMeta(first.value as object)?.id).toBe("1");
+  expect(getEventMeta(first.value as object)?.id).toBe(String(expected));
   await it.return?.();
 });
 
@@ -43,8 +44,10 @@ test("subscribe with a lastEventId the bus does not hold starts with resync", as
 
 test("subscribe replays what a reconnecting tab missed", async () => {
   const h = engineHarness();
+  // Ids start from the boot clock, not 0: the tab's last id is the one before the post.
+  const before = h.surface.bus.lastId();
   await h.surface.post("bot:a", botMessage);
-  const it = await h.client.events.subscribe({ lastEventId: 0 });
+  const it = await h.client.events.subscribe({ lastEventId: before });
   const first = await it.next();
   expect(first.value).toMatchObject({ type: "message" });
   await it.return?.();

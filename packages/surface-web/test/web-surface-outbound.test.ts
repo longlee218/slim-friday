@@ -103,6 +103,26 @@ test("a card publishes unread counting the open card, cancelAll closes it", asyn
   expect(await p).toBeNull();
 });
 
+test("a card closing publishes the unread count without it", async () => {
+  const p = surface.askQuestion("bot:a", {
+    botId: "a",
+    botName: "Ann",
+    question: "Q?",
+    kind: "single",
+    options: [{ value: "x", label: "x" }],
+    allowText: false,
+    timeoutMs: 600_000,
+  });
+  await Promise.resolve();
+  await Promise.resolve();
+  seen.length = 0;
+  const [card] = surface.cards.pendingQuestions();
+  surface.cards.answerQuestion(card?.cardId ?? "", { choices: ["x"] });
+  await p;
+  await Bun.sleep(5);
+  expect(seen.at(-1)).toEqual({ type: "unread", conversationId: "bot:a", unread: 0 });
+});
+
 test("postFile uploads to R2, records the file and posts a file message", async () => {
   const path = join(dir, "x.png");
   writeFileSync(path, PNG);

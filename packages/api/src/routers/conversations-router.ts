@@ -1,5 +1,6 @@
 import type { ConversationDto, MessageDto } from "@friday/contracts";
 import type { Conversation, IndexedMessage, Store } from "@friday/core";
+import type { WebSurface } from "@friday/surface-web";
 import { toMessageDto } from "@friday/surface-web";
 import { authed } from "../rpc/implementer";
 
@@ -16,6 +17,7 @@ async function toDtos(store: Store, msgs: IndexedMessage[]): Promise<MessageDto[
 /** One conversation for the sidebar; undefined when its bot or group no longer exists. */
 async function toConversationDto(
   store: Store,
+  surface: WebSurface,
   c: Conversation,
 ): Promise<ConversationDto | undefined> {
   const owner =
@@ -28,7 +30,7 @@ async function toConversationDto(
     ...(c.kind === "direct" ? { botId: c.botId } : { groupId: c.groupId }),
     title: owner.name,
     ...(last && { lastMessage: last }),
-    unread: await store.reads.unread(c.id),
+    unread: await surface.unreadOf(c.id),
   };
 }
 
@@ -36,9 +38,9 @@ async function toConversationDto(
 export const conversationsRouter = {
   /** Direct chats first, then groups, each by title. */
   list: authed.conversations.list.handler(async ({ context }) => {
-    const { store } = context.deps;
+    const { store, surface } = context.deps;
     const all = await Promise.all(
-      (await store.conversations.list()).map((c) => toConversationDto(store, c)),
+      (await store.conversations.list()).map((c) => toConversationDto(store, surface, c)),
     );
     const rank = (c: ConversationDto) => (c.kind === "direct" ? 0 : 1);
     return all
@@ -61,6 +63,7 @@ export const conversationsRouter = {
     const msg = await store.messages.get(input.messageId);
     if (msg?.conversationId !== input.id) throw errors.NOT_FOUND();
     await store.reads.set(input.id, input.messageId);
+    await context.deps.surface.publishUnread(input.id);
     return { ok: true as const };
   }),
 };

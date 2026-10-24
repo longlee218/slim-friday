@@ -10,6 +10,7 @@ import type {
 import { CORE_DEFAULTS } from "@friday/core";
 import type { EventBus } from "./event-bus";
 import { flattenSummary } from "./flatten-summary";
+import { validAnswer } from "./valid-answer";
 
 /** How many closed card ids are remembered, so a late answer is `conflict`, not `not_found`. */
 const CLOSED_MEMORY = 500;
@@ -33,16 +34,6 @@ interface OpenQuestion {
   settle: (a: QuestionAnswer | null) => void;
 }
 
-/** Whether a question answer fits the card; the card stays open when it does not. */
-function validAnswer(dto: QuestionCardDto, a: QuestionAnswer): boolean {
-  const text = a.text?.trim();
-  if (text && !dto.allowText) return false;
-  if (a.choices.length === 0 && !text) return false;
-  if (dto.kind !== "multi" && a.choices.length > 1) return false;
-  const values = new Set(dto.options.map((o) => o.value));
-  return a.choices.every((c) => values.has(c));
-}
-
 /**
  * Approval and question cards waiting for the owner on the web. Each card is published on the
  * event bus; the first answer wins, later ones are `conflict`. A timeout closes a card as
@@ -59,6 +50,8 @@ export class CardDesk {
   constructor(
     private bus: EventBus,
     private clock: Clock,
+    /** Called with the conversation id after a card closes (the open-card count changed). */
+    private onClose?: (conversationId: string) => void,
   ) {}
 
   /** Show an approval card; resolves with the first answer, or `deny` at the timeout. */
@@ -178,6 +171,7 @@ export class CardDesk {
     this.remember(cardId);
     open.settle(answer);
     this.bus.publish({ type: "approval.closed", cardId, answer });
+    this.onClose?.(open.dto.conversationId);
   }
 
   /** Close a question: settle the bot's wait, remember the id, tell the tabs. */
@@ -188,6 +182,7 @@ export class CardDesk {
     this.remember(cardId);
     open.settle(answer);
     this.bus.publish({ type: "question.closed", cardId, answer });
+    this.onClose?.(open.dto.conversationId);
   }
 
   /** Keep a closed id; forget the oldest beyond the limit. */

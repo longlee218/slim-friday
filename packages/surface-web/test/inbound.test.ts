@@ -185,6 +185,15 @@ test("happy path: saved under inbox, files rows, upload used, handler gets both"
   expect(await store.uploads.get("png")).toMatchObject({ state: "used", messageId });
 });
 
+test("an image upload carries its pixel size; a non-image has none", async () => {
+  await seed("png", { mimeType: "image/png", bytes: PNG, size: PNG.length });
+  await send(["png"]);
+  expect(handled[0]?.files?.[0]).toMatchObject({ width: 1, height: 1 });
+  await seed("bin");
+  await send(["bin"]);
+  expect(handled[1]?.files?.[0]?.width).toBeUndefined();
+});
+
 test("a handler that stores nothing is NOT_FOUND and leaves uploads pending", async () => {
   surface.onMessage(async () => undefined);
   await seed("p");
