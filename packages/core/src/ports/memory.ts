@@ -3,6 +3,18 @@ import type { GroupId } from "../domain/group";
 
 export type MemoryOwner = { kind: "bot"; botId: BotId } | { kind: "group"; groupId: GroupId };
 
+/** A journal note the consolidation call judged worth keeping, with the MEMORY.md section it belongs to. */
+export interface PromotedNote {
+  kind: "decision" | "fact" | "preference" | "lesson";
+  note: string;
+}
+
+/** Ask a model which journal `notes` to keep, given the current `memory`; undefined = the call failed. */
+export type ConsolidateFn = (
+  memory: string,
+  notes: string[],
+) => Promise<PromotedNote[] | undefined>;
+
 /** Long-term notes of a bot or a group. */
 export interface Memory {
   read(owner: MemoryOwner): Promise<string>;

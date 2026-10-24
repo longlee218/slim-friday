@@ -54,9 +54,53 @@ export function appendJournal(
   });
 }
 
-/** Delete journal day files older than `keepDays` (by the date in the name) for every bot and group. Returns the count. */
-export function pruneJournals(root: string, now: Date, keepDays = 30): number {
+/** Name of the per-owner file holding the last consolidated day. */
+const MARK_FILE = ".consolidated";
+
+/** Last day (`YYYY-MM-DD`) whose notes were consolidated into MEMORY.md, or undefined when none yet. */
+export function readConsolidatedMark(root: string, owner: MemoryOwner): string | undefined {
+  const file = join(journalDir(root, owner), MARK_FILE);
+  if (!existsSync(file)) return undefined;
+  const day = readFileSync(file, "utf8").trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : undefined;
+}
+
+/** Record `day` as the owner's last consolidated day. */
+export function writeConsolidatedMark(root: string, owner: MemoryOwner, day: string): void {
+  const dir = journalDir(root, owner);
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  writeAtomic(join(dir, MARK_FILE), `${day}\n`);
+}
+
+/** Days (`YYYY-MM-DD`, oldest first) that have a journal file for the owner. */
+export function journalDays(root: string, owner: MemoryOwner): string[] {
+  const dir = journalDir(root, owner);
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .map((f) => DAY_FILE.exec(f)?.[1])
+    .filter((d): d is string => !!d)
+    .sort();
+}
+
+/** The note bullets (without `- `) of one journal day, in file order. */
+export function journalNotes(root: string, owner: MemoryOwner, day: string): string[] {
+  const file = join(journalDir(root, owner), `${day}.md`);
+  if (!existsSync(file)) return [];
+  return readFileSync(file, "utf8")
+    .split("\n")
+    .filter((l) => l.startsWith("- "))
+    .map((l) => l.slice(2).trim())
+    .filter(Boolean);
+}
+
+/**
+ * Delete journal day files for every bot and group: a day older than `keepDays` goes only once consolidation has
+ * passed it (owner mark), so no note is lost unread; any day older than `hardCapDays` goes anyway (a failing model
+ * call cannot grow the journal without end). Returns the count.
+ */
+export function pruneJournals(root: string, now: Date, keepDays = 30, hardCapDays = 90): number {
   const cutoff = localDay(new Date(now.getTime() - keepDays * 86_400_000));
+  const hardCut = localDay(new Date(now.getTime() - hardCapDays * 86_400_000));
   let removed = 0;
   for (const kind of ["bots", "groups"]) {
     const base = join(root, kind);
@@ -64,9 +108,12 @@ export function pruneJournals(root: string, now: Date, keepDays = 30): number {
     for (const id of readdirSync(base)) {
       const dir = join(base, id, "journal");
       if (!existsSync(dir)) continue;
+      const markFile = join(dir, MARK_FILE);
+      const mark = existsSync(markFile) ? readFileSync(markFile, "utf8").trim() : "";
       for (const f of readdirSync(dir)) {
         const day = DAY_FILE.exec(f)?.[1];
-        if (day && day < cutoff) {
+        if (!day || day >= cutoff) continue;
+        if (day <= mark || day < hardCut) {
           rmSync(join(dir, f), { force: true });
           removed++;
         }

@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { appendJournal, pruneJournals } from "../src/memory/journal";
+import { appendJournal, pruneJournals, writeConsolidatedMark } from "../src/memory/journal";
 
 const bot = { kind: "bot", botId: "ann" } as const;
 const at = (iso: string) => new Date(iso);
@@ -39,13 +39,26 @@ test("a day file at 300 lines is full and left as is", () => {
   expect(readFileSync(f, "utf8")).toBe(big);
 });
 
-test("prune deletes day files older than 30 days and keeps the rest", () => {
+test("prune deletes consolidated day files older than 30 days and keeps the rest", () => {
   const root = mkdtempSync(join(tmpdir(), "jr-"));
   appendJournal(root, bot, "F", ["old"], at("2026-09-23T09:00:00"));
   appendJournal(root, bot, "F", ["recent"], at("2026-09-25T09:00:00"));
   writeFileSync(join(root, "bots", "ann", "MEMORY.md"), "keep");
+  writeConsolidatedMark(root, bot, "2026-10-20");
   expect(pruneJournals(root, at("2026-10-24T12:00:00"))).toBe(1);
   expect(existsSync(dayFile(root, "2026-09-23"))).toBe(false);
   expect(existsSync(dayFile(root, "2026-09-25"))).toBe(true);
   expect(existsSync(join(root, "bots", "ann", "MEMORY.md"))).toBe(true);
+});
+
+test("prune keeps an unconsolidated old day until the mark passes it, and deletes any day older than 90", () => {
+  const root = mkdtempSync(join(tmpdir(), "jr-"));
+  appendJournal(root, bot, "F", ["forty"], at("2026-09-14T09:00:00"));
+  appendJournal(root, bot, "F", ["ancient"], at("2026-07-01T09:00:00"));
+  expect(pruneJournals(root, at("2026-10-24T12:00:00"))).toBe(1);
+  expect(existsSync(dayFile(root, "2026-07-01"))).toBe(false);
+  expect(existsSync(dayFile(root, "2026-09-14"))).toBe(true);
+  writeConsolidatedMark(root, bot, "2026-09-14");
+  expect(pruneJournals(root, at("2026-10-24T12:00:00"))).toBe(1);
+  expect(existsSync(dayFile(root, "2026-09-14"))).toBe(false);
 });

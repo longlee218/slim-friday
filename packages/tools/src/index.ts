@@ -13,6 +13,7 @@ export * from "./effects/trash";
 export { trashRoot } from "./effects/trash-store";
 export { checkInsideWorkspace } from "./effects/workspace-paths";
 export * from "./mcp-server-names";
+export * from "./memory/consolidate";
 export * from "./memory/file-memory";
 export * from "./memory/journal";
 export * from "./memory/memory-owner";
