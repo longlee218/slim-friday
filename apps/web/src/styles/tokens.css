@@ -1,0 +1,82 @@
+/* ------------------------------------------------------------------ tokens */
+:root {
+  color-scheme: light;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", Roboto, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+
+  --tint: #3a5cf2;            /* hedgehog blue */
+  --tint-hover: #2f4fe0;
+  --tint-soft: rgba(58, 92, 242, .12);
+  --tint-ink: #ffffff;
+  --tint-text: #2a49d6;
+  --tint-fill: #3a5cf2;      /* white text on it: 5.3:1 */
+  --tint-fill-hover: #2f4fe0;
+
+  --ground: #ffffff;          /* content */
+  --sidebar: #f2f2f6;
+  --toolbar: rgba(255, 255, 255, .78);
+  --raised: #ffffff;
+  --well: #f5f5f8;            /* inputs, wells */
+  --fill: rgba(120, 120, 135, .12);
+  --fill-strong: rgba(120, 120, 135, .2);
+  --sel: rgba(58, 92, 242, .14);
+  --sel-strong: #3a5cf2;
+
+  --label: #1c1c1f;
+  --label-2: #5f5f66;         /* 6.3:1 on white */
+  --label-3: #86868c;         /* non-essential only */
+  --sep: rgba(20, 20, 40, .09);
+  --sep-strong: rgba(20, 20, 40, .15);
+
+  --green: #1f8a3c; --green-fill: rgba(52, 199, 89, .16); --green-dot: #34c759;
+  --amber: #a85100; --amber-fill: rgba(255, 159, 10, .16); --amber-dot: #ff9f0a;
+  --red: #d70015;   --red-fill: rgba(255, 59, 48, .12);  --red-dot: #ff3b30;
+  --violet: #7a3ff0; --violet-fill: rgba(122, 63, 240, .12);
+
+  --owner-bubble: #3a5cf2;
+  --owner-ink: #ffffff;
+
+  --shadow-pop: 0 10px 30px -6px rgba(0, 0, 0, .18), 0 2px 6px rgba(0, 0, 0, .08);
+  --shadow-sheet: 0 24px 60px -12px rgba(0, 0, 0, .28), 0 4px 12px rgba(0, 0, 0, .1);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, .06), 0 2px 8px -2px rgba(0, 0, 0, .06);
+  --dim: rgba(20, 20, 30, .22);
+
+  --r-s: 6px; --r-m: 10px; --r-l: 14px;
+  --ease: cubic-bezier(.22, 1, .36, 1);       /* ease-out-quint */
+  --ease-sheet: cubic-bezier(.32, .72, 0, 1); /* iOS sheet */
+  --t-fast: 140ms; --t-mid: 240ms; --t-slow: 420ms;
+  --sb-w: 260px; --insp-w: 312px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --tint: #6d8bff; --tint-hover: #829bff; --tint-soft: rgba(109, 139, 255, .16); --tint-ink: #0c1230; --tint-text: #93a9ff; --tint-fill: #4a69f5; --tint-fill-hover: #5b78f7;
+    --ground: #1c1c1e; --sidebar: #232326; --toolbar: rgba(30, 30, 32, .78); --raised: #2a2a2d; --well: #2a2a2d;
+    --fill: rgba(150, 150, 165, .16); --fill-strong: rgba(150, 150, 165, .26); --sel: rgba(109, 139, 255, .2); --sel-strong: #6d8bff;
+    --label: #f2f2f5; --label-2: #a7a7ae; --label-3: #77777e;
+    --sep: rgba(255, 255, 255, .08); --sep-strong: rgba(255, 255, 255, .14);
+    --green: #4cd964; --green-fill: rgba(52, 199, 89, .18); --amber: #ffb340; --amber-fill: rgba(255, 159, 10, .18);
+    --red: #ff6961; --red-fill: rgba(255, 69, 58, .18); --violet: #b393ff; --violet-fill: rgba(150, 110, 255, .2);
+    --owner-bubble: #4a69f5; --owner-ink: #ffffff;
+    --shadow-pop: 0 12px 34px -6px rgba(0, 0, 0, .55), 0 0 0 1px rgba(255, 255, 255, .07);
+    --shadow-sheet: 0 28px 70px -12px rgba(0, 0, 0, .65), 0 0 0 1px rgba(255, 255, 255, .08);
+    --shadow-card: 0 0 0 1px rgba(255, 255, 255, .06);
+    --dim: rgba(0, 0, 0, .45);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --tint: #6d8bff; --tint-hover: #829bff; --tint-soft: rgba(109, 139, 255, .16); --tint-ink: #0c1230; --tint-text: #93a9ff; --tint-fill: #4a69f5; --tint-fill-hover: #5b78f7;
+  --ground: #1c1c1e; --sidebar: #232326; --toolbar: rgba(30, 30, 32, .78); --raised: #2a2a2d; --well: #2a2a2d;
+  --fill: rgba(150, 150, 165, .16); --fill-strong: rgba(150, 150, 165, .26); --sel: rgba(109, 139, 255, .2); --sel-strong: #6d8bff;
+  --label: #f2f2f5; --label-2: #a7a7ae; --label-3: #77777e;
+  --sep: rgba(255, 255, 255, .08); --sep-strong: rgba(255, 255, 255, .14);
+  --green: #4cd964; --green-fill: rgba(52, 199, 89, .18); --amber: #ffb340; --amber-fill: rgba(255, 159, 10, .18);
+  --red: #ff6961; --red-fill: rgba(255, 69, 58, .18); --violet: #b393ff; --violet-fill: rgba(150, 110, 255, .2);
+  --owner-bubble: #4a69f5; --owner-ink: #ffffff;
+  --shadow-pop: 0 12px 34px -6px rgba(0, 0, 0, .55), 0 0 0 1px rgba(255, 255, 255, .07);
+  --shadow-sheet: 0 28px 70px -12px rgba(0, 0, 0, .65), 0 0 0 1px rgba(255, 255, 255, .08);
+  --shadow-card: 0 0 0 1px rgba(255, 255, 255, .06);
+  --dim: rgba(0, 0, 0, .45);
+}

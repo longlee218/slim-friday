@@ -12,6 +12,7 @@
       "packages/**",
       "apps/**",
       "!packages/config/defaults/skills/skill-creator",
+      "!apps/web/src/styles",
       "package.json",
       "tsconfig.json",
       "biome.json"

@@ -1,0 +1,37 @@
+@import "tailwindcss";
+@import "./tokens.css";
+@import "./base.css";
+
+/* Tailwind utilities read the design tokens, so light/dark/theme switch flows through. */
+@theme inline {
+  --color-tint: var(--tint);
+  --color-tint-text: var(--tint-text);
+  --color-tint-fill: var(--tint-fill);
+  --color-ground: var(--ground);
+  --color-sidebar: var(--sidebar);
+  --color-toolbar: var(--toolbar);
+  --color-raised: var(--raised);
+  --color-well: var(--well);
+  --color-fill: var(--fill);
+  --color-fill-strong: var(--fill-strong);
+  --color-sel: var(--sel);
+  --color-label: var(--label);
+  --color-label-2: var(--label-2);
+  --color-label-3: var(--label-3);
+  --color-sep: var(--sep);
+  --color-sep-strong: var(--sep-strong);
+  --color-green: var(--green);
+  --color-green-fill: var(--green-fill);
+  --color-green-dot: var(--green-dot);
+  --color-amber: var(--amber);
+  --color-amber-fill: var(--amber-fill);
+  --color-amber-dot: var(--amber-dot);
+  --color-red: var(--red);
+  --color-red-fill: var(--red-fill);
+  --color-red-dot: var(--red-dot);
+  --color-violet: var(--violet);
+  --color-violet-fill: var(--violet-fill);
+  --radius-control: 7px;
+  --radius-card: 14px;
+  --radius-bubble: 18px;
+}
