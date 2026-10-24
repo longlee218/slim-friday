@@ -20,3 +20,9 @@ node_modules
 
 # Live SDK spike output (raw messages, local only)
 /scripts/spike-out/
+
+# Web app build and test output
+apps/web/dist/
+apps/web/dev-dist/
+apps/web/test-results/
+apps/web/playwright-report/

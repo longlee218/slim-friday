@@ -1,2 +1,4 @@
 [test]
 root = "."
+# apps/web tests run with Vitest, never bun test
+pathIgnorePatterns = ["apps/web/**"]

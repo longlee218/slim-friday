@@ -32,12 +32,21 @@ const FORBIDDEN: { name: string; re: RegExp }[] = [
   { name: "Slack token", re: /xox[abp]-[A-Za-z0-9-]{10,}/ },
 ];
 
+/** Build and test output dirs (and `node_modules`) are never published. */
+const SKIPPED_DIRS = new Set([
+  "node_modules",
+  "dist",
+  "dev-dist",
+  "test-results",
+  "playwright-report",
+]);
+
 /** Every file under `path` (a file is itself). */
 function filesUnder(path: string): string[] {
   if (!existsSync(path)) return [];
   if (statSync(path).isFile()) return [path];
   return readdirSync(path, { withFileTypes: true }).flatMap((e) =>
-    e.name === "node_modules" ? [] : filesUnder(join(path, e.name)),
+    SKIPPED_DIRS.has(e.name) ? [] : filesUnder(join(path, e.name)),
   );
 }
 

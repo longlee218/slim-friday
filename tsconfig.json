@@ -8,5 +8,6 @@
     "noEmit": true,
     "types": ["bun"]
   },
-  "include": ["test", "scripts", "packages", "apps"]
+  "include": ["test", "scripts", "packages", "apps"],
+  "exclude": ["apps/web"]
 }
