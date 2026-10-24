@@ -250,3 +250,28 @@ test("after a compaction the bot's changed MEMORY.md goes with the next turn, on
   await flush();
   expect(s.sent[3]?.botMemory).toBeUndefined();
 });
+
+test("a turn after a compaction whose send fails sends the updated memory again on the next turn", async () => {
+  const { memory, texts } = fakeMemory();
+  texts.set("bot:editor", "## Facts\n- likes tea");
+  const { runtime, surface } = makeHub(memory);
+  surface.deliver({ conversationId: "dc", text: "one" });
+  await flush();
+  const s = runtime.nth(0);
+  s.emit({ type: "turn_end", costUsd: 0 });
+  texts.set("bot:editor", "## Facts\n- likes tea\n- answers in Vietnamese");
+  s.emit({ type: "compacted" });
+  await flush();
+  let failOnce = true;
+  s.onSend = () => {
+    if (failOnce) {
+      failOnce = false;
+      throw new Error("unreadable attachment");
+    }
+  };
+  surface.deliver({ conversationId: "dc", text: "two" });
+  await flush();
+  surface.deliver({ conversationId: "dc", text: "three" });
+  await flush();
+  expect(s.sent[2]?.botMemory).toContain("answers in Vietnamese");
+});

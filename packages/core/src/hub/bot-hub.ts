@@ -384,13 +384,16 @@ export class BotHub implements BotMessenger {
     entry.sentResults = new Set();
     entry.busy = true;
     let conv: Conversation | undefined;
+    // The memory shown before this turn: a failed send puts it back so the updated memory goes with the next turn.
+    const shownBefore = entry.memoryShown;
+    let botMemory: string | undefined;
     try {
       conv = await store.conversations.get(q.conversationId);
       const context =
         conv?.kind === "group"
           ? await store.messages.recent(q.conversationId, this.limits.groupContextMessages)
           : [];
-      const botMemory = await this.botMemoryAfterCompaction(entry);
+      botMemory = await this.botMemoryAfterCompaction(entry);
       const groupMemory = conv
         ? await changedGroupMemory(
             entry,
@@ -428,7 +431,11 @@ export class BotHub implements BotMessenger {
     } catch (err) {
       // A send that fails (for example an unreadable attachment) must not leave the bot busy for good.
       entry.busy = false;
-      // Nor mark the group memory and context as sent: the next group turn carries them again.
+      // Nor mark any memory or context as sent: the next turn carries them again.
+      if (botMemory !== undefined) {
+        entry.memoryShown = shownBefore;
+        entry.memoryStale = true;
+      }
       if (conv?.kind === "group") {
         entry.groupMemorySent.delete(conv.groupId);
         entry.groupContextSent.delete(conv.groupId);
