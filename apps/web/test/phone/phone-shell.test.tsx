@@ -130,12 +130,9 @@ test("a vertical-first move cancels the swipe", () => {
   expect(top.className).not.toContain("dragging");
 });
 
-test("a pointercancel past a third still pops; a short one only settles", () => {
+test("a pointercancel never pops, even past a third", () => {
   const { router } = renderPhone(phoneClient(), "/c/bot:dev");
-  const root = drag(10, 50);
+  const root = drag(10, 220);
   fireEvent.pointerCancel(root, { pointerId: 1 });
   expect(router.state.location.pathname).toBe("/c/bot:dev");
-  drag(10, 220);
-  fireEvent.pointerCancel(root, { pointerId: 1 });
-  expect(router.state.location.pathname).toBe("/");
 });

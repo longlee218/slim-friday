@@ -18,7 +18,7 @@ export const edgeSwipePop = (dx: number, width: number): boolean => dx > width *
 /**
  * iOS edge swipe back on the `.ios` root: the pushed view follows the finger while the one under
  * it slides from -28% to 0, with no transition (`.dragging`, also under Reduce Motion). A release
- * past a third of the width calls `onPop` (a cancelled pointer counts as a release); a shorter
+ * past a third of the width calls `onPop` (a cancelled pointer never pops); a shorter
  * one lets CSS settle both views back. A vertical-first move cancels the gesture (it is a scroll).
  */
 export function useEdgeSwipe(
@@ -88,15 +88,21 @@ export function useEdgeSwipe(
       settle(pops);
       if (pops) pop.current();
     };
+    // The browser took the pointer (scroll, system gesture): reset, never pop.
+    const cancel = () => {
+      if (x0 === null) return;
+      x0 = null;
+      settle(false);
+    };
     el.addEventListener("pointerdown", down);
     el.addEventListener("pointermove", move);
     el.addEventListener("pointerup", up);
-    el.addEventListener("pointercancel", up);
+    el.addEventListener("pointercancel", cancel);
     return () => {
       el.removeEventListener("pointerdown", down);
       el.removeEventListener("pointermove", move);
       el.removeEventListener("pointerup", up);
-      el.removeEventListener("pointercancel", up);
+      el.removeEventListener("pointercancel", cancel);
       settle(false);
     };
   }, [root, enabled]);
