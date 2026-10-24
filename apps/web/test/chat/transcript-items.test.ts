@@ -33,15 +33,15 @@ test("items are oldest first with day lines", () => {
   ]);
 });
 
-test("pending cards and live runs come after messages", () => {
+test("live runs, then pending cards, come after messages", () => {
   const items = buildTranscriptItems({
     ...base,
     pages: [[msg({ id: 1 })]],
     approvals: [apprCard()],
     runs: { dev: { botId: "dev", startedAt: 0, steps: [] } },
   });
-  expect(items.slice(-2).map((i) => i.kind)).toEqual(["approval", "run"]);
-  expect(items.slice(-2).map((i) => i.key)).toEqual(["a:a1", "r:dev"]);
+  expect(items.slice(-2).map((i) => i.kind)).toEqual(["run", "approval"]);
+  expect(items.slice(-2).map((i) => i.key)).toEqual(["r:dev", "a:a1"]);
 });
 
 test("receipts of another conversation are left out", () => {
