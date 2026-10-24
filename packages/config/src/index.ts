@@ -1,3 +1,4 @@
+export type { MemoryProviderEntry } from "./build-settings";
 export { diffBots } from "./diff-bots";
 export { type ConfigDirs, FileConfig, type ReloadResult } from "./file-config";
 export {

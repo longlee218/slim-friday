@@ -92,6 +92,9 @@ export class FileConfig {
   /** Where `CreateProject` makes new repos. */
   projectsDir = (): string => this.snapshot.projectsDir;
 
+  /** Memory provider entries of settings.yaml (read at start; a change needs a restart). */
+  memoryProviders = () => this.snapshot.memoryProviders;
+
   /**
    * External MCP servers with `${NAME}` values filled from `env`. A server with a missing value is left out and
    * named in `problems`, so it is never started half configured.

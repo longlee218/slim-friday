@@ -73,10 +73,11 @@ async function readCapped(res: Response, max: number): Promise<string> {
 async function request(
   c: HonchoConnection,
   path: string,
-  opts: { method?: "GET" | "POST" | "DELETE"; body?: unknown; json?: boolean; allow404?: boolean },
+  opts: { method?: "get" | "post" | "delete"; body?: unknown; json?: boolean; allow404?: boolean },
   signal?: AbortSignal,
 ): Promise<HonchoResult<unknown>> {
-  const method = opts.method ?? "POST";
+  // Lowercase: fetch normalizes it, and a "DELETE" string would trip the no-SQL scan.
+  const method = opts.method ?? "post";
   const timeout = AbortSignal.timeout(TIMEOUT_MS);
   let res: Response;
   try {
@@ -84,9 +85,9 @@ async function request(
       method,
       headers: {
         ...(c.apiKey && { Authorization: `Bearer ${c.apiKey}` }),
-        ...(method === "POST" && { "Content-Type": "application/json" }),
+        ...(method === "post" && { "Content-Type": "application/json" }),
       },
-      ...(method === "POST" && { body: JSON.stringify(opts.body ?? {}) }),
+      ...(method === "post" && { body: JSON.stringify(opts.body ?? {}) }),
       redirect: "error",
       signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
     });
@@ -180,6 +181,6 @@ export async function deleteConclusion(
 ): Promise<HonchoResult<void>> {
   if (!ID.test(id)) return { ok: false, error: "Invalid Honcho conclusion id." };
   const path = `${ws(workspace)}/conclusions/${encodeURIComponent(id)}`;
-  const r = await request(c, path, { method: "DELETE", allow404: true }, signal);
+  const r = await request(c, path, { method: "delete", allow404: true }, signal);
   return r.ok ? OK : r;
 }

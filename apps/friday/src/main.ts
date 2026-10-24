@@ -102,6 +102,7 @@ export async function startEngine(
       runtime,
       agentHome,
       log,
+      env,
       flushNotes: (transcript) => extractNotes(transcript, haiku),
       consolidate: (memory, notes) => consolidateNotes({ memory, notes }, haiku),
     });

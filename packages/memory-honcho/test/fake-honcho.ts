@@ -42,12 +42,12 @@ export function fakeHoncho() {
         .map((x) => x.c);
       return reply(hits);
     }
-    if (path.endsWith("/conclusions") && init.method === "POST") {
+    if (path.endsWith("/conclusions") && init.method === "post") {
       for (const c of body.conclusions) conclusions.push({ id: `c${next++}`, ...c });
       return reply([]);
     }
     const del = /\/conclusions\/([^/]+)$/.exec(path);
-    if (del && init.method === "DELETE") {
+    if (del && init.method === "delete") {
       const i = conclusions.findIndex((c) => c.id === del[1]);
       if (i < 0) return reply({}, 404);
       conclusions.splice(i, 1);

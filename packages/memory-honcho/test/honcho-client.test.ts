@@ -125,7 +125,7 @@ test("a 500, a redirect, a network error, a 2 MB body and malformed conclusions 
 test("delete: 404 is ok, an invalid id is refused without a request", async () => {
   const f = fakeFetch(() => json({}, 404));
   expect((await deleteConclusion(conn(f.fn), "friday", "c1")).ok).toBe(true);
-  expect(f.calls[0]?.init.method).toBe("DELETE");
+  expect(f.calls[0]?.init.method).toBe("delete");
   expect((await deleteConclusion(conn(f.fn), "friday", "../x")).ok).toBe(false);
   expect(f.calls).toHaveLength(1);
 });

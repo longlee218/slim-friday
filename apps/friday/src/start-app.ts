@@ -26,12 +26,14 @@ import {
   MemoryRecall,
   type MessageSearchDeps,
   pruneJournals,
+  WriteThroughMemory,
 } from "@friday/tools";
 import { appCommands } from "./app-commands";
 import { AVATARS_DIR, resolveAvatar } from "./avatars";
 import { homePaths } from "./config/home-paths";
 import { withFridayDirs } from "./friday-bot";
 import { idleFlush } from "./idle-flush";
+import { providerSources } from "./memory-plugins";
 import { type Roster, withRoster } from "./roster";
 import { sharedDirsFor, withSharedDirs } from "./shared-dirs";
 import { systemClock } from "./system-clock";
@@ -84,6 +86,10 @@ export interface AppDeps {
   flushNotes?: (transcript: string) => Promise<string[]>;
   /** Picks the journal notes to promote into MEMORY.md each day; without it nothing is consolidated. */
   consolidate?: ConsolidateFn;
+  /** The owner's env: memory provider plugins read their declared secrets from it (default: none). */
+  env?: Record<string, string | undefined>;
+  /** HTTP for memory provider plugins (tests pass a fake). */
+  fetch?: typeof fetch;
   log: Log;
 }
 
@@ -151,8 +157,19 @@ export async function startApp(deps: AppDeps) {
       log.error({ error: why(err) }, "memory.index");
     }
   };
-  const memory = deps.memory ?? new FileMemory(memoryRoot, undefined, memoryChanged);
-  const recall = new MemoryRecall([builtinSource(memoryIndex)], { log });
+  // Optional provider plugins (settings.yaml `memory.providers`): their sources join recall; when one can store
+  // notes, saves go to it too (the file stays the truth).
+  const providers = providerSources(config.memoryProviders(), deps.env ?? {}, {
+    log,
+    ...(deps.fetch && { fetch: deps.fetch }),
+  });
+  for (const message of providers.problems) log.warn({ message }, "config.problem");
+  const memory =
+    deps.memory ??
+    (providers.sources.some((s) => s.write)
+      ? new WriteThroughMemory(memoryRoot, providers.sources, { onChange: memoryChanged, log })
+      : new FileMemory(memoryRoot, undefined, memoryChanged));
+  const recall = new MemoryRecall([builtinSource(memoryIndex), ...providers.sources], { log });
   // Past messages are indexed from the engine db on demand (each search first catches up).
   const messages: MessageSearchDeps = {
     index: memoryIndex,
@@ -356,6 +373,7 @@ export async function startApp(deps: AppDeps) {
       await botHub.stopAll();
       // A daily run may still use the index and the db.
       await Promise.all([memoryReady, running]);
+      if (memory instanceof WriteThroughMemory) await memory.flush();
       memoryIndex.close();
       engine.close();
     },

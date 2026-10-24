@@ -8,7 +8,7 @@ import type {
   PermissionSettings,
   ToolSpec,
 } from "@friday/core";
-import { buildSettings } from "./build-settings";
+import { buildSettings, type MemoryProviderEntry } from "./build-settings";
 import { type ConfigProblem, readLayer, readOwnerText } from "./read-layer";
 import type { McpServerSpec } from "./schemas/mcp-file";
 
@@ -31,6 +31,8 @@ export interface ConfigSnapshot {
   limits: CoreLimits;
   /** Where `CreateProject` makes new repos. */
   projectsDir: string;
+  /** Memory provider entries of settings.yaml (plugin id + options), none by default. */
+  memoryProviders: MemoryProviderEntry[];
   tools: ToolSpec[];
   /** External MCP servers by name (user file wins), env values not yet expanded. */
   mcp: Map<string, { server: McpServerSpec; file: string }>;
@@ -105,7 +107,7 @@ export function loadConfig(
     for (const id of Object.keys(value.autonomy?.bots ?? {}))
       if (!bots.has(id))
         problems.push({ file, message: `autonomy.bots names "${id}", which is not a loaded bot` });
-  const { settings, limits, projectsDir } = buildSettings(
+  const { settings, limits, projectsDir, memoryProviders } = buildSettings(
     settingsFiles.map((f) => f.value),
     bots.values(),
   );
@@ -116,6 +118,7 @@ export function loadConfig(
       settings,
       limits,
       projectsDir,
+      memoryProviders,
       tools: [...tools.values()],
       mcp: new Map(layers.flatMap((l) => [...l.mcp])),
     },

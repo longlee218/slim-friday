@@ -8,6 +8,7 @@
     "@friday/config": "workspace:*",
     "@friday/core": "workspace:*",
     "@friday/runtime-claude": "workspace:*",
+    "@friday/memory-honcho": "workspace:*",
     "@friday/store-sqlite": "workspace:*",
     "@friday/surface-discord": "workspace:*",
     "@friday/tools": "workspace:*"

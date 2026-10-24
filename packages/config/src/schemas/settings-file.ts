@@ -33,6 +33,12 @@ const settingsSchema = z.strictObject({
     })
     .optional(),
   limits: limitsSchema.optional(),
+  /** Optional memory provider plugins; each entry's keys besides `id` are checked by its plugin. */
+  memory: z
+    .strictObject({
+      providers: z.array(z.looseObject({ id: z.string().min(1) })).optional(),
+    })
+    .optional(),
   /** Where `CreateProject` makes new repos (absolute or `~/`). */
   projectsDir: pathSchema.optional(),
 });
