@@ -27,7 +27,7 @@ const lineOf = (m: StoredMessage): string =>
  * The hub's `onIdleClose`: the messages of the closed session (its conversations, since it opened) go to
  * `flushNotes`, and the notes into today's journal as an `Idle flush` block: the group's for a group session, else the
  * bot's. Fewer than 2 messages make
- * no call. A failure is logged, never thrown.
+ * no call. A failure is logged and rethrown: the sweep then leaves the scope unflushed and retries it.
  */
 export function idleFlush(deps: IdleFlushDeps) {
   return async (e: IdleClose): Promise<void> => {
@@ -48,6 +48,7 @@ export function idleFlush(deps: IdleFlushDeps) {
       if (r.status === "saved") deps.memoryChanged(owner);
     } catch (err) {
       deps.log.error({ error: String(err), botId: e.botId }, "memory.idle_flush");
+      throw err;
     }
   };
 }

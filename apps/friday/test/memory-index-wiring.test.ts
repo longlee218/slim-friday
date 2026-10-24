@@ -123,3 +123,17 @@ test("an index that throws on reindex does not fail MemorySave", async () => {
   expect(parts.memory.listBullets(ann)).toHaveLength(1);
   expect(errors).toContain("memory.index");
 });
+
+test("index sees a MEMORY.md written by another process", async () => {
+  const home = mkdtempSync(join(tmpdir(), "wire-"));
+  const { parts } = await boot(home);
+  expect(await parts.recall.search(ann, "kubernetes")).toHaveLength(0);
+  // Written straight to the file, as another worker process would: no callback runs here.
+  seedMemory(home, "deploy uses kubernetes");
+  expect((await parts.recall.search(ann, "kubernetes"))[0]?.text).toContain("kubernetes");
+  // An edit and a removal by the other process are seen too.
+  seedMemory(home, "deploy uses nomad");
+  expect(await parts.recall.search(ann, "kubernetes")).toHaveLength(0);
+  rmSync(join(home, "memory", "bots", "ann", "MEMORY.md"));
+  expect(await parts.recall.search(ann, "nomad")).toHaveLength(0);
+});

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import type { MemoryIndexStore, MemoryOwner } from "@friday/core";
 import { ownerDir } from "../file-memory";
@@ -8,6 +8,10 @@ import { chunkMemory } from "./chunk-memory";
 
 /** Name of a journal day file. */
 const DAY_FILE = /^(\d{4}-\d{2}-\d{2})\.md$/;
+
+/** Key of an owner in the `seen` map. */
+const ownerKey = (o: MemoryOwner): string =>
+  o.kind === "bot" ? `bot:${o.botId}` : `group:${o.groupId}`;
 
 /** A file of an owner that the index mirrors. */
 interface SourceDoc {
@@ -28,9 +32,37 @@ export class Indexer {
     private readonly store: MemoryIndexStore,
   ) {}
 
+  /** Per owner, the files' `path:mtime:size` list as of the last reindex by this process. */
+  private readonly seen = new Map<string, string>();
+
+  /**
+   * Reindex the owner when its files differ from what this process last indexed (a file written, changed or removed,
+   * by this or another process: the files are the truth). Cheap when nothing changed: one stat per file.
+   */
+  async ensureFresh(owner: MemoryOwner): Promise<void> {
+    if (this.seen.get(ownerKey(owner)) !== this.signatureOf(this.docsOf(owner)))
+      this.reindexOwner(owner);
+  }
+
+  /** The files' names, mtimes and sizes as one string; changes when a file is added, removed or rewritten. */
+  private signatureOf(docs: SourceDoc[]): string {
+    return docs
+      .map((d) => {
+        try {
+          const st = statSync(d.file);
+          return `${d.docId}:${st.mtimeMs}:${st.size}`;
+        } catch {
+          return `${d.docId}:gone`;
+        }
+      })
+      .join("|");
+  }
+
   /** Bring one owner's docs up to date. Returns how many docs were written or removed. */
   reindexOwner(owner: MemoryOwner): number {
     const docs = this.docsOf(owner);
+    // Taken before reading: a write that lands meanwhile makes the next `ensureFresh` reindex again.
+    this.seen.set(ownerKey(owner), this.signatureOf(docs));
     let changed = 0;
     for (const d of docs) {
       let text: string;

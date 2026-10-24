@@ -67,3 +67,41 @@ test("a hook that throws is logged and the session still closes", async () => {
   expect(await hub.status()).toEqual([]);
   expect(log.of("hub.idle_close_hook")).toHaveLength(1);
 });
+
+test("quiet scope is flushed once: a failed flush is retried, a successful one is not repeated", async () => {
+  let calls = 0;
+  const { surface, runtime, clock, hub, store } = hubWithHook(() => {
+    if (++calls === 1) throw new Error("flush down");
+  });
+  surface.deliver({ conversationId: "dc", text: "hi" });
+  await flush();
+  clock.advance(10);
+  runtime.nth(0).emit({ type: "turn_end", costUsd: 0 });
+  await flush();
+  clock.advance(CORE_DEFAULTS.idleCloseMs);
+  await hub.sweepIdle();
+  expect(calls).toBe(1);
+  // The failure left the scope unflushed, so the next sweep tries again.
+  await hub.sweepIdle();
+  expect(calls).toBe(2);
+  expect((await store.scopes.get("editor"))?.lastFlushedAt).toBeGreaterThan(0);
+  await hub.sweepIdle();
+  expect(calls).toBe(2);
+});
+
+test("a flush that keeps failing is given up after three tries", async () => {
+  let calls = 0;
+  const { surface, runtime, clock, hub, store } = hubWithHook(() => {
+    calls++;
+    throw new Error("flush down");
+  });
+  surface.deliver({ conversationId: "dc", text: "hi" });
+  await flush();
+  clock.advance(10);
+  runtime.nth(0).emit({ type: "turn_end", costUsd: 0 });
+  await flush();
+  clock.advance(CORE_DEFAULTS.idleCloseMs);
+  for (let i = 0; i < 5; i++) await hub.sweepIdle();
+  expect(calls).toBe(3);
+  expect((await store.scopes.get("editor"))?.lastFlushedAt).toBeGreaterThan(0);
+});
