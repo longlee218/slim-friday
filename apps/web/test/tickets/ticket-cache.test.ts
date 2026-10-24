@@ -72,3 +72,27 @@ describe("patchTicket", () => {
     expect(spy).not.toHaveBeenCalled();
   });
 });
+
+test("an older closed event never drops a newer cached ticket", () => {
+  patchTicket(qc, t("1", { status: "closed", updatedAt: 5 }));
+  expect(pages()[0]!.items.map((x) => x.id)).toEqual(["1", "2"]);
+});
+
+test("a filtered list is invalidated, not patched", () => {
+  const todo = orpc.tickets.list.infiniteOptions({
+    input: (cursor: string | undefined) => ({ cursor, status: "todo" as const }),
+    initialPageParam: undefined,
+    getNextPageParam: (p: Page) => p.nextCursor,
+  });
+  qc.setQueryData<InfiniteData<Page, string | undefined>>(todo.queryKey, {
+    pages: [{ items: [t("1")] }],
+    pageParams: [undefined],
+  });
+  const spy = vi.spyOn(qc, "invalidateQueries");
+  patchTicket(qc, t("1", { status: "doing", updatedAt: 20 }));
+  expect(qc.getQueryData<InfiniteData<Page>>(todo.queryKey)!.pages[0]!.items[0]!.status).toBe(
+    "todo",
+  );
+  expect(spy).toHaveBeenCalledWith({ queryKey: todo.queryKey, exact: true });
+  expect(pages()[0]!.items[0]!.status).toBe("doing");
+});

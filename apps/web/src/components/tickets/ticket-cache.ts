@@ -15,24 +15,37 @@ const listKey = () =>
     initialPageParam: undefined,
   });
 
+/** True when a list query's input filters by status or assignee (a patch could break its filter). */
+function isFiltered(key: readonly unknown[]): boolean {
+  const input = (key[1] as { input?: { status?: unknown; assignee?: unknown } } | undefined)?.input;
+  return input?.status !== undefined || input?.assignee !== undefined;
+}
+
 /**
- * Puts a pushed ticket into the cache: replaces it by id in every list page and in
+ * Puts a pushed ticket into the cache: replaces it by id in every unfiltered list page and in
  * `tickets.get`, drops a closed one from the pages, never goes back to an older `updatedAt`.
- * A live ticket that no page holds invalidates the list (it may belong on a page not loaded).
+ * A filtered list is invalidated instead (the change may move the ticket out of its filter). A
+ * live ticket that no page holds invalidates the list (it may belong on a page not loaded).
  */
 export function patchTicket(qc: QueryClient, t: TicketDto): void {
   let found = false;
   for (const [key, data] of qc.getQueriesData<InfiniteData<ListPage>>({ queryKey: listKey() })) {
     if (!data?.pages.some((p) => p.items.some((x) => x.id === t.id))) continue;
     found = true;
+    if (isFiltered(key)) {
+      void qc.invalidateQueries({ queryKey: key, exact: true });
+      continue;
+    }
+    // Only a newer (or same) version replaces or removes the cached ticket.
+    const newer = (x: TicketDto) => x.id === t.id && x.updatedAt <= t.updatedAt;
     qc.setQueryData<InfiniteData<ListPage>>(key, {
       ...data,
       pages: data.pages.map((p) => ({
         ...p,
         items:
           t.status === "closed"
-            ? p.items.filter((x) => x.id !== t.id)
-            : p.items.map((x) => (x.id === t.id && x.updatedAt <= t.updatedAt ? t : x)),
+            ? p.items.filter((x) => !newer(x))
+            : p.items.map((x) => (newer(x) ? t : x)),
       })),
     });
   }
