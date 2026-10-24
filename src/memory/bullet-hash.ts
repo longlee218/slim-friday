@@ -1,6 +1,2 @@
-import { createHash } from "node:crypto";
-import { normalizeBullet } from "./memory-sections";
-
-/** Audit key of a memory bullet: first 16 hex chars of sha1 over its normalized text (date and markup out). */
-export const bulletHash = (bullet: string): string =>
-  createHash("sha1").update(normalizeBullet(bullet)).digest("hex").slice(0, 16);
+/** Moved to `packages/tools` (plan 6); this re-export stays until plan 7 deletes the old code. */
+export * from "../../packages/tools/src/memory/bullet-hash";

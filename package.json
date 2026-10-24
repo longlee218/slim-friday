@@ -20,6 +20,7 @@
   "dependencies": {
     "@friday/surface-discord": "workspace:*",
     "@friday/app": "workspace:*",
+    "@friday/tools": "workspace:*",
     "@friday/config": "workspace:*",
     "@friday/store-sqlite": "workspace:*",
     "@friday/core": "workspace:*",

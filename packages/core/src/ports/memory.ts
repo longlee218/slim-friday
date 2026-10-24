@@ -6,7 +6,8 @@ export type MemoryOwner = { kind: "bot"; botId: BotId } | { kind: "group"; group
 /** Long-term notes of a bot or a group. */
 export interface Memory {
   read(owner: MemoryOwner): Promise<string>;
-  save(owner: MemoryOwner, note: string): Promise<void>;
+  /** Add one note; `kind` is the adapter's note kind (for example "fact"), default chosen by the adapter. */
+  save(owner: MemoryOwner, note: string, kind?: string): Promise<void>;
   /** Replace one note by id; `null` deletes it. */
   edit(owner: MemoryOwner, id: string, text: string | null): Promise<void>;
 }
