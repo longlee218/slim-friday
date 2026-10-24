@@ -1,5 +1,5 @@
 import { mkdirSync, watch } from "node:fs";
-import type { CoreLimits, PermissionSettings, Store, ToolCatalog } from "@friday/core";
+import type { CoreLimits, Group, PermissionSettings, Store, ToolCatalog } from "@friday/core";
 import { diffBots } from "./diff-bots";
 import { type ConfigProblem, type ConfigSnapshot, loadConfig } from "./load-config";
 
@@ -51,6 +51,9 @@ export class FileConfig {
   readonly groups: Store["groups"] = {
     get: async (id) => this.snapshot.groups.get(id),
   };
+
+  /** Every group of the current snapshot (the channel sync needs the list). */
+  listGroups = async (): Promise<Group[]> => [...this.snapshot.groups.values()];
 
   /** The tools and their annotations. */
   readonly catalog: ToolCatalog = { list: async () => this.snapshot.tools };

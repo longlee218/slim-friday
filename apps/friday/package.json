@@ -1,0 +1,14 @@
+{
+  "name": "@friday/app",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/start-app.ts",
+  "dependencies": {
+    "@friday/config": "workspace:*",
+    "@friday/core": "workspace:*",
+    "@friday/runtime-claude": "workspace:*",
+    "@friday/store-sqlite": "workspace:*",
+    "@friday/surface-discord": "workspace:*"
+  }
+}

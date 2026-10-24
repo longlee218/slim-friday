@@ -12,6 +12,7 @@
       "!src/storage/migrations",
       "test/**",
       "packages/**",
+      "apps/**",
       "package.json",
       "tsconfig.json",
       "biome.json"

@@ -4,7 +4,8 @@
   "version": "0.1.0",
   "type": "module",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "apps/*"
   ],
   "scripts": {
     "start": "bun run src/index.ts",
@@ -13,11 +14,12 @@
     "metrics:skills": "bun run scripts/metrics-skills.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
-    "format": "biome format --write src test packages",
-    "lint": "biome check src test packages"
+    "format": "biome format --write src test packages apps",
+    "lint": "biome check src test packages apps"
   },
   "dependencies": {
     "@friday/surface-discord": "workspace:*",
+    "@friday/app": "workspace:*",
     "@friday/config": "workspace:*",
     "@friday/store-sqlite": "workspace:*",
     "@friday/core": "workspace:*",
