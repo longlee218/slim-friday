@@ -178,7 +178,11 @@ export interface Store {
     /** Rows from day `from` to day `to` (`YYYY-MM-DD`, both included), ordered by day then bot. */
     range(from: string, to: string): Promise<{ botId: BotId; day: string; usd: number }[]>;
   };
-  audit: { append(e: AuditEntry): Promise<void> };
+  audit: {
+    append(e: AuditEntry): Promise<void>;
+    /** Newest first; `toolPrefix` matches the start of the tool name exactly (not a pattern); `limit` is clamped to 1..100. */
+    recent(f: { toolPrefix: string; limit: number }): Promise<AuditEntry[]>;
+  };
   /** Every message sent into a bot session, with its life and timings. */
   wakes: {
     insert(w: WakeRow): Promise<void>;

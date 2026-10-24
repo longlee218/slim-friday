@@ -163,6 +163,11 @@ export class FakeStore implements Store {
     append: async (e: AuditEntry) => {
       this.auditLog.push(e);
     },
+    recent: async (f: { toolPrefix: string; limit: number }) =>
+      this.auditLog
+        .filter((e) => e.tool.startsWith(f.toolPrefix))
+        .reverse()
+        .slice(0, Math.min(100, Math.max(1, f.limit))),
   };
   wakeMap = new Map<string, WakeRow>();
   wakes = {
