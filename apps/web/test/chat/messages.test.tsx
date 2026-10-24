@@ -70,6 +70,14 @@ test("owner route copy for direct and entry", () => {
   expect(c.container.querySelector(".route-meta")?.textContent).toBe("→ Pia, Dev");
 });
 
+test("a files-only owner message shows its images and files, no empty bubble", () => {
+  const m = msg({ author: { kind: "user" }, text: "", files: [image("a"), doc()] });
+  const { container } = view(<OwnerBubble message={m} />, chatClient(["a"]));
+  expect(container.querySelector(".bubble")).toBeNull();
+  expect(container.querySelector(".msg.owner .gallery .shot")).toBeTruthy();
+  expect(container.querySelector(".msg.owner .file")).toBeTruthy();
+});
+
 test("owner @name highlights members only, as text", () => {
   const m = msg({ author: { kind: "user" }, text: "@dev and @sam <b>x</b>" });
   const { container } = view(<OwnerBubble message={m} members={["dev"]} />);

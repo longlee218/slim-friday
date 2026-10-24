@@ -29,7 +29,7 @@ function Shot({ file, own, onOpen }: { file: FileDto; own: boolean; onOpen(): vo
   );
 }
 
-/** A bot's images as a gallery; each thumbnail opens the viewer at that image. */
+/** A message's images as a gallery (a bot's, or the owner's own as "You"); each thumbnail opens the viewer. */
 export function ImageGallery({ files, message }: { files: FileDto[]; message: MessageDto }) {
   const [open, setOpen] = useState<number | null>(null);
   const botId = message.author.kind === "bot" ? message.author.botId : undefined;
@@ -45,7 +45,7 @@ export function ImageGallery({ files, message }: { files: FileDto[]; message: Me
         <ImageViewer
           files={files}
           index={open}
-          botName={bot.name}
+          botName={bot.name || "You"}
           botId={botId}
           at={message.at}
           onClose={() => setOpen(null)}
