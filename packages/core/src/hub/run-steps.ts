@@ -63,7 +63,7 @@ export class RunTracker {
   }
 
   /**
-   * A background task started or ended. The SDK's task_started carries the Agent call's tool_use id, but
+   * A background task started or ended. The runtime's task start carries the Agent call's tool_use id, but
    * the runtime event has only the task id: the task adopts the oldest running subagent step that no task
    * owns yet (so there is one line per subagent, not two) and falls back to its own `task-<id>` step.
    */
