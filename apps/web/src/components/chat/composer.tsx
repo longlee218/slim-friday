@@ -6,14 +6,12 @@ import { useDirectory } from "../../api/directory";
 import { IconButton } from "../ui/button";
 import { ComposerChips } from "./composer-chips";
 import { FilePicker, SendButton, useAutosize } from "./composer-controls";
-import { canSend, placeholderFor, sendOnEnter } from "./composer-rules";
+import { placeholderFor, sendOnEnter } from "./composer-rules";
 import { MentionPopover } from "./mention-popover";
-import { routeOf } from "./mentions";
 import { ReplyBar } from "./reply-bar";
 import { RouteChip } from "./route-chip";
-import type { RouteInfo } from "./route-info";
+import { useComposerSubmit } from "./use-composer-submit";
 import { useMentionInput } from "./use-mention-input";
-import { useSendMessage } from "./use-send-message";
 import { useUploads } from "./use-uploads";
 
 /** The bot message the owner is replying to. */
@@ -48,7 +46,6 @@ const ATTACH = "Attach files (up to 5, 20 MB each)";
 export function Composer(props: ComposerProps) {
   const { conversation, group, phone, reply, draft, onDraft } = props;
   const dir = useDirectory();
-  const sender = useSendMessage();
   const { uploads, add, remove, clear } = useUploads(conversation.id);
   const input = useRef<HTMLTextAreaElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -68,31 +65,12 @@ export function Composer(props: ComposerProps) {
 
   useAutosize(input, draft, phone);
 
-  const route: RouteInfo | null = group
-    ? routeOf({ text: draft, replyToBotId: reply?.botId, group, names })
-    : conversation.botId
-      ? { botIds: [conversation.botId], reason: "direct" }
-      : null;
-  const ready = canSend({ text: draft, uploads });
-
-  /** Optimistic send, then a clean composer (draft, files, reply). */
-  const submit = () => {
-    if (!ready || !route) return;
-    const uploadIds = uploads.flatMap((u) => (u.uploadId ? [u.uploadId] : []));
-    void sender.send({
-      payload: {
-        conversationId: conversation.id,
-        text: draft.trimEnd(),
-        ...(uploadIds.length && { uploadIds }),
-        ...(reply && { replyTo: reply.messageId }),
-      },
-      route,
-      ...(reply && { quote: { botId: reply.botId, excerpt: reply.excerpt } }),
-    });
-    onDraft("");
-    clear();
-    props.onClearReply();
-  };
+  const { route, ready, submit } = useComposerSubmit({
+    ...props,
+    names,
+    uploads,
+    clearUploads: clear,
+  });
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // IME composition (Vietnamese): Enter and arrows belong to the IME, never to us.
