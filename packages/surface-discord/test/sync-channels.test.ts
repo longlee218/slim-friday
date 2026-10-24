@@ -15,7 +15,14 @@ const bot = (id: string, name = id): Bot => ({
   subagents: [],
   workspaces: [],
 });
-const group: Group = { id: "team", name: "Team", members: ["ann", "bob"], entryBot: "ann" };
+const group: Group = {
+  id: "team",
+  name: "Team",
+  members: ["ann", "bob"],
+  entryBot: "ann",
+  workspaces: [],
+  instructions: "",
+};
 function setup() {
   const port = new FakeDiscordPort();
   const surface = new DiscordSurface(port, () => undefined);

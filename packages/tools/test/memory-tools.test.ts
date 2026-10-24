@@ -8,8 +8,22 @@ import type { ToolSessionContext } from "../src/memory/memory-owner";
 import { createMemoryEditTool } from "../src/memory/tools/MemoryEditTool/memory-edit-tool";
 import { createMemorySaveTool } from "../src/memory/tools/MemorySaveTool/memory-save-tool";
 
-const team: Group = { id: "team", name: "Team", members: ["ann", "bob"], entryBot: "ann" };
-const other: Group = { id: "other", name: "Other", members: ["bob"], entryBot: "bob" };
+const team: Group = {
+  id: "team",
+  name: "Team",
+  members: ["ann", "bob"],
+  entryBot: "ann",
+  workspaces: [],
+  instructions: "",
+};
+const other: Group = {
+  id: "other",
+  name: "Other",
+  members: ["bob"],
+  entryBot: "bob",
+  workspaces: [],
+  instructions: "",
+};
 const convs: Record<string, Conversation> = {
   dm: { id: "dm", kind: "direct", botId: "ann" },
   g1: { id: "g1", kind: "group", groupId: "team" },

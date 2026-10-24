@@ -23,6 +23,8 @@ const group: Group = {
   name: "G",
   members: ["writer-id", "editor-id"],
   entryBot: "writer-id",
+  workspaces: [],
+  instructions: "",
 };
 const groupConv: Conversation = { id: "c", kind: "group", groupId: "g" };
 const directConv: Conversation = { id: "d", kind: "direct", botId: "editor-id" };

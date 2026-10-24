@@ -13,7 +13,14 @@ import { createMemorySearchTool } from "../src/memory/tools/MemorySearchTool/mem
 import { FakeIndexStore } from "./fake-index-store";
 
 const bot = { kind: "bot", botId: "ann" } as const;
-const team: Group = { id: "team", name: "T", members: ["ann"], entryBot: "ann" };
+const team: Group = {
+  id: "team",
+  name: "T",
+  members: ["ann"],
+  entryBot: "ann",
+  workspaces: [],
+  instructions: "",
+};
 const dm: Conversation = { id: "dm", kind: "direct", botId: "ann" };
 const ctx: ToolSessionContext = {
   botId: "ann",

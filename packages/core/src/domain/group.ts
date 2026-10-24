@@ -8,4 +8,8 @@ export interface Group {
   name: string;
   members: BotId[];
   entryBot: BotId;
+  /** Absolute project dirs the group's bots work in (empty: none). */
+  workspaces: string[];
+  /** Text about the group's project, given to every member (empty: none). */
+  instructions: string;
 }

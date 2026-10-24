@@ -36,7 +36,14 @@ export function makeHub(memory?: Memory, extra: Partial<BotHubDeps> = {}) {
   const editor = bot("editor", "Editor");
   store.botMap.set("writer", writer);
   store.botMap.set("editor", editor);
-  const group: Group = { id: "g", name: "G", members: ["writer", "editor"], entryBot: "writer" };
+  const group: Group = {
+    id: "g",
+    name: "G",
+    members: ["writer", "editor"],
+    entryBot: "writer",
+    workspaces: [],
+    instructions: "",
+  };
   store.groupMap.set("g", group);
   store.convMap.set("gc", { id: "gc", kind: "group", groupId: "g" } satisfies Conversation);
   store.convMap.set("dc", { id: "dc", kind: "direct", botId: "editor" } satisfies Conversation);

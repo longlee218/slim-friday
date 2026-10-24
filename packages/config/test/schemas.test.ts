@@ -75,6 +75,8 @@ test("a group file parses; an entry bot outside the members is refused", () => {
     name: "Team",
     members: ["ann", "bob"],
     entryBot: "ann",
+    workspaces: [],
+    instructions: "",
   });
   expect(() => parseGroupFile("team", "name: Team\nmembers: [ann]\nentryBot: bob\n")).toThrow();
   expect(() => parseGroupFile("team", "name: T\nmembers: [ann, ann]\nentryBot: ann\n")).toThrow();

@@ -1,6 +1,7 @@
 import { mkdirSync, watch } from "node:fs";
 import type { CoreLimits, Group, PermissionSettings, Store, ToolCatalog } from "@friday/core";
 import { diffBots } from "./diff-bots";
+import { diffGroups } from "./diff-groups";
 import { type ConfigProblem, type ConfigSnapshot, loadConfig } from "./load-config";
 import { expandServer, type McpServerSpec } from "./schemas/mcp-file";
 
@@ -8,6 +9,8 @@ import { expandServer, type McpServerSpec } from "./schemas/mcp-file";
 export interface ReloadResult {
   /** Bots that were removed or edited: give them a fresh session on their next message. */
   changedBots: string[];
+  /** Groups that were removed or whose `workspaces` changed. */
+  changedGroups: string[];
   /** Files that could not be used (a kept last-good copy still serves a half-written bot, group or settings file). */
   problems: ConfigProblem[];
 }
@@ -118,13 +121,15 @@ export class FileConfig {
     try {
       const { snapshot, problems, parsed } = loadConfig(this.dirs, this.parsed);
       const changedBots = diffBots(this.snapshot.bots, snapshot.bots);
+      const changedGroups = diffGroups(this.snapshot.groups, snapshot.groups);
       this.snapshot = snapshot;
       this.parsed = parsed;
-      return { changedBots, problems };
+      return { changedBots, changedGroups, problems };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return {
         changedBots: [],
+        changedGroups: [],
         problems: [{ file: this.dirs.userDir, message: message.slice(0, 300) }],
       };
     }
