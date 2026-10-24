@@ -7,7 +7,7 @@ import { loadTemplate } from "../src/templates";
 
 const ALLOWED = ["Read", "Glob", "Grep", "Write", "Edit", "Bash", "WebSearch", "WebFetch"];
 
-test("the shipped Friday bot designs through BotDesign: no file tools, its skills ship, every tool is in the catalog", () => {
+test("the shipped Friday bot designs through BotDesign: no write tools, its skills ship, every tool is in the catalog", () => {
   const userDir = mkdtempSync(join(tmpdir(), "cfg-"));
   const { snapshot, problems } = loadConfig({ defaultsDir: DEFAULTS_DIR, userDir });
   expect(problems).toEqual([]);
@@ -17,7 +17,7 @@ test("the shipped Friday bot designs through BotDesign: no file tools, its skill
   for (const t of ["mcp__design__BotDesign", "mcp__design__BotLookup", "Bash", "WebFetch"])
     expect(tools).toContain(t);
   // The config dir is written only through BotDesign.
-  for (const t of ["Read", "Write", "Edit", "NotebookEdit"]) expect(tools).not.toContain(t);
+  for (const t of ["Write", "Edit", "NotebookEdit"]) expect(tools).not.toContain(t);
   const catalog = new Set(snapshot.tools.map((t) => t.name));
   expect(tools.filter((t) => !catalog.has(t))).toEqual([]);
   expect(f?.skills).toEqual(["bot-design", "skill-install", "skill-creator"]);
