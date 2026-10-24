@@ -10,6 +10,7 @@ import { fridayExtraDirs } from "./friday-bot";
 import { memoryFlush } from "./memory-flush";
 import { sessionTools } from "./session-tools";
 import { sharedDirsFor } from "./shared-dirs";
+import { skillDirs } from "./skills-dirs";
 import { type RuntimeParts, startApp } from "./start-app";
 
 const log = logger.child({ module: "engine" });
@@ -51,6 +52,7 @@ export async function startEngine(
         oauthToken: config.oauthToken,
         agentHome,
         scratchRoot: join(agentHome, "scratch"),
+        skillDirs: skillDirs(agentHome),
         env,
         extraDirsFor: (bot) => {
           const friday = fridayExtraDirs(configDir, TEMPLATES_DIR)(bot);

@@ -21,6 +21,8 @@ tools:
   - { name: mcp__playwright__browser_console_messages, annotations: { readOnlyHint: true, openWorldHint: true } }
   - { name: mcp__playwright__browser_network_requests, annotations: { readOnlyHint: true, openWorldHint: true } }
   # The bot's own memory: bounded by the memory tools' code, so saving needs no card.
+  # A skill only loads instructions the owner put in the bot's own list: no card.
+  - { name: Skill, annotations: { readOnlyHint: true } }
   - { name: mcp__memory__MemorySearch, annotations: { readOnlyHint: true } }
   - { name: mcp__memory__MemorySave, sandboxed: true }
   - { name: mcp__memory__MemoryEdit, sandboxed: true }

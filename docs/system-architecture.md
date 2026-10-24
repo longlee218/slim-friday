@@ -50,6 +50,10 @@ Built-in tools as in-process MCP servers, built per session. Imports only core, 
 - **External MCP servers** are data (`mcp.yaml`, stdio or http, `${NAME}` from the env); a bot names their tools as `mcp__<server>__<tool>` and the runtime denies any MCP tool a bot does not name.
 - **Not verified live:** the flush, the effect tools, Playwright through the new engine.
 
+## Skills and shared folders
+- **Skills:** `skills: [name]` in a bot file. At session open `buildSkillsPlugin` copies only those skills into `<scratch>/<botId>/skills-plugin/skills/<name>/` (owner dir first, then `.agents/skills/`) with a `.claude-plugin/plugin.json` named `friday`; the SDK gets `plugins: [{type: "local", path}]` and `skills: ["friday:<name>"]`, and `Skill` is added to the bot's tools. `Skill` is annotated read-only in `tools.yaml`. Not verified live.
+- **Shared folder per group:** `<AGENT_HOME>/shared/<groupId>/`, read-write for every member (`extraDirsFor`), named in each member's instructions.
+
 ## Files in both directions (plan 7)
 - **From the owner:** `DiscordSurface` (given `{ inboxDir, now }`) downloads the files of the owner's message before the hub sees it: at most 5, 20 MB each (declared size and bytes read), name = last path part with `[^A-Za-z0-9._-]` replaced by `_`, cut to 100 chars, prefixed `<n>-`, written with `wx` under `<AGENT_HOME>/inbox/<channel>/<epoch>/`. Non-owner, bot and webhook messages are dropped before any download. A refused file is named in a system reply. A message with only files counts. The core `InboundMessage.attachments` reaches the `InboundTurn` of the turn that answers it, never a hand-off.
 - **In the Claude runtime:** a turn with files becomes content blocks: one text block (the turn plus an `Attached files:` list) and one base64 image block per png / jpeg / gif / webp up to 5 MB. Any other file, or a bigger image, is copied into `<scratch>/<botId>/inbox/t-<random>/` and listed by path, so the bot reads it with `Read`.

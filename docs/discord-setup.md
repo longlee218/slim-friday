@@ -76,6 +76,10 @@ Checks:
 ## Old data
 Older builds kept `<AGENT_HOME>/data/agent.db`, `workspaces/` and `goals/`. The engine never opens or deletes them. Delete them by hand when you no longer need them (stop the bot first; check `echo "$AGENT_HOME"` before any `rm`). The engine db is `data/engine.db`; a db with tables but no migration log is refused at start.
 
+## Skills and shared folders (owner live checklist, nothing verified live yet)
+- Put a skill in `<AGENT_HOME>/config/skills/<name>/SKILL.md` (frontmatter `name`, `description`, then the instructions), add `skills: [<name>]` to a bot file, and send a message. The bot should list the skill and use it when it fits; the log has no error. A typo in the name refuses the session with `skill not found: <name>`.
+- In a group, ask one bot to write a file into the shared folder and hand off to another bot: the second bot can read it.
+
 ## Files in chat and PostFile (plan 7, owner live checklist, nothing verified live yet)
 - Drop a PNG in a bot's channel with a question: the bot describes it (an image up to 5 MB goes inline). Check the file is saved under `<AGENT_HOME>/inbox/<channel id>/<epoch>/1-<name>`.
 - Drop a PDF or a text file: the bot reads it with `Read` from `<AGENT_HOME>/scratch/<botId>/inbox/` (the reply names the path).

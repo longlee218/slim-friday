@@ -5,6 +5,7 @@ import { sdkEnv } from "../floor/sdk-env";
 import { workerSandbox } from "../floor/worker-sandbox";
 import { floorCheck } from "./floor-check";
 import { mcpGranted, pickServers, splitTools } from "./mcp-grants";
+import { buildSkillsPlugin } from "./skills-plugin";
 
 /** The SDK `query` signature; tests inject a fake. */
 export type QueryFn = typeof query;
@@ -32,6 +33,8 @@ export interface ClaudeRuntimeConfig {
    * dirs read-only; both stay reachable even inside `agentHome`, the rest of which remains denied.
    */
   extraDirsFor?: (bot: Bot) => { write: string[]; read: string[] };
+  /** Dirs searched for `<name>/SKILL.md`, owner's first: a bot loads only the skills its `skills` list names. */
+  skillDirs?: string[];
   /** Called with the summary after the main thread's context was compacted; not awaited, so it never delays the bot. */
   onCompact?: (spec: BotRuntimeSpec, summary: string) => void;
 }
@@ -79,6 +82,10 @@ export function buildOptions(input: BuildOptionsInput): Options {
   const configured =
     typeof config.mcpServers === "function" ? config.mcpServers() : (config.mcpServers ?? {});
   const mcpServers = pickServers(mcp, configured, perSession);
+  // Skills come only from the bot's own list, as a plugin built in its scratch dir (no settings sources are read).
+  const skillsPlugin = bot.skills.length
+    ? buildSkillsPlugin(scratchDir, config.skillDirs ?? [], bot.skills)
+    : undefined;
   const agents = Object.fromEntries(
     bot.subagents.map((s) => [
       s.name,
@@ -96,7 +103,11 @@ export function buildOptions(input: BuildOptionsInput): Options {
     systemPrompt: `You are ${bot.name}, ${bot.title}.\n\n${bot.instructions}${spec.memory ? `\n\n## Your memory\n${spec.memory}` : ""}`,
     cwd,
     additionalDirectories: [...bot.workspaces.slice(1), ...extra.write, ...extra.read],
-    tools: builtIn,
+    tools: skillsPlugin && !builtIn.includes("Skill") ? [...builtIn, "Skill"] : builtIn,
+    ...(skillsPlugin && {
+      plugins: [{ type: "local" as const, path: skillsPlugin.path }],
+      skills: skillsPlugin.skills,
+    }),
     agents,
     settingSources: [],
     permissionMode: "default",

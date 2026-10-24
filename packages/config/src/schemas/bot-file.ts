@@ -25,7 +25,8 @@ const botHeader = z.strictObject({
   title: z.string().min(1),
   model: z.string().min(1),
   tools: z.array(z.string().min(1)).default([]),
-  skills: z.array(z.string().min(1)).default([]),
+  // A plain name: it becomes a dir name when the skill is loaded.
+  skills: z.array(z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/)).default([]),
   subagents: z
     .array(subagentSchema)
     .default([])
