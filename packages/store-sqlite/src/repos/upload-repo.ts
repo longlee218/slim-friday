@@ -28,6 +28,22 @@ export function uploadRepo(db: BunSQLiteDatabase): Store["uploads"] {
     async markUsed(id, messageId) {
       db.update(uploads).set({ state: "used", messageId }).where(eq(uploads.id, id)).run();
     },
+    async claim(id) {
+      // One conditional UPDATE: of two concurrent claims only one changes a row.
+      const r = db
+        .update(uploads)
+        .set({ state: "claimed" })
+        .where(and(eq(uploads.id, id), eq(uploads.state, "pending")))
+        .returning({ id: uploads.id })
+        .all();
+      return r.length === 1;
+    },
+    async release(id) {
+      db.update(uploads)
+        .set({ state: "pending" })
+        .where(and(eq(uploads.id, id), eq(uploads.state, "claimed")))
+        .run();
+    },
     async pendingBefore(at) {
       return db
         .select()

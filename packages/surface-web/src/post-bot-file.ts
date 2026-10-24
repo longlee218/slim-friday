@@ -86,9 +86,9 @@ export async function postBotFile(
       },
     );
   } catch (e) {
-    // Best effort: do not leave an object nobody points at. (The store has no way to delete a
-    // files row; a row left behind by a failed post is harmless and swept with its conversation.)
+    // Best effort: do not leave an object or a row nobody points at.
     await deps.files.delete(key).catch(() => undefined);
+    await deps.store.files.delete(fileId).catch(() => undefined);
     throw fail(e);
   }
 }

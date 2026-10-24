@@ -75,3 +75,31 @@ test("unread counts bot and system messages after the read position; set never g
   await s.reads.set(c, 1);
   expect(await s.reads.get(c)).toBe(2);
 });
+
+test("uploads: claim is atomic, release gives it back; files: delete", async () => {
+  const s = fresh();
+  await s.uploads.insert(upload("c1", 1));
+  expect(await s.uploads.claim("c1")).toBe(true);
+  expect(await s.uploads.claim("c1")).toBe(false);
+  expect((await s.uploads.get("c1"))?.state).toBe("claimed");
+  await s.uploads.release("c1");
+  expect((await s.uploads.get("c1"))?.state).toBe("pending");
+  expect(await s.uploads.claim("c1")).toBe(true);
+  await s.uploads.markUsed("c1", 4);
+  expect(await s.uploads.claim("c1")).toBe(false);
+  await s.uploads.release("c1");
+  expect((await s.uploads.get("c1"))?.state).toBe("used");
+  expect(await s.uploads.claim("none")).toBe(false);
+  await s.files.insert({
+    id: "f",
+    key: "k",
+    conversationId: "bot:a",
+    name: "n",
+    mimeType: "x",
+    size: 1,
+    source: "bot",
+    at: 1,
+  });
+  await s.files.delete("f");
+  expect(await s.files.get("f")).toBeUndefined();
+});

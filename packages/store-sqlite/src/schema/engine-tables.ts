@@ -194,7 +194,7 @@ export const uploads = sqliteTable(
     name: text("name").notNull(),
     mimeType: text("mime_type").notNull(),
     size: integer("size").notNull(),
-    /** `pending` or `used`. */
+    /** `pending`, `claimed` (a send is using it) or `used`. */
     state: text("state").notNull(),
     /** The message that used it. */
     messageId: integer("message_id"),

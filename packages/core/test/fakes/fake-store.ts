@@ -71,6 +71,9 @@ export class FakeStore implements Store {
       this.fileMap.set(f.id, { ...f });
     },
     get: async (id: string) => this.fileMap.get(id),
+    delete: async (id: string) => {
+      this.fileMap.delete(id);
+    },
   };
   uploadMap = new Map<string, UploadRow>();
   uploads = {
@@ -81,6 +84,16 @@ export class FakeStore implements Store {
     markUsed: async (id: string, messageId: number | null) => {
       const u = this.uploadMap.get(id);
       if (u) Object.assign(u, { state: "used", messageId: messageId ?? undefined });
+    },
+    claim: async (id: string) => {
+      const u = this.uploadMap.get(id);
+      if (u?.state !== "pending") return false;
+      u.state = "claimed";
+      return true;
+    },
+    release: async (id: string) => {
+      const u = this.uploadMap.get(id);
+      if (u?.state === "claimed") u.state = "pending";
     },
     pendingBefore: async (at: number) =>
       [...this.uploadMap.values()]

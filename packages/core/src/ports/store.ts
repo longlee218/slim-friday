@@ -47,7 +47,7 @@ export interface UploadRow {
   name: string;
   mimeType: string;
   size: number;
-  state: "pending" | "used";
+  state: "pending" | "claimed" | "used";
   /** The message that used it, once used. */
   messageId?: number;
   /** Epoch milliseconds. */
@@ -105,11 +105,19 @@ export interface Store {
     /** Messages with an id above `afterId`, oldest first, at most `limit` (feeds the message index). */
     after(afterId: number, limit: number): Promise<IndexedMessage[]>;
   };
-  files: { insert(f: FileRow): Promise<void>; get(id: string): Promise<FileRow | undefined> };
+  files: {
+    insert(f: FileRow): Promise<void>;
+    get(id: string): Promise<FileRow | undefined>;
+    delete(id: string): Promise<void>;
+  };
   uploads: {
     insert(u: UploadRow): Promise<void>;
     get(id: string): Promise<UploadRow | undefined>;
     markUsed(id: string, messageId: number | null): Promise<void>;
+    /** Atomically take a pending upload (pending -> claimed); false when it was not pending. */
+    claim(id: string): Promise<boolean>;
+    /** Give a claimed upload back (claimed -> pending). */
+    release(id: string): Promise<void>;
     /** Pending uploads created before `at`, oldest first. */
     pendingBefore(at: number): Promise<UploadRow[]>;
     delete(id: string): Promise<void>;

@@ -1,7 +1,7 @@
 import { beforeEach, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { InboundMessage, UploadRow } from "@friday/core";
 import { FakeClock } from "../../core/test/fakes/fake-clock";
 import { FakeFileStore } from "../../core/test/fakes/fake-file-store";
@@ -166,15 +166,17 @@ test("happy path: saved under inbox, files rows, upload used, handler gets both"
   await seed("png", { mimeType: "image/png", bytes: PNG, size: PNG.length });
   const { messageId } = await send(["png"], { text: "look" });
   expect(messageId).toBe(7);
+  const path = handled[0]?.attachments?.[0]?.path as string;
   expect(handled[0]).toMatchObject({
     text: "look",
     files: [{ mimeType: "image/png", size: PNG.length }],
-    attachments: [{ name: "1-f.bin", path: join(inbox, "bot:a", "5000", "1-f.bin") }],
+    attachments: [
+      { name: "1-f.bin", path: expect.stringMatching(/\/bot:a\/5000-[0-9a-f]{8}\/1-f\.bin$/) },
+    ],
   });
-  const path = handled[0]?.attachments?.[0]?.path as string;
   expect(readFileSync(path)).toEqual(PNG);
   expect(statSync(path).mode & 0o777).toBe(0o600);
-  expect(statSync(join(inbox, "bot:a", "5000")).mode & 0o777).toBe(0o700);
+  expect(statSync(dirname(path)).mode & 0o777).toBe(0o700);
   const fileId = handled[0]?.files?.[0]?.fileId as string;
   expect(await store.files.get(fileId)).toMatchObject({
     source: "upload",
@@ -188,4 +190,44 @@ test("a handler that stores nothing is NOT_FOUND and leaves uploads pending", as
   await seed("p");
   await expect(send(["p"])).rejects.toMatchObject({ code: "NOT_FOUND" });
   expect((await store.uploads.get("p"))?.state).toBe("pending");
+});
+
+test("an object replaced between stat and read is refused, nothing written", async () => {
+  const key = await seed("sw", { mimeType: "image/png", bytes: PNG, size: PNG.length });
+  const read = fileStore.read.bind(fileStore);
+  fileStore.read = async (k) => {
+    fileStore.objects.set(key, { data: new Uint8Array(PNG.length + 5), contentType: "x" });
+    return read(k);
+  };
+  await expect(send(["sw"])).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  expect(await Bun.file(join(inbox, "bot:a")).exists()).toBe(false);
+  expect(handled).toEqual([]);
+  // Same length but no longer an image.
+  fileStore.read = async (k) => {
+    fileStore.objects.set(key, { data: new Uint8Array(PNG.length), contentType: "x" });
+    return read(k);
+  };
+  await expect(send(["sw"])).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  expect((await store.uploads.get("sw"))?.state).toBe("pending");
+  expect(handled).toEqual([]);
+});
+
+test("two concurrent sends of one upload: one wins, the other CONFLICT", async () => {
+  await seed("race");
+  const r = await Promise.allSettled([send(["race"]), send(["race"])]);
+  expect(r.filter((x) => x.status === "fulfilled")).toHaveLength(1);
+  const lost = r.find((x) => x.status === "rejected") as PromiseRejectedResult;
+  expect(lost.reason).toMatchObject({ code: "CONFLICT" });
+  expect(handled).toHaveLength(1);
+  expect((await store.uploads.get("race"))?.state).toBe("used");
+});
+
+test("a failing handler removes the files rows and releases the upload", async () => {
+  await seed("h");
+  surface.onMessage(async () => {
+    throw new Error("boom");
+  });
+  await expect(send(["h"])).rejects.toThrow("boom");
+  expect(store.fileMap.size).toBe(0);
+  expect((await store.uploads.get("h"))?.state).toBe("pending");
 });

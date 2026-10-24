@@ -72,3 +72,32 @@ export async function checkObjects(
   }
   return sizes;
 }
+
+/**
+ * Download every object and check the bytes we really hold (the object may have been replaced
+ * since `stat`): same length as stat, within the cap, an image when declared one.
+ * Nothing is written to disk here.
+ */
+export async function downloadChecked(
+  deps: WebSurfaceDeps,
+  rows: UploadRow[],
+  sizes: Map<string, number>,
+): Promise<Uint8Array[]> {
+  const all: Uint8Array[] = [];
+  for (const u of rows) {
+    const bytes = await deps.files.read(u.key);
+    if (bytes.length > MAX_UPLOAD_BYTES) {
+      await deps.files.delete(u.key).catch(() => undefined);
+      await deps.store.uploads.delete(u.id);
+      throw new SurfaceError("PAYLOAD_TOO_LARGE", "file too large");
+    }
+    if (bytes.length !== sizes.get(u.id)) {
+      throw new SurfaceError("BAD_REQUEST", "upload changed while checking");
+    }
+    if (u.mimeType.startsWith("image/") && imageType(bytes.subarray(0, 12)) !== u.mimeType) {
+      throw new SurfaceError("BAD_REQUEST", "file is not the image it says");
+    }
+    all.push(bytes);
+  }
+  return all;
+}
