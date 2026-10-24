@@ -23,7 +23,7 @@ interface Memory {
 
 ## Recall ports
 
-`RecallSource` (`id`, `search(RecallQuery) → RecallHit[]`, always scoped to one `MemoryOwner`) is one place notes can be found; `MemoryRecall` asks all sources in parallel and fuses by rank. The builtin source reads a `MemoryIndexStore` (`packages/store-sqlite`, FTS5). Test a source with a fake `MemoryIndexStore` (`packages/tools/test/fake-index-store.ts`); a new source must keep the owner scope and fail by throwing (it is skipped and logged).
+`RecallSource` (`id`, `search(RecallQuery) → RecallHit[]`, always scoped to one `MemoryOwner`) is one place notes can be found; `MemoryRecall` asks all sources in parallel and fuses by rank. The builtin source reads a `MemoryIndexStore` (`packages/store-sqlite`, FTS5). Test a source with a fake `MemoryIndexStore` (`packages/tools/test/fake-index-store.ts`); a new source must keep the owner scope and fail by throwing (it is skipped and logged). A source may also `write(owner, note)` and `forget(owner, text)`; every source passes the contract suite `recallSourceContract` (`packages/tools/test/recall-source-contract.ts`). A provider ships as a `MemoryProviderPlugin` in its own package (see `packages/memory-honcho`) and is added with one line in `apps/friday/src/memory-plugins.ts`.
 
 `MessageIndexStore` (`lastMessageId`, `addMessages`, `searchMessages(conversationIds, query, limit)`) holds past messages; every search names the conversations it may look in. `MessageSearchDeps` pairs it with a `catchUp()` the tool runs first. `Memory.readForPrompt?(owner, maxChars)` gives the capped text for a prompt; an adapter without it is read whole.
 
