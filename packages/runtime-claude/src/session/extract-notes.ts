@@ -2,20 +2,15 @@ import { query } from "@anthropic-ai/claude-agent-sdk";
 import { sdkEnv } from "../floor/sdk-env";
 import type { QueryFn } from "./build-options";
 import { NOTE_CALL_TIMEOUT_MS, timeoutController } from "./call-timeout";
+import {
+  EXTRACT_SYSTEM_PROMPT,
+  type ExtractSource,
+  extractUserPrompt,
+  MAX_NOTES,
+} from "./extract-notes-prompt";
 
 /** Longest summary text sent to the extraction call. */
 const MAX_INPUT = 20000;
-/** Most notes one extraction returns. */
-const MAX_NOTES = 5;
-
-const SYSTEM_PROMPT =
-  "You read a summary of a conversation between a user and an assistant bot. " +
-  `List at most ${MAX_NOTES} notes worth remembering in a later conversation. Keep only: a rule or preference ` +
-  "the user stated, a decision with its reason, a stable fact about the user or their projects, a lesson from a " +
-  "mistake. Skip: task progress or status, one-off questions and answers, what the assistant did or ran, " +
-  "details readable from the code or files, guesses the user did not confirm, secrets, and times like " +
-  "'today' or 'next week' (write the date or skip the note). When unsure, skip. " +
-  "Answer with a JSON array of short strings only, or [] when nothing qualifies.";
 
 /** The first JSON array of strings in `text`, or [] when there is none. */
 function parseNotes(text: string): string[] {
@@ -47,14 +42,18 @@ export async function extractNotes(
     oauthToken?: string;
     /** Give the call up after this long (ms); default `NOTE_CALL_TIMEOUT_MS`. */
     timeoutMs?: number;
+    /** What `input` is: a compaction summary (default) or the raw lines of a short session. */
+    source?: ExtractSource;
+    /** Today's local date (`YYYY-MM-DD`) given to the model; the runtime reads no clock, so the caller sets it. */
+    today?: string;
   },
 ): Promise<string[]> {
   try {
     const run = (opts.queryFn ?? query)({
-      prompt: summary.slice(0, MAX_INPUT),
+      prompt: extractUserPrompt(summary.slice(0, MAX_INPUT), opts.source ?? "summary", opts.today),
       options: {
         model: opts.model,
-        systemPrompt: SYSTEM_PROMPT,
+        systemPrompt: EXTRACT_SYSTEM_PROMPT,
         tools: [],
         maxTurns: 1,
         settingSources: [],

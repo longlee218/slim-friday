@@ -17,6 +17,9 @@ export interface PromotedNote {
  */
 export const GROUP_SESSION_KINDS: readonly PromotedNote["kind"][] = ["preference", "lesson"];
 
+/** Longest memory note (chars, after the cleanup): a longer note is refused, never cut. */
+export const MEMORY_NOTE_MAX_CHARS = 200;
+
 /** Most memory notes one consolidation run may replace; further `replaces` are added as new notes. */
 export const MAX_REPLACED_PER_RUN = 3;
 

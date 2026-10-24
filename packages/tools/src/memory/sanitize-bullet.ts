@@ -1,3 +1,4 @@
+import { MEMORY_NOTE_MAX_CHARS } from "@friday/core";
 import { redactText } from "../text/redact";
 
 /** Role prefix an injected line could use to look like a chat turn. */
@@ -24,8 +25,7 @@ function stripLeading(line: string): string {
  * code fences and backtick runs removed, one line (each line loses leading `#`/`>`/list markers and
  * `system:`/`assistant:`/`user:` prefixes), at most `max` chars. "" when nothing is left.
  */
-/** Longest memory note (chars, after the cleanup): a longer note is refused, never cut. */
-export const MEMORY_NOTE_MAX_CHARS = 200;
+export { MEMORY_NOTE_MAX_CHARS };
 
 export function sanitizeBullet(text: string, max = MEMORY_NOTE_MAX_CHARS): string {
   const flat = redactText(text)

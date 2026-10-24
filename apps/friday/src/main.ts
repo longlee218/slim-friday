@@ -7,6 +7,7 @@ import {
   isSensitivePath,
 } from "@friday/runtime-claude";
 import { connectDiscord } from "@friday/surface-discord";
+import { localDay } from "@friday/tools";
 import type { AgentConfig } from "./config/agent-config";
 import { HAIKU_SUMMARY_MODEL } from "./config/model-ids";
 import { readProcessEnv } from "./config/process-env";
@@ -90,6 +91,7 @@ export async function startEngine(
               model: HAIKU_SUMMARY_MODEL,
               env,
               oauthToken: config.oauthToken,
+              today: localDay(new Date()),
             }),
           log,
           parts.memoryChanged,
@@ -104,8 +106,10 @@ export async function startEngine(
       agentHome,
       log,
       env,
-      flushNotes: (transcript) => extractNotes(transcript, haiku),
-      consolidate: (memory, notes) => consolidateNotes({ memory, notes }, haiku),
+      flushNotes: (transcript) =>
+        extractNotes(transcript, { ...haiku, source: "transcript", today: localDay(new Date()) }),
+      consolidate: (memory, notes) =>
+        consolidateNotes({ memory, notes, today: localDay(new Date()) }, haiku),
     });
     logEvent(log, "engine.started", { agentHome });
     if (!signal.aborted)
