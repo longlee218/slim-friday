@@ -1,9 +1,8 @@
 import { expect, test } from "bun:test";
 import { CORE_DEFAULTS } from "../src";
 import { BotHub } from "../src/hub/bot-hub";
-import { WAITING_TEXT } from "../src/permission/permission-gate";
-import { PermissionGate } from "../src/permission/permission-gate";
 import { inputHash } from "../src/permission/input-hash";
+import { PermissionGate, WAITING_TEXT } from "../src/permission/permission-gate";
 import { DENIAL_TEXT } from "../src/runs/approval-continuation";
 import { flush, makeHub } from "./bot-hub-harness";
 import { FakeRuntime } from "./fakes/fake-runtime";

@@ -89,6 +89,13 @@ export interface BotRuntimeSpec {
   decide(call: RuntimeToolCall): Promise<ToolDecision>;
   /** The conversation of the turn in progress (undefined between turns); tools use it to find their scope. */
   currentConversation?: () => ConversationId | undefined;
+  /** The wake of the stored run this session answers (stored with its effect records); unset outside a run. */
+  wakeId?: string;
+  /**
+   * Names one effect tool call for its replay record (see `effectKeyFor`): the run's wake, approval card and this
+   * execution's count of identical calls. Unset outside a stored run (tools then run unrecorded).
+   */
+  effectKey?: (tool: string, input: Record<string, unknown>) => Promise<string>;
   /** Lets the `SetEffort` tool reach the session; the runtime fills it in. */
   effortControl?: EffortControl;
   /** The bot's own memory, read when the session opens; the runtime adds it to the system prompt. */

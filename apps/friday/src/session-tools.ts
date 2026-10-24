@@ -98,7 +98,7 @@ export interface SessionToolsDeps {
   recall: MemoryRecall;
   /** Search over past messages (`MessageSearch`); without it the tool is not offered. */
   messages?: MessageSearchDeps;
-  store: Pick<Store, "conversations" | "groups" | "bots" | "messages">;
+  store: Pick<Store, "conversations" | "groups" | "bots" | "messages" | "effects">;
   /** The agent home (the trash lives under it). */
   home: string;
   /** Where `CreateProject` makes repos (read per session, so a settings change applies to new sessions). */
@@ -248,6 +248,16 @@ export function sessionTools(deps: SessionToolsDeps) {
         home: deps.home,
         isSensitive: sensitiveCheck(workspaces, deps.isSensitive),
         run,
+        // Effect calls are recorded only for a stored run (the hub sets `effectKey` and the wake).
+        ...(spec.effectKey &&
+          spec.wakeId && {
+            record: {
+              effects: deps.store.effects,
+              now: Date.now,
+              keyOf: spec.effectKey,
+              wakeId: spec.wakeId,
+            },
+          }),
       };
       servers[EFFECTS_MCP_SERVER] = effectsServer(ctx, deps.projectsDir(), spec.bot.tools);
     }

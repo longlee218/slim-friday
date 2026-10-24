@@ -1,6 +1,7 @@
 import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { textResult } from "../../../tool-result";
+import { withEffectRecord } from "../../effect-call-guard";
 import type { EffectsContext } from "../../effects-context";
 import { badName, grantedWorkspace, isPlainName, NOT_GRANTED, runGit } from "../../git-args";
 import { GIT_PUSH_TOOL } from "./constants";
@@ -19,14 +20,18 @@ export function createGitPushTool(ctx: EffectsContext) {
     GIT_PUSH_TOOL,
     GIT_PUSH_DESCRIPTION,
     SHAPE,
-    async ({ workspace, remote, branch }) => {
+    async (input) => {
+      const { workspace, remote, branch } = input;
       if (!isPlainName(remote)) return textResult(badName("remote"), true);
       if (!isPlainName(branch)) return textResult(badName("branch"), true);
       const cwd = grantedWorkspace(ctx, workspace);
       if (!cwd) return textResult(NOT_GRANTED, true);
-      const r = await runGit(ctx, cwd, ["push", remote, `${branch}:${branch}`]);
-      if (typeof r === "string") return textResult(r, true);
-      return textResult(r.out.trim() || (r.code === 0 ? "pushed" : "push failed"), r.code !== 0);
+      // Recorded: a run executed again after a cut does not push twice.
+      return withEffectRecord(ctx.record, GIT_PUSH_TOOL, input, async () => {
+        const r = await runGit(ctx, cwd, ["push", remote, `${branch}:${branch}`]);
+        if (typeof r === "string") return textResult(r, true);
+        return textResult(r.out.trim() || (r.code === 0 ? "pushed" : "push failed"), r.code !== 0);
+      });
     },
     { annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true } },
   );

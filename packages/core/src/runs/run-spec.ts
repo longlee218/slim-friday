@@ -1,7 +1,9 @@
 import type { Bot } from "../domain/bot";
 import { EFFORT_LEVELS, type EffortLevel } from "../domain/effort";
 import type { HubContext } from "../hub/hub-context";
+import { stableJson } from "../permission/input-hash";
 import type { BotRuntimeSpec } from "../ports/agent-runtime";
+import { effectKeyFor } from "./effect-key";
 import { decideInRun } from "./run-cards";
 import type { RunExec } from "./run-exec";
 import { askInRun } from "./run-questions";
@@ -24,6 +26,7 @@ export function runSpec(
   return {
     bot,
     sessionKey: exec.key,
+    wakeId: exec.row.id,
     ...(exec.groupId && { groupId: exec.groupId }),
     decide: (c) => {
       // Every task of a run starts in the conversation the run answers, so a task's call asks there too.
@@ -37,6 +40,13 @@ export function runSpec(
       exec.live
         ? askInRun(ctx, exec, cards)
         : { behavior: "refused", reason: "No one can answer questions here." },
+    // Effect calls count in `sendCounts` (own `effect|` prefix), which a new execution starts empty.
+    effectKey: async (tool, input) => {
+      const hash = `effect|${tool}|${stableJson(input)}`;
+      const n = (exec.sendCounts.get(hash) ?? 0) + 1;
+      exec.sendCounts.set(hash, n);
+      return effectKeyFor(exec.row.id, exec.row.cardId, tool, input, n);
+    },
     effortControl: {},
     currentConversation: () => (exec.live ? exec.current.conversationId : undefined),
   };

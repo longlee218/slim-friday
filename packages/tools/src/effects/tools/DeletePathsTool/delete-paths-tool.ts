@@ -1,6 +1,7 @@
 import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { textResult } from "../../../tool-result";
+import { withEffectRecord } from "../../effect-call-guard";
 import type { EffectsContext } from "../../effects-context";
 import { moveToTrash } from "../../trash-store";
 import { checkInsideWorkspace, protectedInside } from "../../workspace-paths";
@@ -19,7 +20,8 @@ export function createDeletePathsTool(ctx: EffectsContext) {
     DELETE_PATHS_TOOL,
     DELETE_PATHS_DESCRIPTION,
     SHAPE,
-    async ({ paths }) => {
+    async (input) => {
+      const { paths } = input;
       const reals: string[] = [];
       for (const p of new Set(paths)) {
         const c = checkInsideWorkspace(p, ctx.workspaces, ctx.isSensitive);
@@ -30,16 +32,19 @@ export function createDeletePathsTool(ctx: EffectsContext) {
         reals.push(c.real);
       }
       // Each path is checked again right before it moves: a link swapped in meanwhile stops the move.
-      const move = moveToTrash(ctx.home, ctx.botId, reals, Date.now(), (from) => {
-        const c = checkInsideWorkspace(from, ctx.workspaces, ctx.isSensitive);
-        return typeof c !== "string" && c.real === from;
+      // Recorded: a run executed again after a cut does not move the paths twice.
+      return withEffectRecord(ctx.record, DELETE_PATHS_TOOL, input, async () => {
+        const move = moveToTrash(ctx.home, ctx.botId, reals, Date.now(), (from) => {
+          const c = checkInsideWorkspace(from, ctx.workspaces, ctx.isSensitive);
+          return typeof c !== "string" && c.real === from;
+        });
+        if (move.error)
+          return textResult(
+            `Stopped (${move.error}) after ${move.entries.length} of ${reals.length}; moved ones are in ${move.dir}`,
+            true,
+          );
+        return textResult(`Moved ${reals.length} path(s) to ${move.dir} (kept 7 days).`);
       });
-      if (move.error)
-        return textResult(
-          `Stopped (${move.error}) after ${move.entries.length} of ${reals.length}; moved ones are in ${move.dir}`,
-          true,
-        );
-      return textResult(`Moved ${reals.length} path(s) to ${move.dir} (kept 7 days).`);
     },
     {
       annotations: {

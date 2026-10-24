@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { textResult } from "../../../tool-result";
+import { withEffectRecord } from "../../effect-call-guard";
 import type { EffectsContext } from "../../effects-context";
 import { CREATE_PROJECT_TOOL } from "./constants";
 import { CREATE_PROJECT_DESCRIPTION } from "./prompt";
@@ -19,15 +20,19 @@ export function createCreateProjectTool(ctx: EffectsContext, projectsDir: string
     CREATE_PROJECT_TOOL,
     CREATE_PROJECT_DESCRIPTION,
     SHAPE,
-    async ({ name }) => {
+    async (input) => {
+      const { name } = input;
       if (!PROJECT_NAME.test(name))
         return textResult("Refused: name must match ^[a-z][a-z0-9-]{0,31}$.", true);
       const dir = join(projectsDir, name);
-      if (existsSync(dir)) return textResult(`Refused: ${dir} already exists.`, true);
-      mkdirSync(dir, { recursive: true });
-      const r = await ctx.run(["git", "init"], dir);
-      if (r.code !== 0) return textResult(r.out.trim() || "git init failed", true);
-      return textResult(dir);
+      // Recorded: a run executed again after a cut does not find its own dir and refuse.
+      return withEffectRecord(ctx.record, CREATE_PROJECT_TOOL, input, async () => {
+        if (existsSync(dir)) return textResult(`Refused: ${dir} already exists.`, true);
+        mkdirSync(dir, { recursive: true });
+        const r = await ctx.run(["git", "init"], dir);
+        if (r.code !== 0) return textResult(r.out.trim() || "git init failed", true);
+        return textResult(dir);
+      });
     },
     { annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false } },
   );

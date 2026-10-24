@@ -1,6 +1,7 @@
 import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { textResult } from "../../../tool-result";
+import { withEffectRecord } from "../../effect-call-guard";
 import type { EffectsContext } from "../../effects-context";
 import {
   badName,
@@ -28,7 +29,8 @@ export function createCreatePullRequestTool(ctx: EffectsContext) {
     CREATE_PULL_REQUEST_TOOL,
     CREATE_PULL_REQUEST_DESCRIPTION,
     SHAPE,
-    async ({ workspace, base, head, title, body }) => {
+    async (input) => {
+      const { workspace, base, head, title, body } = input;
       if (!isPlainName(base)) return textResult(badName("base"), true);
       if (!isPlainName(head)) return textResult(badName("head"), true);
       const cwd = grantedWorkspace(ctx, workspace);
@@ -36,13 +38,16 @@ export function createCreatePullRequestTool(ctx: EffectsContext) {
       // gh runs git in the repo too: the same config check first (a no-op git call carries it).
       const check = await runGit(ctx, cwd, ["--version"]);
       if (typeof check === "string") return textResult(check, true);
-      // argv, no shell: the title and body are single arguments whatever they contain.
-      const r = await ctx.run(
-        ["gh", "pr", "create", "--base", base, "--head", head, "--title", title, "--body", body],
-        cwd,
-        GIT_RUN_ENV,
-      );
-      return textResult(r.out.trim() || "gh gave no output", r.code !== 0);
+      // Recorded: a run executed again after a cut does not open a second pull request.
+      return withEffectRecord(ctx.record, CREATE_PULL_REQUEST_TOOL, input, async () => {
+        // argv, no shell: the title and body are single arguments whatever they contain.
+        const r = await ctx.run(
+          ["gh", "pr", "create", "--base", base, "--head", head, "--title", title, "--body", body],
+          cwd,
+          GIT_RUN_ENV,
+        );
+        return textResult(r.out.trim() || "gh gave no output", r.code !== 0);
+      });
     },
     { annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true } },
   );

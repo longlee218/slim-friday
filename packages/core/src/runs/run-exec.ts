@@ -58,7 +58,7 @@ export interface RunExec {
   steps: RunTracker;
   /** Texts the bot said in this run, in order (the last one is its answer). */
   turnTexts: string[];
-  /** Sends of this execution by content hash: how many identical messages were sent so far (key part `n`). */
+  /** Sends and effect calls of this execution by content hash: how many identical ones ran so far (key part `n`). */
   sendCounts: Map<string, number>;
   /** A turn was sent (or a follow-up began) and has not ended. */
   turnOpen: boolean;

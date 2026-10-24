@@ -1,7 +1,7 @@
 import type { BotId } from "../domain/bot";
+import type { CardRow } from "../domain/card";
 import type { ConversationId } from "../domain/conversation";
 import type { Attachment, Author, FileRef, IndexedMessage } from "../domain/message";
-import type { CardRow } from "../domain/card";
 import type { RunStep } from "../domain/run";
 
 /** A message from the user, as the surface delivers it. */

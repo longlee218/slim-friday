@@ -1,4 +1,5 @@
 import type { BotId } from "@friday/core";
+import type { EffectRecorder } from "./effect-call-guard";
 
 /** What the effect tools of one session need from the app. */
 export interface EffectsContext {
@@ -15,4 +16,6 @@ export interface EffectsContext {
     cwd: string,
     env?: Record<string, string>,
   ): Promise<{ code: number; out: string }>;
+  /** Records effect calls so a run executed again after a cut does not repeat them; unset = unrecorded. */
+  record?: EffectRecorder;
 }
