@@ -156,3 +156,47 @@ test("/purge empties the trash and replies the count", async () => {
     "Purged 1 trash item(s).",
   ]);
 });
+
+test("changing a group's workspaces stops its sessions and forgets their ids; the direct one stays", async () => {
+  const group = "name: Team\nmembers: [ann]\nentryBot: ann\n";
+  const { home, port, runtime, app, channel } = await boot({
+    "bots/ann.md": botText("Ann"),
+    "groups/team.yaml": group,
+  });
+  port.emitMessage({ channelId: channel("ann"), text: "hi" });
+  port.emitMessage({ channelId: channel("team"), text: "hi team" });
+  await until(() => app.hub.status().length === 2 && app.hub.status().every((s) => !s.busy));
+  const db = openEngineStore(join(home, "data", "engine.db"));
+  await until(() => runtime.opened.length === 2);
+  expect(await db.sessions.get("ann@team")).toBeDefined();
+  const ws = mkdtempSync(join(tmpdir(), "ws-"));
+  put(home, { "groups/team.yaml": `${group}workspaces: [${ws}]\n` });
+  await until(() => app.hub.status().length === 1);
+  expect(app.hub.status()[0]?.groupId).toBeUndefined();
+  const groupSession = runtime.opened.find((s) => s.spec.groupId === "team");
+  expect(groupSession?.stopped).toBe(true);
+  expect(await db.sessions.get("ann@team")).toBeUndefined();
+  expect(await db.sessions.get("ann")).toBeDefined();
+  db.close();
+});
+
+test("a group session names only its group's roster and shared dir; the direct one names all", async () => {
+  const { home, port, runtime, channel } = await boot({
+    "bots/ann.md": botText("Ann"),
+    "bots/bob.md": botText("Bob"),
+    "groups/team.yaml": "name: Team\nmembers: [ann]\nentryBot: ann\n",
+    "groups/crew.yaml": "name: Crew\nmembers: [ann, bob]\nentryBot: bob\n",
+  });
+  port.emitMessage({ channelId: channel("ann"), text: "hi" });
+  port.emitMessage({ channelId: channel("team"), text: "hi team" });
+  await until(() => runtime.opened.length === 2);
+  const direct = runtime.opened.find((s) => !s.spec.groupId)?.spec.bot.instructions ?? "";
+  const team = runtime.opened.find((s) => s.spec.groupId === "team")?.spec.bot.instructions ?? "";
+  for (const t of ['group "Team"', 'group "Crew"', join(home, "shared", "team")])
+    expect(direct).toContain(t);
+  expect(direct).toContain(join(home, "shared", "crew"));
+  expect(team).toContain('group "Team"');
+  expect(team).toContain(join(home, "shared", "team"));
+  expect(team).not.toContain('group "Crew"');
+  expect(team).not.toContain(join(home, "shared", "crew"));
+});

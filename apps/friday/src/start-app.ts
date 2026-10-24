@@ -35,8 +35,7 @@ import { homePaths } from "./config/home-paths";
 import { withFridayDirs } from "./friday-bot";
 import { idleFlush } from "./idle-flush";
 import { providerSources } from "./memory-plugins";
-import { type Roster, withRoster } from "./roster";
-import { sharedDirsFor, withSharedDirs } from "./shared-dirs";
+import { scopeBotFor } from "./scope-bot";
 import { systemClock } from "./system-clock";
 
 /** How often quiet sessions are closed. */
@@ -117,32 +116,17 @@ export async function startApp(deps: AppDeps) {
   for (const d of ["bots", "groups"]) mkdirSync(join(dirs.configDir, d), { recursive: true });
   mkdirSync(join(agentHome, "data"), { recursive: true });
   const engine = openEngineStore(join(agentHome, "data", "engine.db"));
-  // Bots and groups come from files; the Friday bot also gets its real dirs.
-  /** A bot with its real dirs filled in: the Friday bot's config dirs, and the shared folders of its groups. */
-  const withBotDirs = (b: Bot): Bot =>
-    withSharedDirs(withFridayDirs(b, dirs), sharedDirsFor(agentHome, config.groupIdsOf)(b.id));
-  /** The groups a bot is in, each with its members (from the files, without their own rosters). */
-  const rostersOf = async (b: Bot): Promise<Roster[]> => {
-    const rosters: Roster[] = [];
-    for (const gid of config.groupIdsOf(b.id)) {
-      const g = await config.groups.get(gid);
-      if (!g) continue;
-      const members = (await Promise.all(g.members.map((id) => config.bots.get(id)))).filter(
-        (m): m is Bot => m !== undefined,
-      );
-      rosters.push({ name: g.name, members });
-    }
-    return rosters;
-  };
-  const withAll = async (b: Bot): Promise<Bot> => withRoster(withBotDirs(b), await rostersOf(b));
+  // Bots and groups come from files; the Friday bot also gets its real dirs. The roster and shared-dir text depend on
+  // the session (direct or group), so the hub adds them through `scopeBot`.
+  const withDirs = (b: Bot): Bot => withFridayDirs(b, dirs);
   const store: Store = {
     ...engine,
     bots: {
       get: async (id) => {
         const b = await config.bots.get(id);
-        return b && withAll(b);
+        return b && withDirs(b);
       },
-      list: async () => Promise.all((await config.bots.list()).map(withAll)),
+      list: async () => (await config.bots.list()).map(withDirs),
     },
     groups: config.groups,
   };
@@ -242,6 +226,7 @@ export async function startApp(deps: AppDeps) {
       }),
     }),
     limits: config.limits(),
+    scopeBot: scopeBotFor(agentHome, config),
     log,
   });
   hub = botHub;
@@ -292,13 +277,18 @@ export async function startApp(deps: AppDeps) {
   // Put back the wakes the last run left open (after the first sync, which maps the channels they answer in).
   await botHub.recover().catch((err) => log.error({ error: why(err) }, "wakes.recover"));
 
-  // Config changes: restart changed bots, then give new bots and groups their channels.
+  // Config changes: restart changed bots (every session) and the sessions of groups whose workspaces changed, each
+  // with a fresh session id; then give new bots and groups their channels.
   const stopWatching = config.watch((r) => {
     for (const p of r.problems) log.warn(p, "config.problem");
     void (async () => {
       for (const id of r.changedBots) {
         await botHub.stop(id);
-        await engine.sessions.clear(id);
+        await engine.sessions.clearBot(id);
+      }
+      for (const id of r.changedGroups) {
+        await botHub.stopGroup(id);
+        await engine.sessions.clearGroup(id);
       }
       await sync();
     })().catch((err) => log.error({ error: why(err) }, "config.reload"));

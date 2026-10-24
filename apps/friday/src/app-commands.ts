@@ -38,29 +38,32 @@ export function appCommands({ hub, store, home }: CommandDeps): CommandHandler {
         : "No open tickets.";
     }
     if (c.name === "status") {
+      // One line per session; a group session names its group.
       const lines = hub
         .status()
         .map(
           (s) =>
-            `${nameOf(s.botId)}: ${s.busy ? "busy" : "idle"}, ${s.tasks.length} background task(s)`,
+            `${nameOf(s.botId)}${s.groupId ? ` in ${s.groupId}` : ""}: ${s.busy ? "busy" : "idle"}, ${s.tasks.length} background task(s)`,
         );
       return lines.length ? lines.join("\n") : "No bot is running.";
     }
-    let ids: BotId[];
+    // `/stop @name`: every session of that bot.
     if (c.botName) {
       const wanted = c.botName.replace(/^@/, "").toLowerCase();
       const found = [...bots.values()].find((b) => b.name.toLowerCase() === wanted);
       if (!found) throw new Error(`No bot named ${c.botName}.`);
-      ids = [found.id];
-    } else {
-      const conv = await store.conversations.get(c.conversationId);
-      if (!conv) throw new Error("No bot belongs to this channel.");
-      ids =
-        conv.kind === "direct"
-          ? [conv.botId]
-          : ((await store.groups.get(conv.groupId))?.members ?? []);
+      await hub.stop(found.id);
+      return `Stopped ${nameOf(found.id)}.`;
     }
-    for (const id of ids) await hub.stop(id);
-    return `Stopped ${ids.map(nameOf).join(", ")}.`;
+    // Plain `/stop`: only the sessions of this channel (the bot's direct one, or the group's).
+    const conv = await store.conversations.get(c.conversationId);
+    if (!conv) throw new Error("No bot belongs to this channel.");
+    if (conv.kind === "direct") {
+      await hub.stop(conv.botId, "direct");
+      return `Stopped ${nameOf(conv.botId)}.`;
+    }
+    await hub.stopGroup(conv.groupId);
+    const members = (await store.groups.get(conv.groupId))?.members ?? [];
+    return `Stopped ${members.map(nameOf).join(", ")}.`;
   };
 }

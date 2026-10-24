@@ -1,6 +1,7 @@
 import { realpathSync } from "node:fs";
 import { join, relative } from "node:path";
 import type { BotMessenger, BotRuntimeSpec, Store, TicketBoard } from "@friday/core";
+import { scratchName } from "@friday/runtime-claude";
 import {
   CHAT_MCP_SERVER,
   type ChatContext,
@@ -176,6 +177,10 @@ export function sensitiveCheck(workspaces: string[], isSensitive: (rel: string) 
     });
 }
 
+/** The scratch dir of one session (`<home>/scratch/<scratchName>`, the runtime's own dir for it). */
+export const sessionScratchDir = (home: string, spec: BotRuntimeSpec): string =>
+  join(home, "scratch", scratchName(spec));
+
 /** True when the bot names a server (all of it) or one of its tools. */
 const wantsServer = (tools: string[], server: string) =>
   tools.some((t) => t === `mcp__${server}` || t.startsWith(`mcp__${server}__`));
@@ -201,11 +206,11 @@ export function sessionTools(deps: SessionToolsDeps) {
       ),
     };
     const { workspaces } = spec.bot;
-    // Every bot may send a file from its workspaces or its scratch dir (`<home>/scratch/<botId>`, as in `main.ts`).
+    // Every bot may send a file from its workspaces or its session's scratch dir (the runtime's, see `main.ts`).
     servers[CHAT_MCP_SERVER] = chatServer({
       botId: spec.bot.id,
       workspaces,
-      scratchDir: join(deps.home, "scratch", spec.bot.id),
+      scratchDir: sessionScratchDir(deps.home, spec),
       agentHome: deps.home,
       isSensitive: sensitiveCheck(workspaces, deps.isSensitive),
       conversation: () => spec.currentConversation?.(),

@@ -1,9 +1,10 @@
 import { expect, test } from "bun:test";
-import { mkdtempSync, realpathSync } from "node:fs";
+import { existsSync, mkdtempSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Bot, BotRuntimeSpec, InboundTurn, RuntimeEvent } from "@friday/core";
 import { ClaudeRuntime } from "../src/claude-runtime";
+import { scratchName } from "../src/session/scratch-name";
 import { fakeQuery } from "./fake-query";
 
 const root = realpathSync(mkdtempSync(join(tmpdir(), "rt-")));
@@ -172,4 +173,38 @@ test("effortControl.apply changes the effort of the live query", async () => {
   await effortControl?.apply?.("high");
   expect(fq.applied()).toEqual([{ effortLevel: "high" }]);
   expect(effortControl?.current).toBe("high");
+});
+
+test("scratchName: the bot id for a direct spec, <botId>_<groupId> for a group spec", () => {
+  const editor = { ...bot, id: "editor" };
+  expect(scratchName({ ...spec, bot: editor })).toBe("editor");
+  expect(
+    scratchName({ ...spec, bot: editor, groupId: "reelme", sessionKey: "editor@reelme" }),
+  ).toBe("editor_reelme");
+});
+
+test("a group spec opens and resumes in scratch/<botId>_<groupId>", async () => {
+  const dirs: string[] = [];
+  const fq = fakeQuery();
+  const rt = new ClaudeRuntime({
+    agentHome: join(root, "home"),
+    scratchRoot: join(root, "scratch"),
+    queryFn: fq.queryFn,
+    sessionExists: async (_id, d) => {
+      dirs.push(d);
+      return true;
+    },
+  });
+  const group: BotRuntimeSpec = {
+    ...spec,
+    bot: { ...bot, id: "editor" },
+    groupId: "reelme",
+    sessionKey: "editor@reelme",
+  };
+  await rt.open(group);
+  expect(fq.options().cwd).toBe(join(root, "scratch", "editor_reelme"));
+  expect(existsSync(join(root, "scratch", "editor_reelme"))).toBe(true);
+  await rt.resume("abc", group);
+  expect(dirs).toEqual([join(root, "scratch", "editor_reelme")]);
+  expect(fq.options().cwd).toBe(join(root, "scratch", "editor_reelme"));
 });

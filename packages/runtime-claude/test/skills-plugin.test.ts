@@ -10,7 +10,9 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Bot, BotRuntimeSpec } from "@friday/core";
+import { ClaudeRuntime } from "../src/claude-runtime";
 import { buildOptions } from "../src/session/build-options";
+import { fakeQuery } from "./fake-query";
 
 const base = realpathSync(mkdtempSync(join(tmpdir(), "skills-")));
 const home = join(base, "home");
@@ -91,4 +93,28 @@ test("a skill removed from the bot's list is gone from the plugin at the next se
   const o = build(bot({ skills: ["review"] }));
   const plugin = (o.plugins?.[0] as { path: string } | undefined)?.path ?? "";
   expect(existsSync(join(plugin, "skills", "tdd"))).toBe(false);
+});
+
+test("the direct and the group session of one bot build their skills plugins in two dirs", async () => {
+  const paths: string[] = [];
+  for (const extra of [{}, { groupId: "reelme", sessionKey: "b1@reelme" }]) {
+    const fq = fakeQuery();
+    const rt = new ClaudeRuntime({
+      agentHome: home,
+      scratchRoot: join(home, "scratch"),
+      skillDirs: [ownerSkills, shippedSkills],
+      queryFn: fq.queryFn,
+    });
+    await rt.open({
+      bot: bot({ skills: ["tdd"] }),
+      decide: async () => ({ behavior: "allow" }),
+      ...extra,
+    });
+    paths.push((fq.options().plugins?.[0] as { path: string } | undefined)?.path ?? "");
+  }
+  expect(paths).toEqual([
+    join(home, "scratch", "b1", "skills-plugin"),
+    join(home, "scratch", "b1_reelme", "skills-plugin"),
+  ]);
+  for (const p of paths) expect(existsSync(join(p, "skills", "tdd", "SKILL.md"))).toBe(true);
 });

@@ -59,9 +59,13 @@ export async function startEngine(
         scratchRoot: join(agentHome, "scratch"),
         skillDirs: skillDirs(agentHome),
         env,
-        extraDirsFor: (bot) => {
+        // A group session gets that group's shared dir only; the direct session every group's.
+        extraDirsFor: (bot, groupId) => {
           const friday = fridayExtraDirs(TEMPLATES_DIR)(bot);
-          const shared = sharedDirsFor(agentHome, parts.config.groupIdsOf)(bot.id);
+          const shared = sharedDirsFor(
+            agentHome,
+            groupId ? () => [groupId] : parts.config.groupIdsOf,
+          )(bot.id);
           return { write: [...friday.write, ...shared], read: friday.read };
         },
         mcpServers: () => parts.config.mcpServers(env).servers,

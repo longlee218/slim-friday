@@ -6,10 +6,14 @@ import type { AgentRuntime, BotRuntimeSpec, BotSession } from "@friday/core";
 import { buildOptions, type ClaudeRuntimeConfig } from "./session/build-options";
 import { ClaudeSession } from "./session/claude-session";
 import { createInputQueue } from "./session/input-queue";
+import { scratchName } from "./session/scratch-name";
 
 export type { ClaudeRuntimeConfig } from "./session/build-options";
 
-/** `AgentRuntime` on the Claude Agent SDK: one streaming session per bot, background subagents allowed. */
+/**
+ * `AgentRuntime` on the Claude Agent SDK: one streaming session per bot and scope (direct or group), background
+ * subagents allowed.
+ */
 export class ClaudeRuntime implements AgentRuntime {
   constructor(private readonly config: ClaudeRuntimeConfig) {}
 
@@ -23,7 +27,7 @@ export class ClaudeRuntime implements AgentRuntime {
    * so the caller can drop the stored id and open a fresh session instead of crashing on it forever.
    */
   async resume(sessionId: string, spec: BotRuntimeSpec): Promise<BotSession> {
-    const dir = spec.bot.workspaces[0] ?? join(this.config.scratchRoot, spec.bot.id);
+    const dir = spec.bot.workspaces[0] ?? join(this.config.scratchRoot, scratchName(spec));
     const exists =
       this.config.sessionExists ??
       (async (id: string, d: string) => !!(await getSessionInfo(id, { dir: d })));
@@ -34,7 +38,7 @@ export class ClaudeRuntime implements AgentRuntime {
   /** Create the scratch dir, the input queue and the SDK stream, and wrap them in a session. */
   private start(spec: BotRuntimeSpec, resume: string | undefined): ClaudeSession {
     const { bot } = spec;
-    const scratchDir = join(this.config.scratchRoot, bot.id);
+    const scratchDir = join(this.config.scratchRoot, scratchName(spec));
     mkdirSync(scratchDir, { recursive: true });
     const queue = createInputQueue();
     const abort = new AbortController();

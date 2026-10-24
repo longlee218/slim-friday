@@ -9,6 +9,7 @@ import {
   ownerIdentityEnv,
   runCommand,
   sensitiveCheck,
+  sessionScratchDir,
   sessionTools,
   toolContext,
 } from "../src/session-tools";
@@ -125,4 +126,12 @@ test("the owner's git identity becomes env, so merge commits have an author", ()
   });
   // An identity already in the env wins; nothing is read.
   expect(ownerIdentityEnv(read, { GIT_AUTHOR_NAME: "x", GIT_AUTHOR_EMAIL: "y" })).toEqual({});
+});
+
+test("the chat server's scratch dir is the session's: <botId> direct, <botId>_<groupId> in a group", () => {
+  const editor = { ...bot([]), id: "editor" };
+  expect(sessionScratchDir("/h", specOf(editor))).toBe(join("/h", "scratch", "editor"));
+  expect(
+    sessionScratchDir("/h", { ...specOf(editor), groupId: "reelme", sessionKey: "editor@reelme" }),
+  ).toBe(join("/h", "scratch", "editor_reelme"));
 });

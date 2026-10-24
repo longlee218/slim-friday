@@ -3,3 +3,4 @@ export { isChildEnvDenied } from "./floor/child-env-deny";
 export { isSensitivePath } from "./floor/sensitive-files";
 export { consolidateNotes } from "./session/consolidate-notes";
 export { extractNotes } from "./session/extract-notes";
+export { scratchName } from "./session/scratch-name";

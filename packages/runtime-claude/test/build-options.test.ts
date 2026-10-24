@@ -176,6 +176,23 @@ test("extra dirs: the granted bot reaches them, the rest of agentHome and others
   expect(other.additionalDirectories).toEqual([]);
 });
 
+test("extraDirsFor gets the group id of a group spec, none for a direct spec", () => {
+  const seen: (string | undefined)[] = [];
+  const cfg = {
+    ...config,
+    extraDirsFor: (_b: Bot, groupId?: string) => {
+      seen.push(groupId);
+      return { write: [], read: [] };
+    },
+  };
+  const s = spec(bot()).s;
+  const run = (x: BotRuntimeSpec) =>
+    buildOptions({ spec: x, config: cfg, abort: new AbortController(), scratchDir: scratch });
+  run(s);
+  run({ ...s, groupId: "reelme", sessionKey: "b1@reelme" });
+  expect(seen).toEqual([undefined, "reelme"]);
+});
+
 test("a workspace inside the agent home is refused", () => {
   const inside = join(home, "data");
   expect(() => build(spec(bot({ workspaces: [inside] })).s)).toThrow("agent home");

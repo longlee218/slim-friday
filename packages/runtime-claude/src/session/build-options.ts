@@ -20,7 +20,7 @@ export interface ClaudeRuntimeConfig {
   oauthToken?: string;
   /** The agent's own home: no bot may read or write it. */
   agentHome: string;
-  /** Parent of the per-bot scratch dirs (`<scratchRoot>/<bot id>`). */
+  /** Parent of the per-session scratch dirs (`<scratchRoot>/<scratchName>`, see `scratch-name.ts`). */
   scratchRoot: string;
   /** Source env of the child (the caller reads it from the process; this package never does). */
   env?: Record<string, string | undefined>;
@@ -34,9 +34,10 @@ export interface ClaudeRuntimeConfig {
   sessionExists?: (sessionId: string, dir: string) => Promise<boolean>;
   /**
    * Dirs the app itself grants to one bot (e.g. the Friday bot's config dir). `write` dirs are read-write, `read`
-   * dirs read-only; both stay reachable even inside `agentHome`, the rest of which remains denied.
+   * dirs read-only; both stay reachable even inside `agentHome`, the rest of which remains denied. `groupId` is set
+   * for a group session (unset: the bot's direct session).
    */
-  extraDirsFor?: (bot: Bot) => { write: string[]; read: string[] };
+  extraDirsFor?: (bot: Bot, groupId?: string) => { write: string[]; read: string[] };
   /** Dirs searched for `<name>/SKILL.md`, owner's first: a bot loads only the skills its `skills` list names. */
   skillDirs?: string[];
   /** Called with the summary after the main thread's context was compacted; not awaited, so it never delays the bot. */
@@ -70,7 +71,7 @@ export function buildOptions(input: BuildOptionsInput): Options {
   for (const w of bot.workspaces)
     if (isInside(realHome, realOrSame(w)))
       throw new Error(`workspace ${w} is inside the agent home`);
-  const extra = config.extraDirsFor?.(bot) ?? { write: [], read: [] };
+  const extra = config.extraDirsFor?.(bot, spec.groupId) ?? { write: [], read: [] };
   const writePaths = [...bot.workspaces, ...extra.write];
   const readPaths = [...writePaths, ...extra.read];
   const floor = {
