@@ -49,6 +49,8 @@ export async function startApp(deps: AppDeps) {
   });
   for (const p of problems) log.warn(p, "config.problem");
 
+  // The Friday bot's write grants need these dirs to exist.
+  for (const d of ["bots", "groups"]) mkdirSync(join(dirs.configDir, d), { recursive: true });
   mkdirSync(join(agentHome, "data"), { recursive: true });
   const engine = openEngineStore(join(agentHome, "data", "engine.db"));
   // Bots and groups come from files; the Friday bot also gets its real dirs.
@@ -81,36 +83,39 @@ export async function startApp(deps: AppDeps) {
 
   /** One channel per bot and group; new ones get a hello. Runs one at a time. */
   let queue: Promise<void> = Promise.resolve();
+  const run = async (): Promise<void> => {
+    const bots = await store.bots.list();
+    const groups = await config.listGroups();
+    for (const b of bots) names.set(b.id, b.name);
+    const r = await syncChannels(port, surface, bots, groups);
+    for (const e of r.errors) log.error({ error: e }, "channels.sync");
+    for (const c of r.conversations) await engine.conversations.put(c);
+    for (const c of r.created) {
+      const text =
+        c.kind === "direct"
+          ? "Ready. Talk to me here."
+          : `Group ready: ${(groups.find((g) => g.id === c.groupId)?.members ?? [])
+              .map((m) => `@${names.get(m) ?? m}`)
+              .join(", ")}`;
+      await surface
+        .post(c.id, {
+          author: c.kind === "direct" ? { kind: "bot", botId: c.botId } : { kind: "system" },
+          text,
+        })
+        .catch((err) => log.error({ error: why(err) }, "channels.hello"));
+    }
+  };
   const sync = (): Promise<void> => {
-    queue = queue.then(async () => {
-      try {
-        const bots = await store.bots.list();
-        const groups = await config.listGroups();
-        for (const b of bots) names.set(b.id, b.name);
-        const r = await syncChannels(port, surface, bots, groups);
-        for (const e of r.errors) log.error({ error: e }, "channels.sync");
-        for (const c of r.conversations) await engine.conversations.put(c);
-        for (const c of r.created) {
-          const text =
-            c.kind === "direct"
-              ? "Ready. Talk to me here."
-              : `Group ready: ${(groups.find((g) => g.id === c.groupId)?.members ?? [])
-                  .map((m) => `@${names.get(m) ?? m}`)
-                  .join(", ")}`;
-          await surface
-            .post(c.id, {
-              author: c.kind === "direct" ? { kind: "bot", botId: c.botId } : { kind: "system" },
-              text,
-            })
-            .catch((err) => log.error({ error: why(err) }, "channels.hello"));
-        }
-      } catch (err) {
-        log.error({ error: why(err) }, "channels.sync");
-      }
-    });
+    queue = queue.then(run).catch((err) => log.error({ error: why(err) }, "channels.sync"));
     return queue;
   };
-  await sync();
+  // The first sync must work: without it no channel is mapped and every message would be dropped.
+  try {
+    await run();
+  } catch (err) {
+    engine.close();
+    throw err;
+  }
 
   // Config changes: restart changed bots, then give new bots and groups their channels.
   const stopWatching = config.watch((r) => {

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { mkdtempSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DEFAULTS_DIR, loadConfig } from "../src/load-config";
@@ -37,3 +37,15 @@ for (const [name, entry] of [
     }
   });
 }
+
+test("a user bot file with the reserved id friday is reported and ignored", () => {
+  const userDir = mkdtempSync(join(tmpdir(), "cfg-"));
+  mkdirSync(join(userDir, "bots"));
+  writeFileSync(
+    join(userDir, "bots", "friday.md"),
+    "---\nname: Friday\ntitle: x\nmodel: sonnet\ntools: [Bash]\n---\nown\n",
+  );
+  const { snapshot, problems } = loadConfig({ defaultsDir: DEFAULTS_DIR, userDir });
+  expect(snapshot.bots.get("friday")?.tools).toEqual(["Read", "Glob", "Write", "Edit"]);
+  expect(problems.map((p) => p.message).join()).toContain("reserved");
+});

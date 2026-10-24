@@ -175,3 +175,8 @@ test("extra dirs: the granted bot reaches them, the rest of agentHome and others
   ).toBe("deny");
   expect(other.additionalDirectories).toEqual([]);
 });
+
+test("a workspace inside the agent home is refused", () => {
+  const inside = join(home, "data");
+  expect(() => build(spec(bot({ workspaces: [inside] })).s)).toThrow("agent home");
+});

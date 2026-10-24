@@ -5,7 +5,7 @@ import { connectDiscord } from "@friday/surface-discord";
 import type { AgentConfig } from "../../../src/config/agent-config";
 import { readProcessEnv } from "../../../src/config/process-env";
 import { logEvent, logger } from "../../../src/observability/logger";
-import { FRIDAY_BOT_ID } from "./friday-bot";
+import { fridayExtraDirs } from "./friday-bot";
 import { startApp } from "./start-app";
 
 const log = logger.child({ module: "engine" });
@@ -38,11 +38,7 @@ export async function startEngine(
       agentHome,
       scratchRoot: join(agentHome, "scratch"),
       env: readProcessEnv(),
-      // Only the Friday bot may write the config dir and read the templates.
-      extraDirsFor: (b) =>
-        b.id === FRIDAY_BOT_ID
-          ? { write: [configDir], read: [TEMPLATES_DIR] }
-          : { write: [], read: [] },
+      extraDirsFor: fridayExtraDirs(configDir, TEMPLATES_DIR),
     });
     const app = await startApp({ port, runtime, agentHome, log });
     logEvent(log, "engine.started", { agentHome });

@@ -21,6 +21,8 @@ export interface ApprovalCard {
   scope: Record<string, string>;
   /** Show the "Always allow" choice. */
   offerAlways: boolean;
+  /** The surface closes the card after this long (the gate has denied by then). */
+  timeoutMs?: number;
 }
 
 export type ApprovalAnswer = "once" | "always" | "deny";

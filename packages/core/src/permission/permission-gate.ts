@@ -116,6 +116,7 @@ export class PermissionGate {
             summary,
             scope,
             offerAlways,
+            timeoutMs: this.deps.timeoutMs ?? CORE_DEFAULTS.approvalTimeoutMs,
           }),
         )
         .then((a) => {

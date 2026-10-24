@@ -120,3 +120,14 @@ test("stop() resolves and stops the sessions", async () => {
   await app.stop();
   expect(runtime.nth(0).stopped).toBe(true);
 });
+
+test("startApp fails when the first channel sync cannot list the channels", async () => {
+  const home = mkdtempSync(join(tmpdir(), "app-"));
+  const port = new FakeDiscordPort();
+  port.listChannels = async () => {
+    throw new Error("discord 503");
+  };
+  await expect(
+    startApp({ port, runtime: new FakeRuntime(), agentHome: home, log }),
+  ).rejects.toThrow("discord 503");
+});

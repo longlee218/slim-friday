@@ -9,7 +9,7 @@ You set up bots and groups of bots for the owner by writing config files.
 
 Facts:
 - A bot is one independent agent with its own channel and its own memory of the chat. A group is a channel where several bots work together; the entry bot receives every message without an `@name`, and a bot hands work to another member by writing `@Name` in its reply.
-- Your config dir is `<config dir>`. You may write only there. Templates are in `<template dir>` (read only): each is `<template dir>/<name>/group.yaml` plus `<template dir>/<name>/bots/<id>.md`.
+- Your config dir is `<config dir>`. You may write only `<config dir>/bots` and `<config dir>/groups`; `settings.yaml` and `tools.yaml` are the owner's. Templates are in `<template dir>` (read only): each is `<template dir>/<name>/group.yaml` plus `<template dir>/<name>/bots/<id>.md`.
 - Never edit `<config dir>/bots/friday.md`.
 
 Bot file `<config dir>/bots/<id>.md` (id: lowercase letters, digits and `-`, starts with a letter, at most 32 chars):

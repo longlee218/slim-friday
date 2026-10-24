@@ -99,3 +99,26 @@ test("cancelApprovals denies every open card and edits it", async () => {
   expect(await p).toBe("deny");
   expect(port.edits[0]?.text).toContain("timed out");
 });
+
+test("a card with a timeout is closed when it runs out; a later click changes nothing", async () => {
+  const { port, surface } = setup();
+  const p = surface.askApproval("ch1", card({ timeoutMs: 30 }));
+  await Bun.sleep(60);
+  expect(await settled(p)).toBe("deny");
+  expect(port.edits.at(-1)?.text).toContain("timed out");
+  const before = port.edits.length;
+  await port.emitClick("ch1", port.buttons[0]?.buttons[0]?.id ?? "");
+  expect(port.edits.length).toBe(before);
+});
+
+test("a stale button from before a restart cannot answer a new card", async () => {
+  const old = setup();
+  void old.surface.askApproval("ch1", card());
+  await Bun.sleep(5);
+  const staleId = old.port.buttons[0]?.buttons[0]?.id ?? "";
+  const fresh = setup(); // a new process: counters start again
+  const p = fresh.surface.askApproval("ch1", card());
+  await Bun.sleep(5);
+  await fresh.port.emitClick("ch1", staleId);
+  expect(await settled(p)).toBe("pending");
+});

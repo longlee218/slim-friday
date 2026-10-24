@@ -52,6 +52,10 @@ export function buildOptions(input: BuildOptionsInput): Options {
   const { spec, config, scratchDir } = input;
   const { bot } = spec;
   const cwd = bot.workspaces[0] ?? scratchDir;
+  // A workspace inside the agent home would hand the bot's shell the engine db or the config.
+  for (const w of bot.workspaces)
+    if (w === config.agentHome || w.startsWith(`${config.agentHome}/`))
+      throw new Error(`workspace ${w} is inside the agent home`);
   const extra = config.extraDirsFor?.(bot) ?? { write: [], read: [] };
   const writePaths = [...bot.workspaces, ...extra.write];
   const readPaths = [...writePaths, ...extra.read];

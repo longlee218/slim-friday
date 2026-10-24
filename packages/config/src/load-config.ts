@@ -16,6 +16,9 @@ export type { ConfigProblem } from "./read-layer";
 /** The defaults shipped with the repo (same layout as a user config dir). */
 export const DEFAULTS_DIR = join(import.meta.dir, "..", "defaults");
 
+/** Bot ids only the shipped defaults may define. */
+export const RESERVED_BOT_IDS = ["friday"];
+
 /** Everything the engine reads from config at one point in time. */
 export interface ConfigSnapshot {
   bots: Map<BotId, Bot>;
@@ -40,6 +43,15 @@ export function loadConfig(
   const parsed = new Map<string, unknown>();
   const ctx = { problems, previous, parsed };
   const layers = [readLayer(dirs.defaultsDir, ctx), readLayer(dirs.userDir, ctx)];
+  // The shipped Friday bot may not be replaced from the user dir: it can write that dir, so it would write its own powers.
+  for (const [id, entry] of layers[1]?.bots ?? [])
+    if (RESERVED_BOT_IDS.includes(id)) {
+      problems.push({
+        file: entry.file,
+        message: `bot id "${id}" is reserved for the shipped bot`,
+      });
+      layers[1]?.bots.delete(id);
+    }
   const botEntries = new Map(layers.flatMap((l) => [...l.bots]));
   const groupEntries = new Map(layers.flatMap((l) => [...l.groups]));
 
