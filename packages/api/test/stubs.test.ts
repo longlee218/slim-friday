@@ -33,6 +33,7 @@ const implemented = [
   "config.skills.",
   "config.mcp.",
   "config.owner.",
+  "memory.",
 ];
 const expected = listProcedurePaths(contract)
   .filter((p) => !implemented.some((i) => p.startsWith(i)))
@@ -41,15 +42,7 @@ const expected = listProcedurePaths(contract)
 test("every procedure but the implemented ones is still a stub", () =>
   expect(stubbedProcedures()).toEqual(expected));
 
-test("only memory is still a stub", () =>
-  expect(stubbedProcedures().every((p) => p.startsWith("memory."))).toBe(true));
-
-test("a stub throws the typed NOT_IMPLEMENTED error", async () => {
-  await expect(client.memory.list({ owner: "bot:a" })).rejects.toMatchObject({
-    code: "NOT_IMPLEMENTED",
-    status: 501,
-  });
-});
+test("no procedure is a stub any more", () => expect(stubbedProcedures()).toEqual([]));
 
 test("input is validated before the stub", async () =>
   await expect(

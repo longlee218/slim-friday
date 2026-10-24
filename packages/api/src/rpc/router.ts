@@ -9,6 +9,7 @@ import { skillsRouter } from "../routers/config/skills-router";
 import { controlRouter } from "../routers/control-router";
 import { conversationsRouter } from "../routers/conversations-router";
 import { eventsRouter } from "../routers/events-router";
+import { memoryRouter } from "../routers/memory-router";
 import { opsRouter } from "../routers/ops/ops-router";
 import { ticketsRouter } from "../routers/tickets/tickets-router";
 import { authed } from "./implementer";
@@ -20,7 +21,7 @@ const stubs = stubRouter() as unknown as { config: Record<string, Record<string,
 /** The whole API; later plans replace subtrees: `{ ...stubRouter(), conversations: conversationsRouter }`. */
 export const appRouter = authed.router({
   ...(stubs as unknown as AppRouterInput),
-  // Bots, groups, owner files, MCP and skills are real; only memory stays a stub.
+  // Bots, groups, owner files, MCP and skills are real.
   config: {
     ...stubs.config,
     bots: { ...stubs.config.bots, ...botsRouter },
@@ -36,6 +37,7 @@ export const appRouter = authed.router({
   questions: questionsRouter,
   control: controlRouter,
   events: eventsRouter,
+  memory: memoryRouter,
   tickets: ticketsRouter,
   ops: opsRouter,
 });

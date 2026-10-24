@@ -6,11 +6,15 @@ import {
   type ConfigAdmin,
   type GroupEntry,
   type GroupInput,
+  type JournalDay,
   type McpEntry,
   type McpProbe,
   type McpServerInput,
   type MemoryAdmin,
+  type MemoryNote,
+  type MemoryOwner,
   type OwnerFile,
+  type Rule,
   type SkillAdmin,
   type SkillEntry,
 } from "@friday/core";
@@ -154,6 +158,43 @@ export class FakeSkillAdmin implements SkillAdmin {
   }
 }
 
+/** In-memory `MemoryAdmin`; every call is logged as `[method, ...args]`. */
+export class FakeMemoryAdmin implements MemoryAdmin {
+  notes: MemoryNote[] = [];
+  journalDays: JournalDay[] = [];
+  ruleList: Rule[] = [];
+  calls: CallLog = [];
+  async list(o: MemoryOwner) {
+    this.calls.push(["list", o]);
+    return { notes: this.notes, promptChars: 10, capChars: 12000 };
+  }
+  async save(o: MemoryOwner, kind: MemoryNote["kind"], text: string) {
+    this.calls.push(["save", o, kind, text]);
+    this.notes.push({ id: `n${this.notes.length + 1}`, kind, text });
+  }
+  async edit(o: MemoryOwner, id: string, text: string) {
+    this.calls.push(["edit", o, id, text]);
+    if (!this.notes.some((n) => n.id === id)) throw new AdminError("NOT_FOUND", `no note ${id}`);
+  }
+  async delete(o: MemoryOwner, id: string) {
+    this.calls.push(["delete", o, id]);
+    if (!this.notes.some((n) => n.id === id)) throw new AdminError("NOT_FOUND", `no note ${id}`);
+    this.notes = this.notes.filter((n) => n.id !== id);
+  }
+  journal(o: MemoryOwner, day?: string) {
+    this.calls.push(["journal", o, day]);
+    return this.journalDays.filter((d) => day === undefined || d.day === day);
+  }
+  rules(o: MemoryOwner) {
+    this.calls.push(["rules", o]);
+    return this.ruleList;
+  }
+  saveRules(o: MemoryOwner, rules: Rule[]) {
+    this.calls.push(["saveRules", o, rules]);
+    this.ruleList = rules;
+  }
+}
+
 /** The four settings deps over fakes; the probe returns `probeResult` and records its calls. */
 export function fakeSettings() {
   const config = new FakeConfigAdmin();
@@ -172,7 +213,6 @@ export function fakeSettings() {
     probe,
     probeCalls,
     state,
-    // Memory routes are a later task; nothing here calls them.
-    memory: {} as MemoryAdmin,
+    memory: new FakeMemoryAdmin(),
   };
 }
