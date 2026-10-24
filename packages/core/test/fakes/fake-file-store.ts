@@ -1,16 +1,19 @@
 import type { FileStat, FileStore } from "../../src";
 
+/** The async FileStore methods that can be made to fail. */
+type FailableMethod = "put" | "stat" | "readHead" | "read" | "delete";
+
 /** An in-memory FileStore; records deletes and can be told to fail the next call of a method. */
 export class FakeFileStore implements FileStore {
   objects = new Map<string, { data: Uint8Array; contentType: string }>();
   deleted: string[] = [];
-  private failing = new Set<keyof FileStore>();
+  private failing = new Set<FailableMethod>();
 
-  /** The next call of `method` rejects once. */
-  failNext(method: keyof FileStore): void {
+  /** The next call of `method` rejects once (the presign methods are synchronous and cannot fail). */
+  failNext(method: FailableMethod): void {
     this.failing.add(method);
   }
-  private check(method: keyof FileStore): void {
+  private check(method: FailableMethod): void {
     if (this.failing.delete(method)) throw new Error(`FakeFileStore: ${method} failed`);
   }
 
@@ -22,7 +25,7 @@ export class FakeFileStore implements FileStore {
         : typeof data === "string"
           ? new TextEncoder().encode(data)
           : data;
-    this.objects.set(key, { data: bytes, contentType });
+    this.objects.set(key, { data: bytes.slice(), contentType });
   }
   async stat(key: string): Promise<FileStat | undefined> {
     this.check("stat");
@@ -31,12 +34,15 @@ export class FakeFileStore implements FileStore {
   }
   async readHead(key: string, bytes: number): Promise<Uint8Array> {
     this.check("readHead");
-    return (await this.read(key)).slice(0, bytes);
-  }
-  async read(key: string): Promise<Uint8Array> {
     const o = this.objects.get(key);
     if (!o) throw new Error(`FakeFileStore: no object ${key}`);
-    return o.data;
+    return o.data.slice(0, bytes);
+  }
+  async read(key: string): Promise<Uint8Array> {
+    this.check("read");
+    const o = this.objects.get(key);
+    if (!o) throw new Error(`FakeFileStore: no object ${key}`);
+    return o.data.slice();
   }
   async delete(key: string): Promise<void> {
     this.check("delete");

@@ -41,3 +41,12 @@ test("FakeFileStore round trip and failNext", async () => {
   await expect(files.stat("k")).rejects.toThrow();
   expect(await files.stat("k")).toBeUndefined();
 });
+
+test("FakeFileStore failNext(read) rejects once, readHead keeps its own flag", async () => {
+  const files = new FakeFileStore();
+  await files.put("k", "abc", "text/plain");
+  files.failNext("read");
+  expect(await files.readHead("k", 1)).toEqual(new Uint8Array([97]));
+  await expect(files.read("k")).rejects.toThrow();
+  expect((await files.read("k")).length).toBe(3);
+});

@@ -58,3 +58,8 @@ test("long targets are cut, unknown tools keep their name, bad input does not th
     target: "q",
   });
 });
+
+test("null or non-object input is treated as empty", () => {
+  expect(stepFromToolCall("n", "Bash", null as never, 0)).toMatchObject({ kind: "command" });
+  expect(stepFromToolCall("m", "Edit", "x" as never, 0).target).toBeUndefined();
+});

@@ -47,9 +47,11 @@ function cut(s: string | undefined): string | undefined {
 export function stepFromToolCall(
   toolUseId: string,
   tool: string,
-  input: Record<string, unknown>,
+  rawInput: Record<string, unknown>,
   now: number,
 ): RunStep {
+  // A null or non-object input is treated as empty.
+  const input = rawInput && typeof rawInput === "object" ? rawInput : {};
   let kind: RunStepKind = "tool";
   let label = tool;
   let target: string | undefined;
