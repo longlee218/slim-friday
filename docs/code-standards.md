@@ -104,6 +104,7 @@ Scan tests read `src/` (and `docs/` where noted) on every `bun test` run. A viol
 | No `dev` or `assistant` role literal in `src/` | `test/retired-naming-scan.test.ts` |
 | Retired names stay out of `src/`, `test/` and the living docs (the changelog is exempt) | `test/retired-naming-scan.test.ts`, `test/handoff-retired-scan.test.ts` |
 | Relative links in `docs/` point at existing files | `test/retired-naming-scan.test.ts` |
+| `discord.js` only in `packages/surface-discord/src/discord-js-port.ts` and `private-overwrites.ts` | `packages/surface-discord/test/boundary.test.ts` |
 | No `console.*` in `src/` | `test/no-console.test.ts` |
 | Env read only in `src/config/` | `test/no-process-env-outside-config.test.ts` |
 | No raw SQL under `src/orchestrator/` | `test/no-sql-in-orchestrator.test.ts` |

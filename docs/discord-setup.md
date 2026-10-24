@@ -1,11 +1,40 @@
 # Setup Guide
 
-Friday is being rebuilt as a team engine ([design](superpowers/specs/2026-10-23-friday-team-engine-design.md)). The Discord surface was removed in plan 1, so nothing answers messages yet: the process boots, runs the sweepers and waits. This guide keeps the parts that still hold (home, start, logs, memory, skill packs, Playwright). Architecture: [system-architecture.md](system-architecture.md).
+Friday is a team engine ([design](superpowers/specs/2026-10-23-friday-team-engine-design.md)): bots and groups of bots, each in a private Discord channel. This guide covers the Discord app, the first start, the owner live checklist, home, logs, memory, skill packs and Playwright. Architecture: [system-architecture.md](system-architecture.md).
 
 ## Prerequisites
 - `claude setup-token` completed (`CLAUDE_CODE_OAUTH_TOKEN` in `.env`; Anthropic is the only LLM provider)
 - `.env` in the project root (copy from `.env.example`)
 - `AGENT_HOME`: a real directory outside every git repo (for example `~/.friday`)
+- A Discord server (guild) you own, and your own Discord user id (Developer Mode, right-click your name, Copy User ID)
+
+## Discord app
+1. Discord Developer Portal, New Application, Bot. Copy the bot token.
+2. Bot page, Privileged Gateway Intents: turn on **Message Content Intent**.
+3. Invite the bot to your server (OAuth2, scope `bot` and `applications.commands`) with the permissions **Manage Channels**, **Manage Webhooks**, **Send Messages**, **Read Message History** (and View Channels).
+4. Put the values in `.env`:
+   - `DISCORD_TOKEN`: the bot token
+   - `DISCORD_GUILD_ID`: the server id (17-20 digits)
+   - `OWNER_DISCORD_ID`: your user id (only your messages and clicks count)
+   - `CLAUDE_CODE_OAUTH_TOKEN` and `AGENT_HOME` as above
+5. `bun run start`. Without one of the three Discord values the process logs `<NAME> missing` and exits 1 before it connects.
+
+## First start
+- A `Friday` category appears with a private channel `friday` (only you and the bot see it). The Friday bot posts `Ready. Talk to me here.`
+- Ask Friday for a team ("make me a code team"). It proposes bots and a group, and writes the files into `<AGENT_HOME>/config/` only after you say yes in chat. New channels appear in the `Friday` category within a few seconds; no restart.
+- Files by hand work too: `<AGENT_HOME>/config/bots/<id>.md` and `groups/<id>.yaml` (formats: [system-architecture.md](system-architecture.md)). Templates to copy: `packages/config/templates/`.
+- Engine db: `<AGENT_HOME>/data/engine.db` (created on start). Bot scratch dirs: `<AGENT_HOME>/scratch/<botId>/`.
+
+## Owner live checklist (plan 5, nothing verified live yet)
+- Talk to Friday in `#friday`: a reply arrives under the name `Friday` (webhook), typing shows while it works.
+- Create a team from the `code` template. Check that `planner`, `coder`, `reviewer` and the group channel appear, and that Friday never edits `bots/friday.md` or anything outside `config/`.
+- Write in the group channel without a mention: only the entry bot (`Planner`) answers. Check a hand-off with `@Coder` in a bot reply wakes Coder.
+- Approval card: make a bot call a tool that asks. Buttons `Allow once`, `Always allow`, `Deny` appear; after a click the card shows the answer and loses its buttons. After `Always allow` the same call does not ask again. Another user's click does nothing.
+- `/status` lists running bots (`<name>: busy|idle, <n> background task(s)`); `/stop` in a bot's channel stops it (`Stopped <name>.`); `/stop bot:<name>` works from any channel. Another user gets `Only the owner can do that.`
+- Edit a bot file while it has a session: its next message starts a fresh session (the old one was stopped).
+- Restart `bun run start`: channels are reused (no duplicates) and a bot resumes its session; if the SDK lost the transcript, a fresh session starts without an error.
+- Read the log for `engine.started`, `config.problem` and `channels.sync` lines (see Logs).
+- Unverified in the code: the SDK `agentID` equals the `task_id` of a background task (`scripts/smoke-runtime-claude.ts`), webhook creation limits (15 per channel), rate limits on many channels at once.
 
 ## Skill packs (phase 2c, owner live checklist)
 
