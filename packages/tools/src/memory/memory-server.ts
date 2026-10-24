@@ -4,11 +4,16 @@ import type { FileMemory } from "./file-memory";
 import type { ToolSessionContext } from "./memory-owner";
 import { createMemoryEditTool } from "./tools/MemoryEditTool/memory-edit-tool";
 import { createMemorySaveTool } from "./tools/MemorySaveTool/memory-save-tool";
+import { createMemorySearchTool } from "./tools/MemorySearchTool/memory-search-tool";
 
 /** The `memory` server of one session (built per session, never shared). */
 export function memoryServer(memory: FileMemory, ctx: ToolSessionContext) {
   return createSdkMcpServer({
     name: MEMORY_MCP_SERVER,
-    tools: [createMemorySaveTool(memory, ctx), createMemoryEditTool(memory, ctx)],
+    tools: [
+      createMemorySaveTool(memory, ctx),
+      createMemoryEditTool(memory, ctx),
+      createMemorySearchTool(memory, ctx),
+    ],
   });
 }

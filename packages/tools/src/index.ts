@@ -4,3 +4,4 @@ export * from "./memory/file-memory";
 export * from "./memory/journal";
 export * from "./memory/memory-owner";
 export * from "./memory/memory-server";
+export * from "./memory/search-memory";
