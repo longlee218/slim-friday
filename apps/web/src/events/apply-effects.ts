@@ -37,7 +37,11 @@ export function refetchStatus(qc: QueryClient): void {
     setTimeout(() => {
       statusTimers.delete(qc);
       qc.fetchQuery(orpc.control.status.queryOptions({ staleTime: 0 }))
-        .then((bots) => setStatus(qc, bots))
+        .then((bots) => {
+          setStatus(qc, bots);
+          // The Activity page's session table reads `ops.sessions`; refresh it on the same burst.
+          void qc.invalidateQueries({ queryKey: orpc.ops.sessions.key() });
+        })
         // A failed refetch leaves the old status; the next event retries.
         .catch(() => {});
     }, STATUS_DEBOUNCE_MS),

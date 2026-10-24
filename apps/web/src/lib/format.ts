@@ -3,10 +3,11 @@ export function formatCost(usd: number): string {
   return `$${usd.toFixed(2)}`;
 }
 
-/** A run length: `41_000` -> `"41s"`, `520_000` -> `"8m 40s"`. */
+/** A run length: `41_000` -> `"41s"`, `520_000` -> `"8m 40s"`, `8_040_000` -> `"2h 14m"`. */
 export function formatDuration(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));
   if (total < 60) return `${total}s`;
+  if (total >= 3600) return `${Math.floor(total / 3600)}h ${Math.floor((total % 3600) / 60)}m`;
   return `${Math.floor(total / 60)}m ${total % 60}s`;
 }
 

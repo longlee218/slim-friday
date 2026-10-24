@@ -111,10 +111,7 @@ test("/tickets/:ref is the ticket page, not a placeholder", async () => {
 
 test("every contract path is routed (placeholder pages)", async () => {
   mocks.getSession.mockResolvedValue({ data: { user: { id: "u" } } });
-  for (const [path, title] of [
-    ["/ops", "Ops"],
-    ["/settings/bot/dev/tools", "Settings"],
-  ]) {
+  for (const [path, title] of [["/settings/bot/dev/tools", "Settings"]]) {
     const router = createMemoryRouter(appRoutes, { initialEntries: [path] });
     const { unmount } = renderApp(router);
     expect(await screen.findByText(`${title} is not built yet.`)).toBeTruthy();
@@ -124,9 +121,9 @@ test("every contract path is routed (placeholder pages)", async () => {
 
 test("unauthorized rpc sends the owner to /login", async () => {
   mocks.getSession.mockResolvedValue({ data: { user: { id: "u" } } });
-  const router = createMemoryRouter(appRoutes, { initialEntries: ["/ops"] });
+  const router = createMemoryRouter(appRoutes, { initialEntries: ["/settings"] });
   renderApp(router);
-  await screen.findByText("Ops is not built yet.");
+  await screen.findByText("Settings is not built yet.");
   wireUnauthorized(router);
   // The session is gone, so the sign-in screen stays.
   mocks.getSession.mockResolvedValue({ data: null });
@@ -153,9 +150,9 @@ test("a 401 from the session check goes to sign-in", async () => {
 test("an unreachable API shows Can't reach Friday and Retry loads the route", async () => {
   mocks.getSession.mockRejectedValueOnce(new Error("network"));
   mocks.getSession.mockResolvedValue({ data: { user: { id: "u" } } });
-  const router = createMemoryRouter(appRoutes, { initialEntries: ["/ops"] });
+  const router = createMemoryRouter(appRoutes, { initialEntries: ["/settings"] });
   renderApp(router);
   expect(await screen.findByText("Can't reach Friday.")).toBeTruthy();
   await userEvent.click(screen.getByRole("button", { name: "Retry" }));
-  expect(await screen.findByText("Ops is not built yet.")).toBeTruthy();
+  expect(await screen.findByText("Settings is not built yet.")).toBeTruthy();
 });

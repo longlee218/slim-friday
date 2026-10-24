@@ -1,4 +1,5 @@
 import { Link, Navigate, type RouteObject } from "react-router";
+import { ActivityRoute } from "../components/activity/activity-route";
 import { ChatView } from "../components/chat/chat-view";
 import { ChatsList } from "../components/phone/chats-list";
 import { PhoneChat } from "../components/phone/phone-chat";
@@ -50,7 +51,7 @@ export const protectedChildren: RouteObject[] = [
   { path: "/c/:conversationId", element: <ChatRoute /> },
   { path: "/tickets", element: <TicketsRoute /> },
   { path: "/tickets/:ref", element: <TicketPageRoute /> },
-  { path: "/ops", element: <Placeholder title="Ops" /> },
+  { path: "/ops", element: <ActivityRoute /> },
   { path: "/settings/*", element: <Placeholder title="Settings" /> },
   { path: "*", element: <NotFound /> },
 ].map((r) => ({ ...r, errorElement: <RouteError /> }));
