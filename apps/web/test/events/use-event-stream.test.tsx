@@ -182,3 +182,64 @@ test("unmount aborts the backoff sleep and stops the loop", async () => {
   expect(slept?.aborted).toBe(true);
   expect(calls).toHaveLength(1);
 });
+
+test("state is live once a stream opens, even with no payload", async () => {
+  const { calls, subscribe } = fake([dropping]);
+  const { result } = renderHook(
+    () => useEventStream({ activeConversationId: null, notify: () => {}, subscribe, sleep }),
+    { wrapper },
+  );
+  // 2nd stream opens and hangs without a payload: the band must clear.
+  await waitFor(() => expect(calls).toHaveLength(2));
+  await waitFor(() => expect(result.current).toBe("live"));
+});
+
+test("a throw while applying does not advance lastEventId", async () => {
+  const { calls, subscribe } = fake([
+    async function* () {
+      yield evt(msg(7), 2);
+    },
+  ]);
+  let first = true;
+  const notify = () => {};
+  renderHook(
+    () =>
+      useEventStream({
+        activeConversationId: null,
+        notify,
+        subscribe,
+        sleep,
+      }),
+    { wrapper },
+  );
+  // Make the first apply throw by breaking the cache write once.
+  const spy = vi.spyOn(qc, "setQueryData").mockImplementation(() => {
+    if (first) {
+      first = false;
+      throw new Error("boom");
+    }
+    return undefined;
+  });
+  await waitFor(() => expect(calls).toHaveLength(2));
+  expect(calls[1]).toEqual({});
+  spy.mockRestore();
+});
+
+test("UNAUTHORIZED stops the loop", async () => {
+  const { calls, subscribe } = fake([
+    () =>
+      (async function* () {
+        yield* [] as FridayEvent[];
+        throw Object.assign(new Error("no"), { code: "UNAUTHORIZED" });
+      })(),
+  ]);
+  renderHook(
+    () => useEventStream({ activeConversationId: null, notify: () => {}, subscribe, sleep }),
+    {
+      wrapper,
+    },
+  );
+  await waitFor(() => expect(calls).toHaveLength(1));
+  await new Promise((r) => setTimeout(r, 50));
+  expect(calls).toHaveLength(1);
+});

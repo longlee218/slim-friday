@@ -15,5 +15,6 @@ test("offline shows the same copy, resyncing says catching up, live shows nothin
   rerender(<ConnectionBanner state="resyncing" />);
   expect(screen.getByText("Catching up…")).toBeTruthy();
   rerender(<ConnectionBanner state="live" />);
-  expect(container.innerHTML).toBe("");
+  expect(container.querySelector(".banner")).toBeNull();
+  expect(container.querySelector("[role=status]")).toBeTruthy();
 });

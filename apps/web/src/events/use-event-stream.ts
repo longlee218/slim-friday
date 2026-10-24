@@ -107,18 +107,18 @@ export function useEventStream(opts: UseEventStreamOptions): ConnectionState {
             // The contract takes the id as a number; ids stay below 2^53.
             const input = lastEventId === undefined ? {} : { lastEventId: Number(lastEventId) };
             const stream = await subscribe(input, { signal });
-            let first = true;
+            // An open stream is live, even when the server replays nothing.
+            attempt = 0;
+            setState("live");
             for await (const payload of stream) {
-              lastEventId = getEventMeta(payload)?.id ?? lastEventId;
-              if (first) {
-                first = false;
-                attempt = 0;
-                setState("live");
-              }
               await handle(payload);
+              // Advance only after the event is applied, so a throw replays it.
+              lastEventId = getEventMeta(payload)?.id ?? lastEventId;
             }
-          } catch {
-            // A drop; handled below like a normal end of stream.
+          } catch (error) {
+            // The session is gone (the client interceptor already fired): stop, no retry.
+            if ((error as { code?: string } | null)?.code === "UNAUTHORIZED") return;
+            // Any other error is a drop; handled below like a normal end of stream.
           }
           if (stop.signal.aborted) return;
           if (!isOffline()) setState("reconnecting");
