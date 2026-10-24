@@ -78,6 +78,11 @@ test("a reply in a group goes to the replied-to bot", async () => {
     "bots/tess.md": botFile("Tess"),
     "groups/team.yaml": "name: Team\nmembers: [dev, tess]\nentryBot: dev\n",
   });
+  // Tess answers, so the end of her turn shows the whole routing has happened.
+  h.runtime.onTurn = (s) => {
+    s.emit({ type: "text", text: "tess replies" });
+    s.emit({ type: "turn_end", costUsd: 0 });
+  };
   const tessMsg = await h.engine.messages.append({
     conversationId: "group:team",
     author: { kind: "bot", botId: "tess" },
@@ -86,7 +91,7 @@ test("a reply in a group goes to the replied-to bot", async () => {
   });
   await h.client.chat.send({ conversationId: "group:team", text: "and?", replyTo: tessMsg });
   await until(() => h.runtime.opened.length >= 1 && h.runtime.nth(0).sent.length === 1);
-  await Bun.sleep(100);
+  await until(() => h.of("message").some((m) => m.message.text === "tess replies"));
   expect(h.runtime.opened.map((s) => s.spec.bot.id)).toEqual(["tess"]);
   expect(h.runtime.nth(0).sent[0]?.quote?.text).toBe("tess says");
 });

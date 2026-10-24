@@ -5,7 +5,7 @@ const copy = (s: RunStep): RunStep => ({ ...s });
 
 /**
  * Tracks the steps of one session's turn: thinking, tool calls and background subagents.
- * Pure state: the pump shows each returned step and stores `take()` with the bot's text.
+ * Pure state: the pump shows each returned step and stores `take(now)` with the bot's text.
  */
 export class RunTracker {
   /** Every step seen this turn, by id (a late tool_result or task_done finds its step here). */
@@ -95,7 +95,7 @@ export class RunTracker {
   }
 
   /** The steps since the last text, cleared; an open thinking step is closed `done` first. */
-  take(now = 0): RunStep[] {
+  take(now: number): RunStep[] {
     this.closeThinking(now);
     const out = this.pending.flatMap((id) => {
       const s = this.steps.get(id);

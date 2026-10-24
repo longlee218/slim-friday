@@ -47,3 +47,10 @@ test("recent and after still return the plain fields", async () => {
   expect((await s.messages.recent("bot:a", 5))[0]?.text).toBe("hi");
   expect((await s.messages.after(0, 5))[0]?.id).toBe(1);
 });
+
+test("page with before 0 is a filter (nothing is older), not 'no filter'", async () => {
+  const s = fresh();
+  await s.messages.append({ conversationId: "bot:a", author: user, text: "hi", at: 1 });
+  expect(await s.messages.page("bot:a", { before: 0, limit: 10 })).toEqual([]);
+  expect(await s.messages.page("bot:a", { limit: 10 })).toHaveLength(1);
+});

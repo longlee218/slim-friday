@@ -160,5 +160,7 @@ export async function startEngine(opts: {
     await api.stop();
   } finally {
     await app.stop();
+    // A turn that finished while the app stopped may have opened a card; close it too.
+    surface.cancelAll();
   }
 }

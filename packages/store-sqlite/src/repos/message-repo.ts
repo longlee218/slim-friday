@@ -32,9 +32,10 @@ export function messageRepo(db: BunSQLiteDatabase): Store["messages"] {
       return r && toIndexed(r);
     },
     async page(c, f) {
-      const where = f.before
-        ? and(eq(messages.conversationId, c), lt(messages.id, f.before))
-        : eq(messages.conversationId, c);
+      const where =
+        f.before !== undefined
+          ? and(eq(messages.conversationId, c), lt(messages.id, f.before))
+          : eq(messages.conversationId, c);
       return db
         .select()
         .from(messages)

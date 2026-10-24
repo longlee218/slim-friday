@@ -54,12 +54,15 @@ export async function webHarness(files: Record<string, string> = {}) {
   // Subscribe first, then record; the stream is live-only so the boot greetings are not in it.
   const ac = new AbortController();
   const events: FridayEvent[] = [];
+  /** Errors of the event stream that were not caused by the test ending it. */
+  const streamErrors: unknown[] = [];
   const stream = await client.events.subscribe({}, { signal: ac.signal });
   void (async () => {
     try {
       for await (const e of stream) events.push(e);
-    } catch {
-      // aborted at the end of the test
+    } catch (e) {
+      // Only the abort at the end of the test is expected; anything else fails `stop()`.
+      if (!ac.signal.aborted) streamErrors.push(e);
     }
   })();
   await until(() => surface.bus.subscriberCount() > 0);
@@ -77,6 +80,7 @@ export async function webHarness(files: Record<string, string> = {}) {
     async stop() {
       ac.abort();
       await app.stop();
+      if (streamErrors.length > 0) throw new Error(`event stream failed: ${streamErrors[0]}`);
     },
   };
 }
