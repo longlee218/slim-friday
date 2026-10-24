@@ -145,3 +145,17 @@ test("a reworded copy of a saved note, a copy inside the batch and a too-short n
   expect(file.match(/docker compose/gi)).toHaveLength(1);
   expect(readConsolidatedMark(root, ann)).toBe("2026-10-22");
 });
+
+test("a day with more notes than one batch is sent whole", async () => {
+  const root = mkdtempSync(join(tmpdir(), "cons-"));
+  const mem = new FileMemory(root, () => now);
+  const many = Array.from({ length: 250 }, (_, i) => `note number ${i} about the deploy setup`);
+  appendJournal(root, ann, "Flush", many, at("2026-10-21T09:00:00"));
+  let got: string[] = [];
+  const r = await consolidateOwner(mem, ann, now, async (_m, notes) => {
+    got = notes;
+    return [];
+  });
+  expect(got).toHaveLength(250);
+  expect(r.through).toBe("2026-10-21");
+});

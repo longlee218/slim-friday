@@ -2,17 +2,25 @@ import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { ConsolidateFn, MemoryOwner } from "@friday/core";
 import { type FileMemory, localDay, MemoryError } from "./file-memory";
-import { journalDays, journalNotes, readConsolidatedMark, writeConsolidatedMark } from "./journal";
+import {
+  JOURNAL_MAX_LINES,
+  journalDays,
+  journalNotes,
+  readConsolidatedMark,
+  writeConsolidatedMark,
+} from "./journal";
+import { MEMORY_NOTE_MAX_CHARS } from "./sanitize-bullet";
 import { worthKeeping } from "./worth-keeping";
 
-/** Most journal notes sent in one consolidation call. */
-const MAX_NOTES = 200;
-/** Most characters of journal notes sent in one consolidation call. */
-const MAX_CHARS = 20000;
+/** Most journal notes sent in one consolidation call: a whole day file always fits. */
+const MAX_NOTES = JOURNAL_MAX_LINES;
+/** Most characters of journal notes sent in one consolidation call: a whole day file always fits. */
+const MAX_CHARS = JOURNAL_MAX_LINES * (MEMORY_NOTE_MAX_CHARS + 1);
 
 /**
  * Notes of the complete days after the owner's mark, oldest day first, within the caps. A day that does not fit
- * whole is left for the next run, except the first one (cut to the caps), so one huge day cannot stop the mark.
+ * whole is left for the next run; the first day always fits whole (the caps cover a full day file), so the mark
+ * never passes a note that was not sent.
  */
 function pendingNotes(root: string, owner: MemoryOwner, today: string) {
   const mark = readConsolidatedMark(root, owner) ?? "";

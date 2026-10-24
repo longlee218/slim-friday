@@ -3,8 +3,8 @@ import type { PromotedNote } from "@friday/core";
 import { sdkEnv } from "../floor/sdk-env";
 import type { extractNotes } from "./extract-notes";
 
-/** Longest prompt sent (memory + notes). */
-const MAX_INPUT = 40000;
+/** Longest prompt sent (memory + notes): a full journal day (about 60 000 chars) still leaves room for memory. */
+const MAX_INPUT = 80000;
 /** Most notes one consolidation promotes. */
 const MAX_PROMOTED = 5;
 /** A consolidation call that has not answered by then is given up (the mark stays). */
