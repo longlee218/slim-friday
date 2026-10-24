@@ -1,0 +1,59 @@
+import { z } from "zod";
+import {
+  McpCallDtoSchema,
+  McpServerDtoSchema,
+  McpServerSpecDtoSchema,
+  McpTestDtoSchema,
+  OwnerFileDtoSchema,
+  SkillDtoSchema,
+  SkillLookupDtoSchema,
+} from "../dto/config";
+import { OkDtoSchema } from "../dto/status";
+import { base } from "../errors";
+import { BotIdSchema } from "../ids";
+import { MAX_OWNER_FILE_CHARS, MAX_PAGE } from "../limits";
+
+const name = z.string().min(1);
+const lookupId = z.string();
+const ownerFile = z.enum(["USER", "SOUL"]);
+const https = z.url().refine((u) => u.startsWith("https://"), { message: "https only" });
+
+/** Skills: look up, install, update, remove, and which bots use them. */
+export const skills = {
+  list: base.output(z.array(SkillDtoSchema)),
+  lookup: base
+    .input(z.object({ source: https, path: z.string().optional() }))
+    .output(SkillLookupDtoSchema),
+  install: base.input(z.object({ lookupId, name })).output(SkillDtoSchema),
+  checkUpdate: base.input(z.object({ name })).output(
+    z.object({
+      sha: z.string().optional(),
+      latestSha: z.string(),
+      updateAvailable: z.boolean(),
+    }),
+  ),
+  update: base.input(z.object({ lookupId, name })).output(SkillDtoSchema),
+  remove: base.input(z.object({ name })).output(z.object({ botIds: z.array(BotIdSchema) })),
+  setUsedBy: base.input(z.object({ name, botIds: z.array(BotIdSchema) })).output(SkillDtoSchema),
+};
+
+/** MCP servers as data. */
+export const mcp = {
+  list: base.output(z.array(McpServerDtoSchema)),
+  save: base
+    .input(z.object({ name, server: McpServerSpecDtoSchema, mode: z.enum(["create", "update"]) }))
+    .output(McpServerDtoSchema),
+  delete: base.input(z.object({ name })).output(OkDtoSchema),
+  test: base.input(z.object({ name, server: McpServerSpecDtoSchema })).output(McpTestDtoSchema),
+  calls: base
+    .input(z.object({ server: z.string(), limit: z.number().int().min(1).max(MAX_PAGE) }))
+    .output(z.array(McpCallDtoSchema)),
+};
+
+/** USER.md and SOUL.md. */
+export const owner = {
+  get: base.input(z.object({ file: ownerFile })).output(OwnerFileDtoSchema),
+  save: base
+    .input(z.object({ file: ownerFile, text: z.string().max(MAX_OWNER_FILE_CHARS) }))
+    .output(OkDtoSchema),
+};
