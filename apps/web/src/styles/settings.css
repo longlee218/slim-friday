@@ -92,3 +92,5 @@
 .conn .grow { flex: 1; }
 .conn svg { width: 18px; height: 18px; }
 .conn.ok svg { color: var(--green); } .conn.warn svg { color: var(--amber); } .conn.bad svg { color: var(--red); }
+.skill-body { padding: 4px 16px 12px; }
+.skill-body .md h3 { font-size: 13px; margin: 12px 0 4px; }

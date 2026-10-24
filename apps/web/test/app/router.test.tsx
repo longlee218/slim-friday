@@ -109,12 +109,17 @@ test("/tickets/:ref is the ticket page, not a placeholder", async () => {
   expect(screen.queryByText("Ticket is not built yet.")).toBeNull();
 });
 
+test("/settings/skills is the skill list, not a placeholder", async () => {
+  mocks.getSession.mockResolvedValue({ data: { user: { id: "u" } } });
+  const router = createMemoryRouter(appRoutes, { initialEntries: ["/settings/skills"] });
+  renderApp(router);
+  expect(await screen.findByRole("button", { name: "Install skill" })).toBeTruthy();
+  expect(screen.queryByText("Skills & plugins is not built yet.")).toBeNull();
+});
+
 test("every contract path is routed (placeholder pages)", async () => {
   mocks.getSession.mockResolvedValue({ data: { user: { id: "u" } } });
-  for (const [path, title] of [
-    ["/settings/skills", "Skills & plugins"],
-    ["/settings/account", "Account"],
-  ]) {
+  for (const [path, title] of [["/settings/account", "Account"]]) {
     const router = createMemoryRouter(appRoutes, { initialEntries: [path] });
     const { unmount } = renderApp(router);
     expect(await screen.findByText(`${title} is not built yet.`)).toBeTruthy();

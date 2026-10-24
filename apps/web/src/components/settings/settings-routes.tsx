@@ -9,6 +9,8 @@ import { PhoneBotsList, PhoneGroupsList, PhoneSettingsRoot } from "./phone-setti
 import { SettingsLayout } from "./settings-layout";
 import { SettingsPage } from "./settings-page";
 import { SettingsPlaceholder } from "./settings-placeholder";
+import { SkillDetail } from "./skills/skill-detail";
+import { SkillList } from "./skills/skill-list";
 
 /** `/settings`: the phone Settings tab; on desktop it opens the first bot (or says there is none). */
 function SettingsIndex() {
@@ -34,7 +36,10 @@ const later = (title: string) => (
 /** `/settings/mcp/:name?`: the server list, or one server. */
 const McpPage = () => (useParams().name ? <McpDetail /> : <McpList />);
 
-/** The `/settings/*` routes: bot and group forms now; MCP, skills, owner files and account later. */
+/** `/settings/skills/:name?`: the skill list, or one skill. */
+const SkillsPage = () => (useParams().name ? <SkillDetail /> : <SkillList />);
+
+/** The `/settings/*` routes: bot and group forms now; owner files and account later. */
 export const settingsRoutes: RouteObject[] = [
   {
     path: "/settings",
@@ -48,7 +53,7 @@ export const settingsRoutes: RouteObject[] = [
       { path: "group/new", element: <GroupNewPage /> },
       { path: "group/:id", element: <GroupPage /> },
       { path: "mcp/:name?", element: <McpPage /> },
-      { path: "skills/:name?", element: later("Skills & plugins") },
+      { path: "skills/:name?", element: <SkillsPage /> },
       { path: "owner/:file", element: later("About you") },
       { path: "account", element: later("Account") },
     ],
