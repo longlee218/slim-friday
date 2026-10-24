@@ -1,4 +1,12 @@
-import type { IndexChunk, MemoryIndexStore, MemoryOwner, ScoredChunk } from "@friday/core";
+import type {
+  IndexChunk,
+  IndexedMessage,
+  MemoryIndexStore,
+  MemoryOwner,
+  MessageHit,
+  MessageIndexStore,
+  ScoredChunk,
+} from "@friday/core";
 
 const keyOf = (o: MemoryOwner): string =>
   o.kind === "bot" ? `bot:${o.botId}` : `group:${o.groupId}`;
@@ -49,4 +57,30 @@ export class FakeIndexStore implements MemoryIndexStore {
   }
 
   close(): void {}
+}
+
+/** In-memory `MessageIndexStore`: a message matches when it holds any query word (2+ chars). */
+export class FakeMessageIndex implements MessageIndexStore {
+  readonly rows = new Map<number, IndexedMessage>();
+
+  lastMessageId(): number {
+    return Math.max(0, ...this.rows.keys());
+  }
+
+  addMessages(rows: IndexedMessage[]): void {
+    for (const r of rows) if (!this.rows.has(r.id)) this.rows.set(r.id, r);
+  }
+
+  searchMessages(conversationIds: string[], query: string, limit: number): MessageHit[] {
+    const words = query
+      .toLowerCase()
+      .split(/[^\p{L}\p{N}]+/u)
+      .filter((w) => w.length >= 2);
+    return [...this.rows.values()]
+      .filter((m) => conversationIds.includes(m.conversationId))
+      .map((m) => ({ ...m, score: words.filter((w) => m.text.toLowerCase().includes(w)).length }))
+      .filter((m) => m.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit);
+  }
 }

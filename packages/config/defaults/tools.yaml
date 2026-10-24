@@ -29,6 +29,7 @@ tools:
   - { name: TaskList, annotations: { readOnlyHint: true } }
   - { name: TaskStop, annotations: { readOnlyHint: true } }
   - { name: mcp__memory__MemorySearch, annotations: { readOnlyHint: true } }
+  - { name: mcp__memory__MessageSearch, annotations: { readOnlyHint: true } }
   - { name: mcp__memory__MemorySave, sandboxed: true }
   - { name: mcp__memory__MemoryEdit, sandboxed: true }
   # Sending a file to the chat: the tool checks the path itself (workspace or scratch dir only), so no card.

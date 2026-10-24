@@ -6,6 +6,8 @@ export interface ToolSessionContext {
   /** The conversation of the turn in progress (undefined between turns). */
   conversation(): Promise<Conversation | undefined>;
   group(id: GroupId): Promise<Group | undefined>;
+  /** The bot's own direct conversation (`MessageSearch` looks there too); absent = only the current one. */
+  direct?(): Promise<Conversation | undefined>;
 }
 
 /** Where a memory tool reads or writes. */
