@@ -5,16 +5,12 @@ import { errText } from "./hub-types";
 /**
  * At start, put back what the last run left open. A queued wake is sent as it was (unless it waited over a day:
  * expired); a running one is sent once more with a note that its turn was cut (a second cut: interrupted); a wake
- * whose bot or conversation is gone is dropped. The caps count the wakes sent before the restart.
+ * whose bot or conversation is gone is dropped.
  */
 export async function recoverWakes(ctx: HubContext): Promise<void> {
   const { store, clock } = ctx.deps;
   const now = clock.now();
   const open = await store.wakes.open();
-  const openIds = new Set(open.map((r) => r.id));
-  const since = now - Math.max(3_600_000, ctx.limits.repeatWindowMs);
-  for (const c of new Set(open.map((r) => r.conversationId)))
-    ctx.guard.seed((await store.wakes.botSentSince(c, since)).filter((r) => !openIds.has(r.id)));
   for (const r of open) {
     const bot = await store.bots.get(r.targetBot);
     const conv = await store.conversations.get(r.conversationId);

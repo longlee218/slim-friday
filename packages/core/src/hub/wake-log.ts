@@ -26,6 +26,15 @@ type RunDefaults =
   | "transientRetries"
   | "setupFailures";
 
+/** Per-process counter so ids made in this process sort in creation order (the chain guard breaks createdAt ties by id). */
+let wakeSeq = 0;
+
+/** A wake id: a zero-padded counter, then a UUID. Ids of one process sort as created; the UUID keeps them unique across processes. */
+function nextWakeId(): string {
+  wakeSeq += 1;
+  return `${wakeSeq.toString(36).padStart(8, "0")}-${crypto.randomUUID()}`;
+}
+
 /**
  * The life of a wake in the store, with one log line per step: queued, started, done, blocked,
  * interrupted, dropped. Timings are measured from the time the wake was created.
@@ -35,7 +44,7 @@ export class WakeLog {
     private store: Store,
     private clock: Clock,
     private log?: Log,
-    private newId: () => string = () => crypto.randomUUID(),
+    private newId: () => string = nextWakeId,
   ) {}
 
   /** Store a new queued wake. A user wake (no `chainId`) starts its own chain. */

@@ -1,11 +1,17 @@
-import { CORE_DEFAULTS, type CoreLimits } from "../config-defaults";
+import type { CoreLimits } from "../config-defaults";
 import type { BotId } from "../domain/bot";
 import type { ConversationId } from "../domain/conversation";
 import type { Author } from "../domain/message";
+import type { WakeRow } from "../domain/wake";
 import type { Clock } from "../ports/clock";
+import type { Store } from "../ports/store";
 
 /** One bot being woken by one message. */
 export interface Wake {
+  /** Id of the stored wake row being checked; with `createdAt` it orders this wake among the stored rows. */
+  id?: string;
+  /** Creation time of the stored wake row being checked. */
+  createdAt?: number;
   conversationId: ConversationId;
   sender: Author;
   target: BotId;
@@ -18,72 +24,59 @@ export type GuardResult = { ok: true } | { ok: false; reason: "hops" | "rate" | 
 
 const HOUR_MS = 3_600_000;
 
-/** Stops runaway bot-to-bot chains: too many hops, too many bot messages, or a bot repeating itself. */
+/**
+ * Stops runaway bot-to-bot chains: too many hops, too many bot messages, or a bot repeating itself.
+ * It keeps no state: counts come from the stored wake rows, so every worker process and every restart sees
+ * the same numbers. The hub stores a wake before it checks it, so a checked row counts only the rows stored
+ * before it, by (createdAt, id) strictly lower: it never counts itself and two simultaneous wakes cannot block
+ * each other (the earlier one passes). Without id and createdAt every stored row counts except the one with
+ * that id. A row that a cap blocked earlier (`blocked`) was never delivered and is not counted either.
+ */
 export class ChainGuard {
-  /** Time of each recorded wake, with what is needed to judge a repeat or the hourly rate. */
-  private log: { at: number; conversationId: ConversationId; key: string; fromBot: boolean }[] = [];
-
   constructor(
+    private store: Pick<Store, "wakes">,
     private clock: Clock,
-    private limits: CoreLimits = CORE_DEFAULTS,
+    private limits: CoreLimits,
   ) {}
 
-  /** Would this wake be allowed? Does not record it. */
-  check(w: Wake): GuardResult {
+  /** Would this wake be allowed? Async because it reads the stored rows. */
+  async check(w: Wake): Promise<GuardResult> {
     if (w.hop > this.limits.maxHops) return { ok: false, reason: "hops" };
+    // A user may repeat a message and is not rate limited; only bot senders are capped.
+    if (w.sender.kind !== "bot") return { ok: true };
     const now = this.clock.now();
-    this.log = this.log.filter((e) => now - e.at < Math.max(HOUR_MS, this.limits.repeatWindowMs));
-    if (w.sender.kind === "bot") {
-      const lastHour = this.log.filter(
-        (e) => e.fromBot && e.conversationId === w.conversationId && now - e.at < HOUR_MS,
-      ).length;
-      if (lastHour >= this.limits.maxBotMessagesPerConversationPerHour)
-        return { ok: false, reason: "rate" };
-    }
-    if (w.sender.kind !== "bot") return { ok: true }; // a user may repeat a message
-    const key = this.keyOf(w);
-    if (this.log.some((e) => e.key === key && now - e.at < this.limits.repeatWindowMs))
-      return { ok: false, reason: "repeat" };
-    return { ok: true };
+    const rows = await this.store.wakes.botSentSince(
+      w.conversationId,
+      now - Math.max(HOUR_MS, this.limits.repeatWindowMs),
+    );
+    const sent = rows.filter((r) => r.status !== "blocked" && this.isBefore(r, w));
+    const lastHour = sent.filter((r) => now - r.createdAt < HOUR_MS).length;
+    if (lastHour >= this.limits.maxBotMessagesPerConversationPerHour)
+      return { ok: false, reason: "rate" };
+    const key = this.keyOf(w.conversationId, w.sender, w.target, w.text);
+    const repeated = sent.some(
+      (r) =>
+        now - r.createdAt < this.limits.repeatWindowMs &&
+        this.keyOf(r.conversationId, r.sender, r.targetBot, r.text) === key,
+    );
+    return repeated ? { ok: false, reason: "repeat" } : { ok: true };
   }
 
-  /** Rebuild the log from stored wakes (after a restart), so the caps still count what was sent before. */
-  seed(
-    rows: {
-      createdAt: number;
-      conversationId: ConversationId;
-      sender: Author;
-      targetBot: BotId;
-      text: string;
-    }[],
-  ): void {
-    for (const r of rows)
-      this.log.push({
-        at: r.createdAt,
-        conversationId: r.conversationId,
-        key: this.keyOf({
-          conversationId: r.conversationId,
-          sender: r.sender,
-          target: r.targetBot,
-          text: r.text,
-          hop: 0,
-        }),
-        fromBot: r.sender.kind === "bot",
-      });
+  /** Is the stored row `r` ahead of the checked wake `w` (or, when `w` has no position, simply not `w` itself)? */
+  private isBefore(r: WakeRow, w: Wake): boolean {
+    if (w.id === undefined) return true;
+    if (w.createdAt === undefined) return r.id !== w.id;
+    return r.createdAt < w.createdAt || (r.createdAt === w.createdAt && r.id < w.id);
   }
 
-  /** Remember a delivered wake. */
-  record(w: Wake): void {
-    this.log.push({
-      at: this.clock.now(),
-      conversationId: w.conversationId,
-      key: this.keyOf(w),
-      fromBot: w.sender.kind === "bot",
-    });
-  }
-
-  private keyOf(w: Wake): string {
-    const who = w.sender.kind === "bot" ? `bot:${w.sender.botId}` : w.sender.kind;
-    return `${w.conversationId}|${who}|${w.target}|${w.text.trim()}`;
+  /** Identity of a message for the repeat cap: same conversation, sender, target and trimmed text. */
+  private keyOf(
+    conversationId: ConversationId,
+    sender: Author,
+    target: BotId,
+    text: string,
+  ): string {
+    const who = sender.kind === "bot" ? `bot:${sender.botId}` : sender.kind;
+    return `${conversationId}|${who}|${target}|${text.trim()}`;
   }
 }

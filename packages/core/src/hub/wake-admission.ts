@@ -61,13 +61,15 @@ export async function admit(
   }
   // A result that returns to the bot that gave the work is checked as if it were at the last allowed hop.
   const w = {
+    id: row.id,
+    createdAt: row.createdAt,
     conversationId,
     sender,
     target: row.targetBot,
     text,
     hop: opts.exemptFromHops ? Math.min(hop, ctx.limits.maxHops) : hop,
   };
-  const verdict = ctx.guard.check(w);
+  const verdict = await ctx.guard.check(w);
   if (!verdict.ok) {
     await ctx.wakeLog.blocked(row, verdict.reason);
     await notice(ctx, conversationId, verdict.reason);
@@ -86,7 +88,6 @@ export async function admit(
       ctx.deps.log?.error({ error: errText(err), botId: bot.id }, "hub.pump_failed"),
     );
   }
-  ctx.guard.record(w);
   // One turn at a time per bot: a message that arrives mid-turn waits, so each answer goes where it was asked.
   const queued: QueuedWake = {
     wakeId: row.id,

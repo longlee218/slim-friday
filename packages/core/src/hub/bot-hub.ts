@@ -42,7 +42,7 @@ export class BotHub implements BotMessenger {
         surface: deps.surface,
         approvalTimeoutMs: limits.approvalTimeoutMs,
       }),
-      guard: new ChainGuard(deps.clock, limits),
+      guard: new ChainGuard(deps.store, deps.clock, limits),
       wakeLog: new WakeLog(deps.store, deps.clock, deps.log),
       noticed: new Set(),
       admit: (row, bot, opts) => admit(this.ctx, row, bot, opts),
