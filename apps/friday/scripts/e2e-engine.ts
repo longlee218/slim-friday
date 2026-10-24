@@ -3,7 +3,7 @@
  * runtime and an in-memory file store. Dummy credentials only. Prints `READY <agentHome>` when it listens.
  * `E2E_LIVE_R2=1` keeps the real R2 store (needs real R2_* in the env) to check uploads from Safari.
  */
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -14,6 +14,16 @@ const apiOrigin = "https://localhost:8787";
 const apiPort = 8790;
 const filesPort = 8789;
 const publicFilesUrl = "https://localhost:8788";
+// Homes of earlier runs that were killed (Playwright SIGKILLs web servers). Only our own `friday-e2e-` prefix in the
+// OS temp dir, never the proxy's `friday-e2e-tls-` dirs (it manages those), and never anything else.
+for (const name of readdirSync(tmpdir()))
+  if (
+    name.startsWith("friday-e2e-") &&
+    !name.startsWith("friday-e2e-tls-") &&
+    name !== "friday-e2e-home.txt"
+  )
+    rmSync(join(tmpdir(), name), { recursive: true, force: true });
+// The run's own home is removed by the Playwright globalTeardown (e2e/global-teardown.ts), which finds it in the file below.
 const agentHome = mkdtempSync(join(tmpdir(), "friday-e2e-"));
 const live = process.env.E2E_LIVE_R2 === "1";
 
@@ -53,13 +63,17 @@ const done = startEngine(
   { runtime: new ScriptedRuntime(), ...(live ? {} : { fileStore: store }) },
 );
 // The API port is bound once startEngine has composed everything; poll /health for the READY line.
-for (let i = 0; i < 200; i++) {
-  const ok = await fetch(`http://127.0.0.1:${apiPort}/health`).then(
+let healthy = false;
+for (let i = 0; i < 200 && !healthy; i++) {
+  healthy = await fetch(`http://127.0.0.1:${apiPort}/health`).then(
     (r) => r.ok,
     () => false,
   );
-  if (ok) break;
-  await Bun.sleep(100);
+  if (!healthy) await Bun.sleep(100);
+}
+if (!healthy) {
+  process.stderr.write("e2e engine: the API never became healthy\n");
+  process.exit(1);
 }
 // The Playwright spec runs in another process: it finds the home (and the owner links) through this file.
 writeFileSync(join(tmpdir(), "friday-e2e-home.txt"), agentHome);

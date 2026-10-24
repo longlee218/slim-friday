@@ -52,7 +52,16 @@ class ScriptedSession implements BotSession {
   ) {}
 
   send(turn: InboundTurn): void {
-    this.tail = this.tail.then(() => this.answer(turn)).catch(() => undefined);
+    this.tail = this.tail
+      .then(() => this.answer(turn))
+      .catch((err) => {
+        // An `error` event closes the session with this message (hub event pump), so the smoke fails with a cause.
+        this.events.push({
+          type: "error",
+          message: err instanceof Error ? err.message : String(err),
+          retryable: false,
+        });
+      });
   }
 
   async stop(): Promise<void> {

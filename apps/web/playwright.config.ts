@@ -5,7 +5,23 @@ import { defineConfig } from "@playwright/test";
 const API = "https://localhost:8787";
 const WEB = "https://localhost:4173";
 
+// The engine and its chat history live for one run, so a run with both browsers would see the first one's messages
+// in the second. `bun run e2e` runs one project per run; fail fast on anything else.
+const projectArgs = process.argv.flatMap((a, i) =>
+  a.startsWith("--project=")
+    ? [a.slice(10)]
+    : a === "--project" && process.argv[i + 1]
+      ? [process.argv[i + 1]]
+      : [],
+);
+// Test workers load this file too, without the CLI arguments.
+if (!process.env.TEST_WORKER_INDEX && projectArgs.length !== 1)
+  throw new Error(
+    "Run exactly one project per run: `playwright test --project=chromium|webkit`, or `bun run e2e`.",
+  );
+
 export default defineConfig({
+  globalTeardown: "./e2e/global-teardown.ts",
   testDir: "./e2e",
   // One browser at a time. The engine (one owner, one temp home, one chat history) lives for one `playwright test`
   // run, and the spec expects an empty chat: `bun run e2e` therefore runs each project in its own run.
