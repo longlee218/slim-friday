@@ -12,3 +12,7 @@ export function shouldRetry(count: number, error: unknown): boolean {
 
 /** The app's single query cache. */
 export const queryClient = new QueryClient({ defaultOptions: { queries: { retry: shouldRetry } } });
+
+// Client-only entries (live runs, receipts, drafts) have no server copy to refetch: never
+// garbage-collect them, even when written while no view observes them.
+queryClient.setQueryDefaults(["web"], { gcTime: Number.POSITIVE_INFINITY });
