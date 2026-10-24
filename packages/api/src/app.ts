@@ -1,3 +1,5 @@
+import type { BotHub, FileStore, Store } from "@friday/core";
+import type { WebSurface } from "@friday/surface-web";
 import { RPCHandler } from "@orpc/server/fetch";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
@@ -21,7 +23,18 @@ export interface ApiDeps {
   now: () => number;
   /** True while the engine db answers; drives `GET /health`. */
   dbReachable: () => boolean;
+  /** The bots and groups. */
+  hub: BotHub;
+  store: Store;
+  /** The web surface: uploads, owner messages, the event bus and cards. */
+  surface: WebSurface;
+  files: FileStore;
+  /** Empty the trash; returns how many entries were removed. */
+  purge: () => number;
 }
+
+/** The fields the engine adds to `ApiDeps` (plan 2). */
+export type EngineDeps = Pick<ApiDeps, "hub" | "store" | "surface" | "files" | "purge">;
 
 /** Build the HTTP app: log, CORS, Origin check, then health, auth and the owner-only RPC. */
 export function createApiApp(deps: ApiDeps): Hono {

@@ -1,5 +1,11 @@
 import { join } from "node:path";
-import { type ApiLog, createApiApp, createOwnerAuth, ensureOwner } from "@friday/api";
+import {
+  type ApiLog,
+  createApiApp,
+  createOwnerAuth,
+  type EngineDeps,
+  ensureOwner,
+} from "@friday/api";
 import { openAuthDb } from "@friday/store-sqlite";
 import { homePaths } from "./config/home-paths";
 import { systemClock } from "./system-clock";
@@ -14,6 +20,8 @@ export interface ApiServerOptions {
   authSecret: string;
   ownerEmail: string;
   log: ApiLog;
+  /** Engine handles for the conversation and chat routes; the engine wiring task passes them. */
+  engine?: EngineDeps;
 }
 
 /**
@@ -45,6 +53,8 @@ export async function startApiServer(
       log: o.log,
       now: systemClock.now,
       dbReachable: authDb.ping,
+      // Without an engine the engine-backed routes cannot run; wiring supplies it.
+      ...(o.engine ?? ({} as EngineDeps)),
     });
     let server: ReturnType<typeof Bun.serve>;
     try {

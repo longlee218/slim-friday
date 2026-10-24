@@ -8,6 +8,7 @@
     "@better-auth/passkey": "1.7.12",
     "@friday/contracts": "workspace:*",
     "@friday/core": "workspace:*",
+    "@friday/surface-web": "workspace:*",
     "@orpc/server": "1.16.1",
     "better-auth": "1.7.12",
     "hono": "4.13.13"

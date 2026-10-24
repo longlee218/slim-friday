@@ -1,8 +1,14 @@
+import { chatRouter } from "../routers/chat-router";
+import { conversationsRouter } from "../routers/conversations-router";
 import { authed } from "./implementer";
 import { type LooseNode, stubHandlers, stubRouter } from "./stub-router";
 
 /** The whole API; later plans replace subtrees: `{ ...stubRouter(), conversations: conversationsRouter }`. */
-export const appRouter = authed.router({ ...stubRouter() });
+export const appRouter = authed.router({
+  ...stubRouter(),
+  conversations: conversationsRouter,
+  chat: chatRouter,
+});
 
 /** Sorted dot paths whose handler is still a stub. */
 export function stubbedProcedures(router: unknown = appRouter): string[] {

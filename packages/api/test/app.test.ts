@@ -3,7 +3,7 @@ import { expect, test } from "bun:test";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createApiApp, ensureOwner } from "../src/index";
+import { createApiApp, type EngineDeps, ensureOwner } from "../src/index";
 import { testAuth } from "./helpers/test-auth";
 
 const ORIGIN = "https://friday.example.com";
@@ -29,6 +29,7 @@ async function fresh(over: { ownerEmail?: string; dbReachable?: () => boolean } 
       },
       now: () => 1_700_000_000_000,
       dbReachable: over.dbReachable ?? (() => true),
+      ...({} as EngineDeps),
     });
   const ip = `10.0.0.${++ipCounter}`;
   const wrap = (app: ReturnType<typeof make>) => ({
@@ -191,6 +192,7 @@ test("a throwing getSession is 401 and logs session_error", async () => {
     },
     now: () => 1_700_000_000_000,
     dbReachable: () => true,
+    ...({} as EngineDeps),
   });
   const res = await purge(app as never, { origin: ORIGIN });
   expect(res.status).toBe(401);

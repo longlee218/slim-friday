@@ -9,17 +9,26 @@ const client = createRouterClient(appRouter, {
   context: { session: { user: { email: "owner@example.com" } } as never, deps },
 });
 
-test("every procedure is still a stub (later plans remove theirs from this list)", () =>
-  expect(stubbedProcedures()).toEqual(listProcedurePaths(contract).sort()));
+/** Subtrees with a real handler (plan 2 adds its own as it goes). */
+const implemented = ["conversations.", "chat."];
+const expected = listProcedurePaths(contract)
+  .filter((p) => !implemented.some((i) => p.startsWith(i)))
+  .sort();
 
-test("55 procedures", () => expect(stubbedProcedures()).toHaveLength(55));
+test("every procedure but the implemented ones is still a stub", () =>
+  expect(stubbedProcedures()).toEqual(expected));
+
+test("49 stubs left (55 procedures, 3 conversations and 3 chat are real)", () =>
+  expect(stubbedProcedures()).toHaveLength(49));
 
 test("a stub throws the typed NOT_IMPLEMENTED error", async () => {
   await expect(client.control.purge()).rejects.toMatchObject({
     code: "NOT_IMPLEMENTED",
     status: 501,
   });
-  await expect(client.conversations.list()).rejects.toMatchObject({ code: "NOT_IMPLEMENTED" });
+  await expect(client.tickets.list({} as never)).rejects.toMatchObject({
+    code: "NOT_IMPLEMENTED",
+  });
 });
 
 test("input is validated before the stub", async () =>
