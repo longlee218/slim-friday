@@ -37,7 +37,7 @@ test("a stub throws the typed NOT_IMPLEMENTED error", async () => {
     code: "NOT_IMPLEMENTED",
     status: 501,
   });
-  await expect(client.config.bots.get({ id: "a" })).rejects.toMatchObject({
+  await expect(client.config.groups.get({ id: "g" })).rejects.toMatchObject({
     code: "NOT_IMPLEMENTED",
   });
 });

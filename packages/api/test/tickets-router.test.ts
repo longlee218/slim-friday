@@ -122,3 +122,36 @@ test("list pages with nextCursor and filters by status", async () => {
     code: "BAD_REQUEST",
   });
 });
+
+test("a comment publishes one ticket event with the new commentCount", async () => {
+  const h = setup();
+  const t = await h.client.tickets.create({ title: "t" });
+  await settle();
+  h.events.length = 0;
+  await h.client.tickets.comment({ ref: t.ref, text: "hi" });
+  await settle();
+  const tickets = h.events.filter((e) => e.type === "ticket");
+  expect(tickets).toHaveLength(1);
+  expect(tickets[0]).toMatchObject({ ticket: { ref: t.ref, commentCount: 1 } });
+});
+
+test("list filters by assignee", async () => {
+  const h = setup();
+  await h.client.tickets.create({ title: "x", assignee: "a" });
+  await h.client.tickets.create({ title: "y", assignee: "b" });
+  const r = await h.client.tickets.list({ assignee: "b" });
+  expect(r.items.map((i) => i.title)).toEqual(["y"]);
+});
+
+test("a failing wake after an owner comment is logged and the comment still succeeds", async () => {
+  const h = setup();
+  const t = await h.client.tickets.create({ title: "t", assignee: "a" });
+  const logged: object[] = [];
+  h.deps.log.error = (o) => void logged.push(o);
+  h.hub.wakeForTicket = async () => {
+    throw new Error("boom");
+  };
+  const c = await h.client.tickets.comment({ ref: t.ref, text: "hello" });
+  expect(c.body).toBe("hello");
+  expect(logged).toContainEqual(expect.objectContaining({ event: "ticket.wake_failed" }));
+});

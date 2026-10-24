@@ -1,6 +1,7 @@
 import type { TicketResult } from "@friday/core";
+import { logApiEvent } from "../../api-log";
 import { authed } from "../../rpc/implementer";
-import { ticketDtoFor, ticketDtosFor, toTimelineDto } from "./ticket-dto";
+import { ticketDtoFor, ticketDtosFor, toTicketDto, toTimelineDto } from "./ticket-dto";
 
 /** Every handler here acts as the owner. */
 const OWNER = { kind: "user" } as const;
@@ -41,7 +42,7 @@ export const ticketsRouter = {
     const { hub, store } = context.deps;
     const d = unwrap(await hub.tickets.detail(input.ref), errors);
     return {
-      ticket: await ticketDtoFor(store, d.ticket),
+      ticket: toTicketDto(d.ticket, d.commentCount),
       timeline: toTimelineDto(d.timeline),
       related: await ticketDtosFor(store, d.related),
     };
@@ -79,7 +80,18 @@ export const ticketsRouter = {
     const { hub, store } = context.deps;
     const r = unwrap(await hub.tickets.comment(OWNER, { id: input.ref, body: input.text }), errors);
     const ticket = await store.tickets.get(r.comment.ticketId);
-    if (ticket?.assigneeBotId) await hub.wakeForTicket(ticket, ticket.assigneeBotId, false, OWNER);
+    // The comment is saved: a failed wake is logged and must not fail the request.
+    if (ticket?.assigneeBotId)
+      await hub
+        .wakeForTicket(ticket, ticket.assigneeBotId, false, OWNER)
+        .catch((err) =>
+          logApiEvent(
+            context.deps.log,
+            "ticket.wake_failed",
+            { error: String(err), ticketId: ticket.id },
+            "error",
+          ),
+        );
     return r.comment;
   }),
 };
