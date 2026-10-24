@@ -76,14 +76,17 @@ export function answerAsk(
   const annotations: Record<string, { notes: string }> = {};
   for (const [i, question] of questions.entries()) {
     const a = answers[i];
-    if (!a) return { behavior: "deny", message: NO_ANSWER };
+    // An empty answer (no choice, no text) counts as no answer.
+    if (!a || (!a.choices.length && !a.text)) return { behavior: "deny", message: NO_ANSWER };
     out[question] = a.choices.length ? a.choices.join(", ") : (a.text ?? "");
     if (a.choices.length && a.text) annotations[question] = { notes: a.text };
   }
+  // Model-supplied answers or annotations never survive: only the owner's count.
+  const { answers: _a, annotations: _n, ...rest } = input;
   return {
     behavior: "allow",
     updatedInput: {
-      ...input,
+      ...rest,
       answers: out,
       ...(Object.keys(annotations).length && { annotations }),
     },
@@ -106,7 +109,7 @@ export async function askOwner(
     for (const card of cards) {
       const a = await spec.ask(card);
       answers.push(a);
-      if (!a) break;
+      if (!a || (!a.choices.length && !a.text)) break;
     }
     return answerAsk(input, answers);
   } catch {

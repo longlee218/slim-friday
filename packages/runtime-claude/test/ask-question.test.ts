@@ -23,10 +23,11 @@ const bot: Bot = {
   workspaces: [],
 };
 const opts = { signal: new AbortController().signal, toolUseID: "t1", requestId: "r1" };
-function canUse(ask?: BotRuntimeSpec["ask"]) {
+function canUse(ask?: BotRuntimeSpec["ask"], b: Bot = bot) {
   const spec: BotRuntimeSpec = {
-    bot,
-    decide: async () => ({ behavior: "allow" }),
+    bot: b,
+    // `decide` denies everything: a question must reach `ask` before it.
+    decide: async () => ({ behavior: "deny", reason: "no" }),
     ...(ask && { ask }),
   };
   const o = buildOptions({
@@ -123,5 +124,32 @@ test("cardsFromAsk refuses a malformed input and detects confirm", () => {
   expect((cardsFromAsk(ASK_INPUT_SINGLE, "a", "A") as QuestionCard[])[0].options[0]).toMatchObject({
     value: "Red",
     label: "Red",
+  });
+});
+
+test("AskUserQuestion reaches ask before the grant check and decide, even with no tools", async () => {
+  let asked = 0;
+  const r = await canUse(
+    async () => {
+      asked++;
+      return { choices: ["Blue"] };
+    },
+    { ...bot, tools: [] },
+  )(ASK_INPUT_SINGLE);
+  expect(asked).toBe(1);
+  expect(r?.behavior).toBe("allow");
+});
+
+test("model-supplied answers and annotations are dropped; empty answers are denied", () => {
+  const q = ASK_INPUT_SINGLE.questions[0].question;
+  const r = answerAsk(
+    { ...ASK_INPUT_SINGLE, answers: { [q]: "fake" }, annotations: { [q]: { notes: "fake" } } },
+    [{ choices: ["Red"] }],
+  );
+  expect(r).toMatchObject({ behavior: "allow", updatedInput: { answers: { [q]: "Red" } } });
+  expect(r.behavior === "allow" && "annotations" in r.updatedInput).toBe(false);
+  expect(answerAsk(ASK_INPUT_SINGLE, [{ choices: [] }])).toEqual({
+    behavior: "deny",
+    message: "The owner did not answer in time.",
   });
 });

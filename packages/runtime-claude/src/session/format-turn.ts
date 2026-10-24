@@ -27,7 +27,12 @@ function contextLine(m: StoredMessage, names: Record<string, string>): string {
   const r = m.relay;
   if (m.kind !== "relay" || !r) return `${nameOf(m.author, names)}: ${m.text}`;
   const name = (id: string) => names[id] ?? id;
-  return `${name(r.fromBotId)} → ${name(r.toBotId)} (${r.intent}): ${m.text}`;
+  return `${name(r.fromBotId)} → ${name(r.toBotId)} (${r.intent}): ${oneLine(m.text)}`;
+}
+
+/** Collapses all whitespace (newlines too) so quoted text cannot start a line of its own. */
+function oneLine(s: string): string {
+  return s.replace(/\s+/g, " ").trim();
 }
 
 /** Longest quoted text kept in the prompt. */
@@ -65,7 +70,7 @@ export function formatTurn(turn: InboundTurn, names: Record<string, string>): st
         })
       : turn.text;
   const quote = turn.quote
-    ? `> Replying to ${nameOf(turn.quote.author, names)}: ${turn.quote.text.slice(0, QUOTE_MAX)}\n`
+    ? `> Replying to ${nameOf(turn.quote.author, names)}: ${[...oneLine(turn.quote.text)].slice(0, QUOTE_MAX).join("")}\n`
     : "";
   const note = turn.interrupted ? `${INTERRUPTED_NOTE}\n\n` : "";
   return `${tickets}${groupContext}${botMemory}${memory}${recalled}${block}${note}[conversation ${turn.conversationId}] ${nameOf(turn.from, names)} (hop ${turn.hop}):\n${quote}${body}`;
