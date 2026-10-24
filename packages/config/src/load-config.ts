@@ -9,7 +9,7 @@ import type {
   ToolSpec,
 } from "@friday/core";
 import { buildSettings } from "./build-settings";
-import { type ConfigProblem, readLayer } from "./read-layer";
+import { type ConfigProblem, readLayer, readOwnerText } from "./read-layer";
 import type { McpServerSpec } from "./schemas/mcp-file";
 
 export type { ConfigProblem } from "./read-layer";
@@ -57,6 +57,12 @@ export function loadConfig(
       });
       layers[1]?.bots.delete(id);
     }
+  // The owner's voice (SOUL) and facts (USER) come before every bot's own instructions; the user dir wins per file.
+  const owner = (name: string) =>
+    readOwnerText(dirs.userDir, name, ctx) ?? readOwnerText(dirs.defaultsDir, name, ctx);
+  const soul = owner("SOUL.md");
+  const user = owner("USER.md");
+  const preface = [soul, user && `## The owner\n${user}`].filter(Boolean).join("\n\n");
   const botEntries = new Map(layers.flatMap((l) => [...l.bots]));
   const groupEntries = new Map(layers.flatMap((l) => [...l.groups]));
 
@@ -71,7 +77,12 @@ export function loadConfig(
       continue;
     }
     names.add(key);
-    bots.set(id, entry.bot);
+    bots.set(
+      id,
+      preface
+        ? { ...entry.bot, instructions: `${preface}\n\n${entry.bot.instructions}` }
+        : entry.bot,
+    );
   }
   const groups = new Map<GroupId, Group>();
   for (const [id, { group, file }] of groupEntries) {

@@ -66,9 +66,9 @@ test("reload reports changed bots and replaces the snapshot without mutating old
   put(dir, "b", botText("B"));
   const r = config.reload();
   expect(r.changedBots).toEqual(["a"]);
-  expect((await config.bots.get("a"))?.instructions).toBe("new instructions");
+  expect((await config.bots.get("a"))?.instructions).toEndWith("new instructions");
   expect(before).toHaveLength(2);
-  expect(before[0]?.instructions).toBe("Be brief.");
+  expect(before[0]?.instructions).toEndWith("Be brief.");
   rmSync(join(dir, "bots", "a.md"));
   expect(config.reload().changedBots).toEqual(["a"]);
   expect(await config.bots.get("a")).toBeUndefined();
@@ -123,7 +123,7 @@ test("a half-written file on reload keeps the last good bot, group and settings"
   // the next good write replaces the kept copy
   put(dir, "b", botText("B", "fixed"));
   expect(config.reload().changedBots).toEqual(["b"]);
-  expect((await config.bots.get("b"))?.instructions).toBe("fixed");
+  expect((await config.bots.get("b"))?.instructions).toEndWith("fixed");
 });
 
 test("a file that fails on the very first load is just a problem", async () => {

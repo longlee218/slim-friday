@@ -147,3 +147,24 @@ test("limits must be usable: counts are integers, timers fit a 32-bit timer", ()
   const ok = load(userDir({ "settings.yaml": "limits:\n  maxSpendPerBotPerDayUsd: 2.5\n" }));
   expect(ok.problems).toEqual([]);
 });
+
+test("SOUL.md and USER.md go before every bot's instructions; the user dir wins over the shipped SOUL", () => {
+  const dir = userDir({
+    "bots/ann.md": bot("Ann", "Ann rules."),
+    "SOUL.md": "Answer in one line.",
+    "USER.md": "Long, backend engineer.",
+  });
+  const { snapshot } = load(dir);
+  const text = snapshot.bots.get("ann")?.instructions ?? "";
+  expect(text).toBe("Answer in one line.\n\n## The owner\nLong, backend engineer.\n\nAnn rules.");
+  expect(snapshot.bots.get("friday")?.instructions.startsWith("Answer in one line.")).toBe(true);
+});
+
+test("the shipped SOUL applies when the user has none, and an absent USER.md adds nothing", () => {
+  const { snapshot, problems } = load(userDir({ "bots/ann.md": bot("Ann", "Ann rules.") }));
+  expect(problems).toEqual([]);
+  const text = snapshot.bots.get("ann")?.instructions ?? "";
+  expect(text.endsWith("\n\nAnn rules.")).toBe(true);
+  expect(text.length).toBeGreaterThan("Ann rules.".length + 20);
+  expect(text).not.toContain("The owner");
+});

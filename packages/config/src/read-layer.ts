@@ -114,3 +114,10 @@ export function readLayer(dir: string, ctx: ReadContext): Layer {
     ),
   };
 }
+
+/** A plain text file of the config dir (`SOUL.md`, `USER.md`), trimmed; undefined when absent or empty. */
+export function readOwnerText(dir: string, name: string, ctx: ReadContext): string | undefined {
+  const file = join(dir, name);
+  if (!existsSync(file)) return undefined;
+  return readFile(file, (text) => text.trim(), ctx) || undefined;
+}

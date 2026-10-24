@@ -58,7 +58,7 @@ const build = (b: Bot) => {
 
 test("a bot with skills gets a local plugin holding only those skills, and may call the Skill tool", () => {
   const o = build(bot({ skills: ["review", "tdd"] }));
-  const plugin = (o.plugins?.[0] as { type: string; path: string }).path;
+  const plugin = (o.plugins?.[0] as { type: string; path: string } | undefined)?.path ?? "";
   expect(plugin.startsWith(`${scratch}/`)).toBe(true);
   expect(o.skills).toEqual(["friday:review", "friday:tdd"]);
   expect(JSON.parse(readFileSync(join(plugin, ".claude-plugin", "plugin.json"), "utf8")).name).toBe(
@@ -89,6 +89,6 @@ test("a skill that is not found, or a name that is a path, refuses the session b
 test("a skill removed from the bot's list is gone from the plugin at the next session", () => {
   build(bot({ skills: ["review", "tdd"] }));
   const o = build(bot({ skills: ["review"] }));
-  const plugin = (o.plugins?.[0] as { path: string }).path;
+  const plugin = (o.plugins?.[0] as { path: string } | undefined)?.path ?? "";
   expect(existsSync(join(plugin, "skills", "tdd"))).toBe(false);
 });
