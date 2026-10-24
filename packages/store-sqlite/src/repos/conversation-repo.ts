@@ -1,5 +1,5 @@
 import type { Conversation, Store } from "@friday/core";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import { conversations } from "../schema/engine-tables";
 
@@ -14,6 +14,14 @@ export function conversationRepo(
       return r.kind === "direct"
         ? { id: r.id, kind: "direct", botId: r.botId ?? "" }
         : { id: r.id, kind: "group", groupId: r.groupId ?? "" };
+    },
+    async direct(botId) {
+      const r = db
+        .select()
+        .from(conversations)
+        .where(and(eq(conversations.kind, "direct"), eq(conversations.botId, botId)))
+        .get();
+      return r ? { id: r.id, kind: "direct", botId } : undefined;
     },
     async put(c) {
       const row = {

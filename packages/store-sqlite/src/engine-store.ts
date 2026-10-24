@@ -7,6 +7,7 @@ import { grantRepo } from "./repos/grant-repo";
 import { messageRepo } from "./repos/message-repo";
 import { sessionRepo } from "./repos/session-repo";
 import { spendRepo } from "./repos/spend-repo";
+import { ticketRepo } from "./repos/ticket-repo";
 import { wakeRepo } from "./repos/wake-repo";
 
 /** The parts of the core `Store` kept in the db (bots and groups live in files, see `@friday/config`). */
@@ -28,6 +29,7 @@ export function openEngineStore(file: string): EngineStore {
     spend: spendRepo(db),
     audit: auditRepo(db),
     wakes: wakeRepo(db),
+    tickets: ticketRepo(db),
     close: () => client.close(),
   };
 }

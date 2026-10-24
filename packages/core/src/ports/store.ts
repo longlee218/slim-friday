@@ -5,6 +5,7 @@ import type { Grant } from "../domain/grant";
 import type { Group, GroupId } from "../domain/group";
 import type { StoredMessage } from "../domain/message";
 import type { WakeRow } from "../domain/wake";
+import type { Ticket, TicketComment, TicketStatus } from "../tickets/ticket";
 import type { ApprovalAnswer } from "./surface";
 
 /** One decision on one tool call, kept for review. */
@@ -21,7 +22,38 @@ export interface AuditEntry {
 export interface Store {
   bots: { get(id: BotId): Promise<Bot | undefined>; list(): Promise<Bot[]> };
   groups: { get(id: GroupId): Promise<Group | undefined> };
-  conversations: { get(id: ConversationId): Promise<Conversation | undefined> };
+  conversations: {
+    get(id: ConversationId): Promise<Conversation | undefined>;
+    /** The one-to-one conversation of a bot. */
+    direct(botId: BotId): Promise<Conversation | undefined>;
+  };
+  /** The shared ticket board. */
+  tickets: {
+    /** Allocates the next number in the same step, so two creates never share one. */
+    create(t: Omit<Ticket, "id" | "number" | "updatedAt" | "completedAt">): Promise<Ticket>;
+    get(id: string): Promise<Ticket | undefined>;
+    getByNumber(n: number): Promise<Ticket | undefined>;
+    /** Newest first. `before` is the (createdAt, id) of the last ticket of the previous page. */
+    list(f: {
+      status?: TicketStatus;
+      excludeClosed?: boolean;
+      assigneeBotId?: BotId;
+      before?: { createdAt: number; id: string };
+      limit: number;
+    }): Promise<Ticket[]>;
+    /** `completedAt` follows `status` (set for done/closed and kept if set, cleared otherwise). */
+    update(
+      id: string,
+      patch: Partial<
+        Pick<Ticket, "title" | "description" | "status" | "priority" | "assigneeBotId">
+      >,
+      now: number,
+    ): Promise<Ticket | undefined>;
+    /** Also bumps the ticket's `updatedAt`. */
+    addComment(c: Omit<TicketComment, "id">): Promise<TicketComment>;
+    /** Oldest first. */
+    comments(ticketId: string): Promise<TicketComment[]>;
+  };
   messages: {
     append(m: StoredMessage): Promise<void>;
     /** The last `limit` messages, oldest first. */

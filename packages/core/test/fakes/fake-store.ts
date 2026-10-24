@@ -8,6 +8,8 @@ import type {
   Group,
   Store,
   StoredMessage,
+  Ticket,
+  TicketComment,
   WakeRow,
 } from "../../src";
 
@@ -27,7 +29,11 @@ export class FakeStore implements Store {
     list: async () => [...this.botMap.values()],
   };
   groups = { get: async (id: string) => this.groupMap.get(id) };
-  conversations = { get: async (id: ConversationId) => this.convMap.get(id) };
+  conversations = {
+    get: async (id: ConversationId) => this.convMap.get(id),
+    direct: async (botId: BotId) =>
+      [...this.convMap.values()].find((c) => c.kind === "direct" && c.botId === botId),
+  };
   messages = {
     append: async (m: StoredMessage) => {
       this.msgs.push(m);
@@ -96,5 +102,69 @@ export class FakeStore implements Store {
         }
       return n;
     },
+  };
+  ticketMap = new Map<string, Ticket>();
+  ticketComments: TicketComment[] = [];
+  private lastTicketNumber = 0;
+  private nextId = 0;
+  tickets = {
+    create: async (t: Omit<Ticket, "id" | "number" | "updatedAt" | "completedAt">) => {
+      const done = t.status === "done" || t.status === "closed";
+      const ticket: Ticket = {
+        ...t,
+        id: `t${++this.nextId}`,
+        number: ++this.lastTicketNumber,
+        updatedAt: t.createdAt,
+        ...(done && { completedAt: t.createdAt }),
+      };
+      this.ticketMap.set(ticket.id, ticket);
+      return { ...ticket };
+    },
+    get: async (id: string) => this.ticketMap.get(id),
+    getByNumber: async (n: number) => [...this.ticketMap.values()].find((t) => t.number === n),
+    list: async (f: {
+      status?: Ticket["status"];
+      excludeClosed?: boolean;
+      assigneeBotId?: BotId;
+      before?: { createdAt: number; id: string };
+      limit: number;
+    }) =>
+      [...this.ticketMap.values()]
+        .filter((t) => !f.status || t.status === f.status)
+        .filter((t) => !f.excludeClosed || t.status !== "closed")
+        .filter((t) => !f.assigneeBotId || t.assigneeBotId === f.assigneeBotId)
+        .filter(
+          (t) =>
+            !f.before ||
+            t.createdAt < f.before.createdAt ||
+            (t.createdAt === f.before.createdAt && t.id < f.before.id),
+        )
+        .sort((a, b) => b.createdAt - a.createdAt || (a.id < b.id ? 1 : -1))
+        .slice(0, f.limit),
+    update: async (
+      id: string,
+      patch: Partial<
+        Pick<Ticket, "title" | "description" | "status" | "priority" | "assigneeBotId">
+      >,
+      now: number,
+    ) => {
+      const t = this.ticketMap.get(id);
+      if (!t) return undefined;
+      Object.assign(t, patch, { updatedAt: now });
+      if (t.status === "done" || t.status === "closed") t.completedAt = t.completedAt ?? now;
+      else t.completedAt = undefined;
+      return t;
+    },
+    addComment: async (c: Omit<TicketComment, "id">) => {
+      const comment = { id: `c${++this.nextId}`, ...c };
+      this.ticketComments.push(comment);
+      const t = this.ticketMap.get(c.ticketId);
+      if (t) t.updatedAt = Math.max(t.updatedAt, c.createdAt);
+      return comment;
+    },
+    comments: async (ticketId: string) =>
+      this.ticketComments
+        .filter((c) => c.ticketId === ticketId)
+        .sort((a, b) => a.createdAt - b.createdAt),
   };
 }

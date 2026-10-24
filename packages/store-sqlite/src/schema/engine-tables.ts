@@ -88,6 +88,8 @@ export const wakes = sqliteTable(
     /** JSON array of attachments (saved paths), if any. */
     attachments: text("attachments"),
     handoff: integer("handoff", { mode: "boolean" }),
+    ticketId: text("ticket_id"),
+    rewake: integer("rewake", { mode: "boolean" }),
     status: text("status").notNull(),
     blockReason: text("block_reason"),
     attempts: integer("attempts").notNull(),
@@ -101,3 +103,44 @@ export const wakes = sqliteTable(
     index("wakes_conversation_idx").on(t.conversationId, t.createdAt),
   ],
 );
+
+/** Tickets of the shared board. */
+export const tickets = sqliteTable(
+  "tickets",
+  {
+    id: text("id").primaryKey(),
+    number: integer("number").notNull().unique(),
+    title: text("title").notNull(),
+    description: text("description"),
+    status: text("status").notNull(),
+    priority: text("priority").notNull(),
+    assigneeBotId: text("assignee_bot_id"),
+    /** `user`, `bot` or `system`. */
+    createdByKind: text("created_by_kind").notNull(),
+    createdByBotId: text("created_by_bot_id"),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+    completedAt: integer("completed_at"),
+  },
+  (t) => [index("tickets_created_idx").on(t.createdAt, t.id)],
+);
+
+/** Comments on tickets. */
+export const ticketComments = sqliteTable(
+  "ticket_comments",
+  {
+    id: text("id").primaryKey(),
+    ticketId: text("ticket_id").notNull(),
+    authorKind: text("author_kind").notNull(),
+    authorBotId: text("author_bot_id"),
+    body: text("body").notNull(),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [index("ticket_comments_ticket_idx").on(t.ticketId, t.createdAt)],
+);
+
+/** One row: the last ticket number handed out (numbers are never reused, even after a delete). */
+export const ticketCounter = sqliteTable("ticket_counter", {
+  id: integer("id").primaryKey(),
+  last: integer("last").notNull(),
+});

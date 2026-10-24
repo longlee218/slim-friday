@@ -34,6 +34,10 @@ export interface WakeRow {
   hop: number;
   text: string;
   attachments?: Attachment[];
+  /** The ticket this wake works on (a ticket wake). */
+  ticketId?: string;
+  /** The second wake for a ticket left open after a turn. */
+  rewake?: boolean;
   /** Created by `HandOff`: the receiver owns the step and does not answer the sender. */
   handoff?: boolean;
   status: WakeStatus;

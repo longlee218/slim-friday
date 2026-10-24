@@ -27,6 +27,8 @@ function fromRow(r: Row): WakeRow {
     text: r.text,
     ...(r.attachments && { attachments: JSON.parse(r.attachments) }),
     ...(r.handoff && { handoff: true }),
+    ...(r.ticketId && { ticketId: r.ticketId }),
+    ...(r.rewake && { rewake: true }),
     status: r.status as WakeRow["status"],
     ...(r.blockReason && { blockReason: r.blockReason as WakeRow["blockReason"] }),
     attempts: r.attempts,
