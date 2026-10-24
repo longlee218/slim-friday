@@ -18,6 +18,7 @@ import { useMemo } from "react";
 import { toast } from "sonner";
 import { client, orpc } from "../../api/client";
 import { useDirectory } from "../../api/directory";
+import { useOpenNewTicket } from "../../app/shell-context";
 import { refetchStatus } from "../../events/apply-effects";
 import { Avatar } from "../ui/avatar";
 import { BottomSheet } from "../ui/bottom-sheet";
@@ -61,12 +62,14 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
   const navigate = useAppNavigate();
   const qc = useQueryClient();
   const status = useQuery(orpc.control.status.queryOptions()).data;
+  const newTicket = useOpenNewTicket();
   const items = useMemo(() => paletteItems(dir), [dir]);
 
   // `control.stop` takes a botId, so stop each working bot; one toast for the batch. Every stop
   // settles before the toast, and the status refetches either way (some bots may have stopped).
   const ctx: PaletteContext = {
     navigate,
+    newTicket,
     stopAll: async () => {
       const working = (status ?? []).filter((s) => s.working);
       if (working.length === 0) {

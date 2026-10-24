@@ -13,7 +13,8 @@ export interface AppShellProps {
  */
 export function AppShell({ sidebar, main, inspector }: AppShellProps) {
   const panels = useResponsivePanels();
-  const cls = ["mac", panels.inspector.open && "insp", !panels.sidebar.open && "nosb"]
+  const showInspector = inspector !== undefined && panels.inspector.open;
+  const cls = ["mac", showInspector && "insp", !panels.sidebar.open && "nosb"]
     .filter(Boolean)
     .join(" ");
   return (

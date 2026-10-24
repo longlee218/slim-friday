@@ -5,6 +5,7 @@ import { PhoneChat } from "../components/phone/phone-chat";
 import { PhonePlaceholder } from "../components/phone/phone-placeholder";
 import { navHistory } from "../components/shell/nav-history";
 import { RoutePlaceholder } from "../components/shell/route-placeholder";
+import { TicketsRoute } from "../components/tickets/tickets-route";
 import { RouteError } from "./route-error";
 import { useConnection } from "./shell-context";
 import { useIsPhone } from "./use-is-phone";
@@ -46,7 +47,7 @@ function NotFound() {
 export const protectedChildren: RouteObject[] = [
   { path: "/", element: <HomeRoute /> },
   { path: "/c/:conversationId", element: <ChatRoute /> },
-  { path: "/tickets", element: <Placeholder title="Tickets" /> },
+  { path: "/tickets", element: <TicketsRoute /> },
   { path: "/tickets/:ref", element: <Placeholder title="Ticket" /> },
   { path: "/ops", element: <Placeholder title="Ops" /> },
   { path: "/settings/*", element: <Placeholder title="Settings" /> },

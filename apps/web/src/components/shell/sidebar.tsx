@@ -13,6 +13,7 @@ import type { ReactNode } from "react";
 import { useLocation } from "react-router";
 import { orpc } from "../../api/client";
 import { useDirectory } from "../../api/directory";
+import { openCount, useAllTickets } from "../tickets/use-tickets";
 import { Avatar } from "../ui/avatar";
 import { IconButton } from "../ui/button";
 import { Kbd } from "../ui/kbd";
@@ -48,6 +49,8 @@ export function Sidebar({ onPalette }: { onPalette: () => void }) {
   const status = useQuery(orpc.control.status.queryOptions()).data ?? [];
   const approvals = useQuery(orpc.approvals.pending.queryOptions()).data ?? [];
 
+  const { tickets } = useAllTickets();
+  const open = openCount(tickets);
   const working = new Set(status.filter((s) => s.working).map((s) => s.botId));
   const unread = (id: string) => conversations.find((c) => c.id === id)?.unread ?? 0;
   const pending = (id: string) => approvals.filter((a) => a.conversationId === id).length;
@@ -109,12 +112,12 @@ export function Sidebar({ onPalette }: { onPalette: () => void }) {
           );
         })}
         <Section title="Workspace" />
-        {/* Open-ticket count arrives with plan 4. */}
         <SidebarRow href="/tickets" on={pathname.startsWith("/tickets")}>
           <Ico>
             <SquareKanban size={16} strokeWidth={1.75} />
           </Ico>
           <span className="name">Tickets</span>
+          {open > 0 && <span className="sub num">{open}</span>}
         </SidebarRow>
         <SidebarRow href="/ops" on={pathname.startsWith("/ops")}>
           <Ico>

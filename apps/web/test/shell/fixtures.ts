@@ -7,6 +7,7 @@ import type {
 } from "@friday/contracts";
 import { QueryClient } from "@tanstack/react-query";
 import { orpc } from "../../src/api/client";
+import { ticketListOptions } from "../../src/components/tickets/use-tickets";
 
 export const bot = (id: string, name: string): BotDto => ({
   id,
@@ -77,5 +78,6 @@ export function seededClient(seed: {
   qc.setQueryData(orpc.control.status.queryKey(), seed.status ?? []);
   qc.setQueryData(orpc.approvals.pending.queryKey(), seed.approvals ?? []);
   qc.setQueryData(orpc.questions.pending.queryKey(), []);
+  qc.setQueryData(ticketListOptions.queryKey, { pages: [{ items: [] }], pageParams: [undefined] });
   return qc;
 }

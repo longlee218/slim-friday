@@ -93,10 +93,17 @@ test("/login?expired=1 stays on the sign-in screen even if the session still rea
   expect(router.state.location.pathname).toBe("/login");
 });
 
+test("/tickets is the board, not a placeholder", async () => {
+  mocks.getSession.mockResolvedValue({ data: { user: { id: "u" } } });
+  const router = createMemoryRouter(appRoutes, { initialEntries: ["/tickets"] });
+  renderApp(router);
+  expect(await screen.findByRole("button", { name: "New ticket" })).toBeTruthy();
+  expect(screen.queryByText("Tickets is not built yet.")).toBeNull();
+});
+
 test("every contract path is routed (placeholder pages)", async () => {
   mocks.getSession.mockResolvedValue({ data: { user: { id: "u" } } });
   for (const [path, title] of [
-    ["/tickets", "Tickets"],
     ["/tickets/FRI-1", "Ticket"],
     ["/ops", "Ops"],
     ["/settings/bot/dev/tools", "Settings"],
