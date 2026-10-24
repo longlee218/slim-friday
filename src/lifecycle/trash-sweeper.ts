@@ -1,9 +1,10 @@
 import { existsSync, readdirSync, rmdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { trashRoot } from "../effects/trash-store";
+import { errText, trashRoot } from "@friday/tools";
 import { logEvent, logger } from "../observability/logger";
-import { errText } from "../observability/redact";
-import { TRASH_TTL_MS } from "../policy/risk-types";
+
+/** How long the trash keeps an entry. */
+const TRASH_TTL_MS = 7 * 86_400_000;
 
 /* The trash of `DeletePaths` keeps an entry 7 days (`<trash>/<goalId>/<epoch ms>-<random>/`); this sweeper removes the older ones.
    Local fs only: no network, no db. */

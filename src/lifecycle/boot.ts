@@ -1,8 +1,5 @@
-import { workspacePaths } from "../config/workspace-paths";
 import { logEvent, logger } from "../observability/logger";
-import { openDb } from "../storage/db";
 import { startHomeRetention } from "./home-retention-sweeper";
-import { runStartupHygiene } from "./startup";
 import { startTrashSweeper } from "./trash-sweeper";
 
 const log = logger.child({ module: "boot" });
@@ -10,7 +7,7 @@ const log = logger.child({ module: "boot" });
 /** What the process needs to run: the home directory and the signal that ends it. */
 export interface BootOptions {
   agentHome: string;
-  /** Abort = shut down: sweepers stop, the db closes, the returned promise resolves. */
+  /** Abort = shut down: sweepers stop, the returned promise resolves. */
   signal: AbortSignal;
   /** The bot engine; it resolves after `signal` aborts and it has shut itself down. Without it nothing answers. */
   startEngine?: (signal: AbortSignal) => Promise<void>;
@@ -19,17 +16,14 @@ export interface BootOptions {
 }
 
 /**
- * Start the infrastructure (db with migrations, startup hygiene, home retention and trash sweepers) and
- * run the bot engine (`startEngine`) or, when none is given, only wait for `signal`.
+ * Start the sweepers (home retention, trash) and run the bot engine (`startEngine`) or, when none is given, only
+ * wait for `signal`. The old `data/agent.db` is never opened.
  */
 export async function bootFriday(opts: BootOptions): Promise<void> {
   const { agentHome, signal } = opts;
-  // Opening applies the Drizzle migrations; an old-format db is refused, untouched.
-  const db = openDb(workspacePaths(agentHome).dbFile);
-  await runStartupHygiene(db, agentHome);
   const stops = [
     startTrashSweeper(agentHome), // boot sweep + every 6h: trash entries past 7 days go
-    startHomeRetention(agentHome), // boot sweep + every 6h: old task logs, app logs and run dirs go
+    startHomeRetention(agentHome), // boot sweep + every 6h: old app logs and inbox files go
   ];
   opts.onReady?.();
   try {
@@ -44,7 +38,7 @@ export async function bootFriday(opts: BootOptions): Promise<void> {
       clearInterval(keepAlive);
     }
   } finally {
-    // Each step is isolated so one failure cannot skip closing the db.
+    // Each step is isolated so one failure cannot skip the others.
     for (const stop of stops) {
       try {
         stop();
@@ -52,6 +46,5 @@ export async function bootFriday(opts: BootOptions): Promise<void> {
         log.warn({ err: String(err) }, "sweeper stop failed");
       }
     }
-    db.close();
   }
 }

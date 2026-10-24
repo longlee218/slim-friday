@@ -1,4 +1,4 @@
-import { clip } from "./redact";
+import { clip } from "@friday/tools";
 
 /** Max chars of a console line's message part. */
 const LINE_MAX = 200;

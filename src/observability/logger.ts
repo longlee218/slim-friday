@@ -1,11 +1,11 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import { clip, errText, redactText } from "@friday/tools";
 import pino, { type DestinationStream, type Logger } from "pino";
 import pretty, { type PrettyOptions } from "pino-pretty";
+import { ensureParentDir, homePaths } from "../config/home-paths";
 import { readProcessEnv } from "../config/process-env";
-import { ensureParentDir, workspacePaths } from "../config/workspace-paths";
 import { CONSOLE_IGNORE, consoleMessage } from "./console-format";
 import { rollingFile } from "./log-files";
-import { clip, errText, redactText } from "./redact";
 
 /** Key paths pino censors before serialization (layer 1; free text uses redact.ts). */
 const REDACT_PATHS = [
@@ -118,7 +118,7 @@ async function buildSharedLogger(): Promise<Logger> {
   // Also print to the terminal when run interactively (a TTY) or in dev; background runs (nohup) stay file-only.
   const toTerminal = process.stdout.isTTY === true || readProcessEnv().NODE_ENV === "development";
   if (!home) return createLogger(pino.destination({ fd: 2, sync: true }), level);
-  const file = rollingFile(workspacePaths(home).appLog());
+  const file = rollingFile(homePaths(home).appLog());
   // Open the main file before the first line so early/fatal lines are written synchronously.
   await file.ready();
   if (!toTerminal) return createLogger(file, level);

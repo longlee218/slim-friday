@@ -1,9 +1,8 @@
 import { expect, setDefaultTimeout, test } from "bun:test";
-import { mkdirSync, mkdtempSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { workspacePaths } from "../src/config/workspace-paths";
-import { readLogLines } from "./helpers";
+import { homePaths } from "../src/config/home-paths";
 
 /** Each test spawns the real bot process (~1.5 s alone); under full-suite load that can pass 5 s. */
 setDefaultTimeout(20_000);
@@ -33,8 +32,12 @@ async function runIndex(
     }),
   ]);
   // Empty when no log was written (process killed early).
-  const log = readLogLines(workspacePaths(home).appLog())
-    .map((l) => l.msg)
+  // Rolled files are `app.<date>.<n>.jsonl` in the logs dir; empty when no log was written (killed early).
+  const logs = homePaths(home).logs;
+  const files = existsSync(logs) ? readdirSync(logs).filter((f) => f.startsWith("app.")) : [];
+  const log = files
+    .flatMap((f) => readFileSync(join(logs, f), "utf8").split("\n").filter(Boolean))
+    .map((l) => (JSON.parse(l) as { msg?: string }).msg ?? "")
     .join("\n");
   return { code, log };
 }

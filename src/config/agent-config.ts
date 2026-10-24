@@ -1,11 +1,7 @@
 import { z } from "zod";
-import { HAIKU_MODEL, HAIKU_SUMMARY_MODEL } from "./model-ids";
 
 /** Placeholder value used in .env.example; never a real credential. */
 export const PLACEHOLDER = "REPLACE_ME";
-
-/** Default `model` (Haiku). Each role names its own model (`RoleDefinition.model`); this one is the default model slot of the SDK env. */
-const DEFAULT_MODEL = HAIKU_MODEL;
 
 /** Secret string: trimmed (no stray newline in auth headers); empty after trim counts as unset. */
 const secret = z
@@ -13,7 +9,7 @@ const secret = z
   .transform((v) => v.trim() || undefined)
   .optional();
 
-/** Raw env schema. Discord vars are optional here; the bot entry enforces them via requireDiscord. */
+/** Raw env schema. Discord vars are optional here; the bot entry enforces them (`startEngine`). */
 const envSchema = z.object({
   CLAUDE_CODE_OAUTH_TOKEN: secret,
   AGENT_HOME: z.string().min(1),
@@ -32,23 +28,9 @@ const envSchema = z.object({
         .optional(),
     )
     .optional(),
-  MEMORY_MODEL: z.string().trim().min(1).optional(),
-  GIT_AUTHOR: z.string().trim().min(1).optional(), // accepted and IGNORED since Rev 15 (the agent uses the owner's git config)
-  MAX_BUDGET_USD: z.coerce.number().positive().optional(),
-  TIMEOUT_MS: z.coerce.number().int().positive().default(300_000),
-  /** Debug: `1` or `true` writes every model run's exact SDK input to <AGENT_HOME>/logs/prompts (src/observability/prompt-dump.ts). Off by default. */
-  FRIDAY_DUMP_PROMPTS: z
-    .string()
-    .optional()
-    .transform((v) => v === "1" || v === "true"),
-  /** Temporary: `1` or `true` turns the worker OS sandbox off (shell and file writes unbounded by it). Off by default = sandbox on. */
-  FRIDAY_SANDBOX_OFF: z
-    .string()
-    .optional()
-    .transform((v) => v === "1" || v === "true"),
 });
 
-/** Names of the env variables the app itself reads: each must be classified in `data/child-env-deny.yaml`. */
+/** Names of the env variables the app itself reads: each must be classified in the runtime's child-env deny list. */
 export const ENV_SCHEMA_KEYS: string[] = Object.keys(envSchema.shape);
 
 /** Validated, typed config used across the app. Contains secrets: never log it whole. */
@@ -59,20 +41,10 @@ export interface AgentConfig {
   hasRealAuth: boolean;
   discordToken: string | undefined;
   ownerDiscordId: string | undefined;
-  /** The one guild served (DISCORD_GUILD_ID); required once any workspace lists channels (see index.ts). */
+  /** The one guild served (DISCORD_GUILD_ID). */
   discordGuildId: string | undefined;
   agentHome: string;
   logLevel: string;
-  /** Default model slot of the SDK env and the log value. Roles name their own model. */
-  model: string;
-  /** Model of the one-shot cheap calls (attachment summary, memory flush). */
-  memoryModel: string;
-  /** Run limits of every agent run; maxBudgetUsd = optional global cap MAX_BUDGET_USD (min with the role budget). */
-  limits: { maxBudgetUsd: number | undefined; timeoutMs: number };
-  /** FRIDAY_DUMP_PROMPTS is on: each run writes a prompt dump file. Omitted = off. */
-  dumpPrompts?: true;
-  /** FRIDAY_SANDBOX_OFF is on: dispatched workers run without the OS sandbox. Omitted = sandbox on. */
-  sandboxOff?: true;
 }
 
 /** True when a value is missing or the placeholder. */
@@ -106,13 +78,5 @@ export function loadConfig(
     discordGuildId: e.DISCORD_GUILD_ID,
     agentHome: e.AGENT_HOME,
     logLevel: e.LOG_LEVEL,
-    model: DEFAULT_MODEL,
-    memoryModel: e.MEMORY_MODEL ?? HAIKU_SUMMARY_MODEL,
-    limits: {
-      maxBudgetUsd: e.MAX_BUDGET_USD,
-      timeoutMs: e.TIMEOUT_MS,
-    },
-    ...(e.FRIDAY_DUMP_PROMPTS && { dumpPrompts: true as const }),
-    ...(e.FRIDAY_SANDBOX_OFF && { sandboxOff: true as const }),
   };
 }

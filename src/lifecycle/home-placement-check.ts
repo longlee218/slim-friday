@@ -1,9 +1,14 @@
 import { existsSync, realpathSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { isInside } from "../policy/paths";
+import { dirname, isAbsolute, join, relative, sep } from "node:path";
 
 /** Name of the marker that makes a directory a git working tree root. */
 const GIT_MARKER = ".git";
+
+/** True when `target` equals or is nested under `root` (both real paths). */
+function isInside(root: string, target: string): boolean {
+  const rel = relative(root, target);
+  return rel === "" || (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
+}
 
 /** Real path of `p`, or `p` itself when it does not exist yet. */
 function realOrRaw(p: string): string {

@@ -1,5 +1,5 @@
 import pinoRoll from "pino-roll";
-import { ensureParentDir } from "../config/workspace-paths";
+import { ensureParentDir } from "../config/home-paths";
 
 /** Days of rolled log files kept besides the current one. */
 const RETAIN_DAYS = 14;
