@@ -83,3 +83,40 @@
 .vw-nav:disabled { opacity: .3; }
 .vw-count { text-align: center; padding-bottom: 18px; font-size: 12px; color: rgba(255, 255, 255, .6); }
 @media (max-width: 639px) { .vw-nav { display: none; } }
+
+/* live run: thinking -> doing -> writing -> done */
+.run { margin: 2px 0 8px; border-radius: 12px; background: var(--well); padding: 8px 12px 9px; max-width: 560px; font-size: 12.5px; }
+:root[data-theme="dark"] .run { background: #242427; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .run { background: #242427; } }
+.run-h { display: flex; align-items: center; gap: 8px; color: var(--label); font-weight: 550; }
+.run-h .run-time { margin-left: auto; color: var(--label-2); font-weight: 400; }
+.run-label { animation: breathe 1.6s ease-in-out infinite; }
+@keyframes breathe { 50% { opacity: .45; } }
+.run[data-state="done"] .run-label { animation: none; }
+.run-steps { list-style: none; margin: 6px 0 0; padding: 0; }
+.run-steps li { display: flex; align-items: center; gap: 8px; padding: 3px 0; color: var(--label-2); animation: stepIn 300ms var(--ease); }
+@keyframes stepIn { from { opacity: 0; transform: translateY(-3px); } }
+.run-steps li .mono { color: var(--label); }
+.run-steps li svg { width: 14px; height: 14px; }
+.run-steps li.done > svg { color: var(--green); }
+.run-steps li.active > svg { color: var(--tint); }
+/* App addition: the step icon stays neutral; only the trailing state glyph is coloured. */
+.run-steps li > svg:first-child { color: var(--label-2); }
+.run-steps li > svg:last-child { margin-left: auto; }
+.run-steps li.failed > svg:last-child { color: var(--red); }
+.run-steps .delta { font: 11.5px var(--mono); }
+.run-steps .delta .add { color: var(--green); } .run-steps .delta .del { color: var(--red); }
+.tail { margin: 2px 0 2px 22px; font: 11.5px/1.5 var(--mono); color: var(--label-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.worked { margin: 0 0 6px; }
+.worked summary { list-style: none; display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--label-2); padding: 3px 8px 3px 4px; border-radius: 6px; user-select: none; }
+.worked summary::-webkit-details-marker { display: none; }
+.worked summary:hover { background: var(--fill); }
+.worked summary .chev { transition: transform var(--t-mid) var(--ease); width: 14px; height: 14px; }
+.worked[open] summary .chev { transform: rotate(90deg); }
+.worked .run-steps { margin: 2px 0 6px 10px; padding-left: 12px; border-left: 1px solid var(--sep-strong); }
+
+/* typing dots */
+.dots { display: inline-flex; gap: 3px; }
+.dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--label-3); animation: dot 1.2s infinite var(--ease); }
+.dots i:nth-child(2) { animation-delay: .15s; } .dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes dot { 0%, 60%, 100% { transform: translateY(0); opacity: .5; } 30% { transform: translateY(-3px); opacity: 1; } }

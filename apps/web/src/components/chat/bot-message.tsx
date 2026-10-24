@@ -6,6 +6,7 @@ import { FileCard } from "./file-card";
 import { ImageGallery } from "./image-gallery";
 import { MessageActions } from "./message-actions";
 import { useBotFace } from "./use-bot-face";
+import { WorkedDisclosure } from "./worked-disclosure";
 
 export interface BotMessageProps {
   message: MessageDto;
@@ -29,7 +30,7 @@ export function BotMessage({ message, phone, onReply, fresh }: BotMessageProps) 
           <b>{bot.name}</b>
           <time>{formatClock(message.at, Date.now())}</time>
         </div>
-        {/* Task 12 inserts <WorkedDisclosure run={message.run} /> here, before the text. */}
+        {message.run && message.run.length > 0 && <WorkedDisclosure steps={message.run} />}
         {message.text && (
           <div className="md">
             <BotMarkdown text={message.text} />
