@@ -76,6 +76,15 @@ test("a duplicate note is skipped, not an error", async () => {
   ).toHaveLength(1);
 });
 
+test("an over-long picked note is skipped and counted, never stored cut", async () => {
+  const { root, mem } = setup();
+  const r = await consolidateOwner(mem, ann, now, async () => [
+    { kind: "fact", note: `deploy ${"word ".repeat(60)}` },
+  ]);
+  expect(r).toEqual({ promoted: 0, skipped: 1, through: "2026-10-22" });
+  expect(existsSync(join(root, "bots", "ann", "MEMORY.md"))).toBe(false);
+});
+
 test("ask returning undefined leaves the mark", async () => {
   const { root, mem } = setup();
   expect(await consolidateOwner(mem, ann, now, async () => undefined)).toEqual({

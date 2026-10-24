@@ -12,16 +12,22 @@ import {
   type MemoryKind,
   stripDateSuffix,
 } from "./memory-sections";
-import { sanitizeBullet } from "./sanitize-bullet";
+import { MEMORY_NOTE_MAX_CHARS, sanitizeBullet } from "./sanitize-bullet";
 import { backupFile } from "./stamped-backup";
 
 /** Why a memory write did not happen. */
 export class MemoryError extends Error {
-  constructor(readonly code: "empty" | "duplicate" | "not_found" | "busy") {
+  constructor(readonly code: "empty" | "too_long" | "duplicate" | "not_found" | "busy") {
     super(`memory ${code}`);
     this.name = "MemoryError";
   }
 }
+
+/** Tool text for a refused write: the code, and for `too_long` the limit so the bot can shorten the note. */
+export const memoryErrorText = (err: MemoryError): string =>
+  err.code === "too_long"
+    ? `too_long: a note is at most ${MEMORY_NOTE_MAX_CHARS} characters; shorten it and try again`
+    : err.code;
 
 /** One note of a memory file, with the id an edit uses. */
 export interface MemoryBullet {
@@ -40,6 +46,14 @@ export function ownerDir(root: string, owner: MemoryOwner): string {
   const id = owner.kind === "bot" ? owner.botId : owner.groupId;
   if (!ID.test(id)) throw new Error(`bad memory owner id: ${id}`);
   return join(root, owner.kind === "bot" ? "bots" : "groups", id);
+}
+
+/** A note cleaned for MEMORY.md; refused when nothing is left or it is longer than the limit (never cut). */
+function cleanNote(note: string): string {
+  const text = sanitizeBullet(note, Number.POSITIVE_INFINITY);
+  if (!text) throw new MemoryError("empty");
+  if (text.length > MEMORY_NOTE_MAX_CHARS) throw new MemoryError("too_long");
+  return text;
 }
 
 /** Local `YYYY-MM-DD`. */
@@ -79,8 +93,7 @@ export class FileMemory implements Memory {
 
   async save(owner: MemoryOwner, note: string, kind = "fact"): Promise<void> {
     if (!MEMORY_FILE_KINDS.includes(kind as MemoryKind)) throw new Error(`unknown kind: ${kind}`);
-    const text = sanitizeBullet(note);
-    if (!text) throw new MemoryError("empty");
+    const text = cleanNote(note);
     const bullet = formatBullet(text, localDay(this.now()));
     this.locked(owner, (cur) => {
       // The id ignores the section, so the same note under another kind would share an id: refuse it too.
@@ -107,8 +120,7 @@ export class FileMemory implements Memory {
   }
 
   async edit(owner: MemoryOwner, id: string, text: string | null): Promise<void> {
-    const clean = text === null ? null : sanitizeBullet(text);
-    if (clean === "") throw new MemoryError("empty");
+    const clean = text === null ? null : cleanNote(text);
     this.locked(owner, (cur) => {
       const lines = cur.split("\n");
       const hit = bulletsOf(cur).find((b) => bulletHash(b.line) === id);

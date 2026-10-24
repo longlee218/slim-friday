@@ -16,6 +16,19 @@ const code = async (p: Promise<unknown>) =>
     (e) => e,
   )) as MemoryError;
 
+test("a note over 200 chars after cleanup is refused as too_long, never cut", async () => {
+  const { mem } = fresh();
+  const long = "a".repeat(201);
+  expect((await code(mem.save(bot, long))).code).toBe("too_long");
+  expect(await mem.read(bot)).toBe("");
+  // Markup removed by the cleanup does not count: 200 chars of text inside tags fit.
+  await mem.save(bot, `<b>${"b".repeat(200)}</b>`);
+  expect(await mem.read(bot)).toContain(`- ${"b".repeat(200)} (`);
+  const id = mem.listBullets(bot)[0]?.id ?? "";
+  expect((await code(mem.edit(bot, id, long))).code).toBe("too_long");
+  expect(mem.listBullets(bot)[0]?.text).toBe("b".repeat(200));
+});
+
 test("save then read: the note sits under its section with today's date", async () => {
   const { mem } = fresh();
   expect(await mem.read(bot)).toBe("");

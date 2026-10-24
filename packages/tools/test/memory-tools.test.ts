@@ -85,6 +85,23 @@ test("MemorySave: a duplicate is reported, not saved twice", async () => {
   expect(text(r)).toBe("duplicate");
 });
 
+test("MemorySave and MemoryEdit: an over-long note is refused with the limit, nothing stored", async () => {
+  const { root, mem } = setup();
+  const save = createMemorySaveTool(mem, ctx("dm"));
+  const r = await call(save, { note: "x".repeat(250) });
+  expect(r.isError).toBe(true);
+  expect(text(r)).toStartWith("too_long");
+  expect(text(r)).toContain("200");
+  expect(file(root, "bots/ann/MEMORY.md")).toBe("");
+  await call(save, { note: "short fact" });
+  const edit = createMemoryEditTool(mem, ctx("dm"));
+  const id = /\[([0-9a-f]{16})\]/.exec(text(await call(edit, {})))?.[1] ?? "";
+  const e = await call(edit, { id, text: "y".repeat(250) });
+  expect(e.isError).toBe(true);
+  expect(text(e)).toStartWith("too_long");
+  expect(file(root, "bots/ann/MEMORY.md")).toContain("short fact");
+});
+
 test("MemoryEdit: lists ids, deletes one, unknown id is not_found", async () => {
   const { root, mem } = setup();
   await call(createMemorySaveTool(mem, ctx("dm")), { note: "old fact" });

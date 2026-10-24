@@ -1,7 +1,7 @@
 import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { textResult } from "../../../tool-result";
-import { type FileMemory, MemoryError } from "../../file-memory";
+import { type FileMemory, MemoryError, memoryErrorText } from "../../file-memory";
 import { resolveOwner, type ToolSessionContext } from "../../memory-owner";
 import { MEMORY_SAVE_MAX_CHARS, MEMORY_SAVE_TOOL } from "./constants";
 import { MEMORY_SAVE_DESCRIPTION } from "./prompt";
@@ -30,7 +30,7 @@ export function createMemorySaveTool(memory: FileMemory, ctx: ToolSessionContext
         await memory.save(owner, note, kind);
         return textResult("saved");
       } catch (err) {
-        if (err instanceof MemoryError) return textResult(err.code, true);
+        if (err instanceof MemoryError) return textResult(memoryErrorText(err), true);
         throw err;
       }
     },

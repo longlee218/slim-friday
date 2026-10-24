@@ -37,7 +37,7 @@ function pendingNotes(root: string, owner: MemoryOwner, today: string) {
 /**
  * Promote the owner's journal notes of complete days (before today) after its mark into MEMORY.md, as `ask` picks
  * them. The mark moves to the last day sent only when `ask` answered. A note that is too short, the same as one
- * already in MEMORY.md (or one promoted a moment ago) or refused by the file is skipped and counted.
+ * already in MEMORY.md (or one promoted a moment ago) or refused by the file (also too long) is skipped and counted.
  */
 export async function consolidateOwner(
   memory: FileMemory,
@@ -62,7 +62,7 @@ export async function consolidateOwner(
       kept.push(p.note);
       promoted++;
     } catch (err) {
-      if (!(err instanceof MemoryError && (err.code === "duplicate" || err.code === "empty")))
+      if (!(err instanceof MemoryError && ["duplicate", "empty", "too_long"].includes(err.code)))
         throw err;
       skipped++;
     }
