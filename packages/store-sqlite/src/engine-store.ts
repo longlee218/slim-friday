@@ -10,6 +10,7 @@ import { messageRepo } from "./repos/message-repo";
 import { readRepo } from "./repos/read-repo";
 import { sessionRepo } from "./repos/session-repo";
 import { spendRepo } from "./repos/spend-repo";
+import { ticketEventRepo } from "./repos/ticket-event-repo";
 import { ticketRepo } from "./repos/ticket-repo";
 import { uploadRepo } from "./repos/upload-repo";
 import { wakeRepo } from "./repos/wake-repo";
@@ -39,6 +40,7 @@ export function openEngineStore(file: string): EngineStore {
     audit: auditRepo(db),
     wakes: wakeRepo(db),
     tickets: ticketRepo(db),
+    ticketEvents: ticketEventRepo(db),
     insight: insightRepo(db),
     close: () => client.close(),
   };

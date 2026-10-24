@@ -13,8 +13,10 @@ import type {
   StoredMessage,
   Ticket,
   TicketComment,
+  TicketEvent,
   UploadRow,
   WakeRow,
+  WakeStatus,
 } from "../../src";
 
 /** An in-memory Store; tests seed `bots`, `groups` and `convs` directly. */
@@ -148,6 +150,14 @@ export class FakeStore implements Store {
       this.spendMap.set(k, (this.spendMap.get(k) ?? 0) + usd);
     },
     total: async (botId: BotId, day: string) => this.spendMap.get(`${botId}|${day}`) ?? 0,
+    range: async (from: string, to: string) =>
+      [...this.spendMap.entries()]
+        .map(([k, usd]) => {
+          const [botId, day] = k.split("|") as [BotId, string];
+          return { botId, day, usd };
+        })
+        .filter((r) => r.day >= from && r.day <= to)
+        .sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : a.botId < b.botId ? -1 : 1)),
   };
   audit = {
     append: async (e: AuditEntry) => {
@@ -168,6 +178,11 @@ export class FakeStore implements Store {
       [...this.wakeMap.values()]
         .filter((w) => w.status === "queued" || w.status === "running")
         .sort((a, b) => a.createdAt - b.createdAt),
+    list: async (f: { status?: WakeStatus; since: number; limit: number }) =>
+      [...this.wakeMap.values()]
+        .filter((w) => w.createdAt >= f.since && (!f.status || w.status === f.status))
+        .sort((a, b) => b.createdAt - a.createdAt || (a.id < b.id ? 1 : -1))
+        .slice(0, f.limit),
     botSentSince: async (conversationId: ConversationId, since: number) =>
       [...this.wakeMap.values()]
         .filter(
@@ -234,12 +249,18 @@ export class FakeStore implements Store {
       id: string,
       patch: Partial<
         Pick<Ticket, "title" | "description" | "status" | "priority" | "assigneeBotId">
-      >,
+      > & { conversationId?: string; blockedReason?: string | null },
       now: number,
+      opts?: { ifUpdatedAt?: number },
     ) => {
       const t = this.ticketMap.get(id);
       if (!t) return undefined;
-      Object.assign(t, patch, { updatedAt: now });
+      if (opts?.ifUpdatedAt !== undefined && opts.ifUpdatedAt !== t.updatedAt)
+        return "conflict" as const;
+      const { blockedReason, ...rest } = patch;
+      Object.assign(t, rest, { updatedAt: Math.max(now, t.updatedAt + 1) });
+      if (blockedReason !== undefined) t.blockedReason = blockedReason ?? undefined;
+      if (t.status !== "blocked") t.blockedReason = undefined;
       if (t.status === "done" || t.status === "closed") t.completedAt = t.completedAt ?? now;
       else t.completedAt = undefined;
       return { ...t };
@@ -248,12 +269,23 @@ export class FakeStore implements Store {
       const comment = { id: `c${++this.nextId}`, ...c };
       this.ticketComments.push(comment);
       const t = this.ticketMap.get(c.ticketId);
-      if (t) t.updatedAt = Math.max(t.updatedAt, c.createdAt);
+      if (t) t.updatedAt = Math.max(t.updatedAt + 1, c.createdAt);
       return comment;
     },
     comments: async (ticketId: string) =>
       this.ticketComments
         .filter((c) => c.ticketId === ticketId)
         .sort((a, b) => a.createdAt - b.createdAt),
+    commentCounts: async (ids: string[]) =>
+      new Map(ids.map((id) => [id, this.ticketComments.filter((c) => c.ticketId === id).length])),
+  };
+  ticketEventList: TicketEvent[] = [];
+  ticketEvents = {
+    append: async (e: TicketEvent) => {
+      this.ticketEventList.push({ ...e });
+    },
+    // Stable sort keeps insert order for the same millisecond.
+    list: async (ticketId: string) =>
+      this.ticketEventList.filter((e) => e.ticketId === ticketId).sort((a, b) => a.at - b.at),
   };
 }

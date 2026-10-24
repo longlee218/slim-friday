@@ -132,7 +132,7 @@ export class TicketBoard {
       },
       this.deps.clock.now(),
     );
-    if (!ticket) return { ok: false, error: "Ticket not found." };
+    if (!ticket || ticket === "conflict") return { ok: false, error: "Ticket not found." };
     const changed = i.assigneeBotId && i.assigneeBotId !== cur.assigneeBotId;
     const byActor = actor.kind === "bot" && actor.botId === i.assigneeBotId;
     if (changed && i.assigneeBotId && !byActor && !finished(ticket.status))
