@@ -7,6 +7,7 @@ import { useDirectory } from "../../api/directory";
 import { AvatarPicker } from "./avatar-picker";
 import { GroupAvatar } from "./group-avatar";
 import { GroupForm, type GroupFormValue, NEW_GROUP } from "./group-form";
+import { RuleList } from "./rule-list";
 import { SettingsPage } from "./settings-page";
 
 /** `/settings/group/new`: the form of a group that does not exist yet. */
@@ -77,6 +78,8 @@ export function GroupPage() {
         mode="update"
         onSave={onSave}
       />
+      <h3 style={{ fontSize: 13, margin: "0 0 8px" }}>Group rules</h3>
+      <RuleList owner={`group:${group.id}`} />
     </SettingsPage>
   );
 }

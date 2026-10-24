@@ -8,8 +8,9 @@ import { AvatarPicker } from "./avatar-picker";
 import { BotForm } from "./bot-form";
 import { type BotFormValue, NEW_BOT } from "./bot-form-value";
 import { InlineName } from "./inline-name";
+import { MemoryPanel } from "./memory-panel";
+import { RuleList } from "./rule-list";
 import { SettingsPage } from "./settings-page";
-import { SettingsPlaceholder } from "./settings-placeholder";
 
 const TABS = [
   ["profile", "Profile"],
@@ -134,8 +135,11 @@ export function BotPage() {
           shipped={shipped}
           onSave={({ id: _id, name: _name, ...input }) => save(input)}
         />
+      ) : // Memory and rules are the owner's files, so a shipped bot's stay editable.
+      tab === "rules" ? (
+        <RuleList owner={`bot:${bot.id}`} />
       ) : (
-        <SettingsPlaceholder title={tab === "rules" ? "Rules" : "Memory"} />
+        <MemoryPanel owner={`bot:${bot.id}`} />
       )}
     </SettingsPage>
   );
