@@ -33,9 +33,12 @@ export class RunClaimer {
   private current?: Promise<void>;
   /** A hint arrived during the pass; run another one after it. */
   private again = false;
+  /** Between `start` and `stop`; hints and scans do nothing outside it. */
   private started = false;
+  /** Cancels the pending fallback-scan timer. */
   private cancelScan?: () => void;
 
+  /** `d` holds the store, clock, limits, log, lease owner and the run executor. */
   constructor(private d: RunClaimerDeps) {}
 
   /** Number of runs executing now. */
@@ -45,6 +48,7 @@ export class RunClaimer {
 
   /** Begin the fallback scan and claim once right away. */
   start(): void {
+    if (this.started) return;
     this.started = true;
     this.armScan();
     this.onHint();
@@ -54,7 +58,12 @@ export class RunClaimer {
   onHint(): void {
     if (!this.started) return;
     if (this.passing) this.again = true;
-    else this.current = this.pass();
+    else {
+      const p: Promise<void> = this.pass().finally(() => {
+        if (this.current === p) this.current = undefined;
+      });
+      this.current = p;
+    }
   }
 
   /** Stop scanning and wait for running executions to finish (they are not cancelled). */
@@ -96,7 +105,6 @@ export class RunClaimer {
       this.d.log.error({ err: String(e) }, "run.claim_failed");
     } finally {
       this.passing = false;
-      this.current = undefined;
     }
   }
 
@@ -144,7 +152,10 @@ export class RunClaimer {
         status: "running",
         startedAt: row.startedAt ?? now,
       });
-      if (!ok) return;
+      if (!ok) {
+        log.warn({ wakeId: row.id }, "run.claim_lost");
+        return;
+      }
       await this.d.execute(row, lease);
     } catch (e) {
       log.error({ wakeId: row.id, err: String(e) }, "run.execute_failed");
