@@ -39,7 +39,7 @@ test("a note over 200 chars is cut at a word with a visible mark and counted", (
   const root = mkdtempSync(join(tmpdir(), "jr-"));
   const long = `${"word ".repeat(70)}end`;
   const r = appendJournal(root, bot, "Flush", [long, "short"], at("2026-10-24T09:00:00"));
-  expect(r).toEqual({ status: "saved", cut: 1 });
+  expect(r).toEqual({ status: "saved", cut: 1, dropped: 0 });
   const line =
     readFileSync(dayFile(root, "2026-10-24"), "utf8")
       .split("\n")

@@ -44,7 +44,7 @@ export function idleFlush(deps: IdleFlushDeps) {
         ? { kind: "group", groupId: e.groupId }
         : { kind: "bot", botId: e.botId };
       const r = appendJournal(deps.memoryRoot, owner, "Idle flush", notes, new Date());
-      logJournalAppend(deps.log, e.botId, r, notes.length);
+      logJournalAppend(deps.log, owner, r);
       if (r.status === "saved") deps.memoryChanged(owner);
     } catch (err) {
       deps.log.error({ error: String(err), botId: e.botId }, "memory.idle_flush");

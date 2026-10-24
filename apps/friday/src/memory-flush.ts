@@ -20,7 +20,7 @@ export function memoryFlush(
           ? { kind: "group", groupId: spec.groupId }
           : { kind: "bot", botId: spec.bot.id };
         const r = appendJournal(memoryDir, owner, "Flush", notes, new Date());
-        logJournalAppend(log, spec.bot.id, r, notes.length);
+        logJournalAppend(log, owner, r);
         afterWrite?.(owner);
       })
       .catch((err) => log.error({ error: String(err), botId: spec.bot.id }, "memory.flush"));

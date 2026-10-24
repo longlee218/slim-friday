@@ -17,10 +17,14 @@ const DAY_FILE = /^(\d{4}-\d{2}-\d{2})\.md$/;
 export const journalDir = (root: string, owner: MemoryOwner): string =>
   join(ownerDir(root, owner), "journal");
 
-/** What `appendJournal` did: `full` = the day file already has 300 lines (nothing written); `cut` = notes shortened. */
+/**
+ * What `appendJournal` did: `full` = the day file already has 300 lines (nothing written, `dropped` = the distinct
+ * notes lost); `cut` = notes shortened.
+ */
 export interface JournalAppend {
   status: "saved" | "empty" | "full";
   cut: number;
+  dropped: number;
 }
 
 /** A cleaned note within the memory note limit: a longer one is cut at the last word that fits and ends with `…`. */
@@ -55,7 +59,7 @@ export function appendJournal(
       return true;
     })
     .map((n) => `- ${n}`);
-  if (!lines.length) return { status: "empty", cut: 0 };
+  if (!lines.length) return { status: "empty", cut: 0, dropped: 0 };
   const day = localDay(now);
   const hhmm = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
   const title = sanitizeBullet(label, LABEL_CHARS) || "Notes";
@@ -64,10 +68,11 @@ export function appendJournal(
   const file = join(dir, `${day}.md`);
   return withMemoryLock(file, () => {
     const cur = existsSync(file) ? readFileSync(file, "utf8") : `# Journal ${day}\n`;
-    if (cur.split("\n").length > JOURNAL_MAX_LINES) return { status: "full", cut: 0 };
+    if (cur.split("\n").length > JOURNAL_MAX_LINES)
+      return { status: "full", cut: 0, dropped: lines.length };
     const base = cur.endsWith("\n") ? cur : `${cur}\n`;
     writeAtomic(file, `${base}\n## ${hhmm} ${title}\n${lines.join("\n")}\n`);
-    return { status: "saved", cut };
+    return { status: "saved", cut, dropped: 0 };
   });
 }
 

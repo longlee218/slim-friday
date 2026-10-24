@@ -32,13 +32,13 @@ test("a full journal day and a cut note are logged, not dropped silently", async
   const warns: { o: object; msg: string }[] = [];
   const log = { error() {}, warn: (o: object, msg: string) => void warns.push({ o, msg }) };
   await memoryFlush(root, async () => [`${"word ".repeat(70)}end`], log)(spec, "s");
-  expect(warns).toEqual([{ o: { botId: "ann", cut: 1 }, msg: "memory.journal_cut" }]);
+  expect(warns).toEqual([{ o: { owner: "bot:ann", cut: 1 }, msg: "memory.journal_cut" }]);
   const dir = join(root, "bots", "ann", "journal");
   const day = readdirSync(dir)[0] ?? "";
   writeFileSync(join(dir, day), "- x\n".repeat(300));
   mkdirSync(dir, { recursive: true });
-  await memoryFlush(root, async () => ["a", "b"], log)(spec, "s");
-  expect(warns[1]).toEqual({ o: { botId: "ann", dropped: 2 }, msg: "memory.journal_full" });
+  await memoryFlush(root, async () => ["a", "b", "b", ""], log)(spec, "s");
+  expect(warns[1]).toEqual({ o: { owner: "bot:ann", dropped: 2 }, msg: "memory.journal_full" });
 });
 
 test("a group session's compaction notes land in the group's journal, not the bot's", async () => {
