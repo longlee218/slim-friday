@@ -53,10 +53,20 @@ export interface RecallHit {
   path?: string;
 }
 
-/** One searchable source of recall: the builtin index now, providers later. */
+/** A note written to a provider: an explicitly saved, already sanitized note and its kind. */
+export interface RecallNote {
+  text: string;
+  kind: string;
+}
+
+/** One searchable source of recall: the builtin index, or a provider plugin's source. */
 export interface RecallSource {
   id: string;
   search(q: RecallQuery): Promise<RecallHit[]>;
+  /** Store an explicitly saved note (providers only; never raw messages). */
+  write?(owner: MemoryOwner, note: RecallNote): Promise<void>;
+  /** Remove every stored copy of `text` for the owner. */
+  forget?(owner: MemoryOwner, text: string): Promise<void>;
 }
 
 /** What the hub needs of recall: a search over one owner's memory. */
