@@ -164,3 +164,34 @@ test("the reconciler withdraws open cards of a run cancelled before the process 
   expect(h.store.cardMap.get(h.cardId)?.status).toBe("withdrawn");
   expect(h.surface.closed.map((c) => c.id)).toEqual([h.cardId]);
 });
+
+test("a fence that moves once between the read and the cancel: the run still ends cancelled and is counted", async () => {
+  const h = makeHub();
+  await h.store.wakes.insert(queuedRow({}));
+  const real = h.store.wakes.transition;
+  let moved = false;
+  // A worker claims the row (fence +1) just before the first cancel write.
+  h.store.wakes.transition = async (id, fence, from, patch) => {
+    const w = h.store.wakeMap.get(id);
+    if (!moved && w) {
+      moved = true;
+      w.leaseFence += 1;
+    }
+    return real(id, fence, from, patch);
+  };
+  expect(await h.hub.stop("editor")).toBe(1);
+  expect(h.store.wakeMap.get("q1")?.status).toBe("cancelled");
+});
+
+test("when every retry loses the fence race, run.stop_lost is logged with the wake id only", async () => {
+  const h = makeHub();
+  await h.store.wakes.insert(queuedRow({}));
+  const real = h.store.wakes.transition;
+  h.store.wakes.transition = async (id, fence, from, patch) => {
+    const w = h.store.wakeMap.get(id);
+    if (w) w.leaseFence += 1;
+    return real(id, fence, from, patch);
+  };
+  expect(await h.hub.stop("editor")).toBe(0);
+  expect(h.log.of("run.stop_lost").map((l) => l.fields)).toEqual([{ wakeId: "q1" }]);
+});

@@ -73,6 +73,8 @@ async function cancelRun(
       return { ...cur, ...patch };
     cur = await store.wakes.get(cur.id);
   }
+  // Still active after every try: the run keeps going (the owner can stop again); never silent.
+  if (cur && ACTIVE.includes(cur.status)) ctx.deps.log?.warn({ wakeId: row.id }, "run.stop_lost");
   return undefined;
 }
 
