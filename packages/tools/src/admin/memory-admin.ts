@@ -1,5 +1,5 @@
 import { AdminError, type MemoryAdmin, type MemoryNote } from "@friday/core";
-import { type FileMemory, MemoryError } from "../memory/file-memory";
+import { type FileMemory, MemoryError, memoryErrorText } from "../memory/file-memory";
 import { readJournal } from "../memory/journal-read";
 import { readRules, writeRules } from "../memory/rules-file";
 
@@ -18,9 +18,9 @@ async function mapped(write: () => Promise<void>): Promise<void> {
   } catch (err) {
     if (!(err instanceof MemoryError)) throw err;
     if (err.code === "empty" || err.code === "too_long")
-      throw new AdminError("BAD_REQUEST", err.message, "text");
+      throw new AdminError("BAD_REQUEST", memoryErrorText(err), "text");
     if (err.code === "not_found") throw new AdminError("NOT_FOUND", "note not found");
-    throw new AdminError("CONFLICT", err.message);
+    throw new AdminError("CONFLICT", memoryErrorText(err));
   }
 }
 
