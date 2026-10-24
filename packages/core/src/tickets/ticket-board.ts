@@ -41,7 +41,7 @@ export class TicketBoard {
       store: Pick<Store, "tickets" | "bots">;
       clock: Clock;
       /** Called when a ticket is assigned to a bot other than the one who did it. */
-      wake: (ticket: Ticket, botId: BotId) => Promise<void>;
+      wake: (ticket: Ticket, botId: BotId, actor: Author) => Promise<void>;
     },
   ) {}
 
@@ -65,7 +65,7 @@ export class TicketBoard {
       createdAt: this.deps.clock.now(),
     });
     if (assigneeBotId && !(actor.kind === "bot" && actor.botId === assigneeBotId))
-      await this.deps.wake(ticket, assigneeBotId);
+      await this.deps.wake(ticket, assigneeBotId, actor);
     return { ok: true, ticket };
   }
 
@@ -136,7 +136,7 @@ export class TicketBoard {
     const changed = i.assigneeBotId && i.assigneeBotId !== cur.assigneeBotId;
     const byActor = actor.kind === "bot" && actor.botId === i.assigneeBotId;
     if (changed && i.assigneeBotId && !byActor && !finished(ticket.status))
-      await this.deps.wake(ticket, i.assigneeBotId);
+      await this.deps.wake(ticket, i.assigneeBotId, actor);
     return { ok: true, ticket };
   }
 

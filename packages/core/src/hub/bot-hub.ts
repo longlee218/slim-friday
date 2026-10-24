@@ -91,7 +91,7 @@ export class BotHub implements BotMessenger {
     this.tickets = new TicketBoard({
       store: deps.store,
       clock: deps.clock,
-      wake: (t, botId) => this.wakeForTicket(t, botId),
+      wake: (t, botId, actor) => this.wakeForTicket(t, botId, false, actor),
     });
   }
 
@@ -370,16 +370,22 @@ export class BotHub implements BotMessenger {
   }
 
   /** Wake the assignee of a ticket in its own direct conversation; nothing is posted to the channel. */
-  async wakeForTicket(ticket: Ticket, botId: BotId, rewake = false): Promise<void> {
+  async wakeForTicket(
+    ticket: Ticket,
+    botId: BotId,
+    rewake = false,
+    actor: Author = { kind: "system" },
+  ): Promise<void> {
     if (ticket.status === "done" || ticket.status === "closed") return;
     const { store } = this.deps;
     const conv = await store.conversations.direct(botId);
     const row = await this.wakeLog.create({
       conversationId: conv?.id ?? "none",
       targetBot: botId,
-      sender: { kind: "system" },
+      // A bot that assigns the ticket is the sender, so the rate and repeat caps apply to it.
+      sender: actor,
       intent: "request",
-      hop: 0,
+      hop: actor.kind === "bot" ? 1 : 0,
       text: rewake ? ticketRewakeText(ticket) : ticketWakeText(ticket),
       ticketId: ticket.id,
       ...(rewake && { rewake: true }),
@@ -389,7 +395,13 @@ export class BotHub implements BotMessenger {
       await this.wakeLog.dropped(row.id);
       return;
     }
-    await this.admit(row, bot);
+    // The ticket is saved already: a wake that cannot be delivered must not fail the tool that saved it.
+    try {
+      await this.admit(row, bot);
+    } catch (err) {
+      this.deps.log?.error({ error: errText(err), wakeId: row.id }, "hub.ticket_wake_failed");
+      await this.wakeLog.dropped(row.id).catch(() => {});
+    }
   }
 
   /**
@@ -429,7 +441,9 @@ export class BotHub implements BotMessenger {
         if (e.currentWakeId) await this.wakeLog.firstText(e.currentWakeId);
       },
       onTurnEnd: async (e) => {
-        // The bot stays busy until this wake is closed, so a wake that arrives meanwhile waits in the queue.
+        // The pump cleared `busy`; hold it until this wake is closed and the queue is drained, so a wake that arrives
+        // meanwhile (or the re-wake below) waits in the queue instead of starting a second turn.
+        e.busy = true;
         const wakeId = e.currentWakeId;
         await this.returnOutcome(e);
         if (wakeId) await this.wakeLog.done(wakeId);

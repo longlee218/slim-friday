@@ -116,3 +116,71 @@ describe("unfinished tickets", () => {
     expect(h.runtime.nth(0).sent).toHaveLength(1);
   });
 });
+
+describe("ticket wakes and the busy flag", () => {
+  test("a queued user message and the re-wake run one after the other", async () => {
+    const h = makeHub();
+    const t = await assigned(h);
+    const ed = h.runtime.nth(0);
+    h.surface.deliver({ conversationId: "dc", text: "hello editor" });
+    await flush();
+    ed.emit({ type: "turn_end", costUsd: 0 });
+    await flush();
+    // Only one of the two is sent per turn end; the bot is busy with it.
+    expect(ed.sent).toHaveLength(2);
+    ed.emit({ type: "turn_end", costUsd: 0 });
+    await flush();
+    expect(ed.sent).toHaveLength(3);
+    const texts = ed.sent.map((s) => s.text);
+    expect(texts).toContain("hello editor");
+    expect(texts).toContain(REWAKE(t.number));
+    ed.emit({ type: "turn_end", costUsd: 0 });
+    await flush();
+    const running = [...h.store.wakeMap.values()].filter((w) => w.status === "running");
+    expect(running).toEqual([]);
+  });
+
+  test("a wake that arrives during the re-wake turn waits for it", async () => {
+    const h = makeHub();
+    const t = await assigned(h);
+    const ed = h.runtime.nth(0);
+    ed.emit({ type: "turn_end", costUsd: 0 });
+    await flush();
+    h.surface.deliver({ conversationId: "dc", text: "later" });
+    await flush();
+    expect(ed.sent).toHaveLength(2);
+    ed.emit({ type: "turn_end", costUsd: 0 });
+    await flush();
+    expect((await h.store.tickets.get(t.id))?.status).toBe("blocked");
+    expect(ed.sent.at(-1)?.text).toBe("later");
+  });
+
+  test("a failed wake does not fail the ticket write", async () => {
+    const h = makeHub();
+    h.runtime.open = async () => {
+      throw new Error("session will not open");
+    };
+    const r = await h.hub.tickets.create(
+      { kind: "bot", botId: "writer" },
+      { title: "x", assigneeBotId: "editor" },
+    );
+    expect(r.ok).toBe(true);
+    expect([...h.store.wakeMap.values()].map((w) => w.status)).toEqual(["dropped"]);
+  });
+
+  test("a ticket assigned by a bot is a wake from that bot, so the loop guards apply", async () => {
+    const h = makeHub();
+    const r = await h.hub.tickets.create(
+      { kind: "bot", botId: "writer" },
+      { title: "x", assigneeBotId: "editor" },
+    );
+    if (!r.ok) throw new Error(r.error);
+    await flush();
+    const first = [...h.store.wakeMap.values()][0];
+    expect(first?.sender).toEqual({ kind: "bot", botId: "writer" });
+    await h.hub.wakeForTicket(r.ticket, "editor", false, { kind: "bot", botId: "writer" });
+    await flush();
+    const rows = [...h.store.wakeMap.values()];
+    expect(rows[1]).toMatchObject({ status: "blocked", blockReason: "repeat" });
+  });
+});
