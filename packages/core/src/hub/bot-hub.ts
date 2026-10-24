@@ -5,11 +5,12 @@ import type { Author } from "../domain/message";
 import type { BotMessenger, SendRequest, SendResult } from "../ports/messenger";
 import type { InboundMessage } from "../ports/surface";
 import { ChainGuard } from "../routing/chain-guard";
+import { InProcessHints } from "../runs/run-hints";
+import { intakeOwnerMessage } from "../runs/run-intake";
 import type { Ticket } from "../tickets/ticket";
 import { TicketBoard } from "../tickets/ticket-board";
 import { sendFromSession } from "./bot-messaging";
 import { type HubContext, tell } from "./hub-context";
-import { hubTargets } from "./hub-targets";
 import { type BotHubDeps, type BotStatus, errText } from "./hub-types";
 import { reportIdleClose } from "./idle-close";
 import { type PoolEntry, SessionPool } from "./session-pool";
@@ -44,6 +45,7 @@ export class BotHub implements BotMessenger {
       }),
       guard: new ChainGuard(deps.store, deps.clock, limits),
       wakeLog: new WakeLog(deps.store, deps.clock, deps.log),
+      hints: deps.hints ?? new InProcessHints(),
       noticed: new Set(),
       admit: (row, bot, opts) => admit(this.ctx, row, bot, opts),
       wake: (botId, conversationId, sender, text, hop, opts) =>
@@ -69,37 +71,12 @@ export class BotHub implements BotMessenger {
     );
   }
 
-  /** A user message: store it, wake the bots it addresses; resolves with the stored id (undefined: unknown conversation). */
-  async handle(m: InboundMessage): Promise<number | undefined> {
-    const { store, clock } = this.deps;
-    const conv = await store.conversations.get(m.conversationId);
-    if (!conv) return undefined;
-    // The user writes again: caps announced in this conversation may be announced again.
-    for (const k of [...this.ctx.noticed])
-      if (k.startsWith(`${conv.id}|`)) this.ctx.noticed.delete(k);
-    const user: Author = { kind: "user" };
-    const hasFiles = !!m.files?.length;
-    const id = await store.messages.append({
-      conversationId: conv.id,
-      author: user,
-      text: m.text,
-      at: clock.now(),
-      kind: hasFiles && !m.text.trim() ? "file" : "text",
-      ...(m.replyTo !== undefined && { replyTo: m.replyTo }),
-      ...(hasFiles && { files: m.files }),
-    });
-    // A message of files only wakes the bot with a short note instead of an empty text.
-    const wakeText = m.text.trim() || `(sent ${m.files?.length ?? 0} file(s))`;
-    // A reply to a message of this conversation routes to its bot and carries the quoted text.
-    const replied = m.replyTo === undefined ? undefined : await store.messages.get(m.replyTo);
-    const quoted = replied?.conversationId === conv.id ? replied : undefined;
-    const replyToBot = quoted?.author.kind === "bot" ? quoted.author.botId : undefined;
-    for (const target of await hubTargets(store, conv, m.text, replyToBot))
-      await this.ctx.wake(target, conv.id, user, wakeText, 0, {
-        ...(quoted && { quote: { author: quoted.author, text: quoted.text } }),
-        ...(m.attachments && { attachments: m.attachments }),
-      });
-    return id;
+  /**
+   * A user message: store it, then answer a question card, steer a busy run or queue a new run for each bot it
+   * addresses; resolves with the stored id (undefined: unknown conversation). Runs are claimed by a worker.
+   */
+  handle(m: InboundMessage): Promise<number | undefined> {
+    return intakeOwnerMessage(this.ctx, m);
   }
 
   /**

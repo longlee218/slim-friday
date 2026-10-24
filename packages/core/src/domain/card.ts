@@ -30,4 +30,6 @@ export interface CardRow {
   createdAt: number;
   answeredAt?: number;
   remindedAt?: number;
+  /** The owner message whose typed text answered the card (a resend of it must not answer twice). */
+  answeredMessageId?: number;
 }

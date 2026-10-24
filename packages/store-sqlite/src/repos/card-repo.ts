@@ -50,7 +50,7 @@ export function cardRepo(db: BunSQLiteDatabase): Store["cards"] {
         .all()
         .map(fromRow);
     },
-    async answer(id, answer, at) {
+    async answer(id, answer, at, messageId) {
       // The WHERE makes "open -> answered" happen once even with two callers.
       return (
         db
@@ -59,11 +59,21 @@ export function cardRepo(db: BunSQLiteDatabase): Store["cards"] {
             status: "answered",
             answer: answer === undefined ? null : JSON.stringify(answer),
             answeredAt: at,
+            answeredMessageId: messageId ?? null,
           })
           .where(and(eq(cards.id, id), eq(cards.status, "open")))
           .returning({ id: cards.id })
           .all().length === 1
       );
+    },
+    async answeredByMessage(messageId) {
+      return db
+        .select()
+        .from(cards)
+        .where(eq(cards.answeredMessageId, messageId))
+        .orderBy(...oldestFirst)
+        .all()
+        .map(fromRow);
     },
     async setStatus(id, from, to) {
       return (
@@ -97,5 +107,6 @@ function fromRow(r: Row): CardRow {
     createdAt: r.createdAt,
     ...(r.answeredAt !== null && { answeredAt: r.answeredAt }),
     ...(r.remindedAt !== null && { remindedAt: r.remindedAt }),
+    ...(r.answeredMessageId !== null && { answeredMessageId: r.answeredMessageId }),
   };
 }

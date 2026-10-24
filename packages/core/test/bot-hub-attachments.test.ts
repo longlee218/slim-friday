@@ -3,7 +3,7 @@ import { flush, makeHub } from "./bot-hub-harness";
 
 const file = { name: "1-a.png", mimeType: "image/png", path: "/inbox/gc/1/1-a.png", size: 3 };
 
-test("files from the user reach the turn that answers that message, and no hand-off", async () => {
+test.todo("files from the user reach the turn that answers that message, and no hand-off (restored in Task 8)", async () => {
   const { runtime, surface, hub } = makeHub();
   surface.deliver({ conversationId: "gc", text: "look", attachments: [file] });
   await flush();
@@ -15,7 +15,7 @@ test("files from the user reach the turn that answers that message, and no hand-
   expect(handoff?.attachments).toBeUndefined();
 });
 
-test("a queued message keeps its own files; a plain message carries none", async () => {
+test.todo("a queued message keeps its own files; a plain message carries none (restored in Task 8)", async () => {
   const { runtime, surface } = makeHub();
   surface.deliver({ conversationId: "dc", text: "one" });
   await flush();

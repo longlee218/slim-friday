@@ -21,6 +21,8 @@ export function steeringRepo(db: BunSQLiteDatabase): Store["steering"] {
           createdAt: r.createdAt,
           claimedAt: r.claimedAt ?? null,
         })
+        // Ids are deterministic per message and target, so a replayed intake adds nothing twice.
+        .onConflictDoNothing({ target: steering.id })
         .run();
     },
     async claim(wakeId, at) {
@@ -49,6 +51,18 @@ export function steeringRepo(db: BunSQLiteDatabase): Store["steering"] {
         },
         { behavior: "immediate" },
       );
+    },
+    async bound(wakeId) {
+      return db
+        .select()
+        .from(steering)
+        .where(and(eq(steering.wakeId, wakeId), isNull(steering.claimedAt)))
+        .orderBy(asc(steering.createdAt), asc(steering.id))
+        .all()
+        .map(fromRow);
+    },
+    async remove(ids) {
+      if (ids.length) db.delete(steering).where(inArray(steering.id, ids)).run();
     },
     async held(scopeKey) {
       return db

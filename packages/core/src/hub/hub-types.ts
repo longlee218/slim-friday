@@ -12,6 +12,7 @@ import type { MemorySearcher } from "../ports/memory-recall";
 import type { Store } from "../ports/store";
 import type { Surface } from "../ports/surface";
 import type { ProjectRulesReader } from "../routing/group-context";
+import type { RunHints } from "../runs/run-hints";
 import type { IdleCloseHook } from "./idle-close";
 import type { QueuedWake } from "./session-pool";
 import type { ScopeBot } from "./session-scope";
@@ -71,4 +72,6 @@ export interface BotHubDeps {
   scopeBot?: ScopeBot;
   /** Reads a project dir's own rules (the app implements it); without it no project rules are sent. */
   projectRules?: ProjectRulesReader;
+  /** Where run, steering and card hints go; without it an in-process hub of hints with no listener. */
+  hints?: RunHints;
 }

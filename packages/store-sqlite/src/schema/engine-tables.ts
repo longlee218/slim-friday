@@ -341,10 +341,13 @@ export const cards = sqliteTable(
     answeredAt: integer("answered_at"),
     /** When the owner was reminded (once). */
     remindedAt: integer("reminded_at"),
+    /** The owner message whose typed text answered the card; null otherwise. */
+    answeredMessageId: integer("answered_message_id"),
   },
   (t) => [
     index("cards_status_idx").on(t.status),
     index("cards_scope_idx").on(t.scopeKey, t.status),
+    index("cards_answered_message_idx").on(t.answeredMessageId),
   ],
 );
 

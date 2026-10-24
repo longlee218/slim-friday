@@ -26,6 +26,13 @@ type RunDefaults =
   | "transientRetries"
   | "setupFailures";
 
+/** What a caller gives for a new wake; the rest gets defaults. */
+export type NewWake = Omit<
+  WakeRow,
+  "id" | "status" | "attempts" | "createdAt" | "chainId" | RunDefaults
+> &
+  Partial<Pick<WakeRow, RunDefaults>> & { chainId?: string };
+
 /** Per-process counter so ids made in this process sort in creation order (the chain guard breaks createdAt ties by id). */
 let wakeSeq = 0;
 
@@ -48,12 +55,17 @@ export class WakeLog {
   ) {}
 
   /** Store a new queued wake. A user wake (no `chainId`) starts its own chain. */
-  async create(
-    w: Omit<WakeRow, "id" | "status" | "attempts" | "createdAt" | "chainId" | RunDefaults> &
-      Partial<Pick<WakeRow, RunDefaults>> & { chainId?: string },
-  ): Promise<WakeRow> {
+  async create(w: NewWake): Promise<WakeRow> {
+    const row = this.build(w);
+    await this.store.wakes.insert(row);
+    this.stored(row);
+    return row;
+  }
+
+  /** A new queued wake row with its defaults, not stored yet (the caller stores it, e.g. deduped). */
+  build(w: NewWake): WakeRow {
     const id = this.newId();
-    const row: WakeRow = {
+    return {
       // Run fields start as a plain interactive run in the target bot's own scope.
       scopeKey: w.targetBot,
       priority: "interactive",
@@ -68,9 +80,11 @@ export class WakeLog {
       attempts: 1,
       createdAt: this.clock.now(),
     };
-    await this.store.wakes.insert(row);
+  }
+
+  /** Log a row the caller has just stored. */
+  stored(row: WakeRow): void {
     this.log?.info({ event: "wake.queued", ...base(row), status: row.status }, "wake.queued");
-    return row;
   }
 
   /** The wake was sent into the session. */

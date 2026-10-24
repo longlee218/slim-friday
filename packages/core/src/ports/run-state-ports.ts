@@ -3,8 +3,12 @@ import type { SteeringRow } from "../domain/steering";
 
 /** Owner messages sent while a run is busy. */
 export interface SteeringPort {
-  /** Store a row (held when it has no wake). */
+  /** Store a row (held when it has no wake); a row whose id is already stored is left as it is. */
   add(r: SteeringRow): Promise<void>;
+  /** Unclaimed rows bound to `wakeId`, oldest first, without claiming them. */
+  bound(wakeId: string): Promise<SteeringRow[]>;
+  /** Delete these rows. */
+  remove(ids: string[]): Promise<void>;
   /** Unclaimed rows bound to `wakeId`, oldest first, marked claimed at `at` (one transaction). */
   claim(wakeId: string, at: number): Promise<SteeringRow[]>;
   /** Rows of the scope bound to no wake, oldest first. */
@@ -28,8 +32,10 @@ export interface CardPort {
   open(): Promise<CardRow[]>;
   /** Open cards of one scope, oldest first. */
   openForScope(scopeKey: string): Promise<CardRow[]>;
-  /** open -> answered, once; false when the card was not open. */
-  answer(id: string, answer: CardRow["answer"], at: number): Promise<boolean>;
+  /** open -> answered, once; false when the card was not open. `messageId`: the owner message that answered it by text. */
+  answer(id: string, answer: CardRow["answer"], at: number, messageId?: number): Promise<boolean>;
+  /** Cards answered by the typed text of owner message `messageId`. */
+  answeredByMessage(messageId: number): Promise<CardRow[]>;
   /** Guarded change `from` -> `to`; false when the card was not in `from`. */
   setStatus(id: string, from: CardRow["status"], to: CardRow["status"]): Promise<boolean>;
   /** Record that the owner was reminded of the card. */

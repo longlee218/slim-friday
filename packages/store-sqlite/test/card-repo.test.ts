@@ -73,3 +73,14 @@ test("open lists, setStatus is guarded, question card round-trips", async () => 
   expect((await s.cards.get("c2"))?.answer).toEqual({ choices: ["x"], text: "t" });
   s.close();
 });
+
+test("an answer by text keeps its message id and is found by it", async () => {
+  const s = open();
+  await s.cards.insert(card);
+  await s.cards.insert({ ...card, id: "c2" });
+  expect(await s.cards.answer("c1", "once", 5, 42)).toBe(true);
+  expect(await s.cards.answer("c2", "deny", 5)).toBe(true);
+  const found = await s.cards.answeredByMessage(42);
+  expect(found.map((c) => [c.id, c.answeredMessageId])).toEqual([["c1", 42]]);
+  expect((await s.cards.get("c2"))?.answeredMessageId).toBeUndefined();
+});

@@ -64,3 +64,19 @@ test("held rows are those without a wake; bind and deleteForScope", async () => 
   expect(await s.steering.claim("w9", 5)).toEqual([]);
   s.close();
 });
+
+test("add of a stored id changes nothing; bound reads without claiming; remove deletes", async () => {
+  const s = open();
+  await s.steering.add(row("s1", 1, "w1"));
+  await s.steering.add({ ...row("s1", 1, "w2"), text: "other" });
+  await s.steering.add(row("s2", 2, "w1"));
+  const bound = await s.steering.bound("w1");
+  expect(bound.map((r) => [r.id, r.text])).toEqual([
+    ["s1", "s1"],
+    ["s2", "s2"],
+  ]);
+  expect(bound[0]?.claimedAt).toBeUndefined();
+  await s.steering.remove(["s1"]);
+  expect((await s.steering.claim("w1", 5)).map((r) => r.id)).toEqual(["s2"]);
+  expect(await s.steering.bound("w1")).toEqual([]);
+});

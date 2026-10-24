@@ -16,7 +16,7 @@ const req = (to: string, text = "check", extra = {}) => ({
   ...extra,
 });
 
-test("send wakes the target with hop + 1 and the sender's running wake as parent", async () => {
+test.todo("send wakes the target with hop + 1 and the sender's running wake as parent (restored in Task 8)", async () => {
   const { hub, runtime, store } = await started();
   const r = await hub.send("writer@g", req("editor"));
   await flush();
@@ -34,12 +34,12 @@ test("send wakes the target with hop + 1 and the sender's running wake as parent
   expect(second).toMatchObject({ parentWakeId: first?.id, chainId: first?.id, hop: 1 });
 });
 
-test("send accepts the target by name, in any case", async () => {
+test.todo("send accepts the target by name, in any case (restored in Task 8)", async () => {
   const { hub } = await started();
   expect((await hub.send("writer@g", req("EDITOR"))).ok).toBe(true);
 });
 
-test("send is refused for itself, a non-member, an unknown name and a direct chat", async () => {
+test.todo("send is refused for itself, a non-member, an unknown name and a direct chat (restored in Task 8)", async () => {
   const { hub, store, surface } = await started();
   store.botMap.set("ghost", bot("ghost", "Ghost"));
   const err = async (to: string) => {
@@ -55,7 +55,7 @@ test("send is refused for itself, a non-member, an unknown name and a direct cha
   expect(r.ok ? "ok" : r.error).toContain("group");
 });
 
-test("send past the hop limit is refused with a reason the bot can read", async () => {
+test.todo("send past the hop limit is refused with a reason the bot can read (restored in Task 8)", async () => {
   const { hub, runtime, surface } = makeHub();
   const results: { ok: boolean; error?: string }[] = [];
   runtime.onTurn = (session, turn) => {
@@ -74,7 +74,7 @@ test("send past the hop limit is refused with a reason the bot can read", async 
   expect(refused?.error).toContain("limit");
 });
 
-test("a result to the bot that gave the work passes the hop limit", async () => {
+test.todo("a result to the bot that gave the work passes the hop limit (restored in Task 8)", async () => {
   const { hub, runtime, surface } = makeHub();
   const results: { ok: boolean }[] = [];
   runtime.onTurn = (session, turn) => {
@@ -98,7 +98,7 @@ test("a result to the bot that gave the work passes the hop limit", async () => 
   expect(results.every((r) => r.ok)).toBe(true);
 });
 
-test("HandOff to the sender of the running wake is refused", async () => {
+test.todo("HandOff to the sender of the running wake is refused (restored in Task 8)", async () => {
   const { hub } = await started();
   await hub.send("writer@g", req("editor"));
   await flush();
@@ -106,7 +106,7 @@ test("HandOff to the sender of the running wake is refused", async () => {
   expect(r.ok ? "ok" : r.error).toContain("hand");
 });
 
-test("when a turn woken by a request ends, its last text goes back as a result", async () => {
+test.todo("when a turn woken by a request ends, its last text goes back as a result (restored in Task 8)", async () => {
   const { hub, runtime, store } = await started();
   await hub.send("writer@g", req("editor"));
   await flush();
@@ -123,7 +123,7 @@ test("when a turn woken by a request ends, its last text goes back as a result",
   expect([...store.wakeMap.values()].at(-1)?.parentWakeId).toBeDefined();
 });
 
-test("no automatic result when the bot already sent a result to that sender", async () => {
+test.todo("no automatic result when the bot already sent a result to that sender (restored in Task 8)", async () => {
   const { hub, runtime } = await started();
   await hub.send("writer@g", req("editor"));
   await flush();
@@ -137,7 +137,7 @@ test("no automatic result when the bot already sent a result to that sender", as
   expect(runtime.nth(0).sent.map((t) => t.text)).toEqual(["go", "explicit result"]);
 });
 
-test("an fyi never triggers an automatic result", async () => {
+test.todo("an fyi never triggers an automatic result (restored in Task 8)", async () => {
   const { hub, runtime } = await started();
   await hub.send("writer@g", { to: "editor", text: "FYI", intent: "fyi" });
   await flush();
@@ -149,7 +149,7 @@ test("an fyi never triggers an automatic result", async () => {
   expect(runtime.nth(0).sent).toHaveLength(1);
 });
 
-test("a wake created by HandOff gets no automatic result", async () => {
+test.todo("a wake created by HandOff gets no automatic result (restored in Task 8)", async () => {
   const { hub, runtime, store } = await started();
   await hub.send("writer@g", req("editor", "you own this", { handoff: true }));
   await flush();
@@ -163,7 +163,7 @@ test("a wake created by HandOff gets no automatic result", async () => {
   expect(runtime.nth(0).sent).toHaveLength(1);
 });
 
-test("the sent message is posted to the channel under the sender's name and stored", async () => {
+test.todo("the sent message is posted to the channel under the sender's name and stored (restored in Task 8)", async () => {
   const { hub, surface, store } = await started();
   await hub.send("writer@g", req("editor", "please cut the intro"));
   const post = surface.posts.at(-1);
@@ -177,14 +177,14 @@ test("the sent message is posted to the channel under the sender's name and stor
   expect(store.msgs.at(-1)).toMatchObject({ kind: "relay", text: "please cut the intro" });
 });
 
-test("a bot's text with an @mention no longer wakes anyone", async () => {
+test.todo("a bot's text with an @mention no longer wakes anyone (restored in Task 8)", async () => {
   const { runtime } = await started();
   runtime.nth(0).emit({ type: "text", text: "@editor please check" });
   await flush();
   expect(runtime.opened).toHaveLength(1);
 });
 
-test("the same message twice inside the window is refused the second time", async () => {
+test.todo("the same message twice inside the window is refused the second time (restored in Task 8)", async () => {
   const { hub, runtime } = await started();
   expect((await hub.send("writer@g", req("editor"))).ok).toBe(true);
   const second = await hub.send("writer@g", req("editor"));

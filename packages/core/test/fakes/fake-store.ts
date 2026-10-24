@@ -297,7 +297,14 @@ export class FakeStore implements Store {
       .sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : 1));
   steering = {
     add: async (r: SteeringRow) => {
-      this.steerMap.set(r.id, { ...r });
+      if (!this.steerMap.has(r.id)) this.steerMap.set(r.id, { ...r });
+    },
+    bound: async (wakeId: string) =>
+      this.steerRows((r) => r.wakeId === wakeId && r.claimedAt === undefined).map((r) => ({
+        ...r,
+      })),
+    remove: async (ids: string[]) => {
+      for (const id of ids) this.steerMap.delete(id);
     },
     claim: async (wakeId: string, at: number) =>
       this.steerRows((r) => r.wakeId === wakeId && r.claimedAt === undefined).map((r) => {
@@ -349,12 +356,19 @@ export class FakeStore implements Store {
     open: async () => this.cardRows((c) => c.status === "open"),
     openForScope: async (scopeKey: string) =>
       this.cardRows((c) => c.status === "open" && c.scopeKey === scopeKey),
-    answer: async (id: string, answer: CardRow["answer"], at: number) => {
+    answer: async (id: string, answer: CardRow["answer"], at: number, messageId?: number) => {
       const c = this.cardMap.get(id);
       if (c?.status !== "open") return false;
-      Object.assign(c, { status: "answered", answer, answeredAt: at });
+      Object.assign(c, {
+        status: "answered",
+        answer,
+        answeredAt: at,
+        ...(messageId !== undefined && { answeredMessageId: messageId }),
+      });
       return true;
     },
+    answeredByMessage: async (messageId: number) =>
+      this.cardRows((c) => c.answeredMessageId === messageId),
     setStatus: async (id: string, from: CardRow["status"], to: CardRow["status"]) => {
       const c = this.cardMap.get(id);
       if (c?.status !== from) return false;
