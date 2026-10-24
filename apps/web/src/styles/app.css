@@ -4,6 +4,7 @@
 @import "./overlays.css";
 @import "./banner.css";
 @import "./shell.css";
+@import "./sidebar.css";
 
 /* Tailwind utilities read the design tokens, so light/dark/theme switch flows through. */
 @theme inline {
