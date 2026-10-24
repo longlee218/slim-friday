@@ -102,6 +102,17 @@ export function existingSubagents(file: string): unknown[] {
   }
 }
 
+/** `avatar` in the front matter of an existing bot file; undefined when absent or unreadable. */
+export function existingAvatar(file: string): string | undefined {
+  try {
+    const head = /^---\r?\n([\s\S]*?)\r?\n---/.exec(readFileSync(file, "utf8"))?.[1] ?? "";
+    const parsed = Bun.YAML.parse(head) as { avatar?: unknown } | null;
+    return typeof parsed?.avatar === "string" ? parsed.avatar : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** A workspace (of a bot or a group) must be an absolute, existing dir outside the agent home. */
 export function checkWorkspace(ctx: DesignContext, ws: string): void {
   if (!isAbsolute(ws)) throw new Refused(`workspace must be an absolute path: ${ws}`);

@@ -149,6 +149,17 @@ test("overwriting a bot keeps its subagents", async () => {
   expect(text).toContain("Review PRs.");
 });
 
+test("overwriting a bot keeps its avatar when none is given", async () => {
+  const { ctx, configDir } = setup();
+  const file = join(configDir, "bots", "ann.md");
+  const up = `upload:${"b".repeat(36)}`;
+  writeFileSync(file, `---\nname: Ann\ntitle: t\nmodel: m\navatar: ${up}\n---\nOld.\n`);
+  expect(
+    (await call(createBotDesignTool(ctx), { ...bot, overwrite: true })).isError,
+  ).toBeUndefined();
+  expect(readFileSync(file, "utf8")).toContain(`avatar: ${up}`);
+});
+
 const helper = { name: "scout", description: "Finds files.", prompt: "Find the files asked for." };
 
 test("write_bot writes given subagents and replaces the old ones; [] removes them", async () => {
@@ -272,6 +283,12 @@ test("write_group overwrite keeps workspaces and instructions that are not given
   expect(parsed.name).toBe("Duo2");
   expect(parsed.workspaces).toEqual([dir]);
   expect(parsed.instructions).toBe("Keep me.");
+  // An avatar set elsewhere (the web app) survives an overwrite.
+  writeFileSync(file, `${readFileSync(file, "utf8")}avatar: upload:${"a".repeat(36)}\n`);
+  await call(t, { ...grp, overwrite: true });
+  expect((Bun.YAML.parse(readFileSync(file, "utf8")) as { avatar?: string }).avatar).toBe(
+    `upload:${"a".repeat(36)}`,
+  );
   // A malformed existing file is treated as having no values.
   writeFileSync(file, "{ not: yaml: [");
   expect((await call(t, { ...grp, overwrite: true })).isError).toBeUndefined();

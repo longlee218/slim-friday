@@ -5,6 +5,7 @@ import type { DesignContext } from "../design-context";
 import {
   atomicWrite,
   checkWorkspace,
+  existingAvatar,
   existingSubagents,
   listSkills,
   need,
@@ -61,6 +62,8 @@ export function writeBot(ctx: DesignContext, a: DesignArgs): string {
     );
   // Given subagents replace the old list; left out, an overwrite keeps the file's own.
   const subagents = a.subagents ?? existingSubagents(file);
+  // Left out, an overwrite keeps the old avatar (an uploaded one is set only from the web app).
+  const avatar = a.avatar ?? (a.overwrite ? existingAvatar(file) : undefined);
   const header = {
     name,
     title: need(a.title, "title"),
@@ -72,7 +75,7 @@ export function writeBot(ctx: DesignContext, a: DesignArgs): string {
     ...(a.autonomy && { autonomy: a.autonomy }),
     ...(a.effort && { effort: a.effort }),
     ...(a.maxEffort && { maxEffort: a.maxEffort }),
-    ...(a.avatar && { avatar: a.avatar }),
+    ...(avatar && { avatar }),
   };
   const text = `---\n${toYaml(header)}---\n${body}\n`;
   try {

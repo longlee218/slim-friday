@@ -4,11 +4,19 @@ import type { DesignArgs } from "../design-args";
 import type { DesignContext } from "../design-context";
 import { atomicWrite, checkWorkspace, need, plainId, Refused, toYaml } from "../design-util";
 
-/** `workspaces` and `instructions` of an existing group file; empty when absent or unreadable. */
-function existingGroupExtras(file: string): { workspaces?: unknown; instructions?: unknown } {
+/** `workspaces`, `instructions` and `avatar` of an existing group file; empty when absent or unreadable. */
+function existingGroupExtras(file: string): {
+  workspaces?: unknown;
+  instructions?: unknown;
+  avatar?: unknown;
+} {
   try {
     const parsed = Bun.YAML.parse(readFileSync(file, "utf8")) as Record<string, unknown> | null;
-    return { workspaces: parsed?.workspaces, instructions: parsed?.instructions };
+    return {
+      workspaces: parsed?.workspaces,
+      instructions: parsed?.instructions,
+      avatar: parsed?.avatar,
+    };
   } catch {
     return {};
   }
@@ -31,12 +39,15 @@ export function writeGroup(ctx: DesignContext, a: DesignArgs): string {
   const old = a.overwrite ? existingGroupExtras(file) : {};
   const workspaces = a.workspaces ?? old.workspaces;
   const instructions = a.instructions ?? old.instructions;
+  // BotDesign never sets a group avatar (the web app does); an overwrite keeps it.
+  const avatar = old.avatar;
   const text = toYaml({
     name: need(a.name, "name"),
     members,
     entryBot,
     ...(workspaces !== undefined && { workspaces }),
     ...(instructions !== undefined && { instructions }),
+    ...(avatar !== undefined && { avatar }),
   });
   try {
     ctx.checkGroup(id, text);
