@@ -121,6 +121,21 @@ test("unauthorized rpc sends the owner to /login", async () => {
   expect(router.state.location.search).toBe("?expired=1");
 });
 
+test("a 502 from the session check (tunnel error page) shows Can't reach Friday, not sign-in", async () => {
+  mocks.getSession.mockResolvedValue({ data: null, error: { status: 502, statusText: "" } });
+  const router = createMemoryRouter(appRoutes, { initialEntries: ["/ops"] });
+  renderApp(router);
+  expect(await screen.findByText("Can't reach Friday.")).toBeTruthy();
+  expect(router.state.location.pathname).toBe("/ops");
+});
+
+test("a 401 from the session check goes to sign-in", async () => {
+  mocks.getSession.mockResolvedValue({ data: null, error: { status: 401, statusText: "" } });
+  const router = createMemoryRouter(appRoutes, { initialEntries: ["/ops"] });
+  renderApp(router);
+  expect(await screen.findByText("Sign in to Friday")).toBeTruthy();
+});
+
 test("an unreachable API shows Can't reach Friday and Retry loads the route", async () => {
   mocks.getSession.mockRejectedValueOnce(new Error("network"));
   mocks.getSession.mockResolvedValue({ data: { user: { id: "u" } } });
