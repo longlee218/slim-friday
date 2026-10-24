@@ -53,18 +53,24 @@ function build() {
     home: root,
     projectsDir: () => join(root, "projects"),
     isSensitive: () => false,
+    postFile: async () => {},
   });
   return { root, memory, forSpec };
 }
 
 test("every bot gets the memory server; only a bot that names an effect tool gets effects", () => {
   const { forSpec } = build();
-  expect(Object.keys(forSpec(specOf(bot(["Read"]))))).toEqual(["memory"]);
+  expect(Object.keys(forSpec(specOf(bot(["Read"]))))).toEqual(["memory", "chat"]);
   expect(Object.keys(forSpec(specOf(bot(["mcp__effects__GitPush"]))))).toEqual([
     "memory",
+    "chat",
     "effects",
   ]);
-  expect(Object.keys(forSpec(specOf(bot(["mcp__effects"]))))).toEqual(["memory", "effects"]);
+  expect(Object.keys(forSpec(specOf(bot(["mcp__effects"]))))).toEqual([
+    "memory",
+    "chat",
+    "effects",
+  ]);
 });
 
 test("the tool context follows the current conversation: a group save lands in the group file", async () => {

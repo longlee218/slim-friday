@@ -42,4 +42,11 @@ export interface Surface {
   post(conversationId: ConversationId, m: OutboundMessage): Promise<void>;
   askApproval(conversationId: ConversationId, card: ApprovalCard): Promise<ApprovalAnswer>;
   showActivity(conversationId: ConversationId, a: Activity): void;
+  /** Send a file (already checked by the caller) under the author's name, with an optional caption. */
+  postFile(
+    conversationId: ConversationId,
+    author: Author,
+    file: { path: string; name: string },
+    caption?: string,
+  ): Promise<void>;
 }

@@ -1,5 +1,7 @@
 /** Built-in tools: file memory, memory tools, effect tools. */
 
+export * from "./chat/chat-context";
+export * from "./chat/chat-server";
 export * from "./effects/effects-context";
 export * from "./effects/effects-server";
 export { isPlainName } from "./effects/git-args";

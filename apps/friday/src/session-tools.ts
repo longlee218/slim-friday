@@ -1,7 +1,10 @@
 import { realpathSync } from "node:fs";
-import { relative } from "node:path";
+import { join, relative } from "node:path";
 import type { BotRuntimeSpec, Store } from "@friday/core";
 import {
+  CHAT_MCP_SERVER,
+  type ChatContext,
+  chatServer,
   EFFECTS_MCP_SERVER,
   type EffectsContext,
   effectsServer,
@@ -84,6 +87,8 @@ export interface SessionToolsDeps {
   isSensitive: (rel: string) => boolean;
   /** Source env; commands get only `commandEnv` of it. */
   env?: Record<string, string | undefined>;
+  /** Sends a file to a conversation under a bot's name (the surface). */
+  postFile: ChatContext["postFile"];
   /** Runs a command (argv, no shell); tests replace it. */
   run?: EffectsContext["run"];
 }
@@ -165,8 +170,17 @@ export function sessionTools(deps: SessionToolsDeps) {
     const servers: Record<string, ReturnType<typeof memoryServer>> = {
       [MEMORY_MCP_SERVER]: memoryServer(deps.memory, toolContext(spec, deps.store)),
     };
+    const { workspaces } = spec.bot;
+    // Every bot may send a file from its workspaces or its scratch dir (`<home>/scratch/<botId>`, as in `main.ts`).
+    servers[CHAT_MCP_SERVER] = chatServer({
+      botId: spec.bot.id,
+      workspaces,
+      scratchDir: join(deps.home, "scratch", spec.bot.id),
+      isSensitive: sensitiveCheck(workspaces, deps.isSensitive),
+      conversation: () => spec.currentConversation?.(),
+      postFile: deps.postFile,
+    });
     if (wantsEffects(spec.bot.tools)) {
-      const { workspaces } = spec.bot;
       const ctx: EffectsContext = {
         botId: spec.bot.id,
         workspaces,

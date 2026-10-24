@@ -128,3 +128,22 @@ test("a refused file is reported in the channel and the rest still goes through"
   expect(got[0]?.attachments).toHaveLength(1);
   expect(port.sent.some((s) => s.text.includes("huge.bin"))).toBe(true);
 });
+
+test("postFile sends the file through the port under the bot's name", async () => {
+  const port = new FakeDiscordPort();
+  const surface = new DiscordSurface(port, () => "Ann");
+  await surface.postFile(
+    "ch1",
+    { kind: "bot", botId: "ann" },
+    { path: "/x/a.txt", name: "a.txt" },
+    "cap",
+  );
+  expect(port.filesSent).toEqual([
+    {
+      channelId: "ch1",
+      username: "Ann",
+      file: { path: "/x/a.txt", name: "a.txt" },
+      caption: "cap",
+    },
+  ]);
+});

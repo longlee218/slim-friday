@@ -2,6 +2,7 @@ import type {
   Activity,
   ApprovalAnswer,
   ApprovalCard,
+  Author,
   ConversationId,
   InboundMessage,
   OutboundMessage,
@@ -25,6 +26,15 @@ export class FakeSurface implements Surface {
   askApproval(conversationId: ConversationId, card: ApprovalCard): Promise<ApprovalAnswer> {
     this.approvals.push({ conversationId, card });
     return this.answer === "never" ? new Promise(() => {}) : Promise.resolve(this.answer);
+  }
+  files: { conversationId: ConversationId; author: Author; name: string; caption?: string }[] = [];
+  async postFile(
+    conversationId: ConversationId,
+    author: Author,
+    file: { path: string; name: string },
+    caption?: string,
+  ): Promise<void> {
+    this.files.push({ conversationId, author, name: file.name, ...(caption && { caption }) });
   }
   showActivity(conversationId: ConversationId, activity: Activity): void {
     this.activities.push({ conversationId, activity });

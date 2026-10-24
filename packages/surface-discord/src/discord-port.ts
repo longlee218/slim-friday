@@ -61,6 +61,13 @@ export interface DiscordPort {
   send(channelId: string, text: string): Promise<void>;
   /** Post under another display name (a webhook). */
   sendAs(channelId: string, username: string, text: string): Promise<void>;
+  /** Post a file under another display name (a webhook), with an optional caption. */
+  sendFileAs(
+    channelId: string,
+    username: string,
+    file: { path: string; name: string },
+    caption?: string,
+  ): Promise<void>;
   typing(channelId: string): Promise<void>;
   /** Post text with buttons; returns the message id. */
   sendButtons(channelId: string, text: string, buttons: ButtonSpec[]): Promise<string>;

@@ -20,6 +20,12 @@ export class FakeDiscordPort implements DiscordPort {
   ownerId = "owner";
   sent: { channelId: string; text: string }[] = [];
   sentAs: { channelId: string; username: string; text: string }[] = [];
+  filesSent: {
+    channelId: string;
+    username: string;
+    file: { path: string; name: string };
+    caption?: string;
+  }[] = [];
   typings: string[] = [];
   buttons: {
     channelId: string;
@@ -84,6 +90,14 @@ export class FakeDiscordPort implements DiscordPort {
   async sendAs(channelId: string, username: string, text: string): Promise<void> {
     this.check("sendAs");
     this.sentAs.push({ channelId, username, text });
+  }
+  async sendFileAs(
+    channelId: string,
+    username: string,
+    file: { path: string; name: string },
+    caption?: string,
+  ): Promise<void> {
+    this.filesSent.push({ channelId, username, file, ...(caption && { caption }) });
   }
   async typing(channelId: string): Promise<void> {
     this.check("typing");

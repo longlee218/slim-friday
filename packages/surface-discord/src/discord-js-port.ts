@@ -103,6 +103,20 @@ export async function connectDiscord(opts: {
     return hook;
   };
 
+  /** Send through the channel's webhook; if the owner deleted it, forget it and make a new one, once. */
+  const sendViaWebhook = async (
+    channelId: string,
+    payload: Parameters<Webhook["send"]>[0],
+  ): Promise<void> => {
+    try {
+      await (await webhookFor(channelId)).send(payload);
+    } catch (err) {
+      if ((err as { code?: number }).code !== UNKNOWN_WEBHOOK) throw err;
+      hooks.delete(channelId);
+      await (await webhookFor(channelId)).send(payload);
+    }
+  };
+
   return {
     ownerId: opts.ownerId,
     onMessage(h: (m: IncomingMessage) => void) {
@@ -155,14 +169,14 @@ export async function connectDiscord(opts: {
       await (await textChannel(channelId)).send(text);
     },
     async sendAs(channelId, username, text) {
-      try {
-        await (await webhookFor(channelId)).send({ content: text, username });
-      } catch (err) {
-        // The owner deleted the webhook: forget it and make a new one, once.
-        if ((err as { code?: number }).code !== UNKNOWN_WEBHOOK) throw err;
-        hooks.delete(channelId);
-        await (await webhookFor(channelId)).send({ content: text, username });
-      }
+      await sendViaWebhook(channelId, { content: text, username });
+    },
+    async sendFileAs(channelId, username, file, caption) {
+      await sendViaWebhook(channelId, {
+        content: caption ?? "",
+        username,
+        files: [{ attachment: file.path, name: file.name }],
+      });
     },
     async typing(channelId) {
       await (await textChannel(channelId)).sendTyping();

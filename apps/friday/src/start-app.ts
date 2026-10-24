@@ -26,6 +26,7 @@ export interface RuntimeParts {
   config: FileConfig;
   store: Store;
   memory: FileMemory;
+  surface: DiscordSurface;
 }
 
 /** What the app is built from. */
@@ -80,15 +81,17 @@ export async function startApp(deps: AppDeps) {
   };
 
   const memory = deps.memory ?? new FileMemory(join(agentHome, "memory"));
-  const runtime =
-    typeof deps.runtime === "function" ? deps.runtime({ config, store, memory }) : deps.runtime;
-
   /** Display names for the surface, refreshed by every sync. */
   const names = new Map<string, string>();
   const surface = new DiscordSurface(port, (id) => names.get(id), {
     inboxDir: join(agentHome, "inbox"),
     now: () => clock.now(),
   });
+  const runtime =
+    typeof deps.runtime === "function"
+      ? deps.runtime({ config, store, memory, surface })
+      : deps.runtime;
+
   const gate = new PermissionGate({
     store,
     surface,

@@ -3,6 +3,7 @@ import type {
   Activity,
   ApprovalAnswer,
   ApprovalCard,
+  Author,
   BotId,
   ConversationId,
   InboundMessage,
@@ -92,6 +93,17 @@ export class DiscordSurface implements Surface {
         );
       else await this.port.send(conversationId, chunk);
     }
+  }
+
+  /** Send a file under the author's name (a bot's display name, or "Friday" for the app). */
+  async postFile(
+    conversationId: ConversationId,
+    author: Author,
+    file: { path: string; name: string },
+    caption?: string,
+  ): Promise<void> {
+    const name = author.kind === "bot" ? (this.botName(author.botId) ?? author.botId) : "Friday";
+    await this.port.sendFileAs(conversationId, name, file, caption);
   }
 
   /** Typing indicator; a failure is not worth stopping for. */

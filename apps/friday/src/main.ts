@@ -60,6 +60,8 @@ export async function startEngine(
           projectsDir: parts.config.projectsDir,
           isSensitive: isSensitivePath,
           env,
+          postFile: (conversationId, botId, file, caption) =>
+            parts.surface.postFile(conversationId, { kind: "bot", botId }, file, caption),
         }),
         // After a compaction, keep what matters in the bot's journal (never in MEMORY.md, which the bot curates).
         onCompact: memoryFlush(
