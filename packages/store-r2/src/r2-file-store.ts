@@ -27,6 +27,17 @@ const isMissing = (err: unknown): boolean => {
 /** A header-safe file name: quotes, backslashes, control and non-ASCII chars become `_`. */
 const safeName = (name: string): string => name.replace(/[^\x20-\x7e]|["\\]/g, "_");
 
+/** RFC 5987 value: encodeURIComponent plus the `'()*` characters it leaves alone. */
+const encodeRfc5987 = (name: string): string =>
+  encodeURIComponent(name).replace(
+    /['()*]/g,
+    (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+
+/** Content-Disposition with an ASCII fallback and the full UTF-8 name. */
+const attachment = (name: string): string =>
+  `attachment; filename="${safeName(name)}"; filename*=UTF-8''${encodeRfc5987(name)}`;
+
 /** FileStore over a private Cloudflare R2 bucket, using Bun's built-in S3 client. */
 export class R2FileStore implements FileStore {
   /** The account's S3-compatible endpoint. */
@@ -41,6 +52,8 @@ export class R2FileStore implements FileStore {
         accessKeyId: cfg.accessKeyId,
         secretAccessKey: cfg.secretAccessKey,
         bucket: cfg.bucket,
+        // R2 signs with "auto"; AWS_REGION / S3_REGION in the env must not change that.
+        region: "auto",
         endpoint: this.endpoint,
       });
   }
@@ -82,9 +95,7 @@ export class R2FileStore implements FileStore {
   presignGet(key: string, expiresInSec: number, opts?: { downloadName?: string }): string {
     return this.client.presign(key, {
       expiresIn: expiresInSec,
-      contentDisposition: opts?.downloadName
-        ? `attachment; filename="${safeName(opts.downloadName)}"`
-        : undefined,
+      contentDisposition: opts?.downloadName ? attachment(opts.downloadName) : undefined,
     });
   }
 }

@@ -27,8 +27,11 @@ try {
   step = "readHead";
   if ((await store.readHead(a, 2)).length !== 2) throw new Error("head");
   step = "presignGet";
-  const got = await fetch(store.presignGet(a, 60, { downloadName: "a.bin" }));
+  const got = await fetch(store.presignGet(a, 60, { downloadName: "déjà.bin" }));
   if (!got.ok) throw new Error(`status ${got.status}`);
+  if (!got.headers.get("content-disposition")?.includes("attachment")) {
+    throw new Error("no content-disposition");
+  }
   step = "presignPut";
   const put = await fetch(store.presignPut(b, 60, "text/plain"), { method: "PUT", body: "hi" });
   if (!put.ok) throw new Error(`status ${put.status}`);
@@ -40,6 +43,8 @@ try {
 } catch (err) {
   await store.delete(a).catch(() => {});
   await store.delete(b).catch(() => {});
-  console.log(`failed at ${step}: ${(err as Error).message.slice(0, 80)}`);
+  // Only the step and an HTTP status: error text can carry signed URLs or credentials.
+  const status = /^status (\d+)$/.exec((err as Error).message)?.[1];
+  console.log(`failed at ${step}${status ? ` (HTTP ${status})` : ""}`);
   process.exit(1);
 }

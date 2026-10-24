@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { R2FileStore } from "../src/r2-file-store";
 
 /** A fake S3 client that records every call. */
-const fakeClient = (statResult?: () => Promise<unknown>) => {
+const fakeClient = (statResult?: () => Promise<unknown>, deleteResult?: () => Promise<void>) => {
   const calls: { op: string; args: unknown[] }[] = [];
   const client = {
     write: async (...args: unknown[]) => {
@@ -25,6 +25,7 @@ const fakeClient = (statResult?: () => Promise<unknown>) => {
     },
     delete: async (...args: unknown[]) => {
       calls.push({ op: "delete", args });
+      await deleteResult?.();
     },
     presign: (...args: unknown[]) => {
       calls.push({ op: "presign", args });
@@ -75,7 +76,10 @@ test("presignGet makes a safe download name", () => {
   new R2FileStore(cfg, client).presignGet("k", 900, { downloadName: 'a"b.pdf' });
   expect(calls[0]?.args).toEqual([
     "k",
-    { expiresIn: 900, contentDisposition: 'attachment; filename="a_b.pdf"' },
+    {
+      expiresIn: 900,
+      contentDisposition: `attachment; filename="a_b.pdf"; filename*=UTF-8''a%22b.pdf`,
+    },
   ]);
 });
 
@@ -94,4 +98,42 @@ test("readHead slices 0..n", async () => {
 test("default client uses the account endpoint", () => {
   const store = new R2FileStore(cfg);
   expect(store.endpoint).toBe("https://acc1.r2.cloudflarestorage.com");
+});
+
+test("presignGet adds an RFC 5987 UTF-8 name", () => {
+  const { client, calls } = fakeClient();
+  new R2FileStore(cfg, client).presignGet("k", 900, { downloadName: "déjà.pdf" });
+  const opts = calls[0]?.args[1] as { contentDisposition: string };
+  expect(opts.contentDisposition).toBe(
+    `attachment; filename="d_j_.pdf"; filename*=UTF-8''d%C3%A9j%C3%A0.pdf`,
+  );
+});
+
+test("presignGet encodes quote-like chars and strips CR/LF", () => {
+  const { client, calls } = fakeClient();
+  new R2FileStore(cfg, client).presignGet("k", 900, { downloadName: "a'(b)*\r\nc.pdf" });
+  const cd = (calls[0]!.args[1] as { contentDisposition: string }).contentDisposition;
+  expect(cd).not.toMatch(/[\r\n]/);
+  expect(cd).toContain("filename*=UTF-8''a%27%28b%29%2A%0D%0Ac.pdf");
+});
+
+test("stat with a 404 status is undefined", async () => {
+  const { client } = fakeClient(async () => {
+    throw Object.assign(new Error("x"), { status: 404 });
+  });
+  expect(await new R2FileStore(cfg, client).stat("x")).toBeUndefined();
+});
+
+test("delete of a missing key resolves", async () => {
+  const { client } = fakeClient(undefined, async () => {
+    throw Object.assign(new Error("x"), { code: "NoSuchKey" });
+  });
+  await expect(new R2FileStore(cfg, client).delete("x")).resolves.toBeUndefined();
+});
+
+test("delete with 403 rethrows", async () => {
+  const { client } = fakeClient(undefined, async () => {
+    throw Object.assign(new Error("denied"), { status: 403 });
+  });
+  await expect(new R2FileStore(cfg, client).delete("x")).rejects.toThrow("denied");
 });
