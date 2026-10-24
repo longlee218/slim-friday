@@ -39,10 +39,21 @@ export interface MemoryWiringDeps {
  * the message search over the engine db.
  */
 export function wireMemory(d: MemoryWiringDeps) {
+  const memoryIndex = d.memoryIndex ?? openMemoryIndex(homePaths(d.agentHome).memoryIndex);
+  try {
+    return wireOverIndex(d, memoryIndex);
+  } catch (err) {
+    // A failed provider or memory setup must not leave the index open.
+    memoryIndex.close();
+    throw err;
+  }
+}
+
+/** `wireMemory` once the index is open. */
+function wireOverIndex(d: MemoryWiringDeps, memoryIndex: MemoryIndexStore & MessageIndexStore) {
   const { log } = d;
   // The memory index mirrors the files: it follows every save and edit, and is rebuilt from the files when damaged.
   const memoryRoot = d.memory?.root ?? join(d.agentHome, "memory");
-  const memoryIndex = d.memoryIndex ?? openMemoryIndex(homePaths(d.agentHome).memoryIndex);
   const indexer = new Indexer(memoryRoot, memoryIndex);
   /** Tell the index an owner's files changed; a failure is logged, never thrown. */
   const memoryChanged = (owner: MemoryOwner): void => {

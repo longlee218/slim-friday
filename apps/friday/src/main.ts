@@ -119,6 +119,7 @@ export async function startEngine(opts: {
   };
   /** The one-turn Haiku call shared by the note extraction and the consolidation. */
   const haiku = { model: HAIKU_SUMMARY_MODEL, env, oauthToken: config.oauthToken };
+  // A failed start leaves no open db.
   const app = await startApp({
     surface,
     files,
@@ -132,6 +133,10 @@ export async function startEngine(opts: {
     consolidate: (memory, notes) =>
       consolidateNotes({ memory, notes, today: localDay(new Date()) }, haiku),
     onConfigChanged: () => surface.bus.publish({ type: "config.changed" }),
+  }).catch((err) => {
+    // startApp closes what it opened; closing the db here too is harmless and covers a throw before it took it.
+    engine.close();
+    throw err;
   });
   // The web API over the running engine; a failed start stops the app.
   const api = await startApiServer({

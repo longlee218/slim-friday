@@ -47,6 +47,7 @@ prefixes:
   - FRIDAY_
   - HONCHO_ # memory provider plugin secrets (HONCHO_API_KEY); read only by the app
   - VIEWER_ # the retired artifact viewer: a stale .env may still hold its HMAC secret
+  - DISCORD_ # the retired chat surface: a stale .env may still hold its token
   - ANTHROPIC_ # provider vars are set again by the app for the child
 
 # Schema keys that are on purpose NOT denied (the agent may see them). None today.

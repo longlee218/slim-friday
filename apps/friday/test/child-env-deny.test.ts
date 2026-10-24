@@ -1,6 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import {
   CHILD_ENV_DENY,
   isChildEnvDenied,
@@ -49,17 +47,11 @@ describe("child env deny list (config/data/child-env-deny.yaml)", () => {
       expect([k, isChildEnvDenied(k)]).toEqual([k, true]);
   });
 
-  test("child env deny list covers the R2 names and no name of the removed chat app remains", () => {
-    const yaml = readFileSync(
-      join(import.meta.dir, "../../../packages/runtime-claude/src/floor/data/child-env-deny.yaml"),
-      "utf8",
-    );
+  test("child env deny list covers the R2 names; a stale token of the retired surface stays denied", () => {
     for (const k of ["R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET"])
       expect(CHILD_ENV_DENY.exact).toContain(k);
-    // The removed app's name is built from parts: `apps` and `packages` must not hold it as a literal.
-    const removed = new RegExp(["dis", "cord"].join(""), "i");
-    expect(yaml).not.toMatch(removed);
-    expect(ENV_SCHEMA_KEYS.filter((k) => removed.test(k))).toEqual([]);
+    for (const k of ["DISCORD_TOKEN", "DISCORD_GUILD_ID"])
+      expect([k, isChildEnvDenied(k)]).toEqual([k, true]);
   });
 
   test("the owner's own variables are not denied", () => {

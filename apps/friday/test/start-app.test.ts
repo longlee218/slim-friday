@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { TEMPLATES_DIR } from "@friday/config";
-import { openEngineStore } from "@friday/store-sqlite";
+import { openEngineStore, openMemoryIndex } from "@friday/store-sqlite";
 import type { BusItem } from "@friday/surface-web";
 import { FakeRuntime, type FakeSession } from "../../../packages/core/test/fakes/fake-runtime";
 import { startApp } from "../src/start-app";
@@ -234,4 +234,36 @@ test("a group session names only its group's roster and shared dir; the direct o
   expect(team).toContain(join(home, "shared", "team"));
   expect(team).not.toContain('group "Crew"');
   expect(team).not.toContain(join(home, "shared", "crew"));
+});
+
+test("a start that fails after opening the db and the memory index closes both", async () => {
+  const home = mkdtempSync(join(tmpdir(), "app-"));
+  const { engine, files, surface } = webParts(home);
+  const memoryIndex = openMemoryIndex(join(home, "data", "memory-index.db"));
+  let indexClosed = false;
+  const closeIndex = memoryIndex.close.bind(memoryIndex);
+  memoryIndex.close = () => {
+    indexClosed = true;
+    closeIndex();
+  };
+  const runtime = () => {
+    throw new Error("no runtime");
+  };
+  await expect(
+    startApp({ surface, files, engine, runtime, memoryIndex, agentHome: home, log }),
+  ).rejects.toThrow("no runtime");
+  expect(indexClosed).toBe(true);
+  // A closed bun:sqlite db refuses every query.
+  await expect(engine.conversations.list()).rejects.toThrow();
+});
+
+test("a config that cannot load closes the given db", async () => {
+  const home = mkdtempSync(join(tmpdir(), "app-"));
+  const { engine, files, surface } = webParts(home);
+  // A file where the config dir must be: loading it throws.
+  writeFileSync(join(home, "config"), "not a dir");
+  await expect(
+    startApp({ surface, files, engine, runtime: new FakeRuntime(), agentHome: home, log }),
+  ).rejects.toThrow();
+  await expect(engine.conversations.list()).rejects.toThrow();
 });

@@ -62,3 +62,29 @@ export async function greetNew(
     ).catch((err) => deps.log.error({ error: why(err) }, "conversations.hello"));
   }
 }
+
+/**
+ * The conversation sync of the app: `run` syncs and greets once (the start awaits it and fails with it); `sync`
+ * queues a run after the previous one (config reloads) and logs a failure instead of throwing.
+ */
+export function conversationSync(d: {
+  engine: EngineStore;
+  surface: Surface;
+  clock: Clock;
+  log: Log;
+  bots: () => Promise<Bot[]>;
+  groups: () => Promise<Group[]>;
+}) {
+  const run = async (): Promise<void> => {
+    const bots = await d.bots();
+    const groups = await d.groups();
+    const created = await syncConversations(d.engine, bots, groups);
+    await greetNew(d, created, bots, groups);
+  };
+  let queue: Promise<void> = Promise.resolve();
+  const sync = (): Promise<void> =>
+    (queue = queue
+      .then(run)
+      .catch((err) => d.log.error({ error: why(err) }, "conversations.sync")));
+  return { run, sync };
+}

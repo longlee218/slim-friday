@@ -1,4 +1,4 @@
-import type { FileStore, Log, Store } from "@friday/core";
+import type { FileStore, Log, Store, UploadRow } from "@friday/core";
 
 /** A pending upload older than this is deleted with its R2 object (spec: 1 day). */
 const PENDING_TTL_MS = 86_400_000;
@@ -23,15 +23,22 @@ export async function sweepUploads(
   now: number,
   log: Log,
 ): Promise<number> {
+  /** Old enough to go: unused, and a claim (a send in progress) only after two days. */
+  const sweepable = (u: UploadRow | undefined): u is UploadRow =>
+    !!u &&
+    u.at < now - PENDING_TTL_MS &&
+    (u.state === "pending" || (u.state === "claimed" && u.at < now - CLAIMED_TTL_MS));
   let removed = 0;
-  for (const u of await store.uploads.pendingBefore(now - PENDING_TTL_MS)) {
-    if (u.state === "claimed" && u.at >= now - CLAIMED_TTL_MS) continue;
+  for (const listed of await store.uploads.pendingBefore(now - PENDING_TTL_MS)) {
     try {
+      // Read again just before deleting: a send may have claimed or used the upload since the list was read.
+      const u = await store.uploads.get(listed.id);
+      if (!sweepable(u)) continue;
       await files.delete(u.key);
       await store.uploads.delete(u.id);
       removed++;
     } catch (err) {
-      log.error({ uploadId: u.id, error: why(err) }, "uploads.sweep");
+      log.error({ uploadId: listed.id, error: why(err) }, "uploads.sweep");
     }
   }
   if (removed) log.info({ removed }, "uploads.swept");

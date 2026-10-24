@@ -73,3 +73,19 @@ test("a claimed upload (a send in progress) is swept only after two days", async
   expect(await store.uploads.get("busy")).toBeDefined();
   expect(await store.uploads.get("stale")).toBeUndefined();
 });
+
+test("an upload a send took after the list was read is kept (the row is read again before the delete)", async () => {
+  const store = new FakeStore();
+  const files = new FakeFileStore();
+  const usedKey = await seed(store, files, "used-now", 2 * DAY);
+  const claimedKey = await seed(store, files, "claimed-now", 2 * DAY);
+  // The list is read while both are pending; a send then uses one and claims the other.
+  const listed = await store.uploads.pendingBefore(NOW - DAY);
+  await store.uploads.markUsed("used-now", 7);
+  await store.uploads.claim("claimed-now");
+  store.uploads.pendingBefore = async () => listed;
+  expect(await sweepUploads(store, files, NOW, recorder().log)).toBe(0);
+  expect(files.deleted).toEqual([]);
+  expect(files.objects.has(usedKey) && files.objects.has(claimedKey)).toBe(true);
+  expect(await store.uploads.get("used-now")).toBeDefined();
+});

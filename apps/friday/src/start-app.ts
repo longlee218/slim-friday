@@ -1,25 +1,23 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { DEFAULTS_DIR, FileConfig, TEMPLATES_DIR } from "@friday/config";
-import { type Bot, BotHub, type BotMessenger, PermissionGate, type Store } from "@friday/core";
+import { BotHub, type BotMessenger, PermissionGate } from "@friday/core";
 import { openEngineStore } from "@friday/store-sqlite";
 import { WriteThroughMemory } from "@friday/tools";
 import type { AppDeps } from "./app-deps";
+import { composeStore } from "./compose-store";
 import { watchConfigReload } from "./config-reload";
 import { startDailyMaintenance } from "./daily-maintenance";
-import { withFridayDirs } from "./friday-bot";
 import { idleFlush } from "./idle-flush";
+import { startIdleSweep } from "./idle-sweep";
 import { startUploadSweeper } from "./lifecycle/upload-sweeper";
 import { wireMemory } from "./memory-wiring";
 import { readProjectRules } from "./project-rules";
 import { scopeBotFor } from "./scope-bot";
-import { greetNew, syncConversations } from "./sync-conversations";
+import { conversationSync } from "./sync-conversations";
 import { systemClock } from "./system-clock";
 
 export type { AppDeps, RuntimeParts } from "./app-deps";
-
-/** How often quiet sessions are closed. */
-const SWEEP_MS = 60_000;
 
 /** Why a failure happened, as text. */
 const why = (err: unknown): string => (err instanceof Error ? err.message : String(err));
@@ -28,9 +26,31 @@ const why = (err: unknown): string => (err instanceof Error ? err.message : Stri
  * Compose the engine: config files, db, permission gate and bot hub over the given surface. Conversations of older
  * builds are deleted; every bot and group gets its fixed conversation; a change in the config dir is picked up
  * without a restart (changed bots restart with a fresh session, new bots and groups get conversations).
- * Returns the parts and `stop()`.
+ * Returns the parts and `stop()`. A failed start closes everything it opened (the given engine db too) and rethrows.
  */
 export async function startApp(deps: AppDeps) {
+  /** Closers of what the start has opened so far; run newest first when it fails. */
+  const opened: Array<() => unknown> = [];
+  if (deps.engine) {
+    const given = deps.engine;
+    opened.push(() => given.close());
+  }
+  try {
+    return await composeApp(deps, opened);
+  } catch (err) {
+    for (const close of opened.reverse()) {
+      try {
+        await close();
+      } catch (e) {
+        deps.log.error({ error: why(e) }, "app.start.cleanup");
+      }
+    }
+    throw err;
+  }
+}
+
+/** The body of `startApp`; pushes a closer to `opened` for every resource it opens. */
+async function composeApp(deps: AppDeps, opened: Array<() => unknown>) {
   const { surface, agentHome, log } = deps;
   const clock = deps.clock ?? systemClock;
   const dirs = { configDir: join(agentHome, "config"), templatesDir: TEMPLATES_DIR };
@@ -45,22 +65,12 @@ export async function startApp(deps: AppDeps) {
   for (const d of ["bots", "groups"]) mkdirSync(join(dirs.configDir, d), { recursive: true });
   mkdirSync(join(agentHome, "data"), { recursive: true });
   const engine = deps.engine ?? openEngineStore(join(agentHome, "data", "engine.db"));
-  // Bots and groups come from files; the Friday bot also gets its real dirs. The roster and shared-dir text depend on
-  // the session (direct or group), so the hub adds them through `scopeBot`.
-  const withDirs = (b: Bot): Bot => withFridayDirs(b, dirs);
-  const store: Store = {
-    ...engine,
-    bots: {
-      get: async (id) => {
-        const b = await config.bots.get(id);
-        return b && withDirs(b);
-      },
-      list: async () => (await config.bots.list()).map(withDirs),
-    },
-    groups: config.groups,
-  };
+  if (!deps.engine) opened.push(() => engine.close());
+  const store = composeStore(engine, config, dirs);
   const mem = wireMemory({ ...deps, config, engine });
   const { memory, memoryChanged } = mem;
+  opened.push(() => mem.memoryIndex.close());
+  if (memory instanceof WriteThroughMemory) opened.push(() => memory.stop());
 
   // The runtime is built before the hub; a bot's tool calls it only while it runs, when the hub exists.
   let hub: BotHub | undefined;
@@ -117,26 +127,20 @@ export async function startApp(deps: AppDeps) {
   });
   hub = botHub;
   botHub.start();
+  opened.push(() => botHub.stopAll());
 
-  /** One conversation per bot and group; new ones get a hello. Runs one at a time. */
-  let queue: Promise<void> = Promise.resolve();
-  const run = async (): Promise<void> => {
-    const bots = await store.bots.list();
-    const groups = await config.listGroups();
-    const created = await syncConversations(engine, bots, groups);
-    await greetNew({ engine, surface, clock, log }, created, bots, groups);
-  };
-  const sync = (): Promise<void> =>
-    (queue = queue.then(run).catch((err) => log.error({ error: why(err) }, "conversations.sync")));
+  const { run, sync } = conversationSync({
+    engine,
+    surface,
+    clock,
+    log,
+    bots: () => store.bots.list(),
+    groups: () => config.listGroups(),
+  });
   // Conversations keyed by the chat app of older builds go first; then the first sync must work.
-  try {
-    const n = await engine.conversations.deleteLegacy();
-    if (n > 0) log.info({ n }, "conversations.legacy_deleted");
-    await run();
-  } catch (err) {
-    engine.close();
-    throw err;
-  }
+  const n = await engine.conversations.deleteLegacy();
+  if (n > 0) log.info({ n }, "conversations.legacy_deleted");
+  await run();
 
   // Put back the wakes the last run left open (after the first sync, which creates the conversations they answer in).
   await botHub.recover().catch((err) => log.error({ error: why(err) }, "wakes.recover"));
@@ -150,18 +154,8 @@ export async function startApp(deps: AppDeps) {
     onConfigChanged: deps.onConfigChanged,
   });
 
-  // Close quiet sessions every minute.
   let stopped = false;
-  let cancelSweep = () => {};
-  const tick = () => {
-    cancelSweep = clock.setTimer(SWEEP_MS, () => {
-      botHub
-        .sweepIdle()
-        .catch((err) => log.error({ error: why(err) }, "sweep"))
-        .finally(() => !stopped && tick());
-    });
-  };
-  tick();
+  const stopIdleSweep = startIdleSweep(botHub, clock, log);
   const stopUploadSweeper = startUploadSweeper(engine, deps.files, log, () => clock.now());
   const daily = startDailyMaintenance({
     ...mem,
@@ -186,7 +180,7 @@ export async function startApp(deps: AppDeps) {
       // Started first: it gives up a consolidation still waiting on the model.
       const dailyDone = daily.stop();
       stopWatching();
-      cancelSweep();
+      stopIdleSweep();
       stopUploadSweeper();
       await botHub.stopAll();
       // A daily run may still use the index and the db.
