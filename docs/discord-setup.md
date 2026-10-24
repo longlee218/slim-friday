@@ -119,18 +119,3 @@ bun run start
 4. Ask it to add an MCP server with a `${NAME}` env value: the card names the command, arguments and env names; check `config/mcp.yaml`.
 5. Ask Friday to write a file in `config/bots` with Bash: it must fail.
 6. If a bot does not see its skill: the SDK did not accept `plugins` + `skills` with empty `settingSources`; note the error line.
-
-## Run in the background (launchd)
-`deploy/com.friday.agent.plist` starts the bot at login and restarts it after a failure (paths are for this Mac; edit them if the repo or bun moves).
-
-```bash
-mkdir -p ~/.friday/logs                                                          # log dir must exist
-cp deploy/com.friday.agent.plist ~/Library/LaunchAgents/
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.friday.agent.plist   # start
-launchctl bootout gui/$(id -u)/com.friday.agent                                  # stop
-tail -f ~/.friday/logs/launchd.err.log ~/.friday/logs/launchd.out.log
-```
-- Settings come from `.env` in the repo root (bun loads it from the working directory).
-- Mac sleep pauses the bot; it reconnects on wake.
-- Never run two instances: stop `bun run start` before `launchctl bootstrap`.
-
