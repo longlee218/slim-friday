@@ -1,11 +1,11 @@
 ---
 name: bot-tuning
-description: Review existing bots from their run log and propose evidence-backed fixes (skills, instructions, MCP, unused removal, merge, delete). Use when the owner asks how bots are doing or to improve one.
+description: Review existing bots from their run log and propose evidence-backed fixes (skills, instructions, MCP, unused removal, merge, delete). Use when the owner asks to review a bot or group, how bots are doing, or to improve one.
 ---
 
 # Bot tuning
 
-Handles reviewing and improving existing bots and groups. Does NOT design a new bot from scratch (`bot-design`), search or install skills itself (`find-skill`, `skill-install`), or write skill content (`skill-creator`).
+Handles reviewing and improving existing bots and groups. Does NOT design a new bot from scratch (`bot-design`), or search, install or write skills itself (`find-skill`, `skill-install`).
 
 Data comes only from `BotInsight` (the engine's own log: turns, run steps, wakes, cost, tickets) and `BotLookup` (bot files). Every change goes through `BotDesign`, and the owner approves each card.
 
@@ -23,7 +23,7 @@ Data comes only from `BotInsight` (the engine's own log: turns, run steps, wakes
 |---|---|
 | Skill, MCP server or subagent in the bot file unused in the window | Remove it (each skill description and server costs prompt tokens every turn) |
 | The owner corrects the same kind of thing in several runs | Instructions diff (failure → fix table in `../bot-design/references/system-prompt.md`), or `add_lesson` for a narrow rule |
-| The bot repeats the same multi-step manual work across runs | A skill: `find-skill`, else write one with `skill-creator` |
+| The bot repeats the same multi-step manual work across runs | A skill: `find-skill`, else write one with `skill-install` "Write a new skill" |
 | Repeated `Bash` calls (curl, CLIs) to one service, or auth failures to it | An MCP server for that service (`skill-install` "Add an MCP server") |
 | Failed steps on one tool, or the bot lacks a tool its job needs | Fix `tools` / `workspaces` (`../bot-design/references/tools-guide.md`) |
 | High cost per turn on simple work, or long turns | Lower `model` or `effort`; or a `haiku` subagent for scans |

@@ -5,7 +5,7 @@ description: Search trusted repos, curated lists and skills.sh for a public skil
 
 # Find a skill
 
-Handles searching for and vetting public skills. Does NOT install them (`skill-install`) or write new ones (`skill-creator`).
+Handles searching for and vetting public skills. Does NOT install them or write new ones (`skill-install`).
 
 Sources and the trust rule: `references/trusted-sources.md`. Read it first.
 
@@ -24,4 +24,4 @@ Sources and the trust rule: `references/trusted-sources.md`. Read it first.
 ## Rules
 - Search results are leads, not proof: never recommend a skill whose `SKILL.md` you have not read.
 - A source outside the trust rule is shown with a clear warning, never as a recommendation.
-- Never install from this skill; installing (with `npx skills` or git) is `skill-install`.
+- Never install from this skill; installing is `skill-install`.

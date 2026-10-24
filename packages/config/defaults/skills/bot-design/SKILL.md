@@ -1,11 +1,11 @@
 ---
 name: bot-design
-description: Research and design bots and groups from vague requests. Use when the owner asks to create, change, review, split or merge a bot or group, even a one-line ask ("a dev bot").
+description: Research and design bots and groups from vague requests. Use when the owner asks to create, change, split or merge a bot or group, even a one-line ask ("a dev bot").
 ---
 
 # Bot design
 
-Handles bot files and group files. Does NOT handle installing skills or MCP servers (`skill-install`) or writing skill content (`skill-creator`).
+Handles bot files and group files. Does NOT handle installing skills or MCP servers (`skill-install`) or reviewing how existing bots work (`bot-tuning`).
 
 Quality over speed: research before you propose. A weak request must become a few sharp questions and a researched design, never a generic prompt.
 
@@ -35,7 +35,7 @@ Quality over speed: research before you propose. A weak request must become a fe
 - The bot needs `Agent` in `tools`. Passing `subagents` replaces the whole list (`[]` removes all); leaving it out keeps the current ones.
 
 ## Templates
-- `BotLookup` cannot list them: read `<template dir>/<name>/group.yaml` and its `bots/*.md`. Shipped: `code` (planner, coder, reviewer), `social-content` (strategist, writer, editor), `research` (lead, searcher, analyst).
+- `BotLookup` cannot list them: read `<name>/group.yaml` and its `bots/*.md` in the template dir named in your instructions. Shipped: `code` (planner, coder, reviewer), `social-content` (strategist, writer, editor), `research` (lead, searcher, analyst).
 - When one is close, start from it adapted to the request (ids, workspaces, tools) and still run steps 4-6; say what you changed.
 
 ## Groups

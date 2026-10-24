@@ -41,7 +41,7 @@ test("the shipped Friday bot designs through BotDesign: no write tools, its skil
   // A server name (`mcp__memory`) stands for every catalog tool under it.
   const known = (t: string) => catalog.has(t) || [...catalog].some((c) => c.startsWith(`${t}__`));
   expect(tools.filter((t) => !known(t))).toEqual([]);
-  expect(f?.skills).toEqual(["bot-design", "skill-install", "skill-creator", "find-skill", "bot-tuning"]);
+  expect(f?.skills).toEqual(["bot-design", "skill-install", "find-skill", "bot-tuning"]);
   for (const s of f?.skills ?? [])
     expect(existsSync(join(DEFAULT_SKILLS_DIR, s, "SKILL.md"))).toBe(true);
   expect(f?.workspaces).toEqual([]);

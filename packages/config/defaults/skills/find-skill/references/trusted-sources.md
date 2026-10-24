@@ -43,4 +43,4 @@ A list repo is for finding skills; install from the repo a skill really lives in
 ## C. skills.sh
 - Search: `curl -s "https://skills.sh/api/search?q=<query>&limit=10"` → `source`, `skillId`, `installs`.
 - Page: `https://skills.sh/<source>/<skillId>`.
-- Install with the `skills` CLI (see `skill-install`). The API is not documented and may change: fall back to `WebSearch site:skills.sh <query>`.
+- Install with `skill-install` (git clone of the source repo, never the `skills` CLI). The API is not documented and may change: fall back to `WebSearch site:skills.sh <query>`.
