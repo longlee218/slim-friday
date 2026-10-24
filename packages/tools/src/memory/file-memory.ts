@@ -56,6 +56,8 @@ export class FileMemory implements Memory {
   constructor(
     readonly root: string,
     private readonly now: () => Date = () => new Date(),
+    /** Called after a save or edit reached the file (the index follows it); a throw is swallowed. */
+    private readonly onChange?: (owner: MemoryOwner) => void,
   ) {}
 
   /** Dir of an owner's files (bot or group), after checking the id. */
@@ -87,6 +89,7 @@ export class FileMemory implements Memory {
         throw new MemoryError("duplicate");
       return insertBullet(cur, kind as MemoryKind, bullet);
     });
+    this.changed(owner);
   }
 
   /** Every note of the owner's file, in file order, with its id. */
@@ -125,6 +128,16 @@ export class FileMemory implements Memory {
       else if (line) lines[hit.index] = line;
       return lines.join("\n");
     });
+    this.changed(owner);
+  }
+
+  /** Tell `onChange` the owner's file changed; the note is already saved, so a failure there is not the caller's. */
+  private changed(owner: MemoryOwner): void {
+    try {
+      this.onChange?.(owner);
+    } catch {
+      // the index is rebuilt from the files at the next start
+    }
   }
 
   /** Read, change and write the owner's file under its lock; a busy lock is a `busy` error. */

@@ -1,9 +1,8 @@
 import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { textResult } from "../../../tool-result";
-import type { FileMemory } from "../../file-memory";
 import { resolveOwner, type ToolSessionContext } from "../../memory-owner";
-import { searchMemory } from "../../search-memory";
+import type { MemoryRecall } from "../../recall/memory-recall";
 import { MEMORY_SEARCH_TOOL } from "./constants";
 import { MEMORY_SEARCH_DESCRIPTION } from "./prompt";
 
@@ -14,7 +13,7 @@ const SHAPE = {
 };
 
 /** `MemorySearch` for one session (read only). */
-export function createMemorySearchTool(memory: FileMemory, ctx: ToolSessionContext) {
+export function createMemorySearchTool(recall: MemoryRecall, ctx: ToolSessionContext) {
   return tool(
     MEMORY_SEARCH_TOOL,
     MEMORY_SEARCH_DESCRIPTION,
@@ -22,9 +21,9 @@ export function createMemorySearchTool(memory: FileMemory, ctx: ToolSessionConte
     async ({ query, scope }) => {
       const owner = await resolveOwner(scope ?? "bot", ctx);
       if (typeof owner === "string") return textResult(owner, true);
-      const hits = searchMemory(memory.root, owner, query);
+      const hits = await recall.search(owner, query);
       return textResult(
-        hits.length ? hits.map((h) => `[${h.source}] ${h.line}`).join("\n") : "no match",
+        hits.length ? hits.map((h) => `[${h.where}] ${h.text}`).join("\n") : "no match",
       );
     },
     { annotations: { readOnlyHint: true } },
