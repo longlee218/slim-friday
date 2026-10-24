@@ -39,6 +39,15 @@ export function writeBot(ctx: DesignContext, a: DesignArgs): string {
       throw new Refused("the design tools cannot be given to another bot.");
     if (!toolKnown(ctx, t, catalog)) throw new Refused(`unknown tool: ${t} (see BotLookup list).`);
   }
+  // A subagent may use only tools the bot itself has: the card shows the bot's tools, so a helper gets nothing more.
+  const own = new Set(a.tools ?? []);
+  // Subagents start only through the Agent tool, which the runtime does not add by itself.
+  if (a.subagents?.length && !own.has("Agent"))
+    throw new Refused("a bot with subagents needs Agent in its tools.");
+  for (const s of a.subagents ?? [])
+    for (const t of s.tools ?? [])
+      if (!own.has(t))
+        throw new Refused(`subagent ${s.name}: tool ${t} is not in the bot's own tools.`);
   const known = new Set(listSkills(ctx.skillDirs).map((s) => s.name));
   for (const s of a.skills ?? [])
     if (!known.has(s)) throw new Refused(`unknown skill: ${s} (see BotLookup list).`);
@@ -50,7 +59,8 @@ export function writeBot(ctx: DesignContext, a: DesignArgs): string {
     throw new Refused(
       `bot "${id}" already exists; ask the owner, then call again with overwrite: true.`,
     );
-  const subagents = existingSubagents(file);
+  // Given subagents replace the old list; left out, an overwrite keeps the file's own.
+  const subagents = a.subagents ?? existingSubagents(file);
   const header = {
     name,
     title: need(a.title, "title"),

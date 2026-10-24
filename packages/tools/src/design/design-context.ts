@@ -1,4 +1,4 @@
-import type { BotId } from "@friday/core";
+import type { BotId, InsightStore, MemoryOwner, Store } from "@friday/core";
 
 /** What the design tools of one session need from the app. */
 export interface DesignContext {
@@ -34,4 +34,15 @@ export interface DesignContext {
   envDenied(name: string): boolean;
   /** The commit a cloned repo is at (git with hooks and config off), or undefined. */
   gitHead(dir: string): Promise<string | undefined>;
+  /** The bots' memory files: `add_lesson` saves a note, `delete_bot` moves the bot's dir to the trash. */
+  memory: {
+    save(owner: MemoryOwner, note: string, kind?: string): Promise<void>;
+    dirOf(owner: MemoryOwner): string;
+  };
+  /** Review views over the engine's own log (`BotInsight`). */
+  insight: InsightStore;
+  /** Stored messages, for one turn and the messages before it. */
+  messages: Pick<Store["messages"], "get" | "page">;
+  /** Epoch milliseconds now (review windows). */
+  now(): number;
 }

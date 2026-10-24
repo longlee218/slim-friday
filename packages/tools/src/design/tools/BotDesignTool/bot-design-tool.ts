@@ -1,5 +1,7 @@
 import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { textResult } from "../../../tool-result";
+import { addLesson } from "../../actions/add-lesson";
+import { deleteBot } from "../../actions/delete-bot";
 import { installSkill } from "../../actions/install-skill";
 import { setMcp } from "../../actions/set-mcp";
 import { writeBot } from "../../actions/write-bot";
@@ -26,6 +28,10 @@ export function createBotDesignTool(ctx: DesignContext) {
           return textResult(await installSkill(ctx, a));
         case "set_mcp":
           return textResult(setMcp(ctx, a));
+        case "add_lesson":
+          return textResult(await addLesson(ctx, a));
+        case "delete_bot":
+          return textResult(deleteBot(ctx, a));
       }
     } catch (err) {
       if (err instanceof Refused) return textResult(`Refused: ${err.message}`, true);

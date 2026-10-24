@@ -1,6 +1,6 @@
 import { realpathSync } from "node:fs";
 import { join, relative } from "node:path";
-import type { BotMessenger, BotRuntimeSpec, Store, TicketBoard } from "@friday/core";
+import type { BotMessenger, BotRuntimeSpec, InsightStore, Store, TicketBoard } from "@friday/core";
 import { scratchName } from "@friday/runtime-claude";
 import {
   CHAT_MCP_SERVER,
@@ -22,6 +22,13 @@ import {
   ticketsServer,
 } from "@friday/tools";
 import { FRIDAY_BOT_ID } from "./friday-bot";
+
+/** Empty review views, for a build without the engine db (tests, tools-only runs). */
+const NO_INSIGHT: InsightStore = {
+  runStats: async () => [],
+  turns: async () => [],
+  activity: async () => [],
+};
 
 /** Longest a git or gh command of an effect tool may run. */
 const RUN_TIMEOUT_MS = 120_000;
@@ -91,7 +98,7 @@ export interface SessionToolsDeps {
   recall: MemoryRecall;
   /** Search over past messages (`MessageSearch`); without it the tool is not offered. */
   messages?: MessageSearchDeps;
-  store: Pick<Store, "conversations" | "groups" | "bots">;
+  store: Pick<Store, "conversations" | "groups" | "bots" | "messages">;
   /** The agent home (the trash lives under it). */
   home: string;
   /** Where `CreateProject` makes repos (read per session, so a settings change applies to new sessions). */
@@ -111,7 +118,12 @@ export interface SessionToolsDeps {
   /** Runs a command (argv, no shell); tests replace it. */
   run?: EffectsContext["run"];
   /** The design context of a session (for a bot that names the `design` server). */
-  design?: (spec: BotRuntimeSpec, run: EffectsContext["run"]) => DesignContext;
+  design?: (
+    spec: BotRuntimeSpec,
+    run: EffectsContext["run"],
+  ) => Omit<DesignContext, "memory" | "insight" | "messages">;
+  /** Review views over the engine's own log, for `BotInsight`; without it the views are empty. */
+  insight?: InsightStore;
 }
 
 /** Run argv in `cwd` with only `env` and a timeout; stdout and stderr are returned together. */
@@ -252,7 +264,12 @@ export function sessionTools(deps: SessionToolsDeps) {
       spec.bot.id === FRIDAY_BOT_ID &&
       wantsServer(spec.bot.tools, DESIGN_MCP_SERVER)
     )
-      servers[DESIGN_MCP_SERVER] = designServer(deps.design(spec, run));
+      servers[DESIGN_MCP_SERVER] = designServer({
+        ...deps.design(spec, run),
+        memory: deps.memory,
+        insight: deps.insight ?? NO_INSIGHT,
+        messages: deps.store.messages,
+      });
     return servers;
   };
 }

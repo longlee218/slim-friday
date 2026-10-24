@@ -23,6 +23,7 @@ export * from "./permission/permission-gate";
 export * from "./ports/agent-runtime";
 export * from "./ports/clock";
 export * from "./ports/file-store";
+export * from "./ports/insight";
 export * from "./ports/log";
 export * from "./ports/memory";
 export * from "./ports/memory-provider-plugin";

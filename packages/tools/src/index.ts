@@ -5,6 +5,7 @@ export * from "./chat/chat-server";
 export * from "./design/design-context";
 export * from "./design/design-server";
 export { createBotDesignTool } from "./design/tools/BotDesignTool/bot-design-tool";
+export { createBotInsightTool } from "./design/tools/BotInsightTool/bot-insight-tool";
 export { createBotLookupTool } from "./design/tools/BotLookupTool/bot-lookup-tool";
 export * from "./effects/effects-context";
 export * from "./effects/effects-server";

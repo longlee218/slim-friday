@@ -14,7 +14,13 @@ test("every shipped skill dir has a SKILL.md whose name matches the dir and has 
   const dirs = readdirSync(DEFAULT_SKILLS_DIR, { withFileTypes: true }).filter((e) =>
     e.isDirectory(),
   );
-  expect(dirs.map((d) => d.name).sort()).toEqual(["bot-design", "skill-creator", "skill-install"]);
+  expect(dirs.map((d) => d.name).sort()).toEqual([
+    "bot-design",
+    "bot-tuning",
+    "find-skill",
+    "skill-creator",
+    "skill-install",
+  ]);
   for (const d of dirs) {
     const file = join(DEFAULT_SKILLS_DIR, d.name, "SKILL.md");
     expect(existsSync(file)).toBe(true);

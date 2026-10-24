@@ -13,6 +13,9 @@ import { type DesignContext, type EffectsContext, GIT_HARDEN, GIT_RUN_ENV } from
 import { sessionScratchDir } from "./session-tools";
 import { skillDirs } from "./skills-dirs";
 
+/** The design context without what the session tools add (the bots' memory, the review views, the messages). */
+export type DesignContextBase = Omit<DesignContext, "memory" | "insight" | "messages">;
+
 /** What the design tools of every session are made from. */
 export interface DesignDeps {
   config: FileConfig;
@@ -25,7 +28,7 @@ export interface DesignDeps {
  */
 export function designContextFor(deps: DesignDeps) {
   const { config, agentHome } = deps;
-  return (spec: BotRuntimeSpec, run: EffectsContext["run"]): DesignContext => ({
+  return (spec: BotRuntimeSpec, run: EffectsContext["run"]): DesignContextBase => ({
     botId: spec.bot.id,
     agentHome,
     configDir: join(agentHome, "config"),
@@ -44,6 +47,7 @@ export function designContextFor(deps: DesignDeps) {
     checkMcp: (text) => void parseMcpFile(text),
     envDenied: isChildEnvDenied,
     // Git runs with hooks and program-running config off, in a clone the bot made itself.
+    now: () => Date.now(),
     gitHead: async (dir) => {
       const r = await run(["git", ...GIT_HARDEN, "rev-parse", "HEAD"], dir, GIT_RUN_ENV);
       return r.code === 0 ? r.out.trim() || undefined : undefined;

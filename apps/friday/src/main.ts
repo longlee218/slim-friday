@@ -87,6 +87,7 @@ export async function startEngine(
         mcpServersFor: sessionTools({
           design: designContextFor({ config: parts.config, agentHome }),
           memory: parts.memory,
+          insight: parts.insight,
           recall: parts.recall,
           messages: parts.messages,
           store: parts.store,

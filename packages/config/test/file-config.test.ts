@@ -51,7 +51,7 @@ test("load serves bots, groups, catalog, settings and limits from the snapshot",
   expect((await config.bots.get("a"))?.name).toBe("A");
   expect(await config.bots.list()).toHaveLength(2); // A and the shipped Friday bot
   expect(await config.groups.get("g")).toBeUndefined();
-  expect(await config.catalog.list()).toHaveLength(44);
+  expect(await config.catalog.list()).toHaveLength(45);
   expect(await config.listGroups()).toEqual([]);
   expect(config.settings().level).toBe("balanced");
   expect(config.limits().maxHops).toBe(8);

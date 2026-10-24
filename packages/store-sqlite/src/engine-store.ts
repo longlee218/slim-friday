@@ -1,10 +1,11 @@
-import type { Conversation, Store } from "@friday/core";
+import type { Conversation, InsightStore, Store } from "@friday/core";
 import { drizzle } from "drizzle-orm/bun-sqlite";
 import { openEngineDb } from "./open-engine-db";
 import { auditRepo } from "./repos/audit-repo";
 import { conversationRepo } from "./repos/conversation-repo";
 import { fileRepo } from "./repos/file-repo";
 import { grantRepo } from "./repos/grant-repo";
+import { insightRepo } from "./repos/insight-repo";
 import { messageRepo } from "./repos/message-repo";
 import { readRepo } from "./repos/read-repo";
 import { sessionRepo } from "./repos/session-repo";
@@ -16,6 +17,8 @@ import { wakeRepo } from "./repos/wake-repo";
 /** The parts of the core `Store` kept in the db (bots and groups live in files, see `@friday/config`). */
 export type EngineStore = Omit<Store, "bots" | "groups" | "conversations"> & {
   conversations: Store["conversations"] & { put(c: Conversation): Promise<void> };
+  /** Read-only views for reviewing bots (`BotInsight`). */
+  insight: InsightStore;
   /** Close the db. */
   close(): void;
 };
@@ -36,6 +39,7 @@ export function openEngineStore(file: string): EngineStore {
     audit: auditRepo(db),
     wakes: wakeRepo(db),
     tickets: ticketRepo(db),
+    insight: insightRepo(db),
     close: () => client.close(),
   };
 }

@@ -149,6 +149,48 @@ test("overwriting a bot keeps its subagents", async () => {
   expect(text).toContain("Review PRs.");
 });
 
+const helper = { name: "scout", description: "Finds files.", prompt: "Find the files asked for." };
+
+test("write_bot writes given subagents and replaces the old ones; [] removes them", async () => {
+  const { ctx, configDir } = setup();
+  const file = join(configDir, "bots", "ann.md");
+  writeFileSync(
+    file,
+    "---\nname: Ann\ntitle: t\nmodel: m\nsubagents:\n  - name: helper\n    description: d\n    prompt: p\n---\nOld.\n",
+  );
+  const t = createBotDesignTool(ctx);
+  const r = await call(t, {
+    ...bot,
+    tools: ["Read", "Grep", "Agent"],
+    subagents: [{ ...helper, tools: ["Read"], model: "haiku", effort: "low" }],
+    overwrite: true,
+  });
+  expect(r.isError).toBeUndefined();
+  const text = readFileSync(file, "utf8");
+  expect(text).toContain("scout");
+  expect(text).toContain("model: haiku");
+  expect(text).not.toContain("helper");
+  await call(t, { ...bot, subagents: [], overwrite: true });
+  expect(readFileSync(file, "utf8")).not.toContain("subagents");
+});
+
+test("write_bot refuses a subagent tool the bot lacks (a design tool, an unknown tool)", async () => {
+  const { ctx, configDir } = setup();
+  const t = createBotDesignTool(ctx);
+  const bads = [
+    [{ ...helper, tools: ["Grep"] }],
+    [{ ...helper, tools: ["mcp__design"] }],
+    [{ ...helper, tools: ["Nope"] }],
+  ];
+  const noAgent = await call(t, { ...bot, tools: ["Read"], subagents: [helper] });
+  expect(textOf(noAgent)).toContain("needs Agent");
+  for (const subagents of bads) {
+    const r = await call(t, { ...bot, tools: ["Read", "Agent"], subagents });
+    expect(r.isError).toBe(true);
+  }
+  expect(existsSync(join(configDir, "bots", "ann.md"))).toBe(false);
+});
+
 test("write_group refuses an existing group without overwrite", async () => {
   const { ctx } = setup({ botSummaries: () => [{ id: "ann", name: "Ann", title: "t" }] });
   const t = createBotDesignTool(ctx);

@@ -8,6 +8,7 @@ import {
   type BotMessenger,
   type Clock,
   type ConsolidateFn,
+  type InsightStore,
   type MemoryIndexStore,
   type MemoryOwner,
   type MessageIndexStore,
@@ -61,6 +62,8 @@ export interface RuntimeParts {
   config: FileConfig;
   store: Store;
   memory: FileMemory;
+  /** Review views over the engine's own log (`BotInsight`). */
+  insight: InsightStore;
   /** Search over the bots' and groups' notes. */
   recall: MemoryRecall;
   /** Tell the index a memory owner's files changed (after a journal write); a failure is logged, never thrown. */
@@ -199,6 +202,7 @@ export async function startApp(deps: AppDeps) {
           memoryChanged,
           messages,
           surface,
+          insight: engine.insight,
         })
       : deps.runtime;
 

@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { DesignContext } from "../src/design/design-context";
+import { FileMemory } from "../src/memory/file-memory";
 
 type Result = { content: { text: string }[]; isError?: boolean };
 
@@ -43,7 +44,7 @@ export function setup(over: Partial<DesignContext> = {}) {
     botDirs: [join(configDir, "bots"), shippedBots],
     skillDirs: [join(configDir, "skills"), shippedSkills],
     reservedBotIds: ["friday"],
-    catalogTools: () => ["Read", "Grep", "Bash", "mcp__effects__GitPush"],
+    catalogTools: () => ["Read", "Grep", "Bash", "Agent", "mcp__effects__GitPush"],
     mcpNames: () => ["playwright"],
     botSummaries: () => [{ id: "friday", name: "Friday", title: "team builder" }],
     groupSummaries: () => [],
@@ -63,6 +64,14 @@ export function setup(over: Partial<DesignContext> = {}) {
         n,
       ),
     gitHead: async () => "abc123",
+    memory: new FileMemory(join(home, "memory")),
+    insight: {
+      runStats: async () => [],
+      turns: async () => [],
+      activity: async () => [],
+    },
+    messages: { get: async () => undefined, page: async () => [] },
+    now: () => Date.now(),
     ...over,
   };
   return { base, home, configDir, scratchDir, shippedSkills, ctx };

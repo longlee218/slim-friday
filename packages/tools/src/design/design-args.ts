@@ -4,7 +4,15 @@ import { z } from "zod";
 /** Input of `BotDesign` (one flat shape: `action` says which fields count). */
 export const DESIGN_SHAPE = {
   action: z
-    .enum(["write_bot", "write_group", "write_skill", "install_skill", "set_mcp"])
+    .enum([
+      "write_bot",
+      "write_group",
+      "write_skill",
+      "install_skill",
+      "set_mcp",
+      "add_lesson",
+      "delete_bot",
+    ])
     .describe("What to write."),
   id: z.string().optional().describe("Bot id, group id, skill name or MCP server name."),
   name: z.string().optional().describe("Bot display name (one word) or group name."),
@@ -29,6 +37,21 @@ export const DESIGN_SHAPE = {
       "Highest effort the bot may raise itself to with SetEffort; needs mcp__chat__SetEffort in tools.",
     ),
   avatar: z.string().optional(),
+  subagents: z
+    .array(
+      z.object({
+        name: z.string(),
+        description: z.string().describe("When the bot should start this helper."),
+        prompt: z.string().describe("The helper's instructions."),
+        tools: z.array(z.string()).optional().describe("A subset of the bot's own tools."),
+        model: z.string().optional(),
+        effort: z.enum(EFFORT_LEVELS).optional(),
+      }),
+    )
+    .optional()
+    .describe(
+      "write_bot: background helpers of the bot; replaces the old list ([] removes all), left out keeps it.",
+    ),
   members: z.array(z.string()).optional(),
   entryBot: z.string().optional(),
   files: z
@@ -50,6 +73,10 @@ export const DESIGN_SHAPE = {
       headers: z.record(z.string(), z.string()).optional(),
     })
     .optional(),
+  lesson: z
+    .string()
+    .optional()
+    .describe("add_lesson: one line the bot should keep doing or avoid, from evidence."),
   overwrite: z.boolean().optional().describe("Replace what already exists (ask the owner first)."),
 };
 
