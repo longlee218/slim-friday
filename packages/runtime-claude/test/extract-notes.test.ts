@@ -51,3 +51,12 @@ test("extractNotes scrubs the env like a bot's: no API key or base URL, the OAut
   expect(env.CLAUDE_CODE_OAUTH_TOKEN).toBe("tok");
   expect(env.PATH).toBe("/bin");
 });
+
+test("the prompt tells the model what is not worth keeping and to prefer nothing when unsure", async () => {
+  const { queryFn, seen } = fake("[]");
+  await extractNotes("summary", { model: "m", queryFn });
+  const prompt = String(seen.options?.systemPrompt);
+  expect(prompt).toContain("When unsure, skip");
+  expect(prompt).toContain("task progress");
+  expect(prompt).toContain("readable from the code");
+});

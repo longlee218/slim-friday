@@ -16,7 +16,7 @@ function fake(answer: string | Error) {
   return { queryFn, seen };
 }
 
-test("parses a JSON array of {kind, note}; drops bad kinds and empty notes; caps 10", async () => {
+test("parses a JSON array of {kind, note}; drops bad kinds and empty notes; caps 5", async () => {
   const items = [
     { kind: "fact", note: "deploy uses docker" },
     { kind: "secret", note: "bad kind" },
@@ -29,7 +29,7 @@ test("parses a JSON array of {kind, note}; drops bad kinds and empty notes; caps
     { model: "m", queryFn },
   );
   expect(out?.[0]).toEqual({ kind: "fact", note: "deploy uses docker" });
-  expect(out).toHaveLength(10);
+  expect(out).toHaveLength(5);
   expect(seen.options).toMatchObject({ tools: [], maxTurns: 1, settingSources: [], model: "m" });
   expect(String(seen.prompt)).toContain("1. a");
   expect(String(seen.prompt)).toContain("- x");
@@ -54,4 +54,13 @@ test("a large memory is cut so every note and the closing tag reach the model", 
   expect(prompt).toContain(`100. ${notes[99]}`);
   expect(prompt.endsWith("</notes>")).toBe(true);
   expect(prompt.length).toBeLessThanOrEqual(40_000);
+});
+
+test("the prompt tells the model what is not worth keeping and to prefer nothing when unsure", async () => {
+  const { queryFn, seen } = fake("[]");
+  await consolidateNotes({ memory: "", notes: ["a"] }, { model: "m", queryFn });
+  const prompt = String(seen.options?.systemPrompt);
+  expect(prompt).toContain("default answer is []");
+  expect(prompt).toContain("task progress");
+  expect(prompt).toContain("readable from the code");
 });

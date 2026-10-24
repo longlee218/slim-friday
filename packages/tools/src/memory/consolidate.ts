@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { ConsolidateFn, MemoryOwner } from "@friday/core";
 import { type FileMemory, localDay, MemoryError } from "./file-memory";
 import { journalDays, journalNotes, readConsolidatedMark, writeConsolidatedMark } from "./journal";
+import { worthKeeping } from "./worth-keeping";
 
 /** Most journal notes sent in one consolidation call. */
 const MAX_NOTES = 200;
@@ -35,30 +36,39 @@ function pendingNotes(root: string, owner: MemoryOwner, today: string) {
 
 /**
  * Promote the owner's journal notes of complete days (before today) after its mark into MEMORY.md, as `ask` picks
- * them. The mark moves to the last day sent only when `ask` answered; a duplicate or empty note is skipped.
+ * them. The mark moves to the last day sent only when `ask` answered. A note that is too short, the same as one
+ * already in MEMORY.md (or one promoted a moment ago) or refused by the file is skipped and counted.
  */
 export async function consolidateOwner(
   memory: FileMemory,
   owner: MemoryOwner,
   now: Date,
   ask: ConsolidateFn,
-): Promise<{ promoted: number; through?: string }> {
+): Promise<{ promoted: number; skipped: number; through?: string }> {
   const { notes, through } = pendingNotes(memory.root, owner, localDay(now));
-  if (!through) return { promoted: 0 };
+  if (!through) return { promoted: 0, skipped: 0 };
   const picked = notes.length ? await ask(await memory.read(owner), notes) : [];
-  if (!picked) return { promoted: 0 };
+  if (!picked) return { promoted: 0, skipped: 0 };
+  const kept = memory.listBullets(owner).map((b) => b.text);
   let promoted = 0;
+  let skipped = 0;
   for (const p of picked) {
+    if (worthKeeping(p.note, kept) !== "keep") {
+      skipped++;
+      continue;
+    }
     try {
       await memory.save(owner, p.note, p.kind);
+      kept.push(p.note);
       promoted++;
     } catch (err) {
       if (!(err instanceof MemoryError && (err.code === "duplicate" || err.code === "empty")))
         throw err;
+      skipped++;
     }
   }
   writeConsolidatedMark(memory.root, owner, through);
-  return { promoted, through };
+  return { promoted, skipped, through };
 }
 
 /**

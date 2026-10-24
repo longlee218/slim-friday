@@ -6,7 +6,7 @@ import type { extractNotes } from "./extract-notes";
 /** Longest prompt sent (memory + notes). */
 const MAX_INPUT = 40000;
 /** Most notes one consolidation promotes. */
-const MAX_PROMOTED = 10;
+const MAX_PROMOTED = 5;
 /** A consolidation call that has not answered by then is given up (the mark stays). */
 const CALL_TIMEOUT_MS = 120_000;
 
@@ -22,9 +22,13 @@ const KINDS = new Set<string>(["decision", "fact", "preference", "lesson"]);
 
 const SYSTEM_PROMPT =
   "You keep the long-term memory of an assistant bot. You get its current MEMORY.md and numbered notes from its " +
-  `recent journal. Pick at most ${MAX_PROMOTED} notes that are durable and not already in memory; skip anything ` +
-  "temporary or already known. Rewrite each as one short line. Answer with a JSON array only: " +
-  '[{"kind": "decision" | "fact" | "preference" | "lesson", "note": "..."}], or [] when nothing is worth keeping.';
+  "recent journal. MEMORY.md is read at the start of every conversation, so each line costs attention: the " +
+  "default answer is []. Promote a note only if it will still be true in a month and would change a future " +
+  "answer or action: a standing rule or preference, a decision with its reason, a stable fact, a lesson from a " +
+  "mistake. Skip a note that is a one-off event, task progress or status, a detail readable from the code, a " +
+  "guess, or already in memory even in other words. Merge notes that say the same thing into one. Rewrite each " +
+  `kept note as one line under 200 characters that makes sense alone. At most ${MAX_PROMOTED}. Answer with a JSON ` +
+  'array only: [{"kind": "decision" | "fact" | "preference" | "lesson", "note": "..."}].';
 
 /** The first JSON array in `text` as promoted notes; bad items are dropped; undefined when there is no array. */
 function parsePromoted(text: string): PromotedNote[] | undefined {

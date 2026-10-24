@@ -38,6 +38,7 @@ test("promotes notes into MEMORY.md under their kind and moves the mark to the l
   };
   expect(await consolidateOwner(mem, ann, now, ask)).toEqual({
     promoted: 2,
+    skipped: 0,
     through: "2026-10-22",
   });
   expect(seen[0]).toEqual([
@@ -59,7 +60,7 @@ test("today's journal is not consolidated and no new days means no call", async 
     called = true;
     return [];
   });
-  expect(again).toEqual({ promoted: 0 });
+  expect(again).toEqual({ promoted: 0, skipped: 0 });
   expect(called).toBe(false);
 });
 
@@ -69,7 +70,7 @@ test("a duplicate note is skipped, not an error", async () => {
   const r = await consolidateOwner(mem, ann, now, async () => [
     { kind: "fact", note: "deploy uses docker" },
   ]);
-  expect(r).toEqual({ promoted: 0, through: "2026-10-22" });
+  expect(r).toEqual({ promoted: 0, skipped: 1, through: "2026-10-22" });
   expect(
     readFileSync(join(root, "bots", "ann", "MEMORY.md"), "utf8").match(/deploy uses docker/g),
   ).toHaveLength(1);
@@ -77,7 +78,10 @@ test("a duplicate note is skipped, not an error", async () => {
 
 test("ask returning undefined leaves the mark", async () => {
   const { root, mem } = setup();
-  expect(await consolidateOwner(mem, ann, now, async () => undefined)).toEqual({ promoted: 0 });
+  expect(await consolidateOwner(mem, ann, now, async () => undefined)).toEqual({
+    promoted: 0,
+    skipped: 0,
+  });
   expect(readConsolidatedMark(root, ann)).toBeUndefined();
   expect(existsSync(join(root, "bots", "ann", "MEMORY.md"))).toBe(false);
 });
@@ -115,4 +119,20 @@ test("an abort stops consolidateAll: a pending ask is given up and no mark moves
   expect(await run).toBe(0);
   expect(asked).toBe(1);
   expect(readConsolidatedMark(root, ann)).toBeUndefined();
+});
+
+test("a reworded copy of a saved note, a copy inside the batch and a too-short note are skipped and counted", async () => {
+  const { root, mem } = setup();
+  await mem.save(ann, "Deploy uses Docker Compose on one VPS");
+  const r = await consolidateOwner(mem, ann, now, async () => [
+    { kind: "fact", note: "deploy uses docker compose on one vps." },
+    { kind: "preference", note: "owner prefers short answers always" },
+    { kind: "preference", note: "Owner prefers short answers, always" },
+    { kind: "fact", note: "ok" },
+  ]);
+  expect(r).toEqual({ promoted: 1, skipped: 3, through: "2026-10-22" });
+  const file = readFileSync(join(root, "bots", "ann", "MEMORY.md"), "utf8");
+  expect(file.match(/short answers/gi)).toHaveLength(1);
+  expect(file.match(/docker compose/gi)).toHaveLength(1);
+  expect(readConsolidatedMark(root, ann)).toBe("2026-10-22");
 });

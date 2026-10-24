@@ -9,8 +9,12 @@ const MAX_NOTES = 5;
 
 const SYSTEM_PROMPT =
   "You read a summary of a conversation between a user and an assistant bot. " +
-  `List at most ${MAX_NOTES} durable facts, decisions, preferences or lessons worth remembering later. ` +
-  "Skip anything temporary. Answer with a JSON array of short strings only, or [] when there is nothing.";
+  `List at most ${MAX_NOTES} notes worth remembering in a later conversation. Keep only: a rule or preference ` +
+  "the user stated, a decision with its reason, a stable fact about the user or their projects, a lesson from a " +
+  "mistake. Skip: task progress or status, one-off questions and answers, what the assistant did or ran, " +
+  "details readable from the code or files, guesses the user did not confirm, secrets, and times like " +
+  "'today' or 'next week' (write the date or skip the note). When unsure, skip. " +
+  "Answer with a JSON array of short strings only, or [] when nothing qualifies.";
 
 /** The first JSON array of strings in `text`, or [] when there is none. */
 function parseNotes(text: string): string[] {
