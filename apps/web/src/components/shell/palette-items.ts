@@ -29,10 +29,7 @@ const go = (
   shortcut?: string,
 ): PaletteItem => ({ group, label, icon, shortcut, run: (ctx) => ctx.navigate(to) });
 
-/**
- * Extra rows other plans append (plan 4 adds "New ticket" `⌘N`); kept last in Actions order by
- * being spliced in after the built-in actions.
- */
+/** Extra rows other plans append (plan 4 adds "New ticket" `⌘N`); listed after the built-in actions. */
 export const EXTRA_PALETTE_ITEMS: PaletteItem[] = [];
 
 /** Every palette row for the current bots and groups: Bots, Groups, Actions, Settings. */
@@ -55,7 +52,6 @@ export function paletteItems(dir: Directory): PaletteItem[] {
   return [
     ...bots,
     ...groups,
-    ...EXTRA_PALETTE_ITEMS,
     go("Actions", "Open tickets", "square-kanban", "/tickets", "⌘2"),
     go("Actions", "Open activity", "gauge", "/ops", "⌘3"),
     {
@@ -64,6 +60,7 @@ export function paletteItems(dir: Directory): PaletteItem[] {
       icon: "circle-stop",
       run: (ctx) => void ctx.stopAll(),
     },
+    ...EXTRA_PALETTE_ITEMS,
     go("Settings", "About you (USER.md)", "user-round", "/settings/owner/user"),
     go("Settings", "Personality (SOUL.md)", "sparkles", "/settings/owner/soul"),
     go("Settings", "MCP servers", "plug", "/settings/mcp"),

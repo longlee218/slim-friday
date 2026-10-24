@@ -63,7 +63,8 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
   const status = useQuery(orpc.control.status.queryOptions()).data;
   const items = useMemo(() => paletteItems(dir), [dir]);
 
-  // `control.stop` takes a botId, so stop each working bot; one toast for the batch.
+  // `control.stop` takes a botId, so stop each working bot; one toast for the batch. Every stop
+  // settles before the toast, and the status refetches either way (some bots may have stopped).
   const ctx: PaletteContext = {
     navigate,
     stopAll: async () => {
@@ -72,13 +73,12 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
         toast("No bot is working.");
         return;
       }
-      try {
-        await Promise.all(working.map((s) => client.control.stop({ botId: s.botId })));
-        toast("Stopped every bot.");
-        refetchStatus(qc);
-      } catch {
-        toast("Could not stop. Try again.");
-      }
+      const results = await Promise.allSettled(
+        working.map((s) => client.control.stop({ botId: s.botId })),
+      );
+      const failed = results.some((r) => r.status === "rejected");
+      toast(failed ? "Could not stop. Try again." : "Stopped every bot.");
+      refetchStatus(qc);
     },
   };
 

@@ -106,3 +106,12 @@ test("Stop every bot with nobody working sends nothing", async () => {
   await waitFor(() => expect(toast).toHaveBeenCalledWith("No bot is working."));
   expect(stop).not.toHaveBeenCalled();
 });
+
+test("Stop every bot with one failure still stops the rest and says Try again", async () => {
+  stop.mockReset().mockRejectedValueOnce(new Error("down")).mockResolvedValue({ stopped: 1 });
+  renderPalette(["dev", "ray"]);
+  await userEvent.setup().click(screen.getByText("Stop every bot"));
+  await waitFor(() => expect(toast).toHaveBeenCalledWith("Could not stop. Try again."));
+  expect(stop.mock.calls).toEqual([[{ botId: "dev" }], [{ botId: "ray" }]]);
+  expect(toast).toHaveBeenCalledTimes(1);
+});
