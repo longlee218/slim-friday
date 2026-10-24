@@ -45,9 +45,9 @@ export function searchMemory(
       .filter((f) => /^\d{4}-\d{2}-\d{2}\.md$/.test(f))
       .sort()
       .reverse()
-      .forEach((f, i) =>
-        sources.push({ source: f.slice(0, 10), lines: bulletsOf(join(jdir, f)), rank: i + 1 }),
-      );
+      .forEach((f, i) => {
+        sources.push({ source: f.slice(0, 10), lines: bulletsOf(join(jdir, f)), rank: i + 1 });
+      });
   const hits = sources.flatMap(({ source, lines, rank }) =>
     lines.flatMap((line) => {
       const low = line.toLowerCase();
