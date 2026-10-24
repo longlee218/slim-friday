@@ -1,6 +1,6 @@
 import { CORE_DEFAULTS, type CoreLimits } from "@friday/core";
 import { z } from "zod";
-import { idSchema } from "./ids";
+import { idSchema, pathSchema } from "./ids";
 
 const level = z.enum(["careful", "balanced", "autonomous"]);
 const outcome = z.enum(["allow", "ask", "ask_always", "deny"]);
@@ -33,6 +33,8 @@ const settingsSchema = z.strictObject({
     })
     .optional(),
   limits: limitsSchema.optional(),
+  /** Where `CreateProject` makes new repos (absolute or `~/`). */
+  projectsDir: pathSchema.optional(),
 });
 
 /** A parsed `settings.yaml`. */

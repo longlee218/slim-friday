@@ -85,7 +85,16 @@ test("MemoryEdit: lists ids, deletes one, unknown id is not_found", async () => 
 
 test("no tool-name literal outside a constants.ts", () => {
   const src = join(import.meta.dir, "..", "src");
-  const names = ["MemorySave", "MemoryEdit", "MemorySearch", "DeletePaths"];
+  const names = [
+    "MemorySave",
+    "MemoryEdit",
+    "MemorySearch",
+    "DeletePaths",
+    "GitPush",
+    "CreatePullRequest",
+    "MergeBranch",
+    "CreateProject",
+  ];
   const bad: string[] = [];
   for (const rel of new Bun.Glob("**/*.ts").scanSync(src)) {
     if (rel.endsWith("constants.ts")) continue;

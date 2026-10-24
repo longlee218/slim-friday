@@ -26,3 +26,7 @@ tools:
   - { name: mcp__memory__MemoryEdit, sandboxed: true }
   # Deleting moves to the trash (kept 7 days): destructive, so it asks, but not irreversible.
   - { name: mcp__effects__DeletePaths, annotations: { destructiveHint: true, idempotentHint: true, openWorldHint: false }, scopeKeys: [paths] }
+  - { name: mcp__effects__GitPush, annotations: { destructiveHint: false, openWorldHint: true }, scopeKeys: [workspace, remote, branch] }
+  - { name: mcp__effects__CreatePullRequest, annotations: { destructiveHint: false, openWorldHint: true }, scopeKeys: [workspace, base] }
+  - { name: mcp__effects__MergeBranch, annotations: { destructiveHint: true, idempotentHint: false, openWorldHint: false }, scopeKeys: [workspace, into] }
+  - { name: mcp__effects__CreateProject, annotations: { destructiveHint: false, openWorldHint: false } }

@@ -7,13 +7,13 @@ import { loadTemplate } from "../src/templates";
 
 const ALLOWED = ["Read", "Glob", "Grep", "Write", "Edit", "Bash", "WebSearch", "WebFetch"];
 
-test("the shipped defaults include the Friday bot with its four file tools", () => {
+test("the shipped defaults include the Friday bot with its file tools and CreateProject", () => {
   const userDir = mkdtempSync(join(tmpdir(), "cfg-"));
   const { snapshot, problems } = loadConfig({ defaultsDir: DEFAULTS_DIR, userDir });
   expect(problems).toEqual([]);
   const f = snapshot.bots.get("friday");
   expect(f?.name).toBe("Friday");
-  expect(f?.tools).toEqual(["Read", "Glob", "Write", "Edit"]);
+  expect(f?.tools).toEqual(["Read", "Glob", "Write", "Edit", "mcp__effects__CreateProject"]);
   expect(f?.workspaces).toEqual([]);
   expect(f?.instructions).toContain("<config dir>");
   expect(f?.instructions).toContain("<template dir>");
@@ -46,7 +46,13 @@ test("a user bot file with the reserved id friday is reported and ignored", () =
     "---\nname: Friday\ntitle: x\nmodel: sonnet\ntools: [Bash]\n---\nown\n",
   );
   const { snapshot, problems } = loadConfig({ defaultsDir: DEFAULTS_DIR, userDir });
-  expect(snapshot.bots.get("friday")?.tools).toEqual(["Read", "Glob", "Write", "Edit"]);
+  expect(snapshot.bots.get("friday")?.tools).toEqual([
+    "Read",
+    "Glob",
+    "Write",
+    "Edit",
+    "mcp__effects__CreateProject",
+  ]);
   expect(problems.map((p) => p.message).join()).toContain("reserved");
 });
 

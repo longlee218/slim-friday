@@ -68,3 +68,20 @@ test("playwright read-only tools and the memory tools are annotated in the catal
   expect(get("mcp__memory__MemorySave")?.sandboxed).toBe(true);
   expect(get("mcp__memory__MemoryEdit")?.sandboxed).toBe(true);
 });
+
+test("projectsDir defaults to ~/friday-projects and a user setting replaces it", async () => {
+  const { homedir } = await import("node:os");
+  expect(configFor({}).projectsDir()).toBe(join(homedir(), "friday-projects"));
+  expect(configFor({ "settings.yaml": "projectsDir: /srv/p\n" }).projectsDir()).toBe("/srv/p");
+});
+
+test("the effect tools are annotated and Friday may create projects", async () => {
+  const tools = await configFor({}).catalog.list();
+  const get = (n: string) => tools.find((t) => t.name === n);
+  expect(get("mcp__effects__GitPush")?.scopeKeys).toEqual(["workspace", "remote", "branch"]);
+  expect(get("mcp__effects__MergeBranch")?.annotations?.destructiveHint).toBe(true);
+  expect(get("mcp__effects__CreateProject")?.annotations?.openWorldHint).toBe(false);
+  const friday = await configFor({}).bots.get("friday");
+  expect(friday?.tools).toContain("mcp__effects__CreateProject");
+  expect(friday?.instructions).toContain("CreateProject");
+});

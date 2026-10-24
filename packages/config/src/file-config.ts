@@ -65,6 +65,9 @@ export class FileConfig {
   /** Current limits. */
   limits = (): CoreLimits => this.snapshot.limits;
 
+  /** Where `CreateProject` makes new repos. */
+  projectsDir = (): string => this.snapshot.projectsDir;
+
   /**
    * External MCP servers with `${NAME}` values filled from `env`. A server with a missing value is left out and
    * named in `problems`, so it is never started half configured.

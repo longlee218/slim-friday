@@ -20,7 +20,7 @@ function filesOf(dir: string): { file: string; text: string }[] {
 
 /** Every module specifier in a file. */
 const specifiers = (text: string): string[] =>
-  [...text.matchAll(/(?:\bfrom|\bimport|\brequire)\s*\(?\s*(["'])([^"']+)\1/g)].map(
+  [...text.matchAll(/(?:\bfrom\s|\bimport\s|\bimport\(|\brequire\()\s*(["'])([^"']+)\1/g)].map(
     (m) => m[2] ?? "",
   );
 

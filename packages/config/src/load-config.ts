@@ -26,6 +26,8 @@ export interface ConfigSnapshot {
   groups: Map<GroupId, Group>;
   settings: PermissionSettings;
   limits: CoreLimits;
+  /** Where `CreateProject` makes new repos. */
+  projectsDir: string;
   tools: ToolSpec[];
   /** External MCP servers by name (user file wins), env values not yet expanded. */
   mcp: Map<string, { server: McpServerSpec; file: string }>;
@@ -89,7 +91,7 @@ export function loadConfig(
     for (const id of Object.keys(value.autonomy?.bots ?? {}))
       if (!bots.has(id))
         problems.push({ file, message: `autonomy.bots names "${id}", which is not a loaded bot` });
-  const { settings, limits } = buildSettings(
+  const { settings, limits, projectsDir } = buildSettings(
     settingsFiles.map((f) => f.value),
     bots.values(),
   );
@@ -99,6 +101,7 @@ export function loadConfig(
       groups,
       settings,
       limits,
+      projectsDir,
       tools: [...tools.values()],
       mcp: new Map(layers.flatMap((l) => [...l.mcp])),
     },

@@ -2,6 +2,7 @@
 
 export * from "./effects/effects-context";
 export * from "./effects/effects-server";
+export { isPlainName } from "./effects/git-args";
 export * from "./effects/trash";
 export { trashRoot } from "./effects/trash-store";
 export { checkInsideWorkspace } from "./effects/workspace-paths";
