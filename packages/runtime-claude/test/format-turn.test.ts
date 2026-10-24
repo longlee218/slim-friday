@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { MEMORY_LABEL } from "../src/session/build-options";
 import { formatTurn } from "../src/session/format-turn";
 
 test("group memory is printed before the recent messages", () => {
@@ -77,4 +78,22 @@ test("group context is printed before the group memory", () => {
     {},
   );
   expect(text.startsWith("Group context:\nX\n\nGroup memory:\nM\n\n")).toBe(true);
+});
+
+test("the bot's updated memory comes with its label, before the group memory", () => {
+  const text = formatTurn(
+    {
+      conversationId: "g1",
+      from: { kind: "user" },
+      text: "go",
+      hop: 0,
+      context: [],
+      botMemory: "B",
+      groupMemory: "M",
+    },
+    {},
+  );
+  expect(
+    text.startsWith(`Your memory (updated):\n${MEMORY_LABEL}\n\nB\n\nGroup memory:\nM\n\n`),
+  ).toBe(true);
 });

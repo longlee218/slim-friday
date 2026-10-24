@@ -22,7 +22,7 @@ import { TicketBoard } from "../tickets/ticket-board";
 import { recalledBlock } from "./auto-recall";
 import { dayOf, pumpEvents } from "./event-pump";
 import { changedGroupContext } from "./group-context";
-import { changedGroupMemory } from "./group-memory";
+import { changedGroupMemory, promptMemory } from "./group-memory";
 import { type IdleCloseHook, reportIdleClose } from "./idle-close";
 import { type PoolEntry, type QueuedWake, SessionPool } from "./session-pool";
 import { type ScopeBot, sessionScope } from "./session-scope";
@@ -389,6 +389,7 @@ export class BotHub implements BotMessenger {
         conv?.kind === "group"
           ? await store.messages.recent(q.conversationId, this.limits.groupContextMessages)
           : [];
+      const botMemory = await this.botMemoryAfterCompaction(entry);
       const groupMemory = conv
         ? await changedGroupMemory(
             entry,
@@ -419,6 +420,7 @@ export class BotHub implements BotMessenger {
         ...(tickets && { tickets }),
         ...(q.attachments && { attachments: q.attachments }),
         ...(groupContext !== undefined && { groupContext }),
+        ...(botMemory !== undefined && { botMemory }),
         ...(groupMemory !== undefined && { groupMemory }),
         ...(recalled && { recalled }),
       });
@@ -434,6 +436,24 @@ export class BotHub implements BotMessenger {
       await this.wakeLog.dropped(q.wakeId);
       throw err;
     }
+  }
+
+  /**
+   * The bot's memory for the first turn after a compaction, when it changed since the session last saw it (notes saved
+   * mid-session may have been summarized away); it becomes the memory shown. Undefined otherwise or on a failed read.
+   */
+  private async botMemoryAfterCompaction(entry: PoolEntry): Promise<string | undefined> {
+    if (!entry.memoryStale) return undefined;
+    entry.memoryStale = false;
+    const text = await promptMemory(
+      this.deps.memory,
+      { kind: "bot", botId: entry.bot.id },
+      this.limits.memoryPromptChars,
+      this.deps.log,
+    );
+    if (!text.trim() || text === entry.memoryShown) return undefined;
+    entry.memoryShown = text;
+    return text;
   }
 
   /** Recalled notes for a turn: the bot's, then its group's on a group turn; memory already shown is skipped. */

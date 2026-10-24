@@ -188,3 +188,32 @@ test("a group turn whose send fails sends the group memory again on the next tur
   const s = runtime.nth(0);
   expect(s.sent[1]?.groupMemory).toBe("- team uses bun");
 });
+
+test("after a compaction the bot's changed MEMORY.md goes with the next turn, once", async () => {
+  const { memory, texts } = fakeMemory();
+  texts.set("bot:editor", "## Facts\n- likes tea");
+  const { runtime, surface } = makeHub(memory);
+  surface.deliver({ conversationId: "dc", text: "one" });
+  await flush();
+  const s = runtime.nth(0);
+  s.emit({ type: "turn_end", costUsd: 0 });
+  await flush();
+  // A compaction with the file unchanged sends nothing.
+  s.emit({ type: "compacted" });
+  await flush();
+  surface.deliver({ conversationId: "dc", text: "two" });
+  await flush();
+  expect(s.sent[1]?.botMemory).toBeUndefined();
+  s.emit({ type: "turn_end", costUsd: 0 });
+  texts.set("bot:editor", "## Facts\n- likes tea\n- answers in Vietnamese");
+  s.emit({ type: "compacted" });
+  await flush();
+  surface.deliver({ conversationId: "dc", text: "three" });
+  await flush();
+  expect(s.sent[2]?.botMemory).toContain("answers in Vietnamese");
+  s.emit({ type: "turn_end", costUsd: 0 });
+  await flush();
+  surface.deliver({ conversationId: "dc", text: "four" });
+  await flush();
+  expect(s.sent[3]?.botMemory).toBeUndefined();
+});

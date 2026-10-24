@@ -22,6 +22,8 @@ export interface InboundTurn {
   interrupted?: boolean;
   /** The group's instructions, working dirs and project rules; set on a group turn only when they changed since the bot last saw them. */
   groupContext?: string;
+  /** The bot's own memory; set only on the first turn after a compaction, when it changed since the bot last saw it. */
+  botMemory?: string;
   /** The group's memory; set on a group turn only when it changed since the bot last saw it. */
   groupMemory?: string;
   /** `<recalled_memory>` block: notes from earlier sessions that match the message. */

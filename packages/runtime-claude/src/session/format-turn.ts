@@ -7,6 +7,7 @@ import {
   INTERRUPTED_NOTE,
   type InboundTurn,
 } from "@friday/core";
+import { MEMORY_LABEL } from "./build-options";
 import type { UserContent } from "./input-queue";
 
 /** Image types the model reads inline. */
@@ -34,6 +35,9 @@ export function formatTurn(turn: InboundTurn, names: Record<string, string>): st
     : "";
   const tickets = turn.tickets ? `${turn.tickets}\n\n` : "";
   const groupContext = turn.groupContext ? `Group context:\n${turn.groupContext}\n\n` : "";
+  const botMemory = turn.botMemory
+    ? `Your memory (updated):\n${MEMORY_LABEL}\n\n${turn.botMemory}\n\n`
+    : "";
   const memory = turn.groupMemory ? `Group memory:\n${turn.groupMemory}\n\n` : "";
   const recalled = turn.recalled ? `${turn.recalled}\n\n` : "";
   // A bot's message is wrapped as untrusted peer content with what is expected of the receiver.
@@ -47,7 +51,7 @@ export function formatTurn(turn: InboundTurn, names: Record<string, string>): st
         })
       : turn.text;
   const note = turn.interrupted ? `${INTERRUPTED_NOTE}\n\n` : "";
-  return `${tickets}${groupContext}${memory}${recalled}${block}${note}[conversation ${turn.conversationId}] ${nameOf(turn.from, names)} (hop ${turn.hop}):\n${body}`;
+  return `${tickets}${groupContext}${botMemory}${memory}${recalled}${block}${note}[conversation ${turn.conversationId}] ${nameOf(turn.from, names)} (hop ${turn.hop}):\n${body}`;
 }
 
 /**

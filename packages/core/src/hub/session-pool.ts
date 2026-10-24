@@ -67,8 +67,10 @@ export interface PoolEntry {
   pumping?: boolean;
   /** Set before a deliberate stop, so the end of the event stream is not reported as a crash. */
   stopping: boolean;
-  /** Bot memory text given to this session at open ("" when none). */
+  /** Bot memory text this session was last given: at open, or after a compaction ("" when none). */
   memoryShown: string;
+  /** A compaction may have dropped notes saved since `memoryShown`: re-read the memory on the next turn. */
+  memoryStale?: boolean;
   /** Group memory text last sent to this session, by group; a new session starts empty. */
   groupMemorySent: Map<string, string>;
   /** Group context text last sent to this session, by group. */
