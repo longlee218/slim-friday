@@ -33,15 +33,20 @@ describe("reduceEvent", () => {
     expect(fx[1]).toMatchObject({ op: "notify", title: "Dev", text: "run ls" });
   });
 
-  test("status with an idle bot ends its run in every conversation", () => {
+  test("status sets the list (setStatus ends the runs of bots not working)", () => {
     const bots = [
       { botId: "dev", name: "Dev", working: false, tasks: [], spendToday: 0 },
       { botId: "pia", name: "Pia", working: true, tasks: [], spendToday: 0 },
     ];
-    const fx = reduceEvent({ type: "status", bots }, view);
-    expect(fx).toEqual([
-      { op: "setStatus", bots },
-      { op: "endRun", conversationId: "*", botId: "dev" },
+    expect(reduceEvent({ type: "status", bots }, view)).toEqual([{ op: "setStatus", bots }]);
+  });
+
+  test("ticket and config.changed invalidate their scopes", () => {
+    expect(reduceEvent({ type: "ticket" } as never, view)).toEqual([
+      { op: "invalidate", scope: "tickets" },
+    ]);
+    expect(reduceEvent({ type: "config.changed" }, view)).toEqual([
+      { op: "invalidate", scope: "config" },
     ]);
   });
 

@@ -34,13 +34,6 @@ export interface ReducerView {
   now: number;
 }
 
-/** Idle bots of a status list end their runs everywhere. */
-export function idleEndRuns(bots: BotStatusDto[]): CacheEffect[] {
-  return bots
-    .filter((b) => !b.working)
-    .map((b) => ({ op: "endRun", conversationId: "*", botId: b.botId }));
-}
-
 /**
  * Pure mapping from a server event to cache effects. A toast is raised only when the
  * user is not looking at the conversation (other chat, or hidden tab).
@@ -111,7 +104,8 @@ export function reduceEvent(e: FridayEvent, view: ReducerView): CacheEffect[] {
     case "unread":
       return [{ op: "setUnread", conversationId: e.conversationId, unread: e.unread }];
     case "status":
-      return [{ op: "setStatus", bots: e.bots }, ...idleEndRuns(e.bots)];
+      // setStatus also ends the runs of every bot the list does not show as working.
+      return [{ op: "setStatus", bots: e.bots }];
     case "ticket":
       return [{ op: "invalidate", scope: "tickets" }];
     case "config.changed":

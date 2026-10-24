@@ -33,15 +33,34 @@ export function runTail(qc: QueryClient, conversationId: string, botId: string, 
   );
 }
 
+/** Conversation ids that have a live-run cache entry. */
+function runConversations(qc: QueryClient): string[] {
+  return qc
+    .getQueryCache()
+    .findAll({ queryKey: ["web", "liveRun"] })
+    .map((q) => q.queryKey[2] as string);
+}
+
+/**
+ * Ends every run whose bot is not in `working`. The status list names only bots with an open
+ * session, so a stopped or lost session (absent from the list) ends its runs too.
+ */
+export function endRunsExcept(qc: QueryClient, working: ReadonlySet<string>) {
+  for (const id of runConversations(qc)) {
+    const runs = qc.getQueryData<Runs>(liveRunKey(id)) ?? {};
+    if (Object.keys(runs).every((botId) => working.has(botId))) continue;
+    patchRuns(qc, id, (r) => Object.fromEntries(Object.entries(r).filter(([b]) => working.has(b))));
+  }
+}
+
+/** Drops every live run (resync or a gap of unknown length: the server state is the truth). */
+export function clearRuns(qc: QueryClient) {
+  qc.removeQueries({ queryKey: ["web", "liveRun"] });
+}
+
 /** Ends a bot's run; conversation "*" = every conversation that has a live run. */
 export function endRun(qc: QueryClient, conversationId: string, botId: string) {
-  const ids =
-    conversationId === "*"
-      ? qc
-          .getQueryCache()
-          .findAll({ queryKey: ["web", "liveRun"] })
-          .map((q) => q.queryKey[2] as string)
-      : [conversationId];
+  const ids = conversationId === "*" ? runConversations(qc) : [conversationId];
   for (const id of ids) {
     patchRuns(qc, id, (r) => {
       const { [botId]: _gone, ...rest } = r;

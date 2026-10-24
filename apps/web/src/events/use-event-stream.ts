@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { client } from "../api/client";
 import { applyEffects, type Notify } from "./apply-effects";
+import { clearRuns } from "./apply-runs";
 import { nextBackoff } from "./backoff";
 import { reduceEvent } from "./event-reducer";
 
@@ -56,6 +57,8 @@ export function useEventStream(opts: UseEventStreamOptions): ConnectionState {
     let attemptCtl: AbortController | null = null;
     let attempt = 0;
     let lastEventId: string | undefined;
+    // A stream has been open before: a later open is a reconnect.
+    let opened = false;
 
     const onOffline = () => {
       setState("offline");
@@ -82,6 +85,9 @@ export function useEventStream(opts: UseEventStreamOptions): ConnectionState {
     const handle = async (payload: Parameters<typeof reduceEvent>[0]) => {
       if (payload.type === "resync") {
         setState("resyncing");
+        // Runs are client-only: a stale one would never end. The status refetch restarts none,
+        // so a run that is still going shows again from its next event.
+        clearRuns(qc);
         await qc.refetchQueries({ type: "active" });
         if (!stop.signal.aborted) setState("live");
         return;
@@ -110,6 +116,10 @@ export function useEventStream(opts: UseEventStreamOptions): ConnectionState {
             // An open stream is live, even when the server replays nothing.
             attempt = 0;
             setState("live");
+            // A reconnect without an event id is live-only on the server: events of the gap are
+            // lost, so refetch like a resync.
+            if (opened && lastEventId === undefined) await handle({ type: "resync" });
+            opened = true;
             for await (const payload of stream) {
               try {
                 await handle(payload);

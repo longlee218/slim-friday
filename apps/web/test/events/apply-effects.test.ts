@@ -103,6 +103,30 @@ describe("applyEffects", () => {
     expect(qc.getQueryData(liveRunKey("bot:dev"))).toEqual({});
   });
 
+  test("setStatus ends the runs of bots absent from the list (stopped session)", () => {
+    const start = (botId: string, c = "bot:dev"): CacheEffect => ({
+      op: "startRun",
+      conversationId: c,
+      botId,
+      at: 1,
+    });
+    applyEffects(qc, [start("dev"), start("pia", "group:crew")], noop);
+    const pia = { botId: "pia", name: "Pia", working: true, tasks: [], spendToday: 0 };
+    applyEffects(qc, [{ op: "setStatus", bots: [pia] }], noop);
+    expect(qc.getQueryData(liveRunKey("bot:dev"))).toEqual({});
+    expect(Object.keys(qc.getQueryData(liveRunKey("group:crew"))!)).toEqual(["pia"]);
+  });
+
+  test("tickets and config invalidate their keys; config also the conversation list", () => {
+    const spy = vi.spyOn(qc, "invalidateQueries");
+    applyEffects(qc, [{ op: "invalidate", scope: "tickets" }], noop);
+    expect(spy).toHaveBeenCalledWith({ queryKey: orpc.tickets.key() });
+    spy.mockClear();
+    applyEffects(qc, [{ op: "invalidate", scope: "config" }], noop);
+    expect(spy).toHaveBeenCalledWith({ queryKey: orpc.config.key() });
+    expect(spy).toHaveBeenCalledWith({ queryKey: orpc.conversations.list.key() });
+  });
+
   test("resync invalidates everything", () => {
     const spy = vi.spyOn(qc, "invalidateQueries");
     applyEffects(qc, [{ op: "invalidate", scope: "all" }], noop);
