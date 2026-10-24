@@ -8,29 +8,15 @@ import {
   extractUserPrompt,
   MAX_NOTES,
 } from "./extract-notes-prompt";
+import { ExtractedNotes, jsonSchemaOutput, STRUCTURED_MAX_TURNS } from "./note-output-schema";
 
 /** Longest summary text sent to the extraction call. */
 const MAX_INPUT = 20000;
 
-/** The first JSON array of strings in `text`, or [] when there is none. */
-function parseNotes(text: string): string[] {
-  const start = text.indexOf("[");
-  const end = text.lastIndexOf("]");
-  if (start < 0 || end <= start) return [];
-  try {
-    const parsed: unknown = JSON.parse(text.slice(start, end + 1));
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .filter((n): n is string => typeof n === "string" && n.trim() !== "")
-      .slice(0, MAX_NOTES);
-  } catch {
-    return [];
-  }
-}
-
 /**
- * Notes worth keeping from a compaction summary or a transcript: one tool-less, one-turn model call. An answer that
- * is not a JSON array gives []; a failed, aborted (time limit) or unanswered call rejects, so the caller logs it.
+ * Notes worth keeping from a compaction summary or a transcript: one tool-less model call with SDK structured output
+ * (`ExtractedNotes`). A failed, aborted (time limit) or unanswered call, exhausted schema retries or an answer of the
+ * wrong shape rejects, so the caller logs it.
  */
 export async function extractNotes(
   summary: string,
@@ -54,7 +40,8 @@ export async function extractNotes(
       model: opts.model,
       systemPrompt: EXTRACT_SYSTEM_PROMPT,
       tools: [],
-      maxTurns: 1,
+      maxTurns: STRUCTURED_MAX_TURNS,
+      outputFormat: jsonSchemaOutput(ExtractedNotes),
       settingSources: [],
       abortController: timeoutController(opts.timeoutMs ?? NOTE_CALL_TIMEOUT_MS),
       env: sdkEnv({ hasRealAuth: !!opts.oauthToken, oauthToken: opts.oauthToken }, opts.env ?? {}, {
@@ -65,7 +52,9 @@ export async function extractNotes(
   for await (const m of run) {
     if (m.type !== "result") continue;
     if (m.subtype !== "success") throw new Error(`note extraction failed: ${m.subtype}`);
-    return parseNotes(m.result);
+    const answer = ExtractedNotes.safeParse(m.structured_output);
+    if (!answer.success) throw new Error("note extraction answered in the wrong shape");
+    return answer.data.notes.filter((n) => n.trim() !== "").slice(0, MAX_NOTES);
   }
   throw new Error("note extraction ended without a result");
 }

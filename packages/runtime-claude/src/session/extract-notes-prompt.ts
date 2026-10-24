@@ -29,7 +29,7 @@ Only what will still matter in a later conversation:
 - guesses, plans not yet agreed, opinions of other bots
 - secrets, tokens, passwords, and personal data of other people
 - anything kept only "just in case"
-When unsure, skip. [] is a good answer.
+When unsure, skip. {"notes": []} is a good answer.
 </skip>
 
 <write>
@@ -37,8 +37,8 @@ Each note is one line under ${MEMORY_NOTE_MAX_CHARS} characters that makes sense
 </write>
 
 <output>
-Only a JSON array of strings, nothing else. Example:
-["Owner wants short answers in Vietnamese, no preamble.", "Friday's Honcho runs locally at 127.0.0.1:8000 (set up 2026-10-24)."]
+An object whose "notes" is a list of strings. Example:
+{"notes": ["Owner wants short answers in Vietnamese, no preamble.", "Friday's Honcho runs locally at 127.0.0.1:8000 (set up 2026-10-24)."]}
 </output>`;
 
 /** The user message of an extraction: today's date (when given), then the input in its own tag. */

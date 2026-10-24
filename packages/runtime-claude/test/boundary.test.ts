@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
-/* Boundary scans: runtime-claude may use core, the SDK and node only. */
+/* Boundary scans: runtime-claude may use core, the SDK, zod (answer schemas) and node only. */
 
 const ROOT = join(import.meta.dir, "..");
 const SRC = join(ROOT, "src");
@@ -24,16 +24,16 @@ const specifiers = (text: string): string[] =>
     (m) => m[2] ?? "",
   );
 
-/** Specifiers this package may use: core, the SDK, node builtins, its own files, its own package name. */
+/** Specifiers this package may use: core, the SDK, zod, node builtins, its own files, its own package name. */
 function allowed(spec: string, from: string): boolean {
-  if (spec === "@friday/core" || spec === "@anthropic-ai/claude-agent-sdk") return true;
+  if (["@friday/core", "@anthropic-ai/claude-agent-sdk", "zod"].includes(spec)) return true;
   if (spec.startsWith("node:") || spec.startsWith("@friday/runtime-claude/")) return true;
   if (!/^\.\.?\//.test(spec)) return false;
   const target = resolve(dirname(from), spec);
   return target.startsWith(`${SRC}/`) || target === SRC;
 }
 
-test("imports only core, the SDK, node and its own files", () => {
+test("imports only core, the SDK, zod, node and its own files", () => {
   const bad = filesOf(SRC).flatMap((f) =>
     specifiers(f.text)
       .filter((s) => !allowed(s, f.file))

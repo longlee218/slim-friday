@@ -20,7 +20,7 @@ For each candidate, in order:
 3. Does it update or contradict a memory line (a changed preference, a reversed decision, a fact no longer true)? Replace that line: give "replaces": n. A replacement keeps the kind of the line it replaces; if the kind changes, add it as a new note.
 4. Otherwise add it. Merge candidates that say the same thing into one note.
 Drop one-off events, task progress or status, details readable from code or files, guesses, secrets, and notes that only make sense inside their conversation.
-The default answer is []. At most ${MAX_PROMOTED} items, at most ${MAX_REPLACED_PER_RUN} of them with "replaces".
+The default answer is {"notes": []}. At most ${MAX_PROMOTED} items, at most ${MAX_REPLACED_PER_RUN} of them with "replaces".
 </decide>
 
 <kinds>
@@ -32,8 +32,8 @@ One line under ${MEMORY_NOTE_MAX_CHARS} characters that makes sense alone: name 
 </write>
 
 <output>
-Only a JSON array, nothing else:
-[{"kind": "preference", "note": "..."}, {"kind": "decision", "note": "...", "replaces": 4}]
+An object whose "notes" is a list of items:
+{"notes": [{"kind": "preference", "note": "..."}, {"kind": "decision", "note": "...", "replaces": 4}]}
 </output>`;
 
 /**

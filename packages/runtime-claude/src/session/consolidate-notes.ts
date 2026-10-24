@@ -8,47 +8,25 @@ import {
   MAX_PROMOTED,
 } from "./consolidate-notes-prompt";
 import type { extractNotes } from "./extract-notes";
+import { jsonSchemaOutput, PromotedNotes, STRUCTURED_MAX_TURNS } from "./note-output-schema";
 
 /** Longest prompt sent (memory + notes): a full journal day (about 60 000 chars) still leaves room for memory. */
 const MAX_INPUT = 80000;
 
-/** Kinds a promoted note may have (the MEMORY.md sections). */
-const KINDS = new Set<string>(["decision", "fact", "preference", "lesson"]);
-
-/** The first JSON array in `text` as promoted notes; bad items are dropped; undefined when there is no array. */
-function parsePromoted(text: string): PromotedNote[] | undefined {
-  const start = text.indexOf("[");
-  const end = text.lastIndexOf("]");
-  if (start < 0 || end <= start) return undefined;
-  try {
-    const parsed: unknown = JSON.parse(text.slice(start, end + 1));
-    if (!Array.isArray(parsed)) return undefined;
-    const out: PromotedNote[] = [];
-    for (const item of parsed) {
-      const { kind, note, replaces } = (item ?? {}) as {
-        kind?: unknown;
-        note?: unknown;
-        replaces?: unknown;
-      };
-      if (typeof kind !== "string" || !KINDS.has(kind)) continue;
-      if (typeof note !== "string" || !note.trim()) continue;
-      // Only a positive whole number names a memory note; anything else leaves a plain new note.
-      const replacing = Number.isInteger(replaces) && (replaces as number) > 0;
-      out.push({
-        kind: kind as PromotedNote["kind"],
-        note: note.trim(),
-        ...(replacing && { replaces: replaces as number }),
-      });
-    }
-    return out.slice(0, MAX_PROMOTED);
-  } catch {
-    return undefined;
-  }
+/** The structured answer as promoted notes, trimmed, empty ones dropped; undefined when it has the wrong shape. */
+function parsePromoted(output: unknown): PromotedNote[] | undefined {
+  const answer = PromotedNotes.safeParse(output);
+  if (!answer.success) return undefined;
+  return answer.data.notes
+    .map((n) => ({ ...n, note: n.note.trim() }))
+    .filter((n) => n.note !== "")
+    .slice(0, MAX_PROMOTED);
 }
 
 /**
- * Journal notes worth promoting into MEMORY.md: one tool-less, one-turn model call. Never throws; a failed call or
- * an answer without a JSON array gives undefined (the caller then keeps its mark), `[]` means nothing to keep.
+ * Journal notes worth promoting into MEMORY.md: one tool-less model call with SDK structured output (`PromotedNotes`).
+ * Never throws; a failed call, exhausted schema retries or an answer of the wrong shape gives undefined (the caller
+ * then keeps its mark), `[]` means nothing to keep.
  */
 export async function consolidateNotes(
   input: { memory: string; notes: string[]; today?: string },
@@ -62,7 +40,8 @@ export async function consolidateNotes(
         model: opts.model,
         systemPrompt: CONSOLIDATE_SYSTEM_PROMPT,
         tools: [],
-        maxTurns: 1,
+        maxTurns: STRUCTURED_MAX_TURNS,
+        outputFormat: jsonSchemaOutput(PromotedNotes),
         settingSources: [],
         abortController: timeoutController(opts.timeoutMs ?? NOTE_CALL_TIMEOUT_MS),
         env: sdkEnv(
@@ -75,7 +54,8 @@ export async function consolidateNotes(
       },
     });
     for await (const m of run)
-      if (m.type === "result") return m.subtype === "success" ? parsePromoted(m.result) : undefined;
+      if (m.type === "result")
+        return m.subtype === "success" ? parsePromoted(m.structured_output) : undefined;
     return undefined;
   } catch {
     return undefined;
