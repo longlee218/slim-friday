@@ -195,6 +195,18 @@ test("a failed continuation deletes its rows instead of holding them", async () 
   expect(h.store.steerMap.size).toBe(0);
 });
 
+test("a failed continuation keeps rows bound to it but never claimed (new messages)", async () => {
+  const h = await withContinuation();
+  const cont = wakes(h).find((w) => w.text === CONTINUATION_PROMPT);
+  if (!cont) throw new Error("no continuation");
+  await h.store.steering.add(steer("late", 50, { wakeId: cont.id }));
+  h.runtime.last().emit({ type: "error", message: "boom", retryable: false });
+  await flush();
+  // The claimed rows are gone; the late row went back to held and got its own continuation.
+  expect([...h.store.steerMap.keys()]).toEqual(["late"]);
+  expect(wakes(h).filter((w) => w.text === CONTINUATION_PROMPT)).toHaveLength(2);
+});
+
 test("a row pushed after the last tool result is unanswered: continuation run", async () => {
   const h = makeHub();
   h.surface.deliver({ conversationId: "dc", text: "start" });
