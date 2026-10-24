@@ -10,9 +10,21 @@ export function nearBottom(el: HTMLElement, px = FOLLOW_PX): boolean {
 
 /**
  * New scrollTop after older messages were added above the view: the content grew by
- * `nextHeight - prevHeight`, so the offset grows by the same amount and the message the
- * owner was reading stays where it was.
+ * `nextHeight - prevHeight`, so the offset moves by the same amount and the message the
+ * owner was reading stays where it was. `top` is the offset right now (the owner may have
+ * scrolled since the page was requested).
  */
-export function anchoredScrollTop(prevTop: number, prevHeight: number, nextHeight: number): number {
-  return prevTop + (nextHeight - prevHeight);
+export function anchoredScrollTop(top: number, prevHeight: number, nextHeight: number): number {
+  return top + (nextHeight - prevHeight);
+}
+
+/**
+ * What the view does when its content changes: `open` pins to the newest row once (and
+ * again after a moment), `follow` pins because the owner is at the bottom (a row was added
+ * or a live run / last row grew), `stay` leaves the scroll alone.
+ */
+export function pinAction(s: { started: boolean; hasRows: boolean; following: boolean }) {
+  if (!s.hasRows) return "stay";
+  if (!s.started) return "open";
+  return s.following ? "follow" : "stay";
 }

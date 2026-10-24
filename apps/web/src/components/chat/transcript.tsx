@@ -104,6 +104,7 @@ export function Transcript({ conversation, phone, onReply, onDropFiles }: Transc
     scroller,
     itemCount: items.length,
     lastKey: items.at(-1)?.key,
+    totalSize: virtualizer.getTotalSize(),
     pageCount: pages?.length ?? 0,
     hasOlder: q.hasNextPage,
     loadingOlder: q.isFetchingNextPage,

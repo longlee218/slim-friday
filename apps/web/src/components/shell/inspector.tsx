@@ -57,7 +57,7 @@ function BotInspector({ bot, status }: { bot: BotDto; status?: BotStatusDto }) {
           <div className="task" style={{ padding: "6px 0" }}>
             <LoaderCircle className="spin" strokeWidth={1.75} />
             <div className="grow">
-              <div className="t1">{status?.label ?? "Working"}</div>
+              <div className="t1">{status?.label || "Working"}</div>
               {status?.tasks.map((t) => (
                 <div key={t.id} className="t2">
                   {t.description}
@@ -105,7 +105,7 @@ function GroupInspector({ group, status }: { group: GroupDto; status: BotStatusD
               <Avatar src={dir.bots.get(id)?.avatarUrl} name={dir.botName(id)} size={26} />
               <div className="grow">
                 <b>{dir.botName(id)}</b> {id === group.entryBot && <Pill tone="gray">entry</Pill>}
-                <div className="t2">{s?.working ? (s.label ?? "Working") : "Idle"}</div>
+                <div className="t2">{s?.working ? s.label || "Working" : "Idle"}</div>
               </div>
             </div>
           );

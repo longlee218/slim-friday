@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { client } from "../../api/client";
 import { applyEffects } from "../../events/apply-effects";
 
@@ -29,14 +29,21 @@ export function useMarkRead(
 ): void {
   const qc = useQueryClient();
   const visible = useTabVisible();
+  // Last id sent per conversation: the same id is never sent twice.
+  const sent = useRef<string | null>(null);
   useEffect(() => {
     if (newestId === undefined || !atBottom || !visible) return;
+    const mark = `${conversationId}:${newestId}`;
+    if (sent.current === mark) return;
     const t = setTimeout(() => {
+      sent.current = mark;
       client.conversations
         .markRead({ id: conversationId, messageId: newestId })
         .then(() => applyEffects(qc, [{ op: "setUnread", conversationId, unread: 0 }], () => {}))
-        // A failed call keeps the badge; the next new message tries again.
-        .catch(() => {});
+        // A failed call keeps the badge and may be tried again.
+        .catch(() => {
+          if (sent.current === mark) sent.current = null;
+        });
     }, MARK_READ_MS);
     return () => clearTimeout(t);
   }, [conversationId, newestId, atBottom, visible, qc]);

@@ -83,3 +83,11 @@ test("older pages keep the visible message in place", () => {
   expect(anchoredScrollTop(120, 3000, 4000)).toBe(1120);
   expect(anchoredScrollTop(120, 3000, 3000)).toBe(120);
 });
+
+test("pin decisions: open once, follow only at the bottom, stay with no rows", async () => {
+  const { pinAction } = await import("../../src/components/chat/transcript-scroll");
+  expect(pinAction({ started: false, hasRows: true, following: true })).toBe("open");
+  expect(pinAction({ started: true, hasRows: true, following: true })).toBe("follow");
+  expect(pinAction({ started: true, hasRows: true, following: false })).toBe("stay");
+  expect(pinAction({ started: false, hasRows: false, following: true })).toBe("stay");
+});

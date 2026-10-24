@@ -30,11 +30,15 @@ export function movedPastSlop(move: { dx: number; dy: number }): boolean {
  */
 export function swipeStep(s: SwipeState, move: { dx: number; dy: number }): SwipeState {
   if (s.phase === "idle" || s.phase === "cancelled") return s;
-  if (s.dx === 0 && Math.abs(move.dy) > Math.abs(move.dx) && Math.abs(move.dy) > SLOP) {
+  if (s.phase === "pressing" && Math.abs(move.dy) > Math.abs(move.dx) && Math.abs(move.dy) > SLOP) {
     return { phase: "cancelled", dx: 0, ok: false };
   }
   const dx = Math.max(0, Math.min(MAX_DX, move.dx));
-  return { phase: move.dx > SLOP ? "swiping" : "pressing", dx, ok: dx > SWIPE_PX };
+  return {
+    phase: s.phase === "swiping" || move.dx > SLOP ? "swiping" : "pressing",
+    dx,
+    ok: dx > SWIPE_PX,
+  };
 }
 
 export interface SwipeHandlers {
@@ -82,6 +86,8 @@ export function useSwipeToReply(el: HTMLElement | null, handlers: SwipeHandlers)
       if (e.clientX < EDGE_PX || target.closest("button, a, input, textarea")) return;
       const m = target.closest<HTMLElement>(".msg[data-mi]");
       if (!m) return;
+      // A new press ends whatever the previous one left running.
+      reset();
       msg = m;
       start = { x: e.clientX, y: e.clientY };
       state = { phase: "pressing", dx: 0, ok: false };

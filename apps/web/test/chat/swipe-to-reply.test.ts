@@ -33,3 +33,10 @@ test("any move over 8 px cancels the hold", () => {
   expect(movedPastSlop({ dx: 0, dy: -9 })).toBe(true);
   expect(HOLD_MS).toBe(450);
 });
+
+test("once swiping, dragging back to 0 and drifting vertically does not cancel", () => {
+  const swiping = swipeStep(press(), { dx: 40, dy: 0 });
+  const back = swipeStep(swiping, { dx: 0, dy: 0 });
+  expect(back.phase).toBe("swiping");
+  expect(swipeStep(back, { dx: 1, dy: 30 }).phase).toBe("swiping");
+});

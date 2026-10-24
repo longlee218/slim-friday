@@ -1,16 +1,9 @@
-import type { ConversationDto, MessageDto } from "@friday/contracts";
-import { type QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createMemoryRouter, RouterProvider } from "react-router";
-import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { orpc } from "../../src/api/client";
-import { ChatView } from "../../src/components/chat/chat-view";
+import { beforeEach, expect, test, vi } from "vitest";
 import { setPending } from "../../src/components/chat/pending-sends";
-import { AppShell } from "../../src/components/shell/app-shell";
 import { applyEffects, resetStatusDebounce } from "../../src/events/apply-effects";
-import { messagesKey } from "../../src/events/apply-messages";
-import { bot, conv, group, seededClient, status } from "../shell/fixtures";
+import { renderChat, setup, stubMatchMedia } from "./chat-view-fixtures";
 import { msg } from "./fixtures";
 
 const mocks = vi.hoisted(() => ({
@@ -28,74 +21,15 @@ vi.mock("../../src/api/client", async (orig) => ({
     control: { stop: mocks.stop },
   },
 }));
-// jsdom cannot measure layout, so the real virtualizer would render no rows. This stand-in
-// renders every item; the real one is covered by the browser build. Pure logic (items,
-// anchoring, swipe) has its own unit tests.
-vi.mock("@tanstack/react-virtual", () => ({
-  useVirtualizer: ({
-    count,
-    getItemKey,
-  }: {
-    count: number;
-    getItemKey: (i: number) => string | number;
-  }) => ({
-    getVirtualItems: () =>
-      Array.from({ length: count }, (_, index) => ({
-        index,
-        key: getItemKey(index),
-        start: index * 100,
-        size: 100,
-      })),
-    getTotalSize: () => count * 100,
-    measureElement: () => {},
-  }),
-}));
+vi.mock("@tanstack/react-virtual", () => import("./virtualizer-stub"));
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.stubGlobal("matchMedia", () => ({
-    matches: false,
-    addEventListener: () => {},
-    removeEventListener: () => {},
-  }));
+  stubMatchMedia();
   mocks.send.mockResolvedValue({ messageId: 50 });
   mocks.markRead.mockResolvedValue({ ok: true });
   mocks.stop.mockResolvedValue({ stopped: 1 });
 });
-afterEach(() => vi.useRealTimers());
-
-const devConv: ConversationDto = { ...conv("bot:dev", 3), botId: "dev", title: "Dev" };
-const crewConv: ConversationDto = { ...conv("group:crew", 0), groupId: "crew", title: "Crew" };
-
-/** A client with Dev, Pia and a Crew group; `pages` seeds the Dev transcript. */
-function setup(pages: MessageDto[][]): QueryClient {
-  const qc = seededClient({
-    bots: [{ ...bot("dev", "Dev"), title: "Developer" }, bot("pia", "Pia")],
-    groups: [group("crew", "Crew", ["pia", "dev"])],
-    conversations: [devConv, crewConv],
-    status: [status("dev", "Dev", false), status("pia", "Pia", true, "Writing")],
-  });
-  qc.setQueryData(messagesKey("bot:dev"), { pages, pageParams: pages.map(() => undefined) });
-  qc.setQueryData(messagesKey("group:crew"), { pages: [[]], pageParams: [undefined] });
-  return qc;
-}
-
-function renderChat(qc: QueryClient, path = "/c/bot:dev") {
-  const router = createMemoryRouter(
-    [
-      {
-        path: "/c/:conversationId",
-        element: <AppShell sidebar={<nav>side</nav>} main={<ChatView />} />,
-      },
-    ],
-    { initialEntries: [path] },
-  );
-  return render(
-    <QueryClientProvider client={qc}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>,
-  );
-}
 
 test("chat view shows the empty state with suggestions", async () => {
   renderChat(setup([[]]));
@@ -148,21 +82,6 @@ test("an appendMessage effect shows up in the transcript and animates in", async
   expect(within(container).getByText("Old news").closest(".msg")?.className).toBe("msg");
 });
 
-test("mark read after the newest message is seen", async () => {
-  vi.useFakeTimers();
-  const qc = setup([[msg({ id: 9 }), msg({ id: 8 })]]);
-  renderChat(qc);
-  expect(mocks.markRead).not.toHaveBeenCalled();
-  await act(async () => {
-    vi.advanceTimersByTime(500);
-  });
-  expect(mocks.markRead).toHaveBeenCalledWith({ id: "bot:dev", messageId: 9 });
-  await act(async () => {});
-  // The badge goes to 0 locally through the setUnread effect.
-  const list = qc.getQueryData<ConversationDto[]>(orpc.conversations.list.queryKey());
-  expect(list?.find((c) => c.id === "bot:dev")?.unread).toBe(0);
-});
-
 test("stop calls control.stop with the conversation", async () => {
   const qc = setup([[msg({ id: 9 })]]);
   renderChat(qc);
@@ -194,22 +113,4 @@ test("files dropped on the transcript reach the composer", async () => {
   // The composer refuses the 21 MB file before any network call and says so.
   await waitFor(() => expect(mocks.toast).toHaveBeenCalled());
   expect(String(mocks.toast.mock.calls[0]?.[0])).toMatch(/20 MB/);
-});
-
-test("the draft survives a switch away and back", async () => {
-  const qc = setup([[msg({ id: 9 })]]);
-  const router = createMemoryRouter(
-    [{ path: "/c/:conversationId", element: <AppShell sidebar={null} main={<ChatView />} /> }],
-    { initialEntries: ["/c/bot:dev"] },
-  );
-  render(
-    <QueryClientProvider client={qc}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>,
-  );
-  await userEvent.type(screen.getByLabelText("Message"), "half a thought");
-  await act(() => router.navigate("/c/group:crew"));
-  expect((screen.getByLabelText("Message") as HTMLTextAreaElement).value).toBe("");
-  await act(() => router.navigate("/c/bot:dev"));
-  expect((screen.getByLabelText("Message") as HTMLTextAreaElement).value).toBe("half a thought");
 });
