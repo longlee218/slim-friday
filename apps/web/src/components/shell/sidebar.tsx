@@ -79,7 +79,7 @@ export function Sidebar({ onPalette }: { onPalette: () => void }) {
           });
           return (
             <SidebarRow key={id} href={`/c/${id}`} on={pathname === `/c/${id}`}>
-              <Avatar src={b.avatarUrl} name={b.name} size={22} />
+              <Avatar src={b.avatarUrl} name={b.name} size={22} working={working.has(b.id)} />
               <span className="name">{b.name}</span>
               <Trailing mark={mark} />
             </SidebarRow>

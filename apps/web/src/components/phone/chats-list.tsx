@@ -74,7 +74,11 @@ export function ChatsList() {
         {working.length > 0 && (
           <button type="button" className="live" onClick={() => void navigate("/ops")}>
             <AvatarStack
-              items={working.map((b) => ({ src: dir.bots.get(b.botId)?.avatarUrl, name: b.name }))}
+              items={working.map((b) => ({
+                src: dir.bots.get(b.botId)?.avatarUrl,
+                name: b.name,
+                working: true,
+              }))}
             />
             <span className="grow">
               <b>
@@ -118,6 +122,7 @@ export function ChatsList() {
                     src={group?.avatarUrl ?? bot?.avatarUrl ?? c.avatarUrl}
                     name={name}
                     size={52}
+                    working={Boolean(live)}
                   />
                 )}
                 <div className="grow">

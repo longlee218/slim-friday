@@ -18,7 +18,7 @@ function LiveRunRow({ run }: { run: LiveRun }) {
   const bot = useBotFace(run.botId);
   return (
     <div className="msg">
-      <Avatar src={bot.src} name={bot.name} size={30} />
+      <Avatar src={bot.src} name={bot.name} size={30} working />
       <div className="body">
         <div className="who">
           <b>{bot.name}</b>
