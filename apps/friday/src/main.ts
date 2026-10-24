@@ -1,6 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { TEMPLATES_DIR } from "@friday/config";
+import type { AgentRuntime, FileStore } from "@friday/core";
 import {
   ClaudeRuntime,
   consolidateNotes,
@@ -38,11 +39,19 @@ function need(name: string, value: string | undefined): string {
  * the app, then the web API over them. Refuses by variable name, before any network call, when a web or R2 value is
  * missing.
  */
-export async function startEngine(opts: {
-  config: AgentConfig;
-  agentHome: string;
-  signal: AbortSignal;
-}): Promise<void> {
+export async function startEngine(
+  opts: {
+    config: AgentConfig;
+    agentHome: string;
+    signal: AbortSignal;
+  },
+  overrides?: {
+    /** Replaces the Claude runtime (the e2e script passes a scripted one). */
+    runtime?: AgentRuntime | ((parts: RuntimeParts) => AgentRuntime);
+    /** Replaces the R2 file store (the e2e script passes an in-memory one). */
+    fileStore?: FileStore;
+  },
+): Promise<void> {
   const { config, agentHome, signal } = opts;
   const web = {
     webOrigin: need("WEB_ORIGIN", config.webOrigin),
@@ -57,7 +66,7 @@ export async function startEngine(opts: {
     bucket: need("R2_BUCKET", config.r2.bucket),
   };
   // The S3 client is lazy: nothing reaches R2 until a file is read or written.
-  const files = new R2FileStore(r2);
+  const files = overrides?.fileStore ?? new R2FileStore(r2);
   mkdirSync(join(agentHome, "data"), { recursive: true });
   const engine = openEngineStore(join(agentHome, "data", "engine.db"));
   const surface = new WebSurface({
@@ -69,7 +78,7 @@ export async function startEngine(opts: {
   });
   const env = readProcessEnv();
   const memoryDir = join(agentHome, "memory");
-  const runtime = (parts: RuntimeParts) => {
+  const claudeRuntime = (parts: RuntimeParts) => {
     // Missing env values are reported once at start; the servers are read again for every new session.
     for (const p of parts.config.mcpServers(env).problems) log.warn(p, "config.problem");
     return new ClaudeRuntime({
@@ -124,7 +133,7 @@ export async function startEngine(opts: {
     surface,
     files,
     engine,
-    runtime,
+    runtime: overrides?.runtime ?? claudeRuntime,
     agentHome,
     log,
     env,
