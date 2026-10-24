@@ -25,3 +25,13 @@ test("start records a running attempt and finish closes it", async () => {
   ]);
   s.close();
 });
+
+test("finish closes only a running attempt: the first status wins", async () => {
+  const file = join(mkdtempSync(join(tmpdir(), "attempt-")), "engine.db");
+  const s = openEngineStore(file);
+  await s.attempts.start({ id: "a1", wakeId: "w1", fence: 1, owner: "boot:w1", startedAt: 5 });
+  await s.attempts.finish("a1", "interrupted", 7);
+  await s.attempts.finish("a1", "done", 9);
+  expect(rows(file)).toMatchObject([{ id: "a1", status: "interrupted", ended_at: 7 }]);
+  s.close();
+});

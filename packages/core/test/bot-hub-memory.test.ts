@@ -29,24 +29,24 @@ test("bot memory goes into the session spec at open", async () => {
   expect(runtime.nth(0).spec.memory).toContain("likes tea");
 });
 
-test("group memory is loaded fresh for every group run", async () => {
+test("group memory is read into the system prompt at every group run", async () => {
   const { memory, texts } = fakeMemory();
   texts.set("group:g", "- team uses bun");
   const { runtime, surface } = makeHub(memory);
   surface.deliver({ conversationId: "gc", text: "one" });
   await flush();
-  expect(runtime.last().sent[0]?.groupMemory).toBe("- team uses bun");
+  expect(runtime.last().spec.groupMemory).toBe("- team uses bun");
   runtime.last().emit({ type: "turn_end", costUsd: 0 });
   await flush();
   surface.deliver({ conversationId: "gc", text: "two" });
   await flush();
-  expect(runtime.last().sent[0]?.groupMemory).toBe("- team uses bun");
+  expect(runtime.last().spec.groupMemory).toBe("- team uses bun");
   runtime.last().emit({ type: "turn_end", costUsd: 0 });
   await flush();
   texts.set("group:g", "- team uses bun\n- deploy friday");
   surface.deliver({ conversationId: "gc", text: "three" });
   await flush();
-  expect(runtime.last().sent[0]?.groupMemory).toContain("deploy friday");
+  expect(runtime.last().spec.groupMemory).toContain("deploy friday");
   expect(runtime.turns()).toHaveLength(3);
 });
 
@@ -57,7 +57,7 @@ test("a direct turn never carries group memory; a failing read still sends the t
   const a = makeHub(memory);
   a.surface.deliver({ conversationId: "dc", text: "hi" });
   await flush();
-  expect(a.runtime.nth(0).sent[0]?.groupMemory).toBeUndefined();
+  expect(a.runtime.nth(0).spec.groupMemory).toBeUndefined();
   const b = makeHub(broken);
   b.surface.deliver({ conversationId: "gc", text: "hi" });
   await flush();
@@ -77,7 +77,7 @@ test("after a compaction the next run still gets the group memory", async () => 
   await flush();
   surface.deliver({ conversationId: "gc", text: "two" });
   await flush();
-  expect(runtime.last().sent[0]?.groupMemory).toBe("- team uses bun");
+  expect(runtime.last().spec.groupMemory).toBe("- team uses bun");
 });
 
 test("a background task keeps the group scope busy: another chat's message waits and the task asks where it began", async () => {
@@ -197,7 +197,7 @@ test("group memory on a turn is capped at groupMemoryPromptChars", async () => {
   surface.deliver({ conversationId: "gc", text: "hello" });
   await flush();
   expect(caps).toContain(10);
-  expect(runtime.nth(0).sent[0]?.groupMemory).toBe("- team use");
+  expect(runtime.nth(0).spec.groupMemory).toBe("- team use");
 });
 
 test("a group run whose send fails does not keep the next run from getting the group memory", async () => {
@@ -215,10 +215,10 @@ test("a group run whose send fails does not keep the next run from getting the g
   await flush();
   surface.deliver({ conversationId: "gc", text: "two" });
   await flush();
-  expect(runtime.last().sent[0]?.groupMemory).toBe("- team uses bun");
+  expect(runtime.last().spec.groupMemory).toBe("- team uses bun");
 });
 
-test("a changed MEMORY.md reaches the next run's session spec; turns carry no memory of their own", async () => {
+test("a changed MEMORY.md reaches the next run's session spec", async () => {
   const { memory, texts } = fakeMemory();
   texts.set("bot:editor", "## Facts\n- likes tea");
   const { runtime, surface } = makeHub(memory);
@@ -231,7 +231,6 @@ test("a changed MEMORY.md reaches the next run's session spec; turns carry no me
   surface.deliver({ conversationId: "dc", text: "two" });
   await flush();
   expect(runtime.last().spec.memory).toContain("answers in Vietnamese");
-  expect(runtime.turns().map((t) => t.botMemory)).toEqual([undefined, undefined]);
 });
 
 test("after a run whose send failed the next run's spec has the updated memory", async () => {
@@ -269,7 +268,7 @@ test("a memory emptied by the owner leaves the next run's spec without memory", 
   expect(runtime.last().spec.memory).toBeUndefined();
 });
 
-test("after a compaction a failed memory read is not reported as an emptied memory", async () => {
+test("a memory that cannot be read at open leaves the spec without memory and the run still goes", async () => {
   const { memory, texts } = fakeMemory();
   texts.set("bot:editor", "## Facts\n- likes tea");
   let broken = false;
@@ -287,5 +286,6 @@ test("after a compaction a failed memory read is not reported as an emptied memo
   await flush();
   surface.deliver({ conversationId: "dc", text: "two" });
   await flush();
-  expect(s.sent[1]?.botMemory).toBeUndefined();
+  expect(runtime.last().sent[0]?.text).toBe("two");
+  expect(runtime.last().spec.memory).toBeUndefined();
 });

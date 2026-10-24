@@ -1,5 +1,5 @@
 import type { McpServerConfig, Options, query } from "@anthropic-ai/claude-agent-sdk";
-import { type Bot, type BotRuntimeSpec, MEMORY_LABEL } from "@friday/core";
+import type { Bot, BotRuntimeSpec } from "@friday/core";
 import { isInside, realOrSame } from "../floor/paths";
 import { sdkEnv } from "../floor/sdk-env";
 import { workerSandbox } from "../floor/worker-sandbox";
@@ -7,6 +7,7 @@ import { askOwner } from "./ask-question";
 import { floorCheck } from "./floor-check";
 import { mcpGranted, pickServers, splitTools } from "./mcp-grants";
 import { buildSkillsPlugin } from "./skills-plugin";
+import { systemPromptOf } from "./system-prompt";
 
 /** The SDK `query` signature; tests inject a fake. */
 export type QueryFn = typeof query;
@@ -104,7 +105,7 @@ export function buildOptions(input: BuildOptionsInput): Options {
   return {
     model: bot.model,
     ...(bot.effort && { effort: bot.effort }),
-    systemPrompt: `You are ${bot.name}, ${bot.title}.\n\n${bot.instructions}${spec.memory ? `\n\n## Your memory\n${MEMORY_LABEL}\n\n${spec.memory}` : ""}`,
+    systemPrompt: systemPromptOf(spec),
     cwd,
     additionalDirectories: [...bot.workspaces.slice(1), ...extra.write, ...extra.read],
     tools: skillsPlugin && !builtIn.includes("Skill") ? [...builtIn, "Skill"] : builtIn,

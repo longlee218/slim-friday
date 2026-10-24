@@ -6,7 +6,6 @@ import {
   buildWakePrompt,
   INTERRUPTED_NOTE,
   type InboundTurn,
-  MEMORY_LABEL,
   type StoredMessage,
 } from "@friday/core";
 import type { UserContent } from "./input-queue";
@@ -41,8 +40,8 @@ function oneLine(s: string): string {
 /**
  * The text a bot reads for one inbound turn: a header naming the conversation, the sender and the hop,
  * then the message. A group turn with context starts with the recent messages; the last context
- * message is left out when it is the triggering message itself. Changed group memory comes first, then
- * recalled notes.
+ * message is left out when it is the triggering message itself. Ticket blocks and recalled notes come
+ * first (group context and memory are in the system prompt).
  */
 export function formatTurn(turn: InboundTurn, names: Record<string, string>): string {
   const last = turn.context.at(-1);
@@ -51,13 +50,6 @@ export function formatTurn(turn: InboundTurn, names: Record<string, string>): st
     ? `Recent messages:\n${recent.map((m) => contextLine(m, names)).join("\n")}\n\n`
     : "";
   const tickets = turn.tickets ? `${turn.tickets}\n\n` : "";
-  const groupContext = turn.groupContext ? `Group context:\n${turn.groupContext}\n\n` : "";
-  const botMemory = turn.botMemory
-    ? `Your memory (updated):\n${MEMORY_LABEL}\n\n${turn.botMemory}\n\n`
-    : "";
-  const memory = turn.groupMemory
-    ? `Group memory:\n${MEMORY_LABEL}\n\n${turn.groupMemory}\n\n`
-    : "";
   const recalled = turn.recalled ? `${turn.recalled}\n\n` : "";
   // A bot's message is wrapped as untrusted peer content with what is expected of the receiver.
   const body =
@@ -73,7 +65,7 @@ export function formatTurn(turn: InboundTurn, names: Record<string, string>): st
     ? `> Replying to ${nameOf(turn.quote.author, names)}: ${oneLine(turn.quote.text)}\n`
     : "";
   const note = turn.interrupted ? `${INTERRUPTED_NOTE}\n\n` : "";
-  return `${tickets}${groupContext}${botMemory}${memory}${recalled}${block}${note}[conversation ${turn.conversationId}] ${nameOf(turn.from, names)} (hop ${turn.hop}):\n${quote}${body}`;
+  return `${tickets}${recalled}${block}${note}[conversation ${turn.conversationId}] ${nameOf(turn.from, names)} (hop ${turn.hop}):\n${quote}${body}`;
 }
 
 /**

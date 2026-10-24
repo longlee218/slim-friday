@@ -40,6 +40,11 @@ export const CORE_DEFAULTS = {
   queueDelayWarnMs: 30_000,
   /** A stream with no event for this long is cut. */
   streamIdleMs: 180_000,
+  /**
+   * After a turn ends with no task open, if a background task finished during that turn, wait this long for its
+   * follow-up turn before the run is finished (a follow-up that starts is then awaited normally).
+   */
+  followUpGraceMs: 15_000,
   /** Retries of a transient failure before giving up. */
   transientRetries: 5,
   /** Setup failures before a run is failed. */

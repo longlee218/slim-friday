@@ -252,6 +252,19 @@ test("the bot's memory ends the system prompt", () => {
   );
 });
 
+test("a group session's context and group memory follow the bot memory in the system prompt", () => {
+  const s = spec(bot());
+  const o = buildOptions({
+    spec: { ...s.s, memory: "B", groupContext: "X", groupMemory: "M" },
+    config,
+    abort: new AbortController(),
+    scratchDir: scratch,
+  });
+  expect(o.systemPrompt).toBe(
+    `You are Ann, Dev.\n\nBe brief.\n\n## Your memory\n${MEMORY_LABEL}\n\nB\n\n## Group context\nX\n\n## Group memory\n${MEMORY_LABEL}\n\nM`,
+  );
+});
+
 /** Run the PostCompact hook of the options like the SDK does. */
 function postCompact(onCompact: (s: BotRuntimeSpec, summary: string) => void, agentId?: string) {
   const s = spec(bot()).s;

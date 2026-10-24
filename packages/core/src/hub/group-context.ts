@@ -1,18 +1,15 @@
-import type { Conversation } from "../domain/conversation";
 import type { Group } from "../domain/group";
 import { type ProjectRulesReader, renderGroupContext } from "../routing/group-context";
 
 /**
- * The group context for a turn: the text when the conversation is a group one and the text is not empty, else
- * undefined. Loaded fresh for every run (a run opens its own session). Rules are read from the group's first
- * workspace; a reader that throws counts as no rules.
+ * The group context of a group session (instructions, working dirs, project rules), undefined when empty.
+ * Read at every session open into the system prompt. Rules are read from the group's first workspace; a
+ * reader that throws counts as no rules.
  */
 export async function groupContextFor(
-  conv: Conversation,
-  group: Group | undefined,
+  group: Group,
   read?: ProjectRulesReader,
 ): Promise<string | undefined> {
-  if (conv.kind !== "group" || !group) return undefined;
   const [main] = group.workspaces;
   let rules: Awaited<ReturnType<ProjectRulesReader>>;
   if (read && main !== undefined) {

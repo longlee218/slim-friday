@@ -14,14 +14,16 @@ export interface TaskInfo {
 }
 
 /**
- * Why a run is cut short: its lease was lost, the owner stopped it, the worker shuts down, or the stream
- * watchdog saw no event for too long.
+ * Why a run's session is stopped: its lease was lost, the owner stopped it, the worker shuts down, the stream
+ * watchdog saw no event for too long, or no follow-up turn came within the grace after a task finished during
+ * the last turn (`followUpOver`, which ends the run as done).
  */
 export type RunStop =
   | { kind: "lease"; why: LeaseLoss | "cancelled" }
   | { kind: "stopped" }
   | { kind: "shutdown" }
-  | { kind: "idle" };
+  | { kind: "idle" }
+  | { kind: "followUpOver" };
 
 /** One run executing in this process: what the event pump, the bot's tools and `status()` read. */
 export interface RunExec {
@@ -53,6 +55,10 @@ export interface RunExec {
   turnOpen: boolean;
   /** A task ended after the last turn end: its follow-up turn is still to come. */
   followUp: boolean;
+  /** A task ended while the current turn was open: a follow-up turn may come after its end. */
+  taskDoneInTurn: boolean;
+  /** Cancels the follow-up grace timer, while one runs. */
+  cancelGrace?: () => void;
   /** Between the claim and the end of the event pump; tools may send and ask only then. */
   live: boolean;
   /** Set when the run read untrusted input (spec "Taint flag"); the permission gate gets it. */
@@ -61,6 +67,10 @@ export interface RunExec {
   firstTextSeen: boolean;
   /** Set once the run is cut short; the first reason wins. */
   stop?: RunStop;
+  /** Settles when `stop` is set (a hanging session open or turn build waits on it). */
+  stopped: Promise<void>;
+  /** Settles `stopped` (`abortRun` calls it). */
+  markStopped: () => void;
   /** Settles when the executor has written how the run ended. */
   ended: Promise<void>;
   /** Settles `ended` (the executor calls it last). */
@@ -73,9 +83,15 @@ export function newRunExec(row: WakeRow, scope: SessionScope, now: number, taint
   const ended = new Promise<void>((r) => {
     markEnded = r;
   });
+  let markStopped = () => {};
+  const stopped = new Promise<void>((r) => {
+    markStopped = r;
+  });
   const exec: RunExec = {
     ended,
     markEnded,
+    stopped,
+    markStopped,
     row,
     key: scope.key,
     ...(scope.groupId && { groupId: scope.groupId }),
@@ -89,6 +105,7 @@ export function newRunExec(row: WakeRow, scope: SessionScope, now: number, taint
     sentResults: new Set(),
     turnOpen: false,
     followUp: false,
+    taskDoneInTurn: false,
     live: true,
     tainted,
     firstTextSeen: false,
@@ -100,6 +117,20 @@ export function newRunExec(row: WakeRow, scope: SessionScope, now: number, taint
 export function abortRun(exec: RunExec, stop: RunStop): void {
   if (exec.stop) return;
   exec.stop = stop;
+  exec.markStopped();
   // A session still opening is stopped by the executor once it is open.
   void exec.session?.stop().catch(() => {});
+}
+
+/**
+ * Wait for `p` unless the run is stopped first (then undefined). A value that comes after the stop is handed to
+ * `late` (e.g. a session that opened late is stopped).
+ */
+export async function untilStop<T>(
+  exec: RunExec,
+  p: Promise<T>,
+  late?: (v: T) => void,
+): Promise<T | undefined> {
+  void p.then((v) => exec.stop && late?.(v)).catch(() => {});
+  return Promise.race([p, exec.stopped.then(() => undefined)]);
 }

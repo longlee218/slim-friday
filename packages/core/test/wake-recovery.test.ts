@@ -159,12 +159,8 @@ test("a row whose session will not open is retried later and the next one still 
   await store.wakes.insert(row("w2"));
   const { hub, runtime } = restart(store);
   const open = runtime.open.bind(runtime);
-  let first = true;
   runtime.open = async (spec) => {
-    if (first) {
-      first = false;
-      throw new Error("session will not open");
-    }
+    if (spec.bot.id === "writer") throw new Error("session will not open");
     return open(spec);
   };
   await hub.recover();

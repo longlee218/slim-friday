@@ -35,7 +35,7 @@ export async function finishRun(
   };
   if (!(await store.wakes.transition(row.id, fence, ["running"], patch))) return false;
   await store.attempts.finish(`${row.id}:${fence}`, r.status, endedAt, r.error);
-  await store.scopes.finished(row.scopeKey, endedAt);
+  await store.scopes.finished(row.scopeKey, endedAt, Math.max(0, row.createdAt - 1));
   await continueHeldSteering(ctx, row);
   const ended = (await store.wakes.get(row.id)) ?? { ...row, ...patch };
   if (r.status === "done") ctx.wakeLog.logDone(ended, endedAt);

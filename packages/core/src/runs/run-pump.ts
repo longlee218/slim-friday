@@ -6,7 +6,7 @@ import { postStored } from "../hub/post-stored";
 import type { RuntimeEvent } from "../ports/agent-runtime";
 import { abortRun, type RunExec } from "./run-exec";
 import { dayOf } from "./run-rules";
-import { StreamWatchdog } from "./run-watchdog";
+import type { StreamWatchdog } from "./run-watchdog";
 
 /** How a run's event stream ended: the work is done, it failed, or the run was cut short (`exec.stop`). */
 export type PumpEnd = { kind: "done" } | { kind: "error"; err: unknown } | { kind: "stopped" };
@@ -18,19 +18,16 @@ const eventError = (message: string, retryable: boolean) =>
 /**
  * Read one run's session events until the run is done: a `turn_end` with no background task open and no
  * follow-up turn of a finished task still to come. Bot text is stored and posted, steps shown, costs added to
- * the spend total. The stream watchdog cuts a stream that is silent for `streamIdleMs` while no tool call or
- * task runs.
+ * the spend total. Every event re-arms the run's stream watchdog `dog` (armed at the claim, stopped by the
+ * executor).
  */
-export async function pumpRun(ctx: HubContext, exec: RunExec): Promise<PumpEnd> {
+export async function pumpRun(
+  ctx: HubContext,
+  exec: RunExec,
+  dog: StreamWatchdog,
+): Promise<PumpEnd> {
   const session = exec.session;
   if (!session) return { kind: "error", err: new Error("no session") };
-  const dog = new StreamWatchdog(
-    ctx.deps.clock,
-    ctx.limits.streamIdleMs,
-    () => exec.openTools.size > 0 || exec.tasks.size > 0,
-    () => abortRun(exec, { kind: "idle" }),
-  );
-  dog.arm();
   try {
     for await (const e of session.events) {
       if (exec.stop) break;
@@ -42,8 +39,6 @@ export async function pumpRun(ctx: HubContext, exec: RunExec): Promise<PumpEnd> 
     return { kind: "error", err: new Error("the session ended unexpectedly") };
   } catch (err) {
     return exec.stop ? { kind: "stopped" } : { kind: "error", err };
-  } finally {
-    dog.stop();
   }
 }
 
@@ -55,6 +50,9 @@ async function onEvent(
 ): Promise<PumpEnd | undefined> {
   const { surface, store, clock } = ctx.deps;
   const now = clock.now();
+  // Any event after a turn end means the follow-up came (or the run goes on): no grace end.
+  exec.cancelGrace?.();
+  delete exec.cancelGrace;
   const conversationId = exec.current.conversationId;
   /** Shows a step in the run line of the current conversation. */
   const show = (step?: RunStep) => step && surface.showRun(conversationId, exec.bot.id, step);
@@ -87,13 +85,21 @@ async function onEvent(
     // The result is the bot's next turn; it speaks where the task began. A task that ends after the turn ended
     // gets a follow-up turn of its own, which the run waits for.
     if (task) exec.current = { conversationId: task.conversationId, hop: task.hop };
-    if (!exec.turnOpen) exec.followUp = true;
+    if (exec.turnOpen) exec.taskDoneInTurn = true;
+    else exec.followUp = true;
   } else if (e.type === "turn_end") {
     show(exec.steps.endTurn(now));
     exec.turnOpen = false;
     exec.followUp = false;
     await store.spend.add(exec.bot.id, dayOf(now), e.costUsd);
-    if (exec.tasks.size === 0) return { kind: "done" };
+    const taskDoneInTurn = exec.taskDoneInTurn;
+    exec.taskDoneInTurn = false;
+    if (exec.tasks.size > 0) return undefined;
+    if (!taskDoneInTurn) return { kind: "done" };
+    // A task finished during this turn: its follow-up turn may still come. Wait for it a short grace.
+    exec.cancelGrace = clock.setTimer(ctx.limits.followUpGraceMs, () =>
+      abortRun(exec, { kind: "followUpOver" }),
+    );
   } else if (e.type === "error") {
     return { kind: "error", err: eventError(e.message, e.retryable) };
   }

@@ -2,25 +2,6 @@ import { expect, test } from "bun:test";
 import { MEMORY_LABEL } from "@friday/core";
 import { formatTurn } from "../src/session/format-turn";
 
-test("group memory is printed before the recent messages", () => {
-  const text = formatTurn(
-    {
-      conversationId: "g1",
-      from: { kind: "user" },
-      text: "go",
-      hop: 0,
-      context: [{ conversationId: "g1", author: { kind: "user" }, text: "earlier", at: 1 }],
-      groupMemory: "- team uses bun",
-    },
-    {},
-  );
-  expect(
-    text.startsWith(
-      `Group memory:\n${MEMORY_LABEL}\n\n- team uses bun\n\nRecent messages:\nuser: earlier`,
-    ),
-  ).toBe(true);
-});
-
 test("a message from a bot is wrapped as untrusted peer content with the intent's instruction", () => {
   const text = formatTurn(
     {
@@ -46,7 +27,7 @@ test("a message from the user stays plain", () => {
   expect(text).toBe("[conversation c1] user (hop 0):\nhi");
 });
 
-test("formatTurn puts the recalled block after group memory and before recent messages", () => {
+test("formatTurn puts the recalled block before recent messages; group context and memory are not in the turn", () => {
   const text = formatTurn(
     {
       conversationId: "g1",
@@ -54,54 +35,14 @@ test("formatTurn puts the recalled block after group memory and before recent me
       text: "go",
       hop: 0,
       context: [{ conversationId: "g1", author: { kind: "user" }, text: "earlier", at: 1 }],
-      groupMemory: "- team uses bun",
       recalled: "<recalled_memory>\nx\n</recalled_memory>",
     },
     {},
   );
   expect(
-    text.startsWith(
-      `Group memory:\n${MEMORY_LABEL}\n\n- team uses bun\n\n<recalled_memory>\nx\n</recalled_memory>\n\nRecent messages:\nuser: earlier`,
-    ),
+    text.startsWith("<recalled_memory>\nx\n</recalled_memory>\n\nRecent messages:\nuser: earlier"),
   ).toBe(true);
-});
-
-test("group context is printed before the group memory", () => {
-  const text = formatTurn(
-    {
-      conversationId: "g1",
-      from: { kind: "user" },
-      text: "go",
-      hop: 0,
-      context: [],
-      groupContext: "X",
-      groupMemory: "M",
-    },
-    {},
-  );
-  expect(text.startsWith(`Group context:\nX\n\nGroup memory:\n${MEMORY_LABEL}\n\nM\n\n`)).toBe(
-    true,
-  );
-});
-
-test("the bot's updated memory comes with its label, before the group memory", () => {
-  const text = formatTurn(
-    {
-      conversationId: "g1",
-      from: { kind: "user" },
-      text: "go",
-      hop: 0,
-      context: [],
-      botMemory: "B",
-      groupMemory: "M",
-    },
-    {},
-  );
-  expect(
-    text.startsWith(
-      `Your memory (updated):\n${MEMORY_LABEL}\n\nB\n\nGroup memory:\n${MEMORY_LABEL}\n\nM\n\n`,
-    ),
-  ).toBe(true);
+  expect(text).not.toContain("Group memory");
 });
 
 test("the memory label lets the owner's rules apply but grants nothing", () => {

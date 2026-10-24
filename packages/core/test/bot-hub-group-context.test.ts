@@ -12,18 +12,20 @@ function hubWith(read: ProjectRulesReader, bare = false) {
   return h;
 }
 
-test("group context goes with every group run", async () => {
+test("group context is in the system prompt of every group run", async () => {
   const { runtime, surface } = hubWith(reader);
   surface.deliver({ conversationId: "gc", text: "one" });
   await flush();
-  const first = runtime.last().sent[0];
-  expect(first?.groupContext).toContain("/p");
-  expect(first?.groupContext).toContain("use bun");
+  const first = runtime.last().spec;
+  expect(first.groupContext).toContain("/p");
+  expect(first.groupContext).toContain("use bun");
+  // In the system prompt only: the turn text does not repeat it.
+  expect(runtime.last().sent[0]).not.toHaveProperty("groupContext");
   runtime.last().emit({ type: "turn_end", costUsd: 0 });
   await flush();
   surface.deliver({ conversationId: "gc", text: "two" });
   await flush();
-  expect(runtime.last().sent[0]?.groupContext).toContain("use bun");
+  expect(runtime.last().spec.groupContext).toContain("use bun");
   expect(runtime.turns()).toHaveLength(2);
 });
 
@@ -31,14 +33,14 @@ test("a direct turn carries no group context", async () => {
   const { runtime, surface } = hubWith(reader);
   surface.deliver({ conversationId: "dc", text: "hi" });
   await flush();
-  expect(runtime.nth(0).sent[0]?.groupContext).toBeUndefined();
+  expect(runtime.nth(0).spec.groupContext).toBeUndefined();
 });
 
 test("a throwing reader still sends the turn with the dirs", async () => {
   const { runtime, surface } = hubWith(async () => Promise.reject(new Error("disk")));
   surface.deliver({ conversationId: "gc", text: "one" });
   await flush();
-  const ctx = runtime.nth(0).sent[0]?.groupContext;
+  const ctx = runtime.nth(0).spec.groupContext;
   expect(ctx).toContain("/p");
   expect(ctx).not.toContain("Project rules");
 });
@@ -47,7 +49,7 @@ test("a group with no workspaces and no instructions sends none", async () => {
   const { runtime, surface } = hubWith(reader, true);
   surface.deliver({ conversationId: "gc", text: "one" });
   await flush();
-  expect(runtime.nth(0).sent[0]?.groupContext).toBeUndefined();
+  expect(runtime.nth(0).spec.groupContext).toBeUndefined();
 });
 
 test("a group run whose send fails does not keep the next run from getting the group context", async () => {
@@ -63,5 +65,5 @@ test("a group run whose send fails does not keep the next run from getting the g
   await flush();
   surface.deliver({ conversationId: "gc", text: "two" });
   await flush();
-  expect(runtime.last().sent[0]?.groupContext).toContain("use bun");
+  expect(runtime.last().spec.groupContext).toContain("use bun");
 });

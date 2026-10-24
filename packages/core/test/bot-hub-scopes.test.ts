@@ -126,6 +126,8 @@ test("sweepIdle closes the idle direct session and keeps the busy group one", as
   const h = scoped({ onIdleClose: (e) => void seen.push(e) });
   h.surface.deliver({ conversationId: "dc", text: "hi" });
   await flush();
+  // A run takes time: it ends after it started.
+  h.clock.advance(10);
   h.runtime.nth(0).emit({ type: "turn_end", costUsd: 0 });
   await flush();
   h.clock.advance(CORE_DEFAULTS.idleCloseMs);
@@ -142,6 +144,8 @@ test("the idle-close event of a group session carries its key and group", async 
   const h = scoped({ onIdleClose: (e) => void seen.push(e) });
   h.surface.deliver({ conversationId: "gc", text: "@editor hi" });
   await flush();
+  // A run takes time: it ends after it started.
+  h.clock.advance(10);
   h.runtime.nth(0).emit({ type: "turn_end", costUsd: 0 });
   await flush();
   h.clock.advance(CORE_DEFAULTS.idleCloseMs);

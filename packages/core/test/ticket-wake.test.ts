@@ -83,7 +83,10 @@ describe("unfinished tickets", () => {
     await h.hub.tickets.update({ kind: "bot", botId: "editor" }, { id: t.id, status: "review" });
     h.runtime.nth(0).emit({ type: "turn_end", costUsd: 0 });
     await flush();
-    expect(h.runtime.nth(0).sent).toHaveLength(1);
+    // A re-wake would be a new run (a resumed session): count every turn and every run.
+    expect(h.runtime.turns()).toHaveLength(1);
+    expect(h.runtime.created).toHaveLength(1);
+    expect(h.store.wakeMap.size).toBe(1);
   });
 
   test("second turn end still open: ticket blocked, comment added, notice posted, no third wake", async () => {
@@ -110,8 +113,9 @@ describe("unfinished tickets", () => {
     await assigned(h);
     h.runtime.nth(0).emit({ type: "error", message: "boom", retryable: false });
     await flush();
-    expect(h.runtime.opened.length).toBe(1);
-    expect(h.runtime.nth(0).sent).toHaveLength(1);
+    expect(h.runtime.created).toHaveLength(1);
+    expect(h.runtime.turns()).toHaveLength(1);
+    expect(h.store.wakeMap.size).toBe(1);
   });
 });
 

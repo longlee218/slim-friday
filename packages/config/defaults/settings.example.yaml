@@ -70,6 +70,8 @@ limits:
   # queueDelayWarnMs: 30000
   ## A stream with no event for this long is cut (ms).
   # streamIdleMs: 180000
+  ## After a turn ends, how long to wait for the follow-up turn of a task that finished during it (ms).
+  # followUpGraceMs: 15000
   ## Retries of a transient failure, failures of a run's setup, and times a cut run is re-sent.
   # transientRetries: 5
   # setupFailures: 8

@@ -74,8 +74,13 @@ export interface ScopePort {
   markReset(key: string): Promise<void>;
   /** Clear the reset request. */
   clearReset(key: string): Promise<void>;
-  /** Record the end of a run. */
-  finished(key: string, at: number): Promise<void>;
+  /** Forget the scope effort (a fresh session starts at the bot's own effort). */
+  clearEffort(key: string): Promise<void>;
+  /**
+   * Record the end of a run that started at `startedAt`. A scope never flushed counts as flushed at `startedAt`,
+   * so its first idle flush covers only messages since that run began (not the whole history).
+   */
+  finished(key: string, at: number, startedAt: number): Promise<void>;
   /** Record a memory flush. */
   flushed(key: string, at: number): Promise<void>;
   /** Scopes finished before `before` and not flushed since they finished. */

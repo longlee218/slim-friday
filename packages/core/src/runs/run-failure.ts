@@ -89,7 +89,7 @@ export async function countCut(
   const patch = { status: "interrupted" as const, cuts, endedAt: now };
   if (!(await store.wakes.transition(row.id, fence, ["running"], patch))) return undefined;
   await store.attempts.finish(`${row.id}:${fence}`, "interrupted", now);
-  await store.scopes.finished(row.scopeKey, now);
+  await store.scopes.finished(row.scopeKey, now, Math.max(0, row.createdAt - 1));
   ctx.deps.log?.warn({ event: "wake.interrupted", wakeId: row.id, cuts }, "wake.interrupted");
   await tell(
     ctx,

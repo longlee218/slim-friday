@@ -10,8 +10,7 @@ const levelOf = (e?: string): EffortLevel | undefined =>
 
 /**
  * The runtime spec of one run's session (without memory: `openRunSession` adds it). Tool decisions and
- * questions go to the conversation the run answers (a task's call to the conversation that started the
- * task) and only while the run is live; the scope's stored `SetEffort` level is the bot's effort.
+ * questions go to the conversation the run answers and only while the run is live; the scope's stored `SetEffort` level is the bot's effort.
  */
 export function runSpec(
   ctx: HubContext,
@@ -26,18 +25,10 @@ export function runSpec(
     sessionKey: exec.key,
     ...(exec.groupId && { groupId: exec.groupId }),
     decide: (c) => {
-      const current = exec.live ? exec.current.conversationId : "";
-      const conversationId =
-        (c.taskId ? exec.tasks.get(c.taskId)?.conversationId : undefined) ?? current;
+      // Every task of a run starts in the conversation the run answers, so a task's call asks there too.
+      const conversationId = exec.live ? exec.current.conversationId : "";
       if (!conversationId)
         return Promise.resolve({ behavior: "deny", reason: "no conversation to ask in" });
-      // A tool resolves "group" scope from the conversation the bot answers now; a task started elsewhere must not
-      // reach that group.
-      if (c.taskId && c.input.scope === "group" && conversationId !== current)
-        return Promise.resolve({
-          behavior: "deny",
-          reason: "group scope is not reachable from a task started in another conversation",
-        });
       return gate.decide({ tool: c.tool, input: c.input, botId: bot.id, conversationId }, bot.name);
     },
     // A question goes to the conversation the run answers; after the run nobody is asked (null).

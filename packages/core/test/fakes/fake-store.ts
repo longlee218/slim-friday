@@ -283,7 +283,10 @@ export class FakeStore implements Store {
       at: number,
       error?: string,
     ) => {
-      Object.assign(this.attemptMap.get(id) ?? {}, {
+      const a = this.attemptMap.get(id);
+      // The first close wins, as in the db.
+      if (a?.status !== "running") return;
+      Object.assign(a, {
         status,
         endedAt: at,
         ...(error !== undefined && { error }),
@@ -413,7 +416,15 @@ export class FakeStore implements Store {
     setEffort: async (key: string, effort: string) => this.scopeSet(key, { effort }),
     markReset: async (key: string) => this.scopeSet(key, { resetPending: true }),
     clearReset: async (key: string) => this.scopeSet(key, { resetPending: false }),
-    finished: async (key: string, at: number) => this.scopeSet(key, { lastFinishedAt: at }),
+    finished: async (key: string, at: number, startedAt: number) =>
+      this.scopeSet(key, {
+        lastFinishedAt: at,
+        lastFlushedAt: this.scopeMap.get(key)?.lastFlushedAt ?? startedAt,
+      }),
+    clearEffort: async (key: string) => {
+      const s = this.scopeMap.get(key);
+      if (s) delete s.effort;
+    },
     flushed: async (key: string, at: number) => this.scopeSet(key, { lastFlushedAt: at }),
     quiet: async (before: number) =>
       [...this.scopeMap.entries()]

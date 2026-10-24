@@ -1,11 +1,13 @@
 import type { CoreLimits } from "../config-defaults";
-import { promptMemory } from "../hub/group-memory";
+import { groupContextFor } from "../hub/group-context";
+import { groupMemoryFor, promptMemory } from "../hub/group-memory";
 import { errText } from "../hub/hub-types";
 import type { SessionScope } from "../hub/session-scope";
 import type { AgentRuntime, BotRuntimeSpec, BotSession } from "../ports/agent-runtime";
 import type { Log } from "../ports/log";
 import { GROUP_SESSION_KINDS, type Memory } from "../ports/memory";
 import type { Store } from "../ports/store";
+import type { ProjectRulesReader } from "../routing/group-context";
 import { SetupError } from "./run-rules";
 
 /** What opening a run's session needs. */
@@ -15,19 +17,21 @@ export interface RunSessionDeps {
   memory?: Memory;
   limits: CoreLimits;
   log?: Log;
+  /** Reads a group's project rules for its group context. */
+  projectRules?: ProjectRulesReader;
 }
 
-/** An open session and the bot memory its system prompt got ("" when none). */
+/** An open session and the memory its system prompt got (bot and group memory; "" when none). */
 export interface OpenedRunSession {
   session: BotSession;
   memory: string;
 }
 
 /**
- * Open the scope's session for one run. The bot memory is read fresh (a group scope gets only the bot's
- * preferences and lessons). The stored session id is resumed, else a new session opens; a stored id that will
+ * Open the scope's session for one run. What goes into the system prompt is read fresh: the bot memory (a
+ * group scope gets only the bot's preferences and lessons) and, for a group scope, the group context and memory. The stored session id is resumed, else a new session opens; a stored id that will
  * not resume is cleared. A scope marked `resetPending` gets a fresh session, unless it has an open card (a parked
- * approval keeps its own session until it is resolved); the mark is cleared then. A session that will not open
+ * approval keeps its own session until it is resolved); the mark and the stored effort are cleared then. A session that will not open
  * (workspace, MCP server, runtime start) throws `SetupError`, so the run is retried as a setup failure.
  */
 export async function openRunSession(
@@ -45,10 +49,22 @@ export async function openRunSession(
     // A group session gets only the bot's rules and lessons: its facts may come from the owner's direct chat.
     scope.groupId ? GROUP_SESSION_KINDS : undefined,
   );
-  const full: BotRuntimeSpec = memory.trim() ? { ...spec, memory } : spec;
+  const group = scope.groupId ? await store.groups.get(scope.groupId) : undefined;
+  const groupContext = group ? await groupContextFor(group, d.projectRules) : undefined;
+  const groupMemory = scope.groupId
+    ? await groupMemoryFor(scope.groupId, d.memory, d.limits.groupMemoryPromptChars, d.log)
+    : undefined;
   const state = await store.scopes.get(scope.key);
   const fresh =
     state?.resetPending === true && (await store.cards.openForScope(scope.key)).length === 0;
+  const full: BotRuntimeSpec = {
+    ...spec,
+    // A fresh session starts at the bot's own effort, not the old session's SetEffort level.
+    ...(fresh && { bot: scope.bot }),
+    ...(memory.trim() && { memory }),
+    ...(groupContext && { groupContext }),
+    ...(groupMemory && { groupMemory }),
+  };
   const stored = fresh ? undefined : await store.sessions.get(scope.key);
   let session: BotSession | undefined;
   try {
@@ -65,6 +81,9 @@ export async function openRunSession(
     throw new SetupError(errText(err), { cause: err });
   }
   await store.sessions.set(scope.key, session.id);
-  if (fresh) await store.scopes.clearReset(scope.key);
-  return { session, memory };
+  if (fresh) {
+    await store.scopes.clearReset(scope.key);
+    await store.scopes.clearEffort(scope.key);
+  }
+  return { session, memory: `${memory}\n${groupMemory ?? ""}` };
 }

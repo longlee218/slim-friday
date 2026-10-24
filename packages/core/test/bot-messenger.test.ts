@@ -151,7 +151,9 @@ test("an fyi never triggers an automatic result", async () => {
   runtime.nth(1).emit({ type: "text", text: "noted" });
   runtime.nth(1).emit({ type: "turn_end", costUsd: 0 });
   await flush();
-  expect(runtime.nth(0).sent).toHaveLength(1);
+  // A result would be a new run of the writer: every turn is counted, not one session's.
+  expect(runtime.turns().map((t) => t.text)).toEqual(["go", "FYI"]);
+  expect(runtime.created).toHaveLength(2);
 });
 
 test("a wake created by HandOff gets no automatic result", async () => {
@@ -165,7 +167,9 @@ test("a wake created by HandOff gets no automatic result", async () => {
   runtime.nth(1).emit({ type: "text", text: "finished" });
   runtime.nth(1).emit({ type: "turn_end", costUsd: 0 });
   await flush();
-  expect(runtime.nth(0).sent).toHaveLength(1);
+  // A result would be a new run of the writer: every turn is counted, not one session's.
+  expect(runtime.turns().map((t) => t.text)).toEqual(["go", "you own this"]);
+  expect(runtime.created).toHaveLength(2);
 });
 
 test("the sent message is posted to the channel under the sender's name and stored", async () => {
@@ -183,10 +187,11 @@ test("the sent message is posted to the channel under the sender's name and stor
 });
 
 test("a bot's text with an @mention no longer wakes anyone", async () => {
-  const { runtime } = await started();
+  const { runtime, store } = await started();
   runtime.nth(0).emit({ type: "text", text: "@editor please check" });
   await flush();
-  expect(runtime.opened).toHaveLength(1);
+  expect(runtime.created).toHaveLength(1);
+  expect(store.wakeMap.size).toBe(1);
 });
 
 test("the same message twice inside the window is refused the second time", async () => {

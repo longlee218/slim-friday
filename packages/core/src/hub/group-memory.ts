@@ -1,4 +1,3 @@
-import type { Conversation } from "../domain/conversation";
 import type { Log } from "../ports/log";
 import type { Memory, MemoryOwner } from "../ports/memory";
 
@@ -27,16 +26,16 @@ export async function promptMemory(
 }
 
 /**
- * The group memory for a turn: the text (capped at `maxChars`) when the conversation is a group one and the memory
- * is not empty, else undefined. Loaded fresh for every run. A failed read sends nothing.
+ * The group memory of a group session (capped at `maxChars`), undefined when empty or unreadable. Read at
+ * every session open into the system prompt.
  */
 export async function groupMemoryFor(
-  conv: Conversation,
+  groupId: string,
   memory: Memory | undefined,
   maxChars: number,
   log?: Log,
 ): Promise<string | undefined> {
-  if (!memory || conv.kind !== "group") return undefined;
-  const text = await promptMemory(memory, { kind: "group", groupId: conv.groupId }, maxChars, log);
+  if (!memory) return undefined;
+  const text = await promptMemory(memory, { kind: "group", groupId }, maxChars, log);
   return text.trim() ? text : undefined;
 }

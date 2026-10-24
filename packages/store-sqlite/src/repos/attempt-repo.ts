@@ -1,5 +1,5 @@
 import type { Store } from "@friday/core";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import { runAttempts } from "../schema/engine-tables";
 
@@ -12,11 +12,11 @@ export function attemptRepo(db: BunSQLiteDatabase): Store["attempts"] {
         .values({ ...a, status: "running" })
         .run();
     },
-    /** Close an attempt with its final status, end time and optional error. */
+    /** Close a running attempt with its final status, end time and optional error; the first close wins. */
     async finish(id, status, at, error) {
       db.update(runAttempts)
         .set({ status, endedAt: at, ...(error !== undefined && { error }) })
-        .where(eq(runAttempts.id, id))
+        .where(and(eq(runAttempts.id, id), eq(runAttempts.status, "running")))
         .run();
     },
   };

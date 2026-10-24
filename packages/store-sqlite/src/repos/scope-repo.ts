@@ -32,8 +32,21 @@ export function scopeRepo(db: BunSQLiteDatabase): Store["scopes"] {
     async clearReset(key) {
       upsert(key, { resetPending: 0 });
     },
-    async finished(key, at) {
-      upsert(key, { lastFinishedAt: at });
+    async clearEffort(key) {
+      upsert(key, { effort: null });
+    },
+    async finished(key, at, startedAt) {
+      // A scope never flushed counts as flushed when this run started.
+      db.insert(scopes)
+        .values({ key, lastFinishedAt: at, lastFlushedAt: startedAt })
+        .onConflictDoUpdate({
+          target: scopes.key,
+          set: {
+            lastFinishedAt: at,
+            lastFlushedAt: sql`coalesce(${scopes.lastFlushedAt}, ${startedAt})`,
+          },
+        })
+        .run();
     },
     async flushed(key, at) {
       upsert(key, { lastFlushedAt: at });

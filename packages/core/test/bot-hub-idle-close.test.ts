@@ -20,12 +20,14 @@ test("sweepIdle reports a quiet scope's conversations and its last flush time, o
   surface.deliver({ conversationId: "dc", text: "hi" });
   await flush();
   const s = runtime.nth(0);
+  // A run takes time: it ends after it started.
+  clock.advance(10);
   s.emit({ type: "turn_end", costUsd: 0 });
   await flush();
   clock.advance(CORE_DEFAULTS.idleCloseMs);
   await hub.sweepIdle();
-  // Never flushed before: every message of the scope's conversations is new.
-  expect(seen).toEqual([{ botId: "editor", key: "editor", conversationIds: ["dc"], since: 0 }]);
+  // Never flushed before: the messages since the run was created (incl. its trigger) are new, not the whole history.
+  expect(seen).toEqual([{ botId: "editor", key: "editor", conversationIds: ["dc"], since: 999 }]);
   expect(hub.status()).toEqual([]);
   await hub.sweepIdle();
   expect(seen).toHaveLength(1);
@@ -35,12 +37,14 @@ test("a scope whose run was stopped or crashed is reported once it is quiet", as
   const stopped = hubWithHook();
   stopped.surface.deliver({ conversationId: "dc", text: "hi" });
   await flush();
+  stopped.clock.advance(10);
   await stopped.hub.stop("editor");
   stopped.clock.advance(CORE_DEFAULTS.idleCloseMs);
   await stopped.hub.sweepIdle();
   const crashed = hubWithHook();
   crashed.surface.deliver({ conversationId: "dc", text: "hi" });
   await flush();
+  crashed.clock.advance(10);
   crashed.runtime.nth(0).emit({ type: "error", message: "boom", retryable: false });
   await flush();
   crashed.clock.advance(CORE_DEFAULTS.idleCloseMs);
@@ -54,6 +58,7 @@ test("a hook that throws is logged and the session still closes", async () => {
   });
   surface.deliver({ conversationId: "dc", text: "hi" });
   await flush();
+  clock.advance(10);
   runtime.nth(0).emit({ type: "turn_end", costUsd: 0 });
   await flush();
   clock.advance(CORE_DEFAULTS.idleCloseMs);

@@ -21,12 +21,6 @@ export interface InboundTurn {
   handoff?: boolean;
   /** The previous turn on this message was cut by a restart; the bot should check what is done first. */
   interrupted?: boolean;
-  /** The group's instructions, working dirs and project rules; set on a group turn only when they changed since the bot last saw them. */
-  groupContext?: string;
-  /** The bot's own memory; set only on the first turn after a compaction, when it changed since the bot last saw it. */
-  botMemory?: string;
-  /** The group's memory; set on a group turn only when it changed since the bot last saw it. */
-  groupMemory?: string;
   /** `<recalled_memory>` block: notes from earlier sessions that match the message. */
   recalled?: string;
   /** `<tickets_referenced>` block for the tickets the message names. */
@@ -76,6 +70,10 @@ export interface BotRuntimeSpec {
   effortControl?: EffortControl;
   /** The bot's own memory, read when the session opens; the runtime adds it to the system prompt. */
   memory?: string;
+  /** A group session's group instructions, working dirs and project rules, read at open; added to the system prompt. */
+  groupContext?: string;
+  /** A group session's group memory, read at open; added to the system prompt. */
+  groupMemory?: string;
   /** Asks the owner a question the bot raised; resolves `null` when nobody answers. */
   ask?: (card: QuestionCard) => Promise<QuestionAnswer | null>;
 }

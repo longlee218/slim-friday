@@ -90,7 +90,9 @@ test("status lists running tasks; text after task_done goes to the conversation 
   // the same session is now asked in the other chat of the group meanwhile
   surface.deliver({ conversationId: "gc", text: "@editor quick question" });
   await flush();
-  expect(runtime.opened).toHaveLength(1);
+  // The scope is held by the task's run: the other chat's message waits as a queued run.
+  expect(runtime.created).toHaveLength(1);
+  expect([...store.wakeMap.values()].map((w) => w.status)).toEqual(["running", "queued"]);
   s.emit({ type: "turn_end", costUsd: 0 });
   await flush();
   s.emit({ type: "task_done", taskId: "t1", status: "completed", summary: "found" });

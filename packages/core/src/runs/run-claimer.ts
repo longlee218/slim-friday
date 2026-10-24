@@ -148,15 +148,14 @@ export class RunClaimer {
         owner: this.d.owner,
         startedAt: now,
       });
-      const ok = await store.wakes.transition(row.id, row.leaseFence, ["leased"], {
-        status: "running",
-        startedAt: row.startedAt ?? now,
-      });
+      const running = { status: "running" as const, startedAt: row.startedAt ?? now };
+      const ok = await store.wakes.transition(row.id, row.leaseFence, ["leased"], running);
       if (!ok) {
         log.warn({ wakeId: row.id }, "run.claim_lost");
         return;
       }
-      await this.d.execute(row, lease);
+      // The executor gets the row as stored: its start time bounds the scope's first idle flush.
+      await this.d.execute({ ...row, ...running }, lease);
     } catch (e) {
       log.error({ wakeId: row.id, err: String(e) }, "run.execute_failed");
     } finally {

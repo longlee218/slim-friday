@@ -29,8 +29,12 @@ test("the woken bot gets the quote; a reply to another conversation's message is
   expect(writer).toBeDefined();
   expect(writer?.sent[0]?.text).toBe("hello");
   expect(writer?.sent[0]?.quote).toBeUndefined();
-  const editor = runtime.opened.find((s) => s.spec.bot.id === "editor");
-  expect(editor?.sent.some((t) => t.text === "hello")).toBe(false);
+  // Neither a turn of any editor session nor steering of the editor's busy run carries it.
+  const editorTurns = runtime.created
+    .filter((s) => s.spec.bot.id === "editor")
+    .flatMap((s) => s.sent);
+  expect(editorTurns.some((t) => t.text === "hello")).toBe(false);
+  expect([...store.steerMap.values()].some((r) => r.text === "hello")).toBe(false);
 });
 
 test("a reply to the owner's own message goes to the entry bot and keeps the quote", async () => {
