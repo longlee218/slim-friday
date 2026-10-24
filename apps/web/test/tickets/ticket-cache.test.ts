@@ -96,3 +96,43 @@ test("a filtered list is invalidated, not patched", () => {
   expect(spy).toHaveBeenCalledWith({ queryKey: todo.queryKey, exact: true });
   expect(pages()[0]!.items[0]!.status).toBe("doing");
 });
+
+describe("open ticket timeline (I1)", () => {
+  test("a newer event invalidates the cached get of that ref", () => {
+    const spy = vi.spyOn(qc, "invalidateQueries");
+    patchTicket(qc, t("2", { status: "review", updatedAt: 20, commentCount: 1 }));
+    expect(qc.getQueryData<Get>(getKey("FRI-2"))!.ticket.status).toBe("review");
+    expect(spy).toHaveBeenCalledWith({ queryKey: getKey("FRI-2"), exact: true });
+  });
+
+  test("an equal or older event does not invalidate the get", () => {
+    const spy = vi.spyOn(qc, "invalidateQueries");
+    patchTicket(qc, t("2", { updatedAt: 10 }));
+    patchTicket(qc, t("2", { updatedAt: 5 }));
+    expect(spy).not.toHaveBeenCalled();
+  });
+});
+
+describe("unknown open ticket (I2)", () => {
+  test("is inserted into page 1 by createdAt at once, and the list still refetches", () => {
+    qc.setQueryData<InfiniteData<Page, string | undefined>>(listOptions.queryKey, {
+      pages: [{ items: [t("5", { createdAt: 50 }), t("3", { createdAt: 30 })], nextCursor: "c" }],
+      pageParams: [undefined],
+    });
+    const spy = vi.spyOn(qc, "invalidateQueries");
+    patchTicket(qc, t("9", { createdAt: 90 }));
+    patchTicket(qc, t("4", { createdAt: 40 }));
+    expect(pages()[0]!.items.map((x) => x.id)).toEqual(["9", "5", "4", "3"]);
+    expect(spy).toHaveBeenCalledWith({ queryKey: orpc.tickets.list.key() });
+  });
+
+  test("an older one past the end of a non-final page 1 is not inserted", () => {
+    patchTicket(qc, t("0", { createdAt: 0 }));
+    expect(pages()[0]!.items.map((x) => x.id)).toEqual(["1", "2"]);
+  });
+
+  test("a closed unknown ticket is never inserted", () => {
+    patchTicket(qc, t("9", { status: "closed", createdAt: 90 }));
+    expect(pages()[0]!.items.map((x) => x.id)).toEqual(["1", "2"]);
+  });
+});
