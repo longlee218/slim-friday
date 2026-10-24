@@ -101,3 +101,9 @@ test("the consolidation prompt treats input as data, names replaces and its caps
   expect(CONSOLIDATE_SYSTEM_PROMPT).toContain("At most 5 items, at most 3 of them");
   expect(CONSOLIDATE_SYSTEM_PROMPT).toContain("under 200 characters");
 });
+
+test("the consolidation prompt says a replacement keeps the kind of the line it replaces", () => {
+  expect(CONSOLIDATE_SYSTEM_PROMPT).toContain(
+    "A replacement keeps the kind of the line it replaces; if the kind changes, add it as a new note.",
+  );
+});
