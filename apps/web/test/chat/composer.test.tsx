@@ -354,3 +354,74 @@ test("pasting a file attaches it instead of inserting text", async () => {
   await screen.findByText("shot.png");
   expect(mocks.uploadCreate).toHaveBeenCalled();
 });
+
+test("Enter and ArrowDown while composing neither pick nor send", async () => {
+  const u = userEvent.setup();
+  view(<Harness conversation={crewConv} group={crew} />, client());
+  await u.type(input(), "xin @");
+  fireEvent.keyDown(input(), { key: "ArrowDown", isComposing: true });
+  expect(screen.getAllByRole("option")[0]?.getAttribute("aria-selected")).toBe("true");
+  fireEvent.keyDown(input(), { key: "Enter", isComposing: true });
+  fireEvent.keyDown(input(), { key: "Enter", keyCode: 229 });
+  expect(input().value).toBe("xin @");
+  expect(mocks.send).not.toHaveBeenCalled();
+});
+
+test("Enter spam sends once", async () => {
+  const u = userEvent.setup();
+  view(<Harness conversation={devConv} />, client());
+  await u.type(input(), "hi{Enter}{Enter}{Enter}");
+  expect(mocks.send).toHaveBeenCalledTimes(1);
+});
+
+test("text keeps leading indentation and drops trailing whitespace", async () => {
+  const u = userEvent.setup();
+  view(<Harness conversation={devConv} />, client());
+  await u.type(input(), "  code  ");
+  await u.click(sendBtn());
+  expect(mocks.send.mock.calls[0]?.[0].text).toBe("  code");
+});
+
+test("Retry that gets CONFLICT drops the temp message and its pending entry", async () => {
+  mocks.send.mockRejectedValueOnce(new Error("down"));
+  mocks.send.mockRejectedValueOnce(Object.assign(new Error("used"), { code: "CONFLICT" }));
+  const u = userEvent.setup();
+  const qc = client();
+  view(<Harness conversation={devConv} />, qc);
+  await u.type(input(), "hi");
+  await u.click(sendBtn());
+  await u.click(await screen.findByRole("button", { name: /^failed -\d+$/ }));
+  await waitFor(() => expect(screen.queryByRole("button", { name: /failed|sending/ })).toBeNull());
+  expect(ids(qc, "bot:dev")).toEqual([]);
+});
+
+test("a double click on Retry sends once", async () => {
+  let done: (v: { messageId: number }) => void = () => {};
+  mocks.send.mockRejectedValueOnce(new Error("down"));
+  mocks.send.mockReturnValueOnce(new Promise((r) => (done = r)));
+  const u = userEvent.setup();
+  view(<Harness conversation={devConv} />, client());
+  await u.type(input(), "hi");
+  await u.click(sendBtn());
+  const failed = await screen.findByRole("button", { name: /^failed -\d+$/ });
+  await u.dblClick(failed);
+  expect(mocks.send).toHaveBeenCalledTimes(2);
+  await act(async () => done({ messageId: 50 }));
+});
+
+test("a settled send sweeps pending entries whose temp message is gone", async () => {
+  mocks.send.mockRejectedValueOnce(new Error("down"));
+  const u = userEvent.setup();
+  const qc = client();
+  view(<Harness conversation={devConv} />, qc);
+  await u.type(input(), "one");
+  await u.click(sendBtn());
+  await screen.findByRole("button", { name: /^failed/ });
+  // A resync replaced the page: the temp message is gone.
+  act(() => {
+    qc.setQueryData(messagesKey("bot:dev"), { pages: [[]], pageParams: [undefined] });
+  });
+  await u.type(input(), "two");
+  await u.click(sendBtn());
+  await waitFor(() => expect(screen.queryByRole("button", { name: /failed|sending/ })).toBeNull());
+});

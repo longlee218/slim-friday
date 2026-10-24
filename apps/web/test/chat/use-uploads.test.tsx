@@ -113,3 +113,21 @@ test("remove and unmount abort the in-flight PUT", async () => {
   unmount();
   expect(signals[1]?.aborted).toBe(true);
 });
+
+test("switching conversation clears the chips and aborts the PUT", async () => {
+  const signals: AbortSignal[] = [];
+  fetchMock.mockImplementation((_u: string, init: RequestInit) => {
+    signals.push(init.signal as AbortSignal);
+    return new Promise(() => {});
+  });
+  const { result, rerender } = renderHook(({ id }) => useUploads(id), {
+    initialProps: { id: "bot:dev" },
+  });
+  act(() => {
+    result.current.add([file("a.png")]);
+  });
+  await waitFor(() => expect(signals).toHaveLength(1));
+  rerender({ id: "bot:pia" });
+  expect(result.current.uploads).toEqual([]);
+  expect(signals[0]?.aborted).toBe(true);
+});

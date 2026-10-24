@@ -5,11 +5,13 @@ import { client } from "../../api/client";
 import { appendMessage } from "../../events/apply-messages";
 import { endRun, startRun } from "../../events/apply-runs";
 import {
+  dropTemp,
   type PendingSend,
   pendingKey,
   type SendPayload,
   setPending,
   swapTemp,
+  sweepPending,
 } from "./pending-sends";
 import type { RouteInfo } from "./route-info";
 
@@ -40,10 +42,17 @@ export function useSendMessage() {
         const { messageId } = await client.chat.send(p.payload);
         swapTemp(qc, p.payload.conversationId, tempId, messageId);
         setPending(qc, tempId, null);
-      } catch {
-        for (const id of p.route.botIds) endRun(qc, p.payload.conversationId, id);
-        setPending(qc, tempId, { ...p, state: "failed" });
+      } catch (e) {
+        if ((e as { code?: string } | null)?.code === "CONFLICT") {
+          // Uploads already claimed: an earlier try was delivered; the event brings the message.
+          dropTemp(qc, p.payload.conversationId, tempId);
+        } else {
+          for (const id of p.route.botIds) endRun(qc, p.payload.conversationId, id);
+          setPending(qc, tempId, { ...p, state: "failed" });
+        }
       }
+      // A settled send is a good moment to forget entries whose temp message is gone.
+      sweepPending(qc);
     }
 
     return {
@@ -73,7 +82,8 @@ export function useSendMessage() {
       /** Resends a failed message with the same payload. */
       retry(tempId: number): Promise<void> {
         const p = qc.getQueryData<Record<number, PendingSend>>(pendingKey)?.[tempId];
-        return p ? deliver(tempId, p) : Promise.resolve();
+        // Only a failed entry retries; a second click while sending does nothing.
+        return p?.state === "failed" ? deliver(tempId, p) : Promise.resolve();
       },
     };
   }, [qc]);

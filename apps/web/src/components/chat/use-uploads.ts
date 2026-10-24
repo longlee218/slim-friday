@@ -96,13 +96,17 @@ export function useUploads(conversationId: string) {
     setUploads([]);
   }, []);
 
-  // Leaving the composer cancels whatever is still uploading.
+  // Leaving the composer or switching conversation cancels whatever is still uploading and
+  // empties the chips (their uploads belong to the old conversation).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs when the conversation changes
   useEffect(() => {
     const map = aborts.current;
     return () => {
       for (const c of map.values()) c.abort();
+      map.clear();
+      setUploads([]);
     };
-  }, []);
+  }, [conversationId]);
 
   return { uploads, add, remove, clear };
 }

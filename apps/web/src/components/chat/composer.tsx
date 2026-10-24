@@ -80,7 +80,7 @@ export function Composer(props: ComposerProps) {
     void sender.send({
       payload: {
         conversationId: conversation.id,
-        text: draft.trim(),
+        text: draft.trimEnd(),
         ...(uploadIds.length && { uploadIds }),
         ...(reply && { replyTo: reply.messageId }),
       },
@@ -93,6 +93,8 @@ export function Composer(props: ComposerProps) {
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // IME composition (Vietnamese): Enter and arrows belong to the IME, never to us.
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
     if (mention.onKey(e)) return;
     const k = { key: e.key, shiftKey: e.shiftKey, isComposing: e.nativeEvent.isComposing };
     if (sendOnEnter(k, phone)) {
