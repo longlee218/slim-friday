@@ -65,6 +65,7 @@ export async function startEngine(
           memory: parts.memory,
           store: parts.store,
           messenger: parts.messenger,
+          tickets: parts.tickets,
           groupIdsOf: parts.config.groupIdsOf,
           home: agentHome,
           projectsDir: parts.config.projectsDir,

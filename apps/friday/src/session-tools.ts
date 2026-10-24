@@ -1,6 +1,6 @@
 import { realpathSync } from "node:fs";
 import { join, relative } from "node:path";
-import type { BotMessenger, BotRuntimeSpec, Store } from "@friday/core";
+import type { BotMessenger, BotRuntimeSpec, Store, TicketBoard } from "@friday/core";
 import {
   CHAT_MCP_SERVER,
   type ChatContext,
@@ -14,7 +14,9 @@ import {
   type FileMemory,
   MEMORY_MCP_SERVER,
   memoryServer,
+  TICKETS_MCP_SERVER,
   type ToolSessionContext,
+  ticketsServer,
 } from "@friday/tools";
 import { FRIDAY_BOT_ID } from "./friday-bot";
 
@@ -82,7 +84,7 @@ function readGlobalGit(key: string): string | undefined {
 /** What the per-session tools are built from. */
 export interface SessionToolsDeps {
   memory: FileMemory;
-  store: Pick<Store, "conversations" | "groups">;
+  store: Pick<Store, "conversations" | "groups" | "bots">;
   /** The agent home (the trash lives under it). */
   home: string;
   /** Where `CreateProject` makes repos (read per session, so a settings change applies to new sessions). */
@@ -93,6 +95,8 @@ export interface SessionToolsDeps {
   env?: Record<string, string | undefined>;
   /** Reaches the other bots (the hub); a bot in no group (see `groupIdsOf`) is not given it. */
   messenger?: BotMessenger;
+  /** The shared ticket board, once the hub exists (read per session: the runtime is built before the hub). */
+  tickets?: () => TicketBoard | undefined;
   /** The ids of the groups a bot is in. */
   groupIdsOf?: (botId: string) => string[];
   /** Sends a file to a conversation under a bot's name (the surface). */
@@ -208,6 +212,13 @@ export function sessionTools(deps: SessionToolsDeps) {
       };
       servers[EFFECTS_MCP_SERVER] = effectsServer(ctx, deps.projectsDir(), spec.bot.tools);
     }
+    // The ticket tools: only for a bot that names them, and once the hub (which owns the board) exists.
+    const board = deps.tickets?.();
+    if (board && wantsServer(spec.bot.tools, TICKETS_MCP_SERVER))
+      servers[TICKETS_MCP_SERVER] = ticketsServer(
+        { botId: spec.bot.id, board, bots: deps.store.bots },
+        spec.bot.tools,
+      );
     // The design tools are the Friday bot\'s alone, whatever another bot file names.
     if (
       deps.design &&

@@ -38,6 +38,12 @@ tools:
   # Messages between bots of one group: the hub checks the target, the hop and rate caps and the spend cap, so no card.
   - { name: mcp__chat__SendToBot, annotations: { readOnlyHint: true } }
   - { name: mcp__chat__HandOff, annotations: { readOnlyHint: true } }
+  # The shared ticket board: the board rules check input, assignee and wakes, and the owner reads it with /tickets, so no card.
+  - { name: mcp__tickets__TicketList, annotations: { readOnlyHint: true } }
+  - { name: mcp__tickets__TicketGet, annotations: { readOnlyHint: true } }
+  - { name: mcp__tickets__TicketCreate, annotations: { readOnlyHint: true } }
+  - { name: mcp__tickets__TicketUpdate, annotations: { readOnlyHint: true } }
+  - { name: mcp__tickets__TicketComment, annotations: { readOnlyHint: true } }
   # Deleting moves to the trash (kept 7 days): destructive, so it asks, but not irreversible.
   - { name: mcp__effects__DeletePaths, annotations: { destructiveHint: true, idempotentHint: true, openWorldHint: false }, scopeKeys: [paths] }
   - { name: mcp__effects__GitPush, annotations: { destructiveHint: false, openWorldHint: true }, scopeKeys: [workspace, remote, branch] }

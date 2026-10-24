@@ -1,9 +1,14 @@
 import type { BotId } from "../domain/bot";
 import type { Author } from "../domain/message";
 
+/** Every status, in life order. */
+export const TICKET_STATUSES = ["todo", "doing", "review", "blocked", "done", "closed"] as const;
+/** Every priority, lowest first. */
+export const TICKET_PRIORITIES = ["low", "normal", "high", "urgent"] as const;
+
 /** Where a ticket is in its life. `done` and `closed` are finished. */
-export type TicketStatus = "todo" | "doing" | "review" | "blocked" | "done" | "closed";
-export type TicketPriority = "low" | "normal" | "high" | "urgent";
+export type TicketStatus = (typeof TICKET_STATUSES)[number];
+export type TicketPriority = (typeof TICKET_PRIORITIES)[number];
 
 /** One task on the shared board. */
 export interface Ticket {

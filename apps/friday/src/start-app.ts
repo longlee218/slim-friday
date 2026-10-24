@@ -9,6 +9,7 @@ import {
   type Clock,
   PermissionGate,
   type Store,
+  type TicketBoard,
 } from "@friday/core";
 import { openEngineStore } from "@friday/store-sqlite";
 import { type DiscordPort, DiscordSurface, syncChannels } from "@friday/surface-discord";
@@ -36,6 +37,8 @@ interface Log {
 export interface RuntimeParts {
   /** Lets a bot's tools reach the other bots; works once the hub exists (the runtime is built before it). */
   messenger: BotMessenger;
+  /** The shared ticket board; undefined until the hub exists (the runtime reads it when a session opens). */
+  tickets: () => TicketBoard | undefined;
   config: FileConfig;
   store: Store;
   memory: FileMemory;
@@ -130,7 +133,7 @@ export async function startApp(deps: AppDeps) {
   };
   const runtime =
     typeof deps.runtime === "function"
-      ? deps.runtime({ messenger, config, store, memory, surface })
+      ? deps.runtime({ messenger, tickets: () => hub?.tickets, config, store, memory, surface })
       : deps.runtime;
 
   const gate = new PermissionGate({

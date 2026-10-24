@@ -4,6 +4,8 @@ import type { Clock } from "../ports/clock";
 import type { Store } from "../ports/store";
 import {
   parseTicketRef,
+  TICKET_PRIORITIES,
+  TICKET_STATUSES,
   type Ticket,
   type TicketComment,
   type TicketPriority,
@@ -13,8 +15,8 @@ import {
 /** Success with a payload, or a short reason a bot can read. */
 export type TicketResult<T> = ({ ok: true } & T) | { ok: false; error: string };
 
-const STATUSES: TicketStatus[] = ["todo", "doing", "review", "blocked", "done", "closed"];
-const PRIORITIES: TicketPriority[] = ["low", "normal", "high", "urgent"];
+const STATUSES: readonly TicketStatus[] = TICKET_STATUSES;
+const PRIORITIES: readonly TicketPriority[] = TICKET_PRIORITIES;
 const TITLE_MAX = 200;
 const DESCRIPTION_MAX = 20_000;
 const COMMENT_MAX = 10_000;

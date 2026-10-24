@@ -16,6 +16,7 @@ const ALLOWED = [
   "WebFetch",
   "mcp__chat__SendToBot",
   "mcp__chat__HandOff",
+  "mcp__tickets",
 ];
 
 test("the shipped Friday bot designs through BotDesign: no write tools, its skills ship, every tool is in the catalog", () => {
@@ -53,6 +54,7 @@ for (const [name, entry] of [
       expect(others.some((o) => b.instructions.includes(o.name))).toBe(true);
       expect(b.tools).toContain("mcp__chat__SendToBot");
       expect(b.tools).toContain("mcp__chat__HandOff");
+      expect(b.tools).toContain("mcp__tickets");
       for (const t of b.tools) expect(ALLOWED).toContain(t);
       expect(b.workspaces).toEqual([]);
     }
