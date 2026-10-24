@@ -5,7 +5,7 @@ import { useStopRun } from "../shell/use-stop-run";
 import { Avatar } from "../ui/avatar";
 import { Button } from "../ui/button";
 import { Pill } from "../ui/pill";
-import { wakeBucket } from "./activity-math";
+import { wakeTone } from "./activity-math";
 import { SpendChart } from "./spend-chart";
 import { useActivity, useNow } from "./use-activity";
 
@@ -60,17 +60,7 @@ export function PhoneActivityTab() {
                 </div>
                 <div className="t2">{w.intent}</div>
               </div>
-              <Pill
-                tone={
-                  wakeBucket(w.status) === "failed"
-                    ? "red"
-                    : wakeBucket(w.status) === "running"
-                      ? "blue"
-                      : "green"
-                }
-              >
-                {w.status}
-              </Pill>
+              <Pill tone={wakeTone(w.status)}>{w.status}</Pill>
             </div>
           ))}
         </div>

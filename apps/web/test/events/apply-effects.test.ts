@@ -103,6 +103,15 @@ describe("applyEffects", () => {
     expect(qc.getQueryData(liveRunKey("bot:dev"))).toEqual({});
   });
 
+  test("refetchStatus also invalidates ops.sessions after the status fetch", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => Response.json({ json: [] }));
+    const spy = vi.spyOn(qc, "invalidateQueries");
+    applyEffects(qc, [{ op: "refetchStatus" }], noop);
+    await vi.advanceTimersByTimeAsync(1100);
+    expect(spy).toHaveBeenCalledWith({ queryKey: orpc.ops.sessions.key() });
+  });
+
   test("setStatus ends the runs of bots absent from the list (stopped session)", () => {
     const start = (botId: string, c = "bot:dev"): CacheEffect => ({
       op: "startRun",

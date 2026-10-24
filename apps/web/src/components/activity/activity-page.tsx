@@ -75,8 +75,10 @@ export function ActivityPage() {
             now={now}
             stopping={stopping}
             onStop={(botId) => {
-              setStopping((s) => new Set(s).add(botId));
-              void stop({ botId });
+              // Mark "stopping" only once the stop went through; a failed stop keeps the button.
+              void stop({ botId }).then((ok) => {
+                if (ok) setStopping((s) => new Set(s).add(botId));
+              });
             }}
           />
           <div className="grid2" style={{ marginTop: 6 }}>

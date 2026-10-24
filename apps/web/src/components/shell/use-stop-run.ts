@@ -11,8 +11,9 @@ export type StopTarget = { botId: string } | { conversationId: string };
 /**
  * Stops runs with `control.stop`, then toasts and schedules the debounced status refetch
  * (the engine pushes a status event too; this just closes the gap if it is late).
+ * Resolves true when the stop went through, false when it failed.
  */
-export function useStopRun(): (target: StopTarget) => Promise<void> {
+export function useStopRun(): (target: StopTarget) => Promise<boolean> {
   const qc = useQueryClient();
   return async (target) => {
     try {
@@ -22,8 +23,10 @@ export function useStopRun(): (target: StopTarget) => Promise<void> {
       else qc.setQueryData(liveRunKey(target.conversationId), {});
       toast("Stopped. Background tasks were cancelled.");
       refetchStatus(qc);
+      return true;
     } catch {
       toast("Could not stop. Try again.");
+      return false;
     }
   };
 }

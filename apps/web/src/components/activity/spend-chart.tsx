@@ -13,8 +13,9 @@ const label = (day: string, short: boolean): string =>
     : `${Number(day.slice(8))} ${new Date(`${day}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", timeZone: "UTC" })}`;
 
 /**
- * `bare` drops the panel frame (the phone puts it in an inset). Stacked daily bars per bot with the period total, today's spend and a legend. Bars grow from
- * the baseline with a 40 ms stagger (Reduce Motion cuts it in base.css).
+ * Stacked daily bars per bot with the period total, today's spend and a legend. `bare` drops
+ * the panel frame (the phone puts the chart in an inset). Bars grow from the baseline with a
+ * 40 ms stagger; Reduce Motion cuts the animation and the stagger (base.css, activity.css).
  */
 export function SpendChart({ days, bare }: { days: SpendDay[]; bare?: boolean }) {
   const dir = useDirectory();

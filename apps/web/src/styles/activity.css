@@ -25,3 +25,5 @@
 .legend i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
 .grid2 { display: grid; grid-template-columns: 1.35fr 1fr; gap: 16px; }
 @media (max-width: 1100px) { .grid2 { grid-template-columns: 1fr; } }
+/* The stagger is an inline delay; with Reduce Motion a delayed bar would sit at scaleY(0). */
+@media (prefers-reduced-motion: reduce) { .bar { animation-delay: 0s !important; } }

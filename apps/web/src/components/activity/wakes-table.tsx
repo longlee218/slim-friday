@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useDirectory } from "../../api/directory";
 import { formatClock, formatDuration } from "../../lib/format";
 import { Pill } from "../ui/pill";
-import { wakeBucket } from "./activity-math";
+import { wakeBucket, wakeTone } from "./activity-math";
 
 type Filter = "all" | "running" | "failed";
 const FILTERS: { id: Filter; label: string }[] = [
@@ -12,17 +12,6 @@ const FILTERS: { id: Filter; label: string }[] = [
   { id: "running", label: "Running" },
   { id: "failed", label: "Failed" },
 ];
-
-/** Pill tone per wake status. */
-const TONE = {
-  queued: "blue",
-  running: "blue",
-  done: "green",
-  blocked: "red",
-  interrupted: "red",
-  dropped: "red",
-  expired: "gray",
-} as const;
 
 /** All / Running / Failed switch (`.seg`); the thumb sits under the active button. */
 function WakeFilter({ value, onChange }: { value: Filter; onChange: (f: Filter) => void }) {
@@ -86,7 +75,7 @@ export function WakesTable({ wakes, now }: { wakes: WakeDto[]; now: number }) {
                 </td>
                 <td>{w.intent}</td>
                 <td>
-                  <Pill tone={TONE[w.status]}>
+                  <Pill tone={wakeTone(w.status)}>
                     {wakeBucket(w.status) === "running" && (
                       <LoaderCircle size={12} className="spin" />
                     )}

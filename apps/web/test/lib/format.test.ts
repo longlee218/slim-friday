@@ -18,6 +18,11 @@ test("formatCost", () => {
 
 test("formatDuration", () => {
   expect([41_000, 520_000, 60_000].map(formatDuration)).toEqual(["41s", "8m 40s", "1m 0s"]);
+  expect([3_599_000, 3_600_000, 8_040_000].map(formatDuration)).toEqual([
+    "59m 59s",
+    "1h 0m",
+    "2h 14m",
+  ]);
 });
 
 test("formatSize", () => {

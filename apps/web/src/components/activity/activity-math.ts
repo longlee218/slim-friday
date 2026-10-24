@@ -52,3 +52,10 @@ export function wakeBucket(s: WakeDto["status"]): "running" | "failed" | "other"
   if (s === "blocked" || s === "interrupted" || s === "dropped") return "failed";
   return "other";
 }
+
+/** Pill tone per wake status, shared by the desktop table and the phone list. */
+export function wakeTone(s: WakeDto["status"]): "blue" | "green" | "red" | "gray" {
+  if (s === "expired") return "gray";
+  const b = wakeBucket(s);
+  return b === "running" ? "blue" : b === "failed" ? "red" : "green";
+}
