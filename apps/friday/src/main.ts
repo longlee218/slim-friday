@@ -42,10 +42,22 @@ export async function startEngine(
   const token = need("DISCORD_TOKEN", config.discordToken);
   const guildId = need("DISCORD_GUILD_ID", config.discordGuildId);
   const ownerId = need("OWNER_DISCORD_ID", config.ownerDiscordId);
-  const webOrigin = need("WEB_ORIGIN", config.webOrigin);
-  const publicApiUrl = need("PUBLIC_API_URL", config.publicApiUrl);
-  const authSecret = need("AUTH_SECRET", config.authSecret);
-  const ownerEmail = need("OWNER_EMAIL", config.ownerEmail);
+  // The web API is optional until the web app replaces Discord: all four unset skips it, a partial set refuses.
+  const webValues = {
+    WEB_ORIGIN: config.webOrigin,
+    PUBLIC_API_URL: config.publicApiUrl,
+    AUTH_SECRET: config.authSecret,
+    OWNER_EMAIL: config.ownerEmail,
+  };
+  const webEnabled = Object.values(webValues).some((v) => v && v !== "REPLACE_ME");
+  const web = webEnabled
+    ? {
+        webOrigin: need("WEB_ORIGIN", webValues.WEB_ORIGIN),
+        publicApiUrl: need("PUBLIC_API_URL", webValues.PUBLIC_API_URL),
+        authSecret: need("AUTH_SECRET", webValues.AUTH_SECRET),
+        ownerEmail: need("OWNER_EMAIL", webValues.OWNER_EMAIL),
+      }
+    : undefined;
 
   const port = await connect({
     token,
@@ -117,23 +129,20 @@ export async function startEngine(
         consolidateNotes({ memory, notes, today: localDay(new Date()) }, haiku),
     });
     // The web API runs next to Discord; a failed start unwinds through the `finally` below.
-    const api = await startApiServer({
-      agentHome,
-      port: config.apiPort,
-      webOrigin,
-      publicApiUrl,
-      authSecret,
-      ownerEmail,
-      log,
-    }).catch(async (err) => {
-      await app.stop();
-      throw err;
-    });
+    const api = web
+      ? await startApiServer({ agentHome, port: config.apiPort, ...web, log }).catch(
+          async (err) => {
+            await app.stop();
+            throw err;
+          },
+        )
+      : undefined;
+    if (!api) logEvent(log, "api.disabled");
     logEvent(log, "engine.started", { agentHome });
     if (!signal.aborted)
       await new Promise<void>((r) => signal.addEventListener("abort", () => r(), { once: true }));
     try {
-      await api.stop();
+      await api?.stop();
     } finally {
       await app.stop();
     }

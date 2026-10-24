@@ -51,10 +51,31 @@ test("a missing Discord value is refused by name before any connection", async (
   });
 });
 
-test("a missing web value is refused by name before any connection", async () => {
-  for (const name of ["WEB_ORIGIN", "PUBLIC_API_URL", "AUTH_SECRET", "OWNER_EMAIL"] as const) {
+const WEB = ["WEB_ORIGIN", "PUBLIC_API_URL", "AUTH_SECRET", "OWNER_EMAIL"] as const;
+
+test("one web value missing of the four is refused by name before any connection", async () => {
+  for (const name of WEB) {
     expect(await without(name)).toEqual({ message: `${name} missing`, connected: false });
   }
+});
+
+test("with none of the four web values the engine starts without the API", async () => {
+  const home = mkdtempSync(join(tmpdir(), "main-"));
+  const env: Record<string, string> = { AGENT_HOME: home, ...full };
+  for (const name of WEB) delete env[name];
+  const fake = new FakeDiscordPort();
+  let connected = false;
+  const connect = (async () => {
+    connected = true;
+    return Object.assign(fake, { close: async () => {} });
+  }) as never;
+  const ac = new AbortController();
+  const run = startEngine({ config: loadConfig(env), agentHome: home, signal: ac.signal }, connect);
+  // Give the boot a moment, then stop it; it must not have thrown.
+  await new Promise((r) => setTimeout(r, 300));
+  ac.abort();
+  await run;
+  expect(connected).toBe(true);
 });
 
 test("a taken API port fails the start with a named error and closes the Discord port", async () => {
