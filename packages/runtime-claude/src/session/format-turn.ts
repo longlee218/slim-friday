@@ -1,6 +1,12 @@
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
-import { type Attachment, type Author, buildWakePrompt, type InboundTurn } from "@friday/core";
+import {
+  type Attachment,
+  type Author,
+  buildWakePrompt,
+  INTERRUPTED_NOTE,
+  type InboundTurn,
+} from "@friday/core";
 import type { UserContent } from "./input-queue";
 
 /** Image types the model reads inline. */
@@ -36,7 +42,8 @@ export function formatTurn(turn: InboundTurn, names: Record<string, string>): st
           ...(turn.handoff && { handoff: true }),
         })
       : turn.text;
-  return `${memory}${block}[conversation ${turn.conversationId}] ${nameOf(turn.from, names)} (hop ${turn.hop}):\n${body}`;
+  const note = turn.interrupted ? `${INTERRUPTED_NOTE}\n\n` : "";
+  return `${memory}${block}${note}[conversation ${turn.conversationId}] ${nameOf(turn.from, names)} (hop ${turn.hop}):\n${body}`;
 }
 
 /**

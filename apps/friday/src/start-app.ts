@@ -196,6 +196,9 @@ export async function startApp(deps: AppDeps) {
     throw err;
   }
 
+  // Put back the wakes the last run left open (after the first sync, which maps the channels they answer in).
+  await botHub.recover().catch((err) => log.error({ error: why(err) }, "wakes.recover"));
+
   // Config changes: restart changed bots, then give new bots and groups their channels.
   const stopWatching = config.watch((r) => {
     for (const p of r.problems) log.warn(p, "config.problem");
@@ -229,6 +232,9 @@ export async function startApp(deps: AppDeps) {
     } catch (err) {
       log.error({ error: why(err) }, "journal.prune");
     }
+    engine.wakes
+      .deleteFinishedBefore(clock.now() - config.limits().finishedWakeKeepMs)
+      .catch((err) => log.error({ error: why(err) }, "wakes.prune"));
     if (!stopped) cancelPrune = clock.setTimer(JOURNAL_PRUNE_MS, prune);
   };
   prune();

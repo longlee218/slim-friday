@@ -12,6 +12,10 @@ export const CORE_DEFAULTS = {
   idleCloseMs: 1_800_000,
   /** Group messages given to a woken bot as context. */
   groupContextMessages: 20,
+  /** A queued wake older than this when the app starts is not delivered (it is marked expired). */
+  wakeExpireMs: 86_400_000,
+  /** Finished wake rows are kept this long. */
+  finishedWakeKeepMs: 259_200_000,
 } as const;
 
 export type CoreLimits = typeof CORE_DEFAULTS;

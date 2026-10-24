@@ -2,7 +2,7 @@ import { CORE_DEFAULTS, type CoreLimits } from "../config-defaults";
 import type { Bot, BotId } from "../domain/bot";
 import type { Conversation, ConversationId } from "../domain/conversation";
 import type { Attachment, Author } from "../domain/message";
-import type { BlockReason, WakeIntent } from "../domain/wake";
+import type { BlockReason, WakeIntent, WakeRow } from "../domain/wake";
 import type { PermissionGate } from "../permission/permission-gate";
 import type { AgentRuntime } from "../ports/agent-runtime";
 import type { Clock } from "../ports/clock";
@@ -184,7 +184,7 @@ export class BotHub implements BotMessenger {
       conversationId,
       targetBot: botId,
       sender,
-      intent,
+      intent: opts.intent ?? "request",
       hop,
       text,
       ...(opts.handoff && { handoff: true }),
@@ -192,11 +192,22 @@ export class BotHub implements BotMessenger {
       ...(opts.chainId && { chainId: opts.chainId }),
       ...(opts.parentWakeId && { parentWakeId: opts.parentWakeId }),
     });
+    return this.admit(row, bot, opts);
+  }
+
+  /** Check the caps for a stored wake, then hand it to the bot's session (now, or after its current turn). */
+  private async admit(
+    row: WakeRow,
+    bot: Bot,
+    opts: { exemptFromHops?: boolean; interrupted?: boolean } = {},
+  ): Promise<WakeOutcome> {
+    const { store, clock } = this.deps;
+    const { conversationId, sender, text, hop } = row;
     // A result that returns to the bot that gave the work is checked as if it were at the last allowed hop.
     const w = {
       conversationId,
       sender,
-      target: botId,
+      target: row.targetBot,
       text,
       hop: opts.exemptFromHops ? Math.min(hop, this.limits.maxHops) : hop,
     };
@@ -207,7 +218,7 @@ export class BotHub implements BotMessenger {
       return { ok: false, reason: verdict.reason };
     }
     if (
-      (await store.spend.total(botId, dayOf(clock.now()))) >= this.limits.maxSpendPerBotPerDayUsd
+      (await store.spend.total(bot.id, dayOf(clock.now()))) >= this.limits.maxSpendPerBotPerDayUsd
     ) {
       await this.wakeLog.blocked(row, "spend");
       await this.notice(conversationId, "spend");
@@ -218,7 +229,7 @@ export class BotHub implements BotMessenger {
     if (!entry.pumping) {
       entry.pumping = true;
       this.runPump(entry).catch((err) =>
-        this.deps.log?.error({ error: errText(err), botId }, "hub.pump_failed"),
+        this.deps.log?.error({ error: errText(err), botId: bot.id }, "hub.pump_failed"),
       );
     }
     this.guard.record(w);
@@ -229,13 +240,61 @@ export class BotHub implements BotMessenger {
       sender,
       text,
       hop,
-      intent,
-      ...(opts.handoff && { handoff: true }),
-      ...(opts.attachments && { attachments: opts.attachments }),
+      intent: row.intent,
+      ...(row.handoff && { handoff: true }),
+      ...(opts.interrupted && { interrupted: true }),
+      ...(row.attachments && { attachments: row.attachments }),
     };
     if (entry.busy) entry.queue.push(wake);
     else await this.dispatch(entry, wake);
     return { ok: true, wakeId: row.id };
+  }
+
+  /**
+   * At start, put back what the last run left open. A queued wake is sent as it was (unless it waited over a day:
+   * expired); a running one is sent once more with a note that its turn was cut (a second cut: interrupted); a wake
+   * whose bot or conversation is gone is dropped. The caps count the wakes sent before the restart.
+   */
+  async recover(): Promise<void> {
+    const { store, clock } = this.deps;
+    const now = clock.now();
+    const open = await store.wakes.open();
+    const openIds = new Set(open.map((r) => r.id));
+    const since = now - Math.max(3_600_000, this.limits.repeatWindowMs);
+    for (const c of new Set(open.map((r) => r.conversationId)))
+      this.guard.seed((await store.wakes.botSentSince(c, since)).filter((r) => !openIds.has(r.id)));
+    for (const r of open) {
+      const bot = await store.bots.get(r.targetBot);
+      const conv = await store.conversations.get(r.conversationId);
+      if (!bot || !conv) {
+        await this.wakeLog.dropped(r.id);
+        continue;
+      }
+      if (r.status === "queued" && now - r.createdAt > this.limits.wakeExpireMs) {
+        await this.wakeLog.expired(r.id);
+        await this.tell(
+          r.conversationId,
+          `A message for ${bot.name} expired while the app was down and was not delivered.`,
+        );
+        continue;
+      }
+      const cut = r.status === "running";
+      if (cut && r.attempts >= 2) {
+        await this.wakeLog.interrupted(r.id);
+        await this.tell(
+          r.conversationId,
+          `${bot.name} was interrupted twice by restarts; the message was not delivered again.`,
+        );
+        continue;
+      }
+      const next: WakeRow = { ...r, status: "queued", attempts: cut ? r.attempts + 1 : r.attempts };
+      await store.wakes.update(r.id, { status: "queued", attempts: next.attempts });
+      this.wakeLog.redelivered(next);
+      await this.admit(next, bot, {
+        ...(cut && { interrupted: true }),
+        ...(r.hop > this.limits.maxHops && { exemptFromHops: true }),
+      });
+    }
   }
 
   /** Send one message into the bot's session. */
@@ -263,6 +322,7 @@ export class BotHub implements BotMessenger {
         hop: q.hop,
         intent: q.intent,
         ...(q.handoff && { handoff: true }),
+        ...(q.interrupted && { interrupted: true }),
         context,
         ...(q.attachments && { attachments: q.attachments }),
         ...(groupMemory !== undefined && { groupMemory }),

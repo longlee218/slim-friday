@@ -4,6 +4,10 @@ import type { WakeIntent } from "../domain/wake";
 /** Longest message one bot sends another; a longer one is cut. */
 export const BOT_MESSAGE_MAX_LENGTH = 8_000;
 
+/** Shown to a bot when its turn was cut by a restart and is sent again. */
+export const INTERRUPTED_NOTE =
+  "The previous turn was interrupted before it ended. Check what is already done, then continue.";
+
 /** A bot as another bot sees it. */
 export interface BotAddress {
   id: BotId;

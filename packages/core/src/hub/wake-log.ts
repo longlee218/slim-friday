@@ -98,6 +98,16 @@ export class WakeLog {
     );
   }
 
+  /** The wake is sent again after a restart (`attempts` already counts the new send). */
+  redelivered(w: WakeRow): void {
+    this.log?.info({ event: "wake.redelivered", ...base(w), status: "queued" }, "wake.redelivered");
+  }
+
+  /** The wake waited too long while the app was down. */
+  async expired(id: string): Promise<void> {
+    await this.end(id, "expired", "wake.expired");
+  }
+
   /** The session died while the wake ran. */
   async interrupted(id: string): Promise<void> {
     await this.end(id, "interrupted", "wake.interrupted");
@@ -108,7 +118,11 @@ export class WakeLog {
     await this.end(id, "dropped", "wake.dropped");
   }
 
-  private async end(id: string, status: "interrupted" | "dropped", event: string): Promise<void> {
+  private async end(
+    id: string,
+    status: "interrupted" | "dropped" | "expired",
+    event: string,
+  ): Promise<void> {
     const w = await this.store.wakes.get(id);
     if (!w) return;
     await this.store.wakes.update(id, { status, endedAt: this.clock.now() });

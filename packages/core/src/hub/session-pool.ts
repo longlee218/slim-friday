@@ -25,6 +25,8 @@ export interface QueuedWake {
   hop: number;
   intent: WakeIntent;
   handoff?: boolean;
+  /** Sent again after a restart cut its turn. */
+  interrupted?: boolean;
   attachments?: Attachment[];
 }
 

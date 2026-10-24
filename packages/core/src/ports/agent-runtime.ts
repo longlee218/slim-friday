@@ -18,6 +18,8 @@ export interface InboundTurn {
   intent?: WakeIntent;
   /** The sender gave the whole step to this bot (`HandOff`). */
   handoff?: boolean;
+  /** The previous turn on this message was cut by a restart; the bot should check what is done first. */
+  interrupted?: boolean;
   /** The group's memory; set on a group turn only when it changed since the bot last saw it. */
   groupMemory?: string;
   /** Files the user attached to this message; only the turn that answers that message carries them, never a hand-off. */

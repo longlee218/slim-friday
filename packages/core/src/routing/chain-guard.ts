@@ -47,6 +47,31 @@ export class ChainGuard {
     return { ok: true };
   }
 
+  /** Rebuild the log from stored wakes (after a restart), so the caps still count what was sent before. */
+  seed(
+    rows: {
+      createdAt: number;
+      conversationId: ConversationId;
+      sender: Author;
+      targetBot: BotId;
+      text: string;
+    }[],
+  ): void {
+    for (const r of rows)
+      this.log.push({
+        at: r.createdAt,
+        conversationId: r.conversationId,
+        key: this.keyOf({
+          conversationId: r.conversationId,
+          sender: r.sender,
+          target: r.targetBot,
+          text: r.text,
+          hop: 0,
+        }),
+        fromBot: r.sender.kind === "bot",
+      });
+  }
+
   /** Remember a delivered wake. */
   record(w: Wake): void {
     this.log.push({
