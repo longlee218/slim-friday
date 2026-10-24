@@ -41,6 +41,9 @@ export function createOwnerAuth(o: OwnerAuthOptions) {
     emailAndPassword: { enabled: false },
     session: { expiresIn: 30 * 24 * 3600, updateAge: 24 * 3600 },
     advanced: {
+      // The Cloudflare Tunnel is the only ingress and it sets cf-connecting-ip; without it every
+      // request shares one rate-limit bucket.
+      ipAddress: { ipAddressHeaders: ["cf-connecting-ip"] },
       useSecureCookies: true,
       defaultCookieAttributes: { httpOnly: true, secure: true, sameSite: "lax" },
     },

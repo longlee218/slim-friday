@@ -7,7 +7,10 @@ import { dirname } from "node:path";
  */
 export function ownerLinkWriter(file: string, now: () => number): (url: string) => void {
   return (url) => {
-    mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
+    const dir = dirname(file);
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
+    // mkdir's `mode` only applies on create; the logger may have made the dir looser first.
+    chmodSync(dir, 0o700);
     appendFileSync(file, `${new Date(now()).toISOString()} ${url}\n`, { mode: 0o600 });
     // append's `mode` only applies when the file is created; fix an older, looser file.
     chmodSync(file, 0o600);

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { chmodSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ownerLinkWriter } from "../src/auth/owner-links";
@@ -28,4 +28,13 @@ test("two writes give two timestamped lines", () => {
   const lines = readFileSync(f, "utf8").trim().split("\n");
   expect(lines).toHaveLength(2);
   for (const l of lines) expect(l).toMatch(/^\d{4}-\d{2}-\d{2}T.+ https:\/\//);
+});
+
+test("an existing 0755 logs dir ends 0700 and the file 0600", () => {
+  const dir = join(tmp(), "logs");
+  mkdirSync(dir);
+  chmodSync(dir, 0o755);
+  ownerLinkWriter(join(dir, "owner-links.log"), () => 0)("https://x.example.com/a");
+  expect(statSync(dir).mode & 0o777).toBe(0o700);
+  expect(statSync(join(dir, "owner-links.log")).mode & 0o777).toBe(0o600);
 });

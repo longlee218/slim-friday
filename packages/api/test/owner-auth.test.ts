@@ -30,7 +30,7 @@ const cookieFrom = (res: Response): Headers =>
       .join("; "),
   });
 
-/** Ask for a magic link as `email`; returns the user count afterwards. */
+/** Number of rows in the user table. */
 const userCount = (t: ReturnType<typeof fresh>) =>
   t.db.db.select().from(t.db.schema.user).all().length;
 
@@ -87,7 +87,9 @@ test("owner link signs in once, with a hardened cookie, then unlocks passkey opt
 
   // single use
   const again = await t.auth.handler(new Request(url));
-  expect(again.headers.getSetCookie().join("")).not.toContain("session_token");
+  expect(again.status).toBe(302);
+  expect(again.headers.get("location") ?? "").toContain("error=");
+  expect(again.headers.getSetCookie()).toEqual([]);
 
   const opts = (headers?: Headers) =>
     t.auth.handler(
@@ -99,4 +101,10 @@ test("owner link signs in once, with a hardened cookie, then unlocks passkey opt
   const ok = await opts(cookieFrom(res));
   expect(ok.status).toBe(200);
   expect(((await ok.json()) as { rp: { id: string } }).rp.id).toBe("example.com");
+});
+
+test("the client ip comes from the tunnel header", async () => {
+  const t = fresh();
+  const o = (await t.auth.$context).options;
+  expect(o.advanced?.ipAddress?.ipAddressHeaders).toEqual(["cf-connecting-ip"]);
 });
