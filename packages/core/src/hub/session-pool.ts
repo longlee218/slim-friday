@@ -10,6 +10,7 @@ import type { Log } from "../ports/log";
 import type { Memory } from "../ports/memory";
 import { GROUP_SESSION_KINDS } from "../ports/memory";
 import type { Store } from "../ports/store";
+import type { Surface } from "../ports/surface";
 import { promptMemory } from "./group-memory";
 import { RunTracker } from "./run-steps";
 import type { SessionScope } from "./session-scope";
@@ -37,6 +38,8 @@ export interface QueuedWake {
   /** Sent again after a restart cut its turn. */
   interrupted?: boolean;
   attachments?: Attachment[];
+  /** The message this one replies to (not stored with the wake: a redelivered wake has none). */
+  quote?: { author: Author; text: string };
 }
 
 /** One open session and what the hub knows about its current work. */
@@ -99,7 +102,14 @@ export class SessionPool {
     private gate: PermissionGate,
     private memory?: Memory,
     /** Cap of the bot memory in the system prompt, and where a too-large memory is reported. */
-    private memoryOpts: { memoryPromptChars: number; log?: Log } = {
+    private memoryOpts: {
+      memoryPromptChars: number;
+      log?: Log;
+      /** Where a bot's questions go; without it a bot cannot ask. */
+      surface?: Surface;
+      /** How long a question card waits for the owner. */
+      approvalTimeoutMs?: number;
+    } = {
       memoryPromptChars: CORE_DEFAULTS.memoryPromptChars,
     },
   ) {}
@@ -170,6 +180,17 @@ export class SessionPool {
           { tool: c.tool, input: c.input, botId: bot.id, conversationId },
           bot.name,
         );
+      },
+      // A question goes to the conversation the bot answers now; between turns nobody is asked (null).
+      ask: async (card) => {
+        const conversationId = ref.entry?.busy ? ref.entry.current.conversationId : "";
+        if (!conversationId || !this.memoryOpts.surface) return null;
+        return this.memoryOpts.surface.askQuestion(conversationId, {
+          ...card,
+          botId: bot.id,
+          botName: bot.name,
+          timeoutMs: this.memoryOpts.approvalTimeoutMs ?? CORE_DEFAULTS.approvalTimeoutMs,
+        });
       },
       effortControl: {},
       currentConversation: () => (ref.entry?.busy ? ref.entry.current.conversationId : undefined),

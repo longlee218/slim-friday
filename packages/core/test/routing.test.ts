@@ -98,3 +98,18 @@ test("ChainGuard: a user may repeat a message; the repeat guard is for bots", ()
   g.record(w);
   expect(g.check(w)).toEqual({ ok: true });
 });
+
+test("a reply in a group goes to the replied-to bot, not the entry bot", () => {
+  expect(routeMessage(groupConv, group, members, "fix it", undefined, "editor-id")).toEqual([
+    "editor-id",
+  ]);
+  expect(routeMessage(groupConv, group, members, "@Writer fix it", undefined, "editor-id")).toEqual(
+    ["writer-id"],
+  );
+  expect(routeMessage(groupConv, group, [writer], "fix it", undefined, "editor-id")).toEqual([
+    "writer-id",
+  ]);
+  expect(routeMessage(directConv, undefined, [editor], "x", undefined, "writer-id")).toEqual([
+    "editor-id",
+  ]);
+});

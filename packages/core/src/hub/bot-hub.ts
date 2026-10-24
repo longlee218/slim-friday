@@ -17,13 +17,13 @@ import type { InboundMessage, Surface } from "../ports/surface";
 import { clampBotMessage, nextHop } from "../routing/bot-messages";
 import { ChainGuard } from "../routing/chain-guard";
 import type { ProjectRulesReader } from "../routing/group-context";
-import { routeMessage } from "../routing/route-message";
 import { type Ticket, ticketRef } from "../tickets/ticket";
 import { TicketBoard } from "../tickets/ticket-board";
 import { recalledBlock } from "./auto-recall";
 import { dayOf, pumpEvents } from "./event-pump";
 import { changedGroupContext } from "./group-context";
 import { changedGroupMemory, promptMemory } from "./group-memory";
+import { hubTargets } from "./hub-targets";
 import { type IdleCloseHook, reportIdleClose } from "./idle-close";
 import { EMPTY_MEMORY_NOTE } from "./memory-label";
 import { postStored } from "./post-stored";
@@ -56,6 +56,8 @@ interface WakeOpts {
   exemptFromHops?: boolean;
   ticketId?: string;
   rewake?: boolean;
+  /** The message this one replies to; sent with the turn, never stored with the wake. */
+  quote?: { author: Author; text: string };
 }
 
 /** What /status shows for one running bot. */
@@ -108,6 +110,8 @@ export class BotHub implements BotMessenger {
     this.pool = new SessionPool(deps.runtime, deps.store, deps.clock, deps.gate, deps.memory, {
       memoryPromptChars: this.limits.memoryPromptChars,
       log: deps.log,
+      surface: deps.surface,
+      approvalTimeoutMs: this.limits.approvalTimeoutMs,
     });
     this.guard = new ChainGuard(deps.clock, this.limits);
     this.wakeLog = new WakeLog(deps.store, deps.clock, deps.log);
@@ -165,8 +169,13 @@ export class BotHub implements BotMessenger {
     });
     // A message of files only wakes the bot with a short note instead of an empty text.
     const wakeText = m.text.trim() || `(sent ${m.files?.length ?? 0} file(s))`;
-    for (const target of await this.targets(conv, m.text))
+    // A reply to a message of this conversation routes to its bot and carries the quoted text.
+    const replied = m.replyTo === undefined ? undefined : await store.messages.get(m.replyTo);
+    const quoted = replied?.conversationId === conv.id ? replied : undefined;
+    const replyToBot = quoted?.author.kind === "bot" ? quoted.author.botId : undefined;
+    for (const target of await hubTargets(store, conv, m.text, replyToBot))
       await this.wake(target, conv.id, user, wakeText, 0, {
+        ...(quoted && { quote: { author: quoted.author, text: quoted.text } }),
         ...(m.attachments && { attachments: m.attachments }),
       });
     return id;
@@ -221,21 +230,6 @@ export class BotHub implements BotMessenger {
       }
   }
 
-  /** Bots a user message in `conv` wakes. */
-  private async targets(conv: Conversation, text: string): Promise<BotId[]> {
-    const { store } = this.deps;
-    if (conv.kind === "direct") {
-      const bot = await store.bots.get(conv.botId);
-      return bot ? routeMessage(conv, undefined, [bot], text) : [];
-    }
-    const group = await store.groups.get(conv.groupId);
-    if (!group) return [];
-    const members = (await Promise.all(group.members.map((id) => store.bots.get(id)))).filter(
-      (b): b is Bot => b !== undefined,
-    );
-    return routeMessage(conv, group, members, text);
-  }
-
   /** Deliver one message to one bot unless a cap says stop. */
   private async wake(
     botId: BotId,
@@ -271,7 +265,11 @@ export class BotHub implements BotMessenger {
   private async admit(
     row: WakeRow,
     bot: Bot,
-    opts: { exemptFromHops?: boolean; interrupted?: boolean } = {},
+    opts: {
+      exemptFromHops?: boolean;
+      interrupted?: boolean;
+      quote?: { author: Author; text: string };
+    } = {},
   ): Promise<WakeOutcome> {
     const { store, clock } = this.deps;
     const { conversationId, sender, text, hop } = row;
@@ -325,6 +323,7 @@ export class BotHub implements BotMessenger {
       ...(row.ticketId && { ticketId: row.ticketId }),
       ...(row.rewake && { rewake: true }),
       ...(opts.interrupted && { interrupted: true }),
+      ...(opts.quote && { quote: opts.quote }),
       ...(row.attachments && { attachments: row.attachments }),
     };
     if (entry.busy) entry.queue.push(wake);
@@ -436,6 +435,7 @@ export class BotHub implements BotMessenger {
         context,
         ...(tickets && { tickets }),
         ...(q.attachments && { attachments: q.attachments }),
+        ...(q.quote && { quote: q.quote }),
         ...(groupContext !== undefined && { groupContext }),
         ...(botMemory !== undefined && { botMemory }),
         ...(groupMemory !== undefined && { groupMemory }),

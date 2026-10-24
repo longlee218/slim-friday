@@ -9,6 +9,8 @@ import { parseMentions } from "./parse-mentions";
  * - Group: each mentioned member; with no mention, the entry bot, but only for a message from the user.
  *   A bot reply that mentions nobody wakes nobody. A bot is never woken by its own message.
  * `sender` is the bot that wrote the message; leave it out for a user message.
+ * `replyToBot`: the bot whose message the user replies to; with no mention it gets the message instead of the
+ * entry bot (when it is still a member). A direct conversation ignores it.
  */
 export function routeMessage(
   conv: Conversation,
@@ -16,10 +18,12 @@ export function routeMessage(
   members: Bot[],
   text: string,
   sender?: BotId,
+  replyToBot?: BotId,
 ): BotId[] {
   if (conv.kind === "direct") return conv.botId === sender ? [] : [conv.botId];
   if (!group) return [];
   const mentioned = parseMentions(text, members).filter((id) => id !== sender);
   if (mentioned.length > 0) return mentioned;
-  return sender === undefined ? [group.entryBot] : [];
+  if (sender !== undefined) return [];
+  return [replyToBot && members.some((b) => b.id === replyToBot) ? replyToBot : group.entryBot];
 }

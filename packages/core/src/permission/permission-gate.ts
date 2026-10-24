@@ -111,6 +111,7 @@ export class PermissionGate {
       Promise.resolve()
         .then(() =>
           surface.askApproval(call.conversationId, {
+            botId: call.botId,
             botName,
             tool: call.tool,
             summary,
