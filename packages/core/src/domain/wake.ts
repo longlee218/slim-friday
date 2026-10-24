@@ -83,4 +83,8 @@ export interface WakeRow {
   transientRetries: number;
   /** Failures before the session started. */
   setupFailures: number;
+  /** The message the owner replied to: who wrote it and what it said; sent with the run's turn. */
+  quote?: { author: Author; text: string };
+  /** Status the row had before the claim that returned it (`claimNext` sets it; never stored). */
+  claimedFrom?: WakeStatus;
 }

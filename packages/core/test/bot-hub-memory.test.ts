@@ -2,7 +2,6 @@ import { expect, test } from "bun:test";
 import {
   CORE_DEFAULTS,
   type CoreLimits,
-  EMPTY_MEMORY_NOTE,
   type Memory,
   type MemoryOwner,
   type MemorySearcher,
@@ -21,7 +20,7 @@ function fakeMemory() {
   return { memory, texts };
 }
 
-test.todo("bot memory goes into the session spec at open (restored in Task 8)", async () => {
+test("bot memory goes into the session spec at open", async () => {
   const { memory, texts } = fakeMemory();
   texts.set("bot:editor", "## Facts\n- likes tea");
   const { runtime, surface } = makeHub(memory);
@@ -30,28 +29,28 @@ test.todo("bot memory goes into the session spec at open (restored in Task 8)", 
   expect(runtime.nth(0).spec.memory).toContain("likes tea");
 });
 
-test.todo("group memory is sent on the first group turn and again only after it changed (restored in Task 8)", async () => {
+test("group memory is loaded fresh for every group run", async () => {
   const { memory, texts } = fakeMemory();
   texts.set("group:g", "- team uses bun");
   const { runtime, surface } = makeHub(memory);
   surface.deliver({ conversationId: "gc", text: "one" });
   await flush();
-  const s = runtime.nth(0);
-  expect(s.sent[0]?.groupMemory).toBe("- team uses bun");
-  s.emit({ type: "turn_end", costUsd: 0 });
+  expect(runtime.last().sent[0]?.groupMemory).toBe("- team uses bun");
+  runtime.last().emit({ type: "turn_end", costUsd: 0 });
   await flush();
   surface.deliver({ conversationId: "gc", text: "two" });
   await flush();
-  expect(s.sent[1]?.groupMemory).toBeUndefined();
-  s.emit({ type: "turn_end", costUsd: 0 });
+  expect(runtime.last().sent[0]?.groupMemory).toBe("- team uses bun");
+  runtime.last().emit({ type: "turn_end", costUsd: 0 });
   await flush();
   texts.set("group:g", "- team uses bun\n- deploy friday");
   surface.deliver({ conversationId: "gc", text: "three" });
   await flush();
-  expect(s.sent[2]?.groupMemory).toContain("deploy friday");
+  expect(runtime.last().sent[0]?.groupMemory).toContain("deploy friday");
+  expect(runtime.turns()).toHaveLength(3);
 });
 
-test.todo("a direct turn never carries group memory; a failing read still sends the turn (restored in Task 8)", async () => {
+test("a direct turn never carries group memory; a failing read still sends the turn", async () => {
   const { memory, texts } = fakeMemory();
   texts.set("group:g", "- secret plan");
   const broken: Memory = { ...memory, read: async () => Promise.reject(new Error("disk")) };
@@ -66,7 +65,7 @@ test.todo("a direct turn never carries group memory; a failing read still sends 
   expect(b.runtime.nth(0).spec.memory).toBeUndefined();
 });
 
-test.todo("after a compaction the group memory is sent again (restored in Task 8)", async () => {
+test("after a compaction the next run still gets the group memory", async () => {
   const { memory, texts } = fakeMemory();
   texts.set("group:g", "- team uses bun");
   const { runtime, surface } = makeHub(memory);
@@ -78,15 +77,14 @@ test.todo("after a compaction the group memory is sent again (restored in Task 8
   await flush();
   surface.deliver({ conversationId: "gc", text: "two" });
   await flush();
-  expect(s.sent[1]?.groupMemory).toBe("- team uses bun");
+  expect(runtime.last().sent[0]?.groupMemory).toBe("- team uses bun");
 });
 
-test.todo("a background task started in another conversation cannot use group scope while the bot answers a group (restored in Task 8)", async () => {
+test("a background task keeps the group scope busy: another chat's message waits and the task asks where it began", async () => {
   const { memory } = fakeMemory();
   const { runtime, surface, store } = makeHub(memory);
-  // A second chat of the same group shares the bot's group session.
+  // A second chat of the same group shares the bot's group scope.
   store.convMap.set("gc2", { id: "gc2", kind: "group", groupId: "g" });
-  // The owner would allow anything: only the scope rule may deny.
   surface.answerWith("once");
   surface.deliver({ conversationId: "gc2", text: "@Editor start a task" });
   await flush();
@@ -96,20 +94,18 @@ test.todo("a background task started in another conversation cannot use group sc
   await flush();
   surface.deliver({ conversationId: "gc", text: "@Editor hello group" });
   await flush();
-  const d = await Promise.race([
-    s.spec.decide({ tool: "mcp__memory__MemorySave", input: { scope: "group" }, taskId: "t1" }),
-    Bun.sleep(300).then(() => "timeout"),
-  ]);
-  expect(d).toMatchObject({ behavior: "deny" });
-  const own = await s.spec.decide({
+  // The run with the task holds the scope, so the bot never answers the other chat meanwhile.
+  expect([...store.wakeMap.values()].map((w) => w.status)).toEqual(["running", "queued"]);
+  const d = await s.spec.decide({
     tool: "mcp__memory__MemorySave",
-    input: { scope: "bot" },
+    input: { scope: "group" },
     taskId: "t1",
   });
-  expect(own).toEqual({ behavior: "allow" });
+  expect(d).toEqual({ behavior: "allow" });
+  expect(surface.approvals.at(-1)?.conversationId).toBe("gc2");
 });
 
-test.todo("a group turn recalls only the group's notes; a direct turn recalls the bot's (restored in Task 8)", async () => {
+test("a group turn recalls only the group's notes; a direct turn recalls the bot's", async () => {
   const { memory } = fakeMemory();
   const asked: string[] = [];
   const recall: MemorySearcher = {
@@ -131,7 +127,7 @@ test.todo("a group turn recalls only the group's notes; a direct turn recalls th
   expect(asked.slice(1)).toEqual(["bot:editor"]);
 });
 
-test.todo("a group session gets only the preferences and lessons of the bot's memory; a direct one gets all (restored in Task 8)", async () => {
+test("a group session gets only the preferences and lessons of the bot's memory; a direct one gets all", async () => {
   const kindsAsked: (string | undefined)[] = [];
   const memory: Memory = {
     read: async () => "whole",
@@ -153,7 +149,7 @@ test.todo("a group session gets only the preferences and lessons of the bot's me
   expect(group?.spec.memory).toBe("memory for preference,lesson");
 });
 
-test.todo("without readForPrompt a group session gets none of the bot's memory (restored in Task 8)", async () => {
+test("without readForPrompt a group session gets none of the bot's memory", async () => {
   const { memory, texts } = fakeMemory();
   texts.set("bot:writer", "## Facts\n- private fact");
   const { runtime, surface } = makeHub(memory);
@@ -177,7 +173,7 @@ function cappedMemory(text: string) {
   return { memory, caps };
 }
 
-test.todo("the session spec gets the capped memory and a memory.large warning when the file is over twice the cap (restored in Task 8)", async () => {
+test("the session spec gets the capped memory and a memory.large warning when the file is over twice the cap", async () => {
   const { memory } = cappedMemory(`- ${"a".repeat(100)}`);
   const limits: CoreLimits = {
     ...CORE_DEFAULTS,
@@ -191,7 +187,7 @@ test.todo("the session spec gets the capped memory and a memory.large warning wh
   expect(log.of("memory.large")[0]?.level).toBe("warn");
 });
 
-test.todo("group memory on a turn is capped at groupMemoryPromptChars (restored in Task 8)", async () => {
+test("group memory on a turn is capped at groupMemoryPromptChars", async () => {
   const { memory, caps } = cappedMemory("- team uses bun and deploys on friday");
   const limits: CoreLimits = {
     ...CORE_DEFAULTS,
@@ -204,7 +200,7 @@ test.todo("group memory on a turn is capped at groupMemoryPromptChars (restored 
   expect(runtime.nth(0).sent[0]?.groupMemory).toBe("- team use");
 });
 
-test.todo("a group turn whose send fails sends the group memory again on the next turn (restored in Task 8)", async () => {
+test("a group run whose send fails does not keep the next run from getting the group memory", async () => {
   const { memory, texts } = fakeMemory();
   texts.set("group:g", "- team uses bun");
   const { runtime, surface } = makeHub(memory);
@@ -219,81 +215,61 @@ test.todo("a group turn whose send fails sends the group memory again on the nex
   await flush();
   surface.deliver({ conversationId: "gc", text: "two" });
   await flush();
-  const s = runtime.nth(0);
-  expect(s.sent[1]?.groupMemory).toBe("- team uses bun");
+  expect(runtime.last().sent[0]?.groupMemory).toBe("- team uses bun");
 });
 
-test.todo("after a compaction the bot's changed MEMORY.md goes with the next turn, once (restored in Task 8)", async () => {
+test("a changed MEMORY.md reaches the next run's session spec; turns carry no memory of their own", async () => {
   const { memory, texts } = fakeMemory();
   texts.set("bot:editor", "## Facts\n- likes tea");
   const { runtime, surface } = makeHub(memory);
   surface.deliver({ conversationId: "dc", text: "one" });
   await flush();
-  const s = runtime.nth(0);
-  s.emit({ type: "turn_end", costUsd: 0 });
+  runtime.last().emit({ type: "compacted" });
+  runtime.last().emit({ type: "turn_end", costUsd: 0 });
   await flush();
-  // A compaction with the file unchanged sends nothing.
-  s.emit({ type: "compacted" });
-  await flush();
+  texts.set("bot:editor", "## Facts\n- likes tea\n- answers in Vietnamese");
   surface.deliver({ conversationId: "dc", text: "two" });
   await flush();
-  expect(s.sent[1]?.botMemory).toBeUndefined();
-  s.emit({ type: "turn_end", costUsd: 0 });
-  texts.set("bot:editor", "## Facts\n- likes tea\n- answers in Vietnamese");
-  s.emit({ type: "compacted" });
-  await flush();
-  surface.deliver({ conversationId: "dc", text: "three" });
-  await flush();
-  expect(s.sent[2]?.botMemory).toContain("answers in Vietnamese");
-  s.emit({ type: "turn_end", costUsd: 0 });
-  await flush();
-  surface.deliver({ conversationId: "dc", text: "four" });
-  await flush();
-  expect(s.sent[3]?.botMemory).toBeUndefined();
+  expect(runtime.last().spec.memory).toContain("answers in Vietnamese");
+  expect(runtime.turns().map((t) => t.botMemory)).toEqual([undefined, undefined]);
 });
 
-test.todo("a turn after a compaction whose send fails sends the updated memory again on the next turn (restored in Task 8)", async () => {
+test("after a run whose send failed the next run's spec has the updated memory", async () => {
   const { memory, texts } = fakeMemory();
   texts.set("bot:editor", "## Facts\n- likes tea");
   const { runtime, surface } = makeHub(memory);
-  surface.deliver({ conversationId: "dc", text: "one" });
-  await flush();
-  const s = runtime.nth(0);
-  s.emit({ type: "turn_end", costUsd: 0 });
-  texts.set("bot:editor", "## Facts\n- likes tea\n- answers in Vietnamese");
-  s.emit({ type: "compacted" });
-  await flush();
   let failOnce = true;
-  s.onSend = () => {
+  runtime.onTurn = () => {
     if (failOnce) {
       failOnce = false;
       throw new Error("unreadable attachment");
     }
   };
+  surface.deliver({ conversationId: "dc", text: "one" });
+  await flush();
+  texts.set("bot:editor", "## Facts\n- likes tea\n- answers in Vietnamese");
   surface.deliver({ conversationId: "dc", text: "two" });
   await flush();
-  surface.deliver({ conversationId: "dc", text: "three" });
-  await flush();
-  expect(s.sent[2]?.botMemory).toContain("answers in Vietnamese");
+  expect(runtime.last().sent[0]?.text).toBe("two");
+  expect(runtime.last().spec.memory).toContain("answers in Vietnamese");
 });
 
-test.todo("after a compaction a memory emptied by the owner is reported as empty (restored in Task 8)", async () => {
+test("a memory emptied by the owner leaves the next run's spec without memory", async () => {
   const { memory, texts } = fakeMemory();
   texts.set("bot:editor", "## Facts\n- likes tea");
   const { runtime, surface } = makeHub(memory);
   surface.deliver({ conversationId: "dc", text: "one" });
   await flush();
-  const s = runtime.nth(0);
-  s.emit({ type: "turn_end", costUsd: 0 });
+  expect(runtime.last().spec.memory).toContain("likes tea");
+  runtime.last().emit({ type: "turn_end", costUsd: 0 });
   texts.set("bot:editor", "");
-  s.emit({ type: "compacted" });
   await flush();
   surface.deliver({ conversationId: "dc", text: "two" });
   await flush();
-  expect(s.sent[1]?.botMemory).toBe(EMPTY_MEMORY_NOTE);
+  expect(runtime.last().spec.memory).toBeUndefined();
 });
 
-test.todo("after a compaction a failed memory read is not reported as an emptied memory (restored in Task 8)", async () => {
+test("after a compaction a failed memory read is not reported as an emptied memory", async () => {
   const { memory, texts } = fakeMemory();
   texts.set("bot:editor", "## Facts\n- likes tea");
   let broken = false;

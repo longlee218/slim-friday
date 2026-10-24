@@ -16,6 +16,10 @@ export class RunLease {
   private cancelCheck?: () => void;
   /** Set by `stop` or after a loss; no timer re-arms then. */
   private stopped = true;
+  /** Why the lease was lost; undefined while it is held. */
+  private lostWhy?: LeaseLoss;
+  /** Also told of a loss (the executor aborts its run through one). */
+  private listeners: ((why: LeaseLoss) => void)[] = [];
 
   constructor(
     private store: Store,
@@ -29,6 +33,12 @@ export class RunLease {
   /** The fence this lease was claimed with; every write of the run carries it. */
   get fence(): number {
     return this.row.leaseFence;
+  }
+
+  /** Also call `fn` on a loss; at once when the lease is already lost. */
+  listen(fn: (why: LeaseLoss) => void): void {
+    if (this.lostWhy) fn(this.lostWhy);
+    else this.listeners.push(fn);
   }
 
   /** Begin renewing and checking. */
@@ -89,6 +99,8 @@ export class RunLease {
   private lose(why: LeaseLoss): void {
     if (this.stopped) return;
     this.stop();
+    this.lostWhy = why;
     this.onLost(why);
+    for (const fn of this.listeners) fn(why);
   }
 }

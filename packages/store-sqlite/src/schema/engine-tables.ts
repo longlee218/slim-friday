@@ -153,6 +153,8 @@ export const wakes = sqliteTable(
     transientRetries: integer("transient_retries").notNull().default(0),
     /** Failures before the session started. */
     setupFailures: integer("setup_failures").notNull().default(0),
+    /** JSON `{ author, text }` of the message the owner replied to, sent with the run's turn. */
+    quote: text("quote"),
   },
   (t) => [
     index("wakes_status_idx").on(t.status, t.createdAt),

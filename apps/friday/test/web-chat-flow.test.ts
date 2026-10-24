@@ -14,7 +14,7 @@ async function boot(files: Record<string, string> = {}) {
   return h;
 }
 
-test.todo("send -> bot reply event with run steps (restored in Task 8)", async () => {
+test("send -> bot reply event with run steps", async () => {
   const h = await boot();
   h.runtime.onTurn = (s) => {
     s.emit({ type: "thinking" });
@@ -36,7 +36,7 @@ test.todo("send -> bot reply event with run steps (restored in Task 8)", async (
   expect(page.map((m) => m.text)).toContain("done");
 });
 
-test.todo("an approval answered through the API lets the tool run (restored in Task 8)", async () => {
+test("an approval answered through the API lets the tool run", async () => {
   const h = await boot();
   await h.client.chat.send({ conversationId: "bot:friday", text: "hi" });
   await until(() => h.runtime.opened.length === 1);
@@ -53,7 +53,7 @@ test.todo("an approval answered through the API lets the tool run (restored in T
   expect(h.of("approval.closed").length).toBe(1);
 });
 
-test.todo("a question answered through the API reaches the bot (restored in Task 8)", async () => {
+test("a question answered through the API reaches the bot", async () => {
   const h = await boot();
   await h.client.chat.send({ conversationId: "bot:friday", text: "hi" });
   await until(() => h.runtime.opened.length === 1);
@@ -72,7 +72,7 @@ test.todo("a question answered through the API reaches the bot (restored in Task
   await until(() => h.of("question.closed").length === 1);
 });
 
-test.todo("a reply in a group goes to the replied-to bot (restored in Task 8)", async () => {
+test("a reply in a group goes to the replied-to bot", async () => {
   const h = await boot({
     "bots/dev.md": botFile("Dev"),
     "bots/tess.md": botFile("Tess"),
@@ -96,7 +96,7 @@ test.todo("a reply in a group goes to the replied-to bot (restored in Task 8)", 
   expect(h.runtime.nth(0).sent[0]?.quote?.text).toBe("tess says");
 });
 
-test.todo("an upload is accepted and an oversized one refused (restored in Task 8)", async () => {
+test("an upload is accepted and an oversized one refused", async () => {
   const h = await boot();
   const mk = (name: string, size: number) =>
     h.client.chat.uploadCreate({

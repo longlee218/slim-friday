@@ -72,6 +72,8 @@ export class FakeSession implements BotSession {
 export class FakeRuntime implements AgentRuntime {
   opened: FakeSession[] = [];
   resumed: { sessionId: string; session: FakeSession }[] = [];
+  /** Every session opened or resumed, in the order it was created. */
+  created: FakeSession[] = [];
   private n = 0;
   /** Copied to every new session as its `onSend`. */
   onTurn?: (session: FakeSession, turn: InboundTurn) => void;
@@ -80,12 +82,14 @@ export class FakeRuntime implements AgentRuntime {
     const s = new FakeSession(`s${++this.n}`, spec);
     s.onSend = this.onTurn;
     this.opened.push(s);
+    this.created.push(s);
     return s;
   }
   async resume(sessionId: string, spec: BotRuntimeSpec): Promise<FakeSession> {
     const s = new FakeSession(sessionId, spec);
     s.onSend = this.onTurn;
     this.resumed.push({ sessionId, session: s });
+    this.created.push(s);
     return s;
   }
   /** The n-th opened session; throws when the test expected one that was never opened. */
@@ -94,7 +98,17 @@ export class FakeRuntime implements AgentRuntime {
     if (!s) throw new Error(`session ${n} was not opened`);
     return s;
   }
-  /** Every session created so far, in order. */
+  /** The session created last (each run opens or resumes one); throws when none was created. */
+  last(): FakeSession {
+    const s = this.created.at(-1);
+    if (!s) throw new Error("no session was created");
+    return s;
+  }
+  /** Every turn sent into any session, in the order the sessions were created. */
+  turns(): InboundTurn[] {
+    return this.created.flatMap((s) => s.sent);
+  }
+  /** Every session created so far: opened ones first, then resumed ones. */
   all(): FakeSession[] {
     return [...this.opened, ...this.resumed.map((r) => r.session)];
   }

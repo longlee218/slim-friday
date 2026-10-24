@@ -5,7 +5,7 @@ import { flush, makeHub } from "./bot-hub-harness";
 const notices = (posts: { message: { author: { kind: string }; text: string } }[]) =>
   posts.filter((p) => p.message.author.kind === "system").map((p) => p.message.text);
 
-test.todo("two bots that message each other stop at maxHops; the last message is refused with a reason (restored in Task 8)", async () => {
+test("two bots that message each other stop at maxHops; the last message is refused with a reason", async () => {
   const { runtime, surface, hub } = makeHub();
   const results: { ok: boolean; error?: string }[] = [];
   runtime.onTurn = (session, turn) => {
@@ -27,7 +27,7 @@ test.todo("two bots that message each other stop at maxHops; the last message is
   expect(results.filter((r) => !r.ok)).toHaveLength(1);
 });
 
-test.todo("spend over the daily cap refuses the next wake once; the next day works again (restored in Task 8)", async () => {
+test("spend over the daily cap refuses the next wake once; the next day works again", async () => {
   const { runtime, surface, clock } = makeHub();
   surface.deliver({ conversationId: "dc", text: "one" });
   await flush();
@@ -35,15 +35,15 @@ test.todo("spend over the daily cap refuses the next wake once; the next day wor
   await flush();
   surface.deliver({ conversationId: "dc", text: "two" });
   await flush();
-  expect(runtime.opened[0]?.sent).toHaveLength(1);
+  expect(runtime.turns()).toHaveLength(1);
   expect(notices(surface.posts)).toEqual(["Stopped: spend limit reached."]);
   clock.advance(86_400_000);
   surface.deliver({ conversationId: "dc", text: "four" });
   await flush();
-  expect(runtime.opened[0]?.sent).toHaveLength(2);
+  expect(runtime.turns().map((t) => t.text)).toEqual(["one", "four"]);
 });
 
-test.todo("a bot repeating the same message inside the window is not delivered twice, with one notice (restored in Task 8)", async () => {
+test("a bot repeating the same message inside the window is not delivered twice, with one notice", async () => {
   const { runtime, surface, hub } = makeHub();
   surface.deliver({ conversationId: "gc", text: "go" });
   await flush();

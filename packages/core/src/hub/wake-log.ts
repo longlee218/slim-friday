@@ -44,7 +44,8 @@ function nextWakeId(): string {
 
 /**
  * The life of a wake in the store, with one log line per step: queued, started, done, blocked,
- * interrupted, dropped. Timings are measured from the time the wake was created.
+ * expired, dropped. Timings are measured from the time the wake was created. The executor writes a
+ * run's own changes with fenced transitions and only logs them here (`logStarted`, `logDone`).
  */
 export class WakeLog {
   constructor(
@@ -87,12 +88,8 @@ export class WakeLog {
     this.log?.info({ event: "wake.queued", ...base(row), status: row.status }, "wake.queued");
   }
 
-  /** The wake was sent into the session. */
-  async started(id: string): Promise<void> {
-    const w = await this.store.wakes.get(id);
-    if (!w) return;
-    const startedAt = this.clock.now();
-    await this.store.wakes.update(id, { status: "running", startedAt });
+  /** Log a run that a worker started at `startedAt` (the row is already `running`). */
+  logStarted(w: WakeRow, startedAt: number): void {
     this.log?.info(
       {
         event: "wake.started",
@@ -104,19 +101,8 @@ export class WakeLog {
     );
   }
 
-  /** The bot said something; only the first text counts. */
-  async firstText(id: string): Promise<void> {
-    const w = await this.store.wakes.get(id);
-    if (w && w.firstTextAt === undefined)
-      await this.store.wakes.update(id, { firstTextAt: this.clock.now() });
-  }
-
-  /** The turn ended normally. */
-  async done(id: string): Promise<void> {
-    const w = await this.store.wakes.get(id);
-    if (!w) return;
-    const endedAt = this.clock.now();
-    await this.store.wakes.update(id, { status: "done", endedAt });
+  /** Log a run that finished normally at `endedAt` (the row is already `done`). */
+  logDone(w: WakeRow, endedAt: number): void {
     this.log?.info(
       {
         event: "wake.done",
@@ -150,21 +136,12 @@ export class WakeLog {
     await this.end(id, "expired", "wake.expired");
   }
 
-  /** The session died while the wake ran. */
-  async interrupted(id: string): Promise<void> {
-    await this.end(id, "interrupted", "wake.interrupted");
-  }
-
   /** The wake will never be delivered (its queue was cleared, or its bot or conversation is gone). */
   async dropped(id: string): Promise<void> {
     await this.end(id, "dropped", "wake.dropped");
   }
 
-  private async end(
-    id: string,
-    status: "interrupted" | "dropped" | "expired",
-    event: string,
-  ): Promise<void> {
+  private async end(id: string, status: "dropped" | "expired", event: string): Promise<void> {
     const w = await this.store.wakes.get(id);
     if (!w) return;
     await this.store.wakes.update(id, { status, endedAt: this.clock.now() });

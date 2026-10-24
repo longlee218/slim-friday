@@ -5,15 +5,16 @@ import type { Author } from "../domain/message";
 import type { BotMessenger, SendRequest, SendResult } from "../ports/messenger";
 import type { InboundMessage } from "../ports/surface";
 import { ChainGuard } from "../routing/chain-guard";
+import { abortRun, type RunExec } from "../runs/run-exec";
 import { InProcessHints } from "../runs/run-hints";
 import { intakeOwnerMessage } from "../runs/run-intake";
+import { LocalRunner } from "../runs/run-local-runner";
 import type { Ticket } from "../tickets/ticket";
 import { TicketBoard } from "../tickets/ticket-board";
 import { sendFromSession } from "./bot-messaging";
 import { type HubContext, tell } from "./hub-context";
 import { type BotHubDeps, type BotStatus, errText } from "./hub-types";
-import { reportIdleClose } from "./idle-close";
-import { type PoolEntry, SessionPool } from "./session-pool";
+import { sweepQuietScopes } from "./idle-close";
 import { wakeForTicket } from "./ticket-wakes";
 import { admit, wake } from "./wake-admission";
 import { WakeLog } from "./wake-log";
@@ -22,35 +23,35 @@ import { recoverWakes } from "./wake-recovery";
 export type { BotHubDeps, BotStatus } from "./hub-types";
 
 /**
- * Drives the bots: routes each user message to the right bots, keeps one session per active bot,
- * carries a bot's `SendToBot` / `HandOff` to its target, and applies the loop, rate and spend caps.
- * The work lives in the focused files beside this one; this class owns the shared state and the public API.
+ * Drives the bots: routes each user message to the right bots as stored runs, carries a bot's `SendToBot` /
+ * `HandOff` to its target, and applies the loop, rate and spend caps. Without `deps.hints` it also executes the
+ * runs in this process (`LocalRunner`: one claimed run = one session turn). The work lives in the focused files
+ * beside this one; this class owns the shared state and the public API.
  */
 export class BotHub implements BotMessenger {
   /** What the parts of the hub share. */
   private ctx: HubContext;
   /** The shared ticket board; assigning a ticket wakes its assignee through this hub. */
   readonly tickets: TicketBoard;
+  /** Executes the runs in this process; unset when `deps.hints` names another runner. */
+  private runner?: LocalRunner;
 
   constructor(private deps: BotHubDeps) {
     const limits = deps.limits ?? CORE_DEFAULTS;
+    const local = deps.hints ? undefined : new InProcessHints();
     this.ctx = {
       deps,
       limits,
-      pool: new SessionPool(deps.runtime, deps.store, deps.clock, deps.gate, deps.memory, {
-        memoryPromptChars: limits.memoryPromptChars,
-        log: deps.log,
-        surface: deps.surface,
-        approvalTimeoutMs: limits.approvalTimeoutMs,
-      }),
+      runs: new Map(),
       guard: new ChainGuard(deps.store, deps.clock, limits),
       wakeLog: new WakeLog(deps.store, deps.clock, deps.log),
-      hints: deps.hints ?? new InProcessHints(),
+      hints: deps.hints ?? (local as InProcessHints),
       noticed: new Set(),
       admit: (row, bot, opts) => admit(this.ctx, row, bot, opts),
       wake: (botId, conversationId, sender, text, hop, opts) =>
         wake(this.ctx, botId, conversationId, sender, text, hop, opts),
     };
+    if (local) this.runner = new LocalRunner(this.ctx, local, deps.freeMemoryMb);
     this.tickets = new TicketBoard({
       store: deps.store,
       clock: deps.clock,
@@ -80,59 +81,59 @@ export class BotHub implements BotMessenger {
   }
 
   /**
-   * Stop a bot's sessions and their background tasks: all of them, only the direct one (`"direct"`), or only the
-   * one for group `only`. Sessions still opening are waited for first, so none is left running.
+   * Stop the runs this process executes for a bot: all of them, only the direct one (`"direct"`), or only the
+   * one for group `only`. Each is cancelled and its session (with its background tasks) stopped; resolves once
+   * they have ended, including runs whose session is still opening.
    */
   async stop(botId: BotId, only?: "direct" | GroupId): Promise<void> {
-    await this.ctx.pool.settled(botId);
-    for (const e of this.ctx.pool.entriesOf(botId))
-      if (only === undefined || (only === "direct" ? !e.groupId : e.groupId === only))
-        await this.stopEntry(e);
+    await this.stopWhere(
+      (e) =>
+        e.bot.id === botId &&
+        (only === undefined || (only === "direct" ? !e.groupId : e.groupId === only)),
+    );
   }
 
-  /** Stop the sessions every member keeps for group `groupId` (their direct sessions stay). */
+  /** Stop the runs of every member in group `groupId` (their direct runs go on). */
   async stopGroup(groupId: GroupId): Promise<void> {
-    await this.ctx.pool.settled();
-    for (const e of this.ctx.pool.list()) if (e.groupId === groupId) await this.stopEntry(e);
+    await this.stopWhere((e) => e.groupId === groupId);
   }
 
+  /** Shut down: abort every run of this process (their rows stay claimable) and stop claiming. */
   async stopAll(): Promise<void> {
-    await this.ctx.pool.settled();
-    for (const e of this.ctx.pool.list()) await this.stopEntry(e);
+    await this.runner?.stop();
   }
 
-  /** Stop one session by its key; another session of the same bot is untouched. */
-  private async stopEntry(entry: PoolEntry): Promise<void> {
-    const { pool } = this.ctx;
-    entry.stopping = true;
-    if (pool.entry(entry.key) === entry) pool.remove(entry.key);
-    await entry.session.stop();
+  /** Cancel the matching runs and wait until their executions have ended. */
+  private async stopWhere(match: (e: RunExec) => boolean): Promise<void> {
+    const hit = [...this.ctx.runs.values()].filter(match);
+    for (const e of hit) abortRun(e, { kind: "stopped" });
+    await Promise.all(hit.map((e) => e.ended));
   }
 
+  /** One entry per run executing in this process. */
   status(): BotStatus[] {
-    return this.ctx.pool.list().map((e) => ({
+    return [...this.ctx.runs.values()].map((e) => ({
       botId: e.bot.id,
       ...(e.groupId && { groupId: e.groupId }),
-      sessionId: e.session.id,
-      busy: e.busy,
+      sessionId: e.session?.id ?? "",
+      busy: e.turnOpen,
       openedAt: e.openedAt,
       tasks: [...e.tasks].map(([taskId, t]) => ({ taskId, description: t.description })),
     }));
   }
 
-  /** Close sessions that have been quiet for `idleCloseMs` and run no background task. */
-  async sweepIdle(): Promise<void> {
-    const now = this.deps.clock.now();
-    for (const e of this.ctx.pool.list())
-      if (!e.busy && e.tasks.size === 0 && now - e.lastActive >= this.ctx.limits.idleCloseMs) {
-        reportIdleClose(this.deps.onIdleClose, e, this.deps.log);
-        await this.stopEntry(e);
-      }
+  /** Tell `onIdleClose` about scopes quiet for `idleCloseMs` (the app flushes their notes). */
+  sweepIdle(): Promise<void> {
+    return sweepQuietScopes(this.ctx, this.deps.onIdleClose);
   }
 
-  /** At start, put back the wakes the last run left open. */
-  recover(): Promise<void> {
-    return recoverWakes(this.ctx);
+  /** At start, check the queued runs the last boot left, then start the in-process runner. */
+  async recover(): Promise<void> {
+    try {
+      await recoverWakes(this.ctx);
+    } finally {
+      this.runner?.start();
+    }
   }
 
   /** Wake the assignee of a ticket in its own direct conversation; nothing is posted to the channel. */

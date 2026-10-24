@@ -3,10 +3,10 @@ import type { ConversationId } from "../domain/conversation";
 import type { Author } from "../domain/message";
 import type { SendRequest, SendResult } from "../ports/messenger";
 import { clampBotMessage, nextHop } from "../routing/bot-messages";
+import type { RunExec } from "../runs/run-exec";
 import type { HubContext } from "./hub-context";
 import { errText } from "./hub-types";
 import { postStored } from "./post-stored";
-import type { PoolEntry } from "./session-pool";
 
 /** A bot's `SendToBot` / `HandOff` from session `sessionKey`: deliver a message to a member of its group. */
 export async function sendFromSession(
@@ -14,12 +14,10 @@ export async function sendFromSession(
   sessionKey: string,
   req: SendRequest,
 ): Promise<SendResult> {
-  const entry = ctx.pool.entry(sessionKey);
-  // Read now: the entry moves on to its next turn while this call awaits.
-  const wakeId = entry?.currentWakeId;
-  if (!entry || !wakeId || !entry.current.conversationId)
-    return { ok: false, error: "You can send a message only while you answer one." };
-  return deliver(ctx, entry, { ...entry.current, wakeId }, req, true);
+  // The run of this scope executing in this process; a send is accepted only while it is live.
+  const exec = ctx.runs.get(sessionKey);
+  if (!exec?.live) return { ok: false, error: "You can send a message only while you answer one." };
+  return deliver(ctx, exec, { ...exec.current, wakeId: exec.row.id }, req, true);
 }
 
 /**
@@ -28,7 +26,7 @@ export async function sendFromSession(
  */
 async function deliver(
   ctx: HubContext,
-  entry: PoolEntry,
+  entry: RunExec,
   cur: { conversationId: ConversationId; hop: number; wakeId: string },
   req: SendRequest,
   post: boolean,
@@ -106,12 +104,12 @@ async function deliver(
 }
 
 /**
- * A turn woken by a request or question ends: its last text goes back to the sender as a result, unless the bot
- * already sent that sender a result in this turn. A hand-off is never answered this way.
+ * A run woken by a request or question finished: its last text goes back to the sender as a result, unless the
+ * bot already sent that sender a result in this run. A hand-off is never answered this way. A result delivered
+ * sets `outcomeReturnedAt` (Task 11 re-sends the ones without it).
  */
-export async function returnOutcome(ctx: HubContext, e: PoolEntry): Promise<void> {
-  if (!e.currentWakeId) return;
-  const w = await ctx.deps.store.wakes.get(e.currentWakeId);
+export async function returnOutcome(ctx: HubContext, e: RunExec): Promise<void> {
+  const w = await ctx.deps.store.wakes.get(e.row.id);
   if (w?.sender.kind !== "bot" || w.handoff) return;
   if (w.intent !== "request" && w.intent !== "question") return;
   if (e.sentResults.has(w.sender.botId)) return;
@@ -125,4 +123,8 @@ export async function returnOutcome(ctx: HubContext, e: PoolEntry): Promise<void
     false,
   );
   if (!res.ok) ctx.deps.log?.warn({ error: res.error, wakeId: w.id }, "hub.result_not_returned");
+  else
+    await ctx.deps.store.wakes.transition(w.id, e.row.leaseFence, ["done"], {
+      outcomeReturnedAt: ctx.deps.clock.now(),
+    });
 }

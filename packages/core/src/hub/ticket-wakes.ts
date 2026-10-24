@@ -1,10 +1,10 @@
 import type { BotId } from "../domain/bot";
 import type { Author } from "../domain/message";
 import { createRun } from "../runs/run-create";
+import type { RunExec } from "../runs/run-exec";
 import { type Ticket, ticketRef } from "../tickets/ticket";
 import { type HubContext, tell } from "./hub-context";
 import { errText } from "./hub-types";
-import type { PoolEntry } from "./session-pool";
 import { AUTO_BLOCK_COMMENT, isOpenWork, ticketRewakeText, ticketWakeText } from "./ticket-support";
 
 /** Queue a run for the assignee of a ticket in its own direct conversation; nothing is posted to the channel. */
@@ -51,12 +51,11 @@ export async function wakeForTicket(
 }
 
 /**
- * After a normal turn end of a ticket wake: if the ticket is still todo/doing and the bot's, wake it once more;
+ * After a ticket run finished normally: if the ticket is still todo/doing and the bot's, wake it once more;
  * if that wake also ended with the ticket open, block the ticket, say why and tell the conversation.
  */
-export async function checkUnfinished(ctx: HubContext, e: PoolEntry): Promise<void> {
-  const cur = e.currentTicket;
-  e.currentTicket = undefined;
+export async function checkUnfinished(ctx: HubContext, e: RunExec): Promise<void> {
+  const cur = e.row.ticketId ? { id: e.row.ticketId, rewake: e.row.rewake === true } : undefined;
   if (!cur) return;
   try {
     const { store, clock } = ctx.deps;

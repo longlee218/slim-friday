@@ -1,7 +1,7 @@
 import type { CoreLimits } from "../config-defaults";
 import type { BotId } from "../domain/bot";
 import type { GroupId } from "../domain/group";
-import type { Attachment } from "../domain/message";
+import type { Attachment, Author } from "../domain/message";
 import type { BlockReason, WakeIntent } from "../domain/wake";
 import type { PermissionGate } from "../permission/permission-gate";
 import type { AgentRuntime } from "../ports/agent-runtime";
@@ -14,7 +14,6 @@ import type { Surface } from "../ports/surface";
 import type { ProjectRulesReader } from "../routing/group-context";
 import type { RunHints } from "../runs/run-hints";
 import type { IdleCloseHook } from "./idle-close";
-import type { QueuedWake } from "./session-pool";
 import type { ScopeBot } from "./session-scope";
 
 /** Text of an error value. */
@@ -37,8 +36,8 @@ export interface WakeOpts {
   exemptFromHops?: boolean;
   ticketId?: string;
   rewake?: boolean;
-  /** The message this one replies to; sent with the turn, never stored with the wake. */
-  quote?: QueuedWake["quote"];
+  /** The message this one replies to; stored on the run and sent with its turn. */
+  quote?: { author: Author; text: string };
 }
 
 /** What /status shows for one running bot. */
@@ -72,6 +71,11 @@ export interface BotHubDeps {
   scopeBot?: ScopeBot;
   /** Reads a project dir's own rules (the app implements it); without it no project rules are sent. */
   projectRules?: ProjectRulesReader;
-  /** Where run, steering and card hints go; without it an in-process hub of hints with no listener. */
+  /**
+   * Where run, steering and card hints go. Given: another runner (worker processes, or none in a test) claims the
+   * runs. Unset: the hub runs them itself, in this process (an in-process claimer over in-process hints).
+   */
   hints?: RunHints;
+  /** Free memory of the machine in MB, for the in-process claimer's memory floor; unset: never short. */
+  freeMemoryMb?: () => number;
 }

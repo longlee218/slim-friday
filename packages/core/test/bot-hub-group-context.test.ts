@@ -12,34 +12,29 @@ function hubWith(read: ProjectRulesReader, bare = false) {
   return h;
 }
 
-test.todo("group context goes with the first group turn, again only after a compaction (restored in Task 8)", async () => {
+test("group context goes with every group run", async () => {
   const { runtime, surface } = hubWith(reader);
   surface.deliver({ conversationId: "gc", text: "one" });
   await flush();
-  const s = runtime.nth(0);
-  expect(s.sent[0]?.groupContext).toContain("/p");
-  expect(s.sent[0]?.groupContext).toContain("use bun");
-  s.emit({ type: "turn_end", costUsd: 0 });
+  const first = runtime.last().sent[0];
+  expect(first?.groupContext).toContain("/p");
+  expect(first?.groupContext).toContain("use bun");
+  runtime.last().emit({ type: "turn_end", costUsd: 0 });
   await flush();
   surface.deliver({ conversationId: "gc", text: "two" });
   await flush();
-  expect(s.sent[1]?.groupContext).toBeUndefined();
-  s.emit({ type: "turn_end", costUsd: 0 });
-  s.emit({ type: "compacted" });
-  await flush();
-  surface.deliver({ conversationId: "gc", text: "three" });
-  await flush();
-  expect(s.sent[2]?.groupContext).toContain("use bun");
+  expect(runtime.last().sent[0]?.groupContext).toContain("use bun");
+  expect(runtime.turns()).toHaveLength(2);
 });
 
-test.todo("a direct turn carries no group context (restored in Task 8)", async () => {
+test("a direct turn carries no group context", async () => {
   const { runtime, surface } = hubWith(reader);
   surface.deliver({ conversationId: "dc", text: "hi" });
   await flush();
   expect(runtime.nth(0).sent[0]?.groupContext).toBeUndefined();
 });
 
-test.todo("a throwing reader still sends the turn with the dirs (restored in Task 8)", async () => {
+test("a throwing reader still sends the turn with the dirs", async () => {
   const { runtime, surface } = hubWith(async () => Promise.reject(new Error("disk")));
   surface.deliver({ conversationId: "gc", text: "one" });
   await flush();
@@ -48,14 +43,14 @@ test.todo("a throwing reader still sends the turn with the dirs (restored in Tas
   expect(ctx).not.toContain("Project rules");
 });
 
-test.todo("a group with no workspaces and no instructions sends none (restored in Task 8)", async () => {
+test("a group with no workspaces and no instructions sends none", async () => {
   const { runtime, surface } = hubWith(reader, true);
   surface.deliver({ conversationId: "gc", text: "one" });
   await flush();
   expect(runtime.nth(0).sent[0]?.groupContext).toBeUndefined();
 });
 
-test.todo("a group turn whose send fails sends the group context again on the next turn (restored in Task 8)", async () => {
+test("a group run whose send fails does not keep the next run from getting the group context", async () => {
   const { runtime, surface } = hubWith(reader);
   let failOnce = true;
   runtime.onTurn = () => {
@@ -68,5 +63,5 @@ test.todo("a group turn whose send fails sends the group context again on the ne
   await flush();
   surface.deliver({ conversationId: "gc", text: "two" });
   await flush();
-  expect(runtime.nth(0).sent[1]?.groupContext).toContain("use bun");
+  expect(runtime.last().sent[0]?.groupContext).toContain("use bun");
 });

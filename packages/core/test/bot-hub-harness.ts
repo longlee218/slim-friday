@@ -67,3 +67,9 @@ export function makeHub(memory?: Memory, extra: Partial<BotHubDeps> = {}) {
   hub.start();
   return { store, runtime, surface, clock, gate, hub, writer, editor, log };
 }
+
+/** Move the fake clock by `ms` (due timers fire: scans, leases, watchdogs) and let the work they start settle. */
+export async function tick(clock: FakeClock, ms: number): Promise<void> {
+  clock.advance(ms);
+  await flush();
+}

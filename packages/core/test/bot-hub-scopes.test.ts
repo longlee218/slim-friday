@@ -45,7 +45,7 @@ async function openBoth(h: ReturnType<typeof scoped>): Promise<[FakeSession, Fak
   return [h.runtime.nth(0), h.runtime.nth(1)];
 }
 
-test.todo("a group message and a direct message open two sessions with their own scope (restored in Task 8)", async () => {
+test("a group message and a direct message open two sessions with their own scope", async () => {
   const h = scoped();
   const [group, direct] = await openBoth(h);
   expect(h.runtime.opened).toHaveLength(2);
@@ -57,7 +57,7 @@ test.todo("a group message and a direct message open two sessions with their own
   expect(h.hub.status().map((s) => s.groupId)).toEqual(["g", undefined]);
 });
 
-test.todo("both sessions are busy at once and each answer posts in its own conversation (restored in Task 8)", async () => {
+test("both sessions are busy at once and each answer posts in its own conversation", async () => {
   const h = scoped();
   const [group, direct] = await openBoth(h);
   expect(h.hub.status().every((s) => s.busy)).toBe(true);
@@ -69,7 +69,7 @@ test.todo("both sessions are busy at once and each answer posts in its own conve
   expect(posted).toContain("gc:group answer");
 });
 
-test.todo("stop(bot, 'direct') closes only the direct session; stop(bot) closes all (restored in Task 8)", async () => {
+test("stop(bot, 'direct') closes only the direct session; stop(bot) closes all", async () => {
   const h = scoped();
   const [group, direct] = await openBoth(h);
   await h.hub.stop("editor", "direct");
@@ -80,7 +80,7 @@ test.todo("stop(bot, 'direct') closes only the direct session; stop(bot) closes 
   expect(h.hub.status()).toEqual([]);
 });
 
-test.todo("stopGroup closes the group sessions of every member, not their direct ones (restored in Task 8)", async () => {
+test("stopGroup closes the group sessions of every member, not their direct ones", async () => {
   const h = scoped();
   const [group, direct] = await openBoth(h);
   h.surface.deliver({ conversationId: "gc", text: "@writer go" });
@@ -92,7 +92,7 @@ test.todo("stopGroup closes the group sessions of every member, not their direct
   expect(h.hub.status().map((s) => s.botId)).toEqual(["editor"]);
 });
 
-test.todo("send by session key reaches a group member; an unknown key is refused (restored in Task 8)", async () => {
+test("send by session key reaches a group member; an unknown key is refused", async () => {
   const h = scoped();
   await openBoth(h);
   const ok = await h.hub.send("editor@g", { to: "writer", text: "your turn", intent: "request" });
@@ -103,7 +103,7 @@ test.todo("send by session key reaches a group member; an unknown key is refused
   expect(bad.ok).toBe(false);
 });
 
-test.todo("recover() puts a queued group wake into the bot's group session (restored in Task 8)", async () => {
+test("recover() puts a queued group wake into the bot's group session", async () => {
   const h = scoped();
   await h.store.wakes.insert(row("w1"));
   await h.hub.recover();
@@ -112,7 +112,7 @@ test.todo("recover() puts a queued group wake into the bot's group session (rest
   expect(h.runtime.nth(0).sent[0]?.text).toBe("text w1");
 });
 
-test.todo("a stored session id of the direct scope is not used for the group scope (restored in Task 8)", async () => {
+test("a stored session id of the direct scope is not used for the group scope", async () => {
   const h = scoped();
   await h.store.sessions.set("editor", "old-direct");
   h.surface.deliver({ conversationId: "gc", text: "@editor hi" });
@@ -121,7 +121,7 @@ test.todo("a stored session id of the direct scope is not used for the group sco
   expect(await h.store.sessions.get("editor@g")).toBe(h.runtime.nth(0).id);
 });
 
-test.todo("sweepIdle closes the idle direct session and keeps the busy group one (restored in Task 8)", async () => {
+test("sweepIdle closes the idle direct session and keeps the busy group one", async () => {
   const seen: IdleClose[] = [];
   const h = scoped({ onIdleClose: (e) => void seen.push(e) });
   h.surface.deliver({ conversationId: "dc", text: "hi" });
@@ -137,7 +137,7 @@ test.todo("sweepIdle closes the idle direct session and keeps the busy group one
   expect(seen).toEqual([{ botId: "editor", key: "editor", conversationIds: ["dc"], since: 0 }]);
 });
 
-test.todo("the idle-close event of a group session carries its key and group (restored in Task 8)", async () => {
+test("the idle-close event of a group session carries its key and group", async () => {
   const seen: IdleClose[] = [];
   const h = scoped({ onIdleClose: (e) => void seen.push(e) });
   h.surface.deliver({ conversationId: "gc", text: "@editor hi" });
@@ -163,7 +163,7 @@ test("a recovered wake for a missing group or a non-member is dropped without a 
   expect((await h.store.wakes.get("w2"))?.status).toBe("dropped");
 });
 
-test.todo("stop while the session is still opening leaves no registered session (restored in Task 8)", async () => {
+test("stop while the session is still opening leaves no registered session", async () => {
   const h = scoped();
   let release = () => {};
   const gate = new Promise<void>((r) => {
@@ -184,7 +184,7 @@ test.todo("stop while the session is still opening leaves no registered session 
   expect(h.runtime.nth(0).stopped).toBe(true);
 });
 
-test.todo("scopeBot shapes the bot of each scope (restored in Task 8)", async () => {
+test("scopeBot shapes the bot of each scope", async () => {
   const h = scoped({
     scopeBot: (b, groupId) => ({ ...b, instructions: `in ${groupId ?? "direct"}` }),
   });

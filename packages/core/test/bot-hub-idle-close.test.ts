@@ -14,7 +14,7 @@ function hubWithHook(hook?: (e: IdleClose) => void) {
   return { ...h, seen };
 }
 
-test.todo("sweepIdle reports the conversations the session answered and when it opened (restored in Task 8)", async () => {
+test("sweepIdle reports a quiet scope's conversations and its last flush time, once", async () => {
   const { surface, runtime, clock, hub, seen } = hubWithHook();
   clock.advance(1_000);
   surface.deliver({ conversationId: "dc", text: "hi" });
@@ -24,15 +24,16 @@ test.todo("sweepIdle reports the conversations the session answered and when it 
   await flush();
   clock.advance(CORE_DEFAULTS.idleCloseMs);
   await hub.sweepIdle();
-  expect(seen).toEqual([{ botId: "editor", key: "editor", conversationIds: ["dc"], since: 1_000 }]);
+  // Never flushed before: every message of the scope's conversations is new.
+  expect(seen).toEqual([{ botId: "editor", key: "editor", conversationIds: ["dc"], since: 0 }]);
   expect(hub.status()).toEqual([]);
+  await hub.sweepIdle();
+  expect(seen).toHaveLength(1);
 });
 
-test.todo("a session closed by stop() or a crash is not reported (restored in Task 8)", async () => {
+test("a scope whose run was stopped or crashed is reported once it is quiet", async () => {
   const stopped = hubWithHook();
   stopped.surface.deliver({ conversationId: "dc", text: "hi" });
-  await flush();
-  stopped.runtime.nth(0).emit({ type: "turn_end", costUsd: 0 });
   await flush();
   await stopped.hub.stop("editor");
   stopped.clock.advance(CORE_DEFAULTS.idleCloseMs);
@@ -44,10 +45,10 @@ test.todo("a session closed by stop() or a crash is not reported (restored in Ta
   await flush();
   crashed.clock.advance(CORE_DEFAULTS.idleCloseMs);
   await crashed.hub.sweepIdle();
-  expect([...stopped.seen, ...crashed.seen]).toEqual([]);
+  expect([...stopped.seen, ...crashed.seen].map((e) => e.key)).toEqual(["editor", "editor"]);
 });
 
-test.todo("a hook that throws is logged and the session still closes (restored in Task 8)", async () => {
+test("a hook that throws is logged and the session still closes", async () => {
   const { surface, runtime, clock, hub, log } = hubWithHook(() => {
     throw new Error("flush down");
   });

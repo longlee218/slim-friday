@@ -55,7 +55,7 @@ function oldStore() {
   return makeHub().store;
 }
 
-test.todo("a queued wake is delivered again as it was (restored in Task 8)", async () => {
+test("a queued wake is delivered again as it was", async () => {
   const store = oldStore();
   await store.wakes.insert(row("w1"));
   const { hub, runtime, log } = restart(store);
@@ -67,20 +67,20 @@ test.todo("a queued wake is delivered again as it was (restored in Task 8)", asy
   expect(log.of("wake.redelivered")).toHaveLength(1);
 });
 
-test.todo("a running wake is sent again once with the interruption note and attempts 2 (restored in Task 8)", async () => {
+test("a running wake is sent again once with the interruption note and cuts 1", async () => {
   const store = oldStore();
   await store.wakes.insert(row("w1", { status: "running", startedAt: 5 }));
   const { hub, runtime } = restart(store);
   await hub.recover();
   await flush();
   expect(runtime.nth(0).sent[0]).toMatchObject({ text: "text w1", interrupted: true });
-  expect((await store.wakes.get("w1"))?.attempts).toBe(2);
+  expect((await store.wakes.get("w1"))?.cuts).toBe(1);
   expect(INTERRUPTED_NOTE).toContain("interrupted");
 });
 
-test("a running wake already sent twice becomes interrupted and the conversation gets a notice", async () => {
+test("a running wake cut for the third time becomes interrupted and the conversation gets a notice", async () => {
   const store = oldStore();
-  await store.wakes.insert(row("w1", { status: "running", attempts: 2 }));
+  await store.wakes.insert(row("w1", { status: "running", cuts: 2 }));
   const { hub, runtime, surface } = restart(store);
   await hub.recover();
   await flush();
@@ -153,7 +153,7 @@ test("a recovered wake still stops at the spend cap", async () => {
   expect(await store.wakes.get("w1")).toMatchObject({ status: "blocked", blockReason: "spend" });
 });
 
-test.todo("a row that cannot be delivered is dropped and the next one still is (restored in Task 8)", async () => {
+test("a row whose session will not open is retried later and the next one still runs", async () => {
   const store = oldStore();
   await store.wakes.insert(row("w1", { conversationId: "gc", targetBot: "writer" }));
   await store.wakes.insert(row("w2"));
@@ -169,6 +169,6 @@ test.todo("a row that cannot be delivered is dropped and the next one still is (
   };
   await hub.recover();
   await flush();
-  expect((await store.wakes.get("w1"))?.status).toBe("dropped");
+  expect(await store.wakes.get("w1")).toMatchObject({ status: "queued", setupFailures: 1 });
   expect((await store.wakes.get("w2"))?.status).toBe("running");
 });

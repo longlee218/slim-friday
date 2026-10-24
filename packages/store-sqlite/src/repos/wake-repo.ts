@@ -54,12 +54,23 @@ export function fromRow(r: Row): WakeRow {
     cuts: r.cuts,
     transientRetries: r.transientRetries,
     setupFailures: r.setupFailures,
+    ...(r.quote && { quote: JSON.parse(r.quote) }),
   };
 }
 
 /** Domain fields to table columns (only the keys present, so a patch changes only what it names). */
 export function toColumns(w: Partial<WakeRow>): Partial<typeof wakes.$inferInsert> {
-  const { sender, attachments, parentWakeId, blockReason, handoff, ...rest } = w;
+  // `claimedFrom` is never stored: it only tells the executor what the claim found.
+  const {
+    sender,
+    attachments,
+    parentWakeId,
+    blockReason,
+    handoff,
+    quote,
+    claimedFrom: _claimed,
+    ...rest
+  } = w;
   return {
     ...rest,
     ...(sender && {
@@ -70,6 +81,7 @@ export function toColumns(w: Partial<WakeRow>): Partial<typeof wakes.$inferInser
     ...(parentWakeId !== undefined && { parentWakeId }),
     ...(blockReason !== undefined && { blockReason }),
     ...(handoff !== undefined && { handoff }),
+    ...(quote && { quote: JSON.stringify(quote) }),
   };
 }
 

@@ -55,7 +55,8 @@ export function runClaim(
             .where(eq(wakes.id, row.id))
             .returning()
             .get();
-          return fromRow(claimed);
+          // The executor needs the status before the claim: a reclaimed `running` row was cut.
+          return { ...fromRow(claimed), claimedFrom: fromRow(row).status };
         },
         { behavior: "immediate" },
       );

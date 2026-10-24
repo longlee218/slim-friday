@@ -3,7 +3,7 @@ import { flush, makeHub } from "./bot-hub-harness";
 
 const file = { name: "1-a.png", mimeType: "image/png", path: "/inbox/gc/1/1-a.png", size: 3 };
 
-test.todo("files from the user reach the turn that answers that message, and no hand-off (restored in Task 8)", async () => {
+test("files from the user reach the turn that answers that message, and no hand-off", async () => {
   const { runtime, surface, hub } = makeHub();
   surface.deliver({ conversationId: "gc", text: "look", attachments: [file] });
   await flush();
@@ -15,15 +15,14 @@ test.todo("files from the user reach the turn that answers that message, and no 
   expect(handoff?.attachments).toBeUndefined();
 });
 
-test.todo("a queued message keeps its own files; a plain message carries none (restored in Task 8)", async () => {
-  const { runtime, surface } = makeHub();
+test("a message to a busy run keeps its own files as steering; a plain message carries none", async () => {
+  const { runtime, surface, store } = makeHub();
   surface.deliver({ conversationId: "dc", text: "one" });
   await flush();
   surface.deliver({ conversationId: "dc", text: "two", attachments: [file] });
   await flush();
   expect(runtime.nth(0).sent).toHaveLength(1);
   expect(runtime.nth(0).sent[0]?.attachments).toBeUndefined();
-  runtime.nth(0).emit({ type: "turn_end", costUsd: 0 });
-  await flush();
-  expect(runtime.nth(0).sent[1]?.attachments).toEqual([file]);
+  // Steering into the busy run (Task 9 delivers it with its files).
+  expect([...store.steerMap.values()][0]).toMatchObject({ text: "two", attachments: [file] });
 });

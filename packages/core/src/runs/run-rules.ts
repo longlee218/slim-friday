@@ -56,3 +56,6 @@ export function classifyFailure(err: unknown): "transient" | "setup" | "fatal" {
 export function backoffMs(n: number): number {
   return Math.min(60_000, 2_000 * 2 ** (n - 1));
 }
+
+/** UTC calendar day of an epoch time, as YYYY-MM-DD (the spend table's day key). */
+export const dayOf = (ms: number): string => new Date(ms).toISOString().slice(0, 10);

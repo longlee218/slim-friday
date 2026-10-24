@@ -10,7 +10,7 @@ const card = {
   allowText: true,
 };
 
-test.todo("a bot's question reaches the surface with its name and timeout and comes back (restored in Task 8)", async () => {
+test("a bot's question reaches the surface with its name and timeout and comes back", async () => {
   const { runtime, surface } = makeHub();
   surface.answerQuestionWith({ choices: ["Blue"] });
   surface.deliver({ conversationId: "dc", text: "hi" });
@@ -23,7 +23,7 @@ test.todo("a bot's question reaches the surface with its name and timeout and co
   expect(a).toEqual({ choices: ["Blue"] });
 });
 
-test.todo("ask between turns resolves null without asking (restored in Task 8)", async () => {
+test("ask between turns resolves null without asking", async () => {
   const { runtime, surface } = makeHub();
   surface.deliver({ conversationId: "dc", text: "hi" });
   await flush();
@@ -33,7 +33,7 @@ test.todo("ask between turns resolves null without asking (restored in Task 8)",
   expect(surface.questions).toHaveLength(0);
 });
 
-test.todo("the approval card names the bot id (restored in Task 8)", async () => {
+test("the approval card names the bot id", async () => {
   const { runtime, surface } = makeHub();
   surface.deliver({ conversationId: "dc", text: "hi" });
   await flush();

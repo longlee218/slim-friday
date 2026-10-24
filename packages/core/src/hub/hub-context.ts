@@ -3,17 +3,20 @@ import type { Bot } from "../domain/bot";
 import type { ConversationId } from "../domain/conversation";
 import type { WakeRow } from "../domain/wake";
 import type { ChainGuard } from "../routing/chain-guard";
+import type { RunExec } from "../runs/run-exec";
 import type { RunHints } from "../runs/run-hints";
 import { type BotHubDeps, errText, type WakeOpts, type WakeOutcome } from "./hub-types";
 import { postStored } from "./post-stored";
-import type { SessionPool } from "./session-pool";
 import type { WakeLog } from "./wake-log";
 
 /** The state and entry points the hub's parts share; `BotHub` builds one and passes it around. */
 export interface HubContext {
   deps: BotHubDeps;
   limits: CoreLimits;
-  pool: SessionPool;
+  /** Runs executing in this process, by scope key (one active run per scope). */
+  runs: Map<string, RunExec>;
+  /** Set while the in-process runner shuts down: a run that starts now is aborted at once. */
+  closing?: boolean;
   guard: ChainGuard;
   wakeLog: WakeLog;
   /** Tells the workers that runs, steering or cards were written. */
@@ -34,7 +37,7 @@ export interface HubContext {
 }
 
 /** Options of `admit`. */
-export type AdmitOpts = Pick<WakeOpts, "exemptFromHops" | "quote"> & { interrupted?: boolean };
+export type AdmitOpts = Pick<WakeOpts, "exemptFromHops">;
 
 /** Post a system notice; a notice that cannot be posted is logged, never lost silently. */
 export async function tell(

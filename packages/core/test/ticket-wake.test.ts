@@ -19,7 +19,7 @@ async function assigned(h: ReturnType<typeof makeHub>, title = "Edit the post") 
 }
 
 describe("ticket wakes", () => {
-  test.todo("wakeForTicket sends the exact ticket wake text to the assignee's direct conversation and posts nothing (restored in Task 8)", async () => {
+  test("wakeForTicket sends the exact ticket wake text to the assignee's direct conversation and posts nothing", async () => {
     const h = makeHub();
     const t = await assigned(h);
     const sent = h.runtime.nth(0).sent[0];
@@ -50,7 +50,7 @@ describe("ticket wakes", () => {
     expect([...h.store.wakeMap.values()].map((w) => w.status)).toEqual(["dropped"]);
   });
 
-  test.todo("a wake whose text names FRI-1 carries a tickets block with that ticket (restored in Task 8)", async () => {
+  test("a wake whose text names FRI-1 carries a tickets block with that ticket", async () => {
     const h = makeHub();
     const t = await assigned(h, "First one");
     await h.hub.tickets.comment({ kind: "user" }, { id: t.id, body: "see the draft" });
@@ -59,7 +59,7 @@ describe("ticket wakes", () => {
     await flush();
     h.surface.deliver({ conversationId: "dc", text: "how is FRI-1 going?" });
     await flush();
-    const turn = h.runtime.nth(0).sent.find((x) => x.text.includes("how is FRI-1"));
+    const turn = h.runtime.turns().find((x) => x.text.includes("how is FRI-1"));
     expect(turn?.tickets).toContain("FRI-1 [review]");
     expect(turn?.tickets).toContain("First one");
     expect(turn?.tickets).toContain("see the draft");
@@ -67,18 +67,17 @@ describe("ticket wakes", () => {
 });
 
 describe("unfinished tickets", () => {
-  test.todo("a ticket still todo at turn end re-wakes the assignee once with rewake true (restored in Task 8)", async () => {
+  test("a ticket still todo at turn end re-wakes the assignee once with rewake true", async () => {
     const h = makeHub();
     const t = await assigned(h);
-    const ed = h.runtime.nth(0);
-    ed.emit({ type: "turn_end", costUsd: 0 });
+    h.runtime.nth(0).emit({ type: "turn_end", costUsd: 0 });
     await flush();
-    expect(ed.sent[1]).toMatchObject({ text: REWAKE(t.number) });
+    expect(h.runtime.turns()[1]).toMatchObject({ text: REWAKE(t.number) });
     const rows = [...h.store.wakeMap.values()];
     expect(rows.find((w) => w.rewake)).toMatchObject({ ticketId: t.id });
   });
 
-  test.todo("an assignee that set the ticket to review gets no re-wake (restored in Task 8)", async () => {
+  test("an assignee that set the ticket to review gets no re-wake", async () => {
     const h = makeHub();
     const t = await assigned(h);
     await h.hub.tickets.update({ kind: "bot", botId: "editor" }, { id: t.id, status: "review" });
@@ -87,15 +86,14 @@ describe("unfinished tickets", () => {
     expect(h.runtime.nth(0).sent).toHaveLength(1);
   });
 
-  test.todo("second turn end still open: ticket blocked, comment added, notice posted, no third wake (restored in Task 8)", async () => {
+  test("second turn end still open: ticket blocked, comment added, notice posted, no third wake", async () => {
     const h = makeHub();
     const t = await assigned(h);
-    const ed = h.runtime.nth(0);
-    ed.emit({ type: "turn_end", costUsd: 0 });
+    h.runtime.nth(0).emit({ type: "turn_end", costUsd: 0 });
     await flush();
-    ed.emit({ type: "turn_end", costUsd: 0 });
+    h.runtime.last().emit({ type: "turn_end", costUsd: 0 });
     await flush();
-    expect(ed.sent).toHaveLength(2);
+    expect(h.runtime.turns()).toHaveLength(2);
     const after = await h.store.tickets.get(t.id);
     expect(after?.status).toBe("blocked");
     const comments = await h.store.tickets.comments(t.id);
@@ -107,7 +105,7 @@ describe("unfinished tickets", () => {
     ).toBe(true);
   });
 
-  test.todo("an errored turn gets no re-wake (restored in Task 8)", async () => {
+  test("an errored turn gets no re-wake", async () => {
     const h = makeHub();
     await assigned(h);
     h.runtime.nth(0).emit({ type: "error", message: "boom", retryable: false });
@@ -118,44 +116,39 @@ describe("unfinished tickets", () => {
 });
 
 describe("ticket wakes and the busy flag", () => {
-  test.todo("a queued user message and the re-wake run one after the other (restored in Task 8)", async () => {
+  test("an owner message during a ticket run steers it; the re-wake still runs after it", async () => {
     const h = makeHub();
     const t = await assigned(h);
-    const ed = h.runtime.nth(0);
     h.surface.deliver({ conversationId: "dc", text: "hello editor" });
     await flush();
-    ed.emit({ type: "turn_end", costUsd: 0 });
+    // The owner's message to the busy run of the same conversation is steering (Task 9 delivers it).
+    expect([...h.store.steerMap.values()].map((r) => r.text)).toEqual(["hello editor"]);
+    h.runtime.nth(0).emit({ type: "turn_end", costUsd: 0 });
     await flush();
-    // Only one of the two is sent per turn end; the bot is busy with it.
-    expect(ed.sent).toHaveLength(2);
-    ed.emit({ type: "turn_end", costUsd: 0 });
-    await flush();
-    expect(ed.sent).toHaveLength(3);
-    const texts = ed.sent.map((s) => s.text);
-    expect(texts).toContain("hello editor");
-    expect(texts).toContain(REWAKE(t.number));
-    ed.emit({ type: "turn_end", costUsd: 0 });
+    expect(h.runtime.turns().map((s) => s.text)).toEqual([WAKE(t.number), REWAKE(t.number)]);
+    h.runtime.last().emit({ type: "turn_end", costUsd: 0 });
     await flush();
     const running = [...h.store.wakeMap.values()].filter((w) => w.status === "running");
     expect(running).toEqual([]);
   });
 
-  test.todo("a wake that arrives during the re-wake turn waits for it (restored in Task 8)", async () => {
+  test("a wake that arrives during the re-wake turn waits for it", async () => {
     const h = makeHub();
     const t = await assigned(h);
-    const ed = h.runtime.nth(0);
-    ed.emit({ type: "turn_end", costUsd: 0 });
+    h.runtime.nth(0).emit({ type: "turn_end", costUsd: 0 });
     await flush();
     h.surface.deliver({ conversationId: "dc", text: "later" });
     await flush();
-    expect(ed.sent).toHaveLength(2);
-    ed.emit({ type: "turn_end", costUsd: 0 });
+    expect(h.runtime.turns()).toHaveLength(2);
+    // Steering into the busy re-wake run (Task 9 delivers it), not a run of its own.
+    expect([...h.store.steerMap.values()].map((r) => r.text)).toEqual(["later"]);
+    h.runtime.last().emit({ type: "turn_end", costUsd: 0 });
     await flush();
     expect((await h.store.tickets.get(t.id))?.status).toBe("blocked");
-    expect(ed.sent.at(-1)?.text).toBe("later");
+    expect(h.runtime.turns().at(-1)?.text).toBe(REWAKE(t.number));
   });
 
-  test.todo("a failed wake does not fail the ticket write (restored in Task 8)", async () => {
+  test("a failed wake does not fail the ticket write", async () => {
     const h = makeHub();
     h.runtime.open = async () => {
       throw new Error("session will not open");
@@ -165,7 +158,11 @@ describe("ticket wakes and the busy flag", () => {
       { title: "x", assigneeBotId: "editor" },
     );
     expect(r.ok).toBe(true);
-    expect([...h.store.wakeMap.values()].map((w) => w.status)).toEqual(["dropped"]);
+    await flush();
+    // The run is retried as a setup failure.
+    expect([...h.store.wakeMap.values()].map((w) => [w.status, w.setupFailures])).toEqual([
+      ["queued", 1],
+    ]);
   });
 
   test("a ticket assigned by a bot is a wake from that bot, so the loop guards apply", async () => {

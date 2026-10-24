@@ -233,13 +233,14 @@ export class FakeStore implements Store {
             (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
         )[0];
       if (!row) return undefined;
+      const claimedFrom = row.status;
       Object.assign(row, {
         status: "leased",
         leaseOwner: o.owner,
         leaseFence: row.leaseFence + 1,
         leaseExpiresAt: o.now + o.leaseMs,
       });
-      return { ...row };
+      return { ...row, claimedFrom };
     },
     transition: async (id: string, fence: number, from: WakeStatus[], patch: Partial<WakeRow>) => {
       const w = this.wakeMap.get(id);

@@ -1,7 +1,6 @@
 import type { Conversation } from "../domain/conversation";
 import type { Log } from "../ports/log";
 import type { Memory, MemoryOwner } from "../ports/memory";
-import type { PoolEntry } from "./session-pool";
 
 /**
  * The owner's memory as a prompt gets it: cut to `maxChars` when the adapter can (else read whole), only notes of
@@ -28,11 +27,10 @@ export async function promptMemory(
 }
 
 /**
- * The group memory to send with a turn: the text when the conversation is a group one and the
- * text (capped at `maxChars`) differs from what this session last got, else undefined. A failed read sends nothing.
+ * The group memory for a turn: the text (capped at `maxChars`) when the conversation is a group one and the memory
+ * is not empty, else undefined. Loaded fresh for every run. A failed read sends nothing.
  */
-export async function changedGroupMemory(
-  entry: PoolEntry,
+export async function groupMemoryFor(
   conv: Conversation,
   memory: Memory | undefined,
   maxChars: number,
@@ -40,8 +38,5 @@ export async function changedGroupMemory(
 ): Promise<string | undefined> {
   if (!memory || conv.kind !== "group") return undefined;
   const text = await promptMemory(memory, { kind: "group", groupId: conv.groupId }, maxChars, log);
-  if (!text.trim()) return undefined;
-  if (entry.groupMemorySent.get(conv.groupId) === text) return undefined;
-  entry.groupMemorySent.set(conv.groupId, text);
-  return text;
+  return text.trim() ? text : undefined;
 }

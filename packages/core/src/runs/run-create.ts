@@ -2,11 +2,10 @@ import type { BotId } from "../domain/bot";
 import type { ConversationId } from "../domain/conversation";
 import type { Author } from "../domain/message";
 import type { BlockReason, WakeRow } from "../domain/wake";
-import { dayOf } from "../hub/event-pump";
 import { type HubContext, notice } from "../hub/hub-context";
 import type { WakeOpts, WakeOutcome } from "../hub/hub-types";
 import { sessionScope } from "../hub/session-scope";
-import { priorityOf } from "./run-rules";
+import { dayOf, priorityOf } from "./run-rules";
 
 /** What `createRun` needs to store one run. */
 export interface NewRun {
@@ -61,6 +60,7 @@ export async function createRun(ctx: HubContext, r: NewRun): Promise<WakeOutcome
     ...(opts.attachments && { attachments: opts.attachments }),
     ...(opts.chainId && { chainId: opts.chainId }),
     ...(opts.parentWakeId && { parentWakeId: opts.parentWakeId }),
+    ...(opts.quote && { quote: opts.quote }),
   });
   const added = await store.wakes.insertDeduped(row);
   if (!added.inserted) {
