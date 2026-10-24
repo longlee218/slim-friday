@@ -35,7 +35,7 @@ export function conversationRepo(
         );
     },
     async deleteLegacy() {
-      // Ids that are neither `bot:*` nor `group:*` are Discord channel ids of older builds.
+      // Ids that are neither `bot:*` nor `group:*` are chat-app channel ids of older builds.
       const legacy = and(notLike(conversations.id, "bot:%"), notLike(conversations.id, "group:%"));
       const ids = db.select({ id: conversations.id }).from(conversations).where(legacy).all();
       if (ids.length === 0) return 0;

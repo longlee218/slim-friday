@@ -3,6 +3,7 @@ import { afterEach, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fakeEngine } from "../../../packages/api/test/helpers/engine-deps";
 import { type ApiServerOptions, startApiServer } from "../src/api-server";
 import { captureLogs, logger } from "../src/observability/logger";
 
@@ -22,6 +23,7 @@ function opts(home: string, over: Partial<ApiServerOptions> = {}): ApiServerOpti
     ownerEmail: "owner@example.com",
     log: logger.child({ module: "api-test" }),
     ...over,
+    engine: over.engine ?? fakeEngine(),
   };
 }
 

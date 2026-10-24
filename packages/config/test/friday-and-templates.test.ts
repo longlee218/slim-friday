@@ -111,9 +111,9 @@ test("a group that lists the Friday bot as a member is refused", () => {
 const header = (name: string, extra = "") =>
   `---\nname: ${name}\ntitle: T\nmodel: sonnet\n${extra}---\nbody\n`;
 
-test("bot names Discord refuses for webhooks are refused; absolute workspaces are normalised", async () => {
+test("bot names the chat app refuses for webhooks are refused; absolute workspaces are normalised", async () => {
   const { parseBotFile } = await import("../src/schemas/bot-file");
-  expect(() => parseBotFile("a", header("Discord"))).toThrow();
+  expect(() => parseBotFile("a", header("Clyde"))).toThrow();
   expect(() => parseBotFile("a", header("MyClydeBot"))).toThrow();
   expect(parseBotFile("a", header("Ann", "workspaces: [/x/y/../z]\n")).workspaces).toEqual([
     "/x/z",

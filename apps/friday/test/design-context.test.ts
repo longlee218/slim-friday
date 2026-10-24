@@ -68,7 +68,7 @@ test("a bot written through BotDesign loads on the next reload; the real parser 
   const bad = await call(t, {
     action: "write_bot",
     id: "bob",
-    name: "Discord",
+    name: "Clyde",
     title: "t",
     model: "m",
     instructions: "x",

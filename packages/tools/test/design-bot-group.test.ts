@@ -65,12 +65,12 @@ test("write_bot accepts a real workspace outside the home and an mcp tool of a k
 test("write_bot lets the parser refuse a file and writes nothing; a taken name is refused", async () => {
   const bad = setup({
     checkBot: () => {
-      throw new Error("name may not contain discord");
+      throw new Error("name may not contain clyde");
     },
   });
   const r = await call(createBotDesignTool(bad.ctx), bot);
   expect(r.isError).toBe(true);
-  expect(textOf(r)).toContain("discord");
+  expect(textOf(r)).toContain("clyde");
   expect(existsSync(join(bad.configDir, "bots", "ann.md"))).toBe(false);
   const taken = setup({ nameTaken: (n) => n === "Ann" });
   expect((await call(createBotDesignTool(taken.ctx), bot)).isError).toBe(true);

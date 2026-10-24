@@ -10,7 +10,7 @@ test("list returns every conversation", async () => {
   expect((await s.conversations.list()).map((c) => c.id).sort()).toEqual(["bot:a", "group:g"]);
 });
 
-test("deleteLegacy removes Discord-keyed conversations and their messages only", async () => {
+test("deleteLegacy removes chat-app-keyed conversations and their messages only", async () => {
   const s = openEngineStore(":memory:");
   const old = "123456789012345678";
   await s.conversations.put({ id: old, kind: "direct", botId: "a" });

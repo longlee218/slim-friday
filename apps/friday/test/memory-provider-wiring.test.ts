@@ -6,8 +6,8 @@ import type { MemoryOwner } from "@friday/core";
 import { FileMemory, WriteThroughMemory } from "@friday/tools";
 import { FakeRuntime } from "../../../packages/core/test/fakes/fake-runtime";
 import { fakeHoncho } from "../../../packages/memory-honcho/test/fake-honcho";
-import { FakeDiscordPort } from "../../../packages/surface-discord/test/fake-discord-port";
 import { type AppDeps, type RuntimeParts, startApp } from "../src/start-app";
+import { webParts } from "./web-fixture";
 
 const ann: MemoryOwner = { kind: "bot", botId: "ann" };
 const stoppers: (() => Promise<void>)[] = [];
@@ -18,7 +18,7 @@ afterEach(async () => {
 async function boot(home: string, extra: Partial<AppDeps> = {}) {
   let parts: RuntimeParts | undefined;
   const app = await startApp({
-    port: new FakeDiscordPort(),
+    ...webParts(home),
     runtime: (p) => {
       parts = p;
       return new FakeRuntime();
@@ -69,7 +69,7 @@ test("a provider problem is a config.problem and the app still starts", async ()
   const warns: unknown[] = [];
   let parts: RuntimeParts | undefined;
   const app = await startApp({
-    port: new FakeDiscordPort(),
+    ...webParts(home),
     runtime: (p) => {
       parts = p;
       return new FakeRuntime();

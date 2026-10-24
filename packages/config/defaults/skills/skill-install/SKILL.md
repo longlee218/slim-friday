@@ -42,7 +42,7 @@ Before anything, check the repo against the trust rule in `../find-skill/referen
 
 ## Add an MCP server
 1. `BotDesign` `set_mcp` with the server name and definition (`{type: stdio|http, ...}`).
-2. Secrets only as `${NAME}` in `env` or `headers` (read from the engine's env), never the value, never in the command, args or URL. The engine's own tokens (`CLAUDE_CODE_*`, `ANTHROPIC_*`, `DISCORD_*`) cannot be named.
+2. Secrets only as `${NAME}` in `env` or `headers` (read from the engine's env), never the value, never in the command, args or URL. The engine's own tokens (`CLAUDE_CODE_*`, `ANTHROPIC_*`, `R2_*`) cannot be named.
 3. Tell the owner: the server starts third-party code when a bot session opens, and a stdio server runs outside the OS sandbox with the engine's file access.
 4. A bot gets the server by naming `mcp__<server>` in its `tools`.
 

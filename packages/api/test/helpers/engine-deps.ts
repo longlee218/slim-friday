@@ -9,7 +9,7 @@ import { FakeFileStore } from "../../../core/test/fakes/fake-file-store";
 import { FakeRuntime } from "../../../core/test/fakes/fake-runtime";
 import { FakeStore } from "../../../core/test/fakes/fake-store";
 import { FakeToolCatalog } from "../../../core/test/fakes/fake-tool-catalog";
-import type { ApiDeps } from "../../src/index";
+import type { ApiDeps, EngineDeps } from "../../src/index";
 import { appRouter } from "../../src/index";
 
 /** A bot with only a name that matters. */
@@ -67,4 +67,10 @@ export function engineHarness() {
       ...g,
     });
   return { store, files, surface, hub, client, deps, addBot, addGroup };
+}
+
+/** Just the engine fields of `ApiDeps`, over the same fakes (for tests that build the app themselves). */
+export function fakeEngine(): EngineDeps {
+  const { hub, store, surface, files } = engineHarness();
+  return { hub, store, surface, files, purge: () => 0 };
 }

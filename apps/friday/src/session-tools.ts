@@ -49,7 +49,7 @@ const COMMAND_ENV = [
   "GIT_COMMITTER_EMAIL",
 ];
 
-/** The env of an effect tool's command: only `COMMAND_ENV` names (no Discord or Claude token reaches git or gh). */
+/** The env of an effect tool's command: only `COMMAND_ENV` names (no app or Claude token reaches git or gh). */
 export function commandEnv(env: Record<string, string | undefined>): Record<string, string> {
   const out: Record<string, string> = {};
   for (const name of COMMAND_ENV) {

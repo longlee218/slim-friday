@@ -5,11 +5,11 @@ import { join } from "node:path";
 import type { BotRuntimeSpec, ConsolidateFn, MemoryOwner } from "@friday/core";
 import { localDay } from "@friday/tools";
 import { FakeRuntime } from "../../../packages/core/test/fakes/fake-runtime";
-import { FakeDiscordPort } from "../../../packages/surface-discord/test/fake-discord-port";
 import { createMessageSearchTool } from "../../../packages/tools/src/memory/tools/MessageSearchTool/message-search-tool";
 import { idleFlush } from "../src/idle-flush";
 import { toolContext } from "../src/session-tools";
 import { type AppDeps, type RuntimeParts, startApp } from "../src/start-app";
+import { webParts } from "./web-fixture";
 
 const friday: MemoryOwner = { kind: "bot", botId: "friday" };
 const stoppers: (() => Promise<void>)[] = [];
@@ -21,7 +21,7 @@ afterEach(async () => {
 async function boot(home: string, extra: Partial<AppDeps> = {}) {
   let parts: RuntimeParts | undefined;
   const app = await startApp({
-    port: new FakeDiscordPort(),
+    ...webParts(home),
     runtime: (p) => {
       parts = p;
       return new FakeRuntime();
@@ -127,7 +127,7 @@ test("stop() does not wait for a consolidation call that never answers", async (
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, `${day}.md`), `# Journal ${day}\n\n## 09:00 Flush\n- a note\n`);
   const app = await startApp({
-    port: new FakeDiscordPort(),
+    ...webParts(home),
     runtime: () => new FakeRuntime(),
     agentHome: home,
     log: { info() {}, warn() {}, error() {} },

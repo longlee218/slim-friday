@@ -14,7 +14,7 @@ const PATTERNS: RegExp[] = [
   /\bxox[abprs]-[A-Za-z0-9-]{10,}/g, // Slack tokens
   /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g, // AWS access key ids
   /Bearer\s+[A-Za-z0-9._~+/=-]{8,}/gi, // Authorization bearer values
-  /\b[MNO][A-Za-z0-9_-]{23,25}\.[A-Za-z0-9_-]{6}\.[A-Za-z0-9_-]{27,38}\b/g, // Discord bot token
+  /\b[MNO][A-Za-z0-9_-]{23,25}\.[A-Za-z0-9_-]{6}\.[A-Za-z0-9_-]{27,38}\b/g, // chat-app bot token (three dot-separated parts)
   /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)/g, // PEM keys
 ];
 

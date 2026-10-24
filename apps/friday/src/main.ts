@@ -1,3 +1,4 @@
+import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { TEMPLATES_DIR } from "@friday/config";
 import {
@@ -6,8 +7,10 @@ import {
   extractNotes,
   isSensitivePath,
 } from "@friday/runtime-claude";
-import { connectDiscord } from "@friday/surface-discord";
-import { localDay } from "@friday/tools";
+import { R2FileStore } from "@friday/store-r2";
+import { openEngineStore } from "@friday/store-sqlite";
+import { WebSurface } from "@friday/surface-web";
+import { localDay, purgeTrash } from "@friday/tools";
 import { startApiServer } from "./api-server";
 import type { AgentConfig } from "./config/agent-config";
 import { HAIKU_SUMMARY_MODEL } from "./config/model-ids";
@@ -20,6 +23,7 @@ import { sessionTools } from "./session-tools";
 import { sessionSharedDirs } from "./shared-dirs";
 import { skillDirs } from "./skills-dirs";
 import { type RuntimeParts, startApp } from "./start-app";
+import { systemClock } from "./system-clock";
 
 const log = logger.child({ module: "engine" });
 
@@ -30,124 +34,125 @@ function need(name: string, value: string | undefined): string {
 }
 
 /**
- * Run the bot engine on Discord until `signal` aborts: connect, build the Claude runtime, start the app.
- * Refuses by variable name, before any network call, when a Discord value is missing.
- * `connect` is injectable for tests.
+ * Run the bot engine on the web surface until `signal` aborts: R2 file store, engine db, web surface, Claude runtime,
+ * the app, then the web API over them. Refuses by variable name, before any network call, when a web or R2 value is
+ * missing.
  */
-export async function startEngine(
-  opts: { config: AgentConfig; agentHome: string; signal: AbortSignal },
-  connect: typeof connectDiscord = connectDiscord,
-): Promise<void> {
+export async function startEngine(opts: {
+  config: AgentConfig;
+  agentHome: string;
+  signal: AbortSignal;
+}): Promise<void> {
   const { config, agentHome, signal } = opts;
-  const token = need("DISCORD_TOKEN", config.discordToken);
-  const guildId = need("DISCORD_GUILD_ID", config.discordGuildId);
-  const ownerId = need("OWNER_DISCORD_ID", config.ownerDiscordId);
-  // The web API is optional until the web app replaces Discord: all four unset skips it, a partial set refuses.
-  const webValues = {
-    WEB_ORIGIN: config.webOrigin,
-    PUBLIC_API_URL: config.publicApiUrl,
-    AUTH_SECRET: config.authSecret,
-    OWNER_EMAIL: config.ownerEmail,
+  const web = {
+    webOrigin: need("WEB_ORIGIN", config.webOrigin),
+    publicApiUrl: need("PUBLIC_API_URL", config.publicApiUrl),
+    authSecret: need("AUTH_SECRET", config.authSecret),
+    ownerEmail: need("OWNER_EMAIL", config.ownerEmail),
   };
-  const webEnabled = Object.values(webValues).some((v) => v && v !== "REPLACE_ME");
-  const web = webEnabled
-    ? {
-        webOrigin: need("WEB_ORIGIN", webValues.WEB_ORIGIN),
-        publicApiUrl: need("PUBLIC_API_URL", webValues.PUBLIC_API_URL),
-        authSecret: need("AUTH_SECRET", webValues.AUTH_SECRET),
-        ownerEmail: need("OWNER_EMAIL", webValues.OWNER_EMAIL),
-      }
-    : undefined;
-
-  const port = await connect({
-    token,
-    guildId,
-    ownerId,
-    onError: (err) => log.error({ error: err.message }, "discord.error"),
+  const r2 = {
+    accountId: need("R2_ACCOUNT_ID", config.r2.accountId),
+    accessKeyId: need("R2_ACCESS_KEY_ID", config.r2.accessKeyId),
+    secretAccessKey: need("R2_SECRET_ACCESS_KEY", config.r2.secretAccessKey),
+    bucket: need("R2_BUCKET", config.r2.bucket),
+  };
+  // The S3 client is lazy: nothing reaches R2 until a file is read or written.
+  const files = new R2FileStore(r2);
+  mkdirSync(join(agentHome, "data"), { recursive: true });
+  const engine = openEngineStore(join(agentHome, "data", "engine.db"));
+  const surface = new WebSurface({
+    store: engine,
+    files,
+    clock: systemClock,
+    inboxDir: join(agentHome, "inbox"),
+    log,
   });
-  try {
-    const env = readProcessEnv();
-    const memoryDir = join(agentHome, "memory");
-    const runtime = (parts: RuntimeParts) => {
-      // Missing env values are reported once at start; the servers are read again for every new session.
-      for (const p of parts.config.mcpServers(env).problems) log.warn(p, "config.problem");
-      return new ClaudeRuntime({
-        oauthToken: config.oauthToken,
-        agentHome,
-        scratchRoot: join(agentHome, "scratch"),
-        skillDirs: skillDirs(agentHome),
-        env,
-        // A group session gets that group's shared dir only; the direct session every group's.
-        extraDirsFor: (bot, groupId) => {
-          const friday = fridayExtraDirs(TEMPLATES_DIR)(bot);
-          const shared = sessionSharedDirs(agentHome, parts.config.groupIdsOf)(bot.id, groupId);
-          return { write: [...friday.write, ...shared], read: friday.read };
-        },
-        mcpServers: () => parts.config.mcpServers(env).servers,
-        mcpServersFor: sessionTools({
-          design: designContextFor({ config: parts.config, agentHome }),
-          memory: parts.memory,
-          insight: parts.insight,
-          recall: parts.recall,
-          messages: parts.messages,
-          store: parts.store,
-          messenger: parts.messenger,
-          tickets: parts.tickets,
-          groupIdsOf: parts.config.groupIdsOf,
-          home: agentHome,
-          projectsDir: parts.config.projectsDir,
-          isSensitive: isSensitivePath,
-          env,
-          postFile: (conversationId, botId, file, caption) =>
-            parts.surface.postFile(conversationId, { kind: "bot", botId }, file, caption),
-        }),
-        // After a compaction, keep what matters in the bot's journal (never in MEMORY.md, which the bot curates).
-        onCompact: memoryFlush(
-          memoryDir,
-          (summary) =>
-            extractNotes(summary, {
-              model: HAIKU_SUMMARY_MODEL,
-              env,
-              oauthToken: config.oauthToken,
-              today: localDay(new Date()),
-            }),
-          log,
-          parts.memoryChanged,
-        ),
-      });
-    };
-    /** The one-turn Haiku call shared by the note extraction and the consolidation. */
-    const haiku = { model: HAIKU_SUMMARY_MODEL, env, oauthToken: config.oauthToken };
-    const app = await startApp({
-      port,
-      runtime,
+  const env = readProcessEnv();
+  const memoryDir = join(agentHome, "memory");
+  const runtime = (parts: RuntimeParts) => {
+    // Missing env values are reported once at start; the servers are read again for every new session.
+    for (const p of parts.config.mcpServers(env).problems) log.warn(p, "config.problem");
+    return new ClaudeRuntime({
+      oauthToken: config.oauthToken,
       agentHome,
-      log,
+      scratchRoot: join(agentHome, "scratch"),
+      skillDirs: skillDirs(agentHome),
       env,
-      flushNotes: (transcript) =>
-        extractNotes(transcript, { ...haiku, source: "transcript", today: localDay(new Date()) }),
-      consolidate: (memory, notes) =>
-        consolidateNotes({ memory, notes, today: localDay(new Date()) }, haiku),
+      // A group session gets that group's shared dir only; the direct session every group's.
+      extraDirsFor: (bot, groupId) => {
+        const friday = fridayExtraDirs(TEMPLATES_DIR)(bot);
+        const shared = sessionSharedDirs(agentHome, parts.config.groupIdsOf)(bot.id, groupId);
+        return { write: [...friday.write, ...shared], read: friday.read };
+      },
+      mcpServers: () => parts.config.mcpServers(env).servers,
+      mcpServersFor: sessionTools({
+        design: designContextFor({ config: parts.config, agentHome }),
+        memory: parts.memory,
+        insight: parts.insight,
+        recall: parts.recall,
+        messages: parts.messages,
+        store: parts.store,
+        messenger: parts.messenger,
+        tickets: parts.tickets,
+        groupIdsOf: parts.config.groupIdsOf,
+        home: agentHome,
+        projectsDir: parts.config.projectsDir,
+        isSensitive: isSensitivePath,
+        env,
+        postFile: (conversationId, botId, file, caption) =>
+          parts.surface.postFile(conversationId, { kind: "bot", botId }, file, caption),
+      }),
+      // After a compaction, keep what matters in the bot's journal (never in MEMORY.md, which the bot curates).
+      onCompact: memoryFlush(
+        memoryDir,
+        (summary) =>
+          extractNotes(summary, {
+            model: HAIKU_SUMMARY_MODEL,
+            env,
+            oauthToken: config.oauthToken,
+            today: localDay(new Date()),
+          }),
+        log,
+        parts.memoryChanged,
+      ),
     });
-    // The web API runs next to Discord; a failed start unwinds through the `finally` below.
-    const api = web
-      ? await startApiServer({ agentHome, port: config.apiPort, ...web, log }).catch(
-          async (err) => {
-            await app.stop();
-            throw err;
-          },
-        )
-      : undefined;
-    if (!api) logEvent(log, "api.disabled");
-    logEvent(log, "engine.started", { agentHome });
-    if (!signal.aborted)
-      await new Promise<void>((r) => signal.addEventListener("abort", () => r(), { once: true }));
-    try {
-      await api?.stop();
-    } finally {
-      await app.stop();
-    }
+  };
+  /** The one-turn Haiku call shared by the note extraction and the consolidation. */
+  const haiku = { model: HAIKU_SUMMARY_MODEL, env, oauthToken: config.oauthToken };
+  const app = await startApp({
+    surface,
+    files,
+    engine,
+    runtime,
+    agentHome,
+    log,
+    env,
+    flushNotes: (transcript) =>
+      extractNotes(transcript, { ...haiku, source: "transcript", today: localDay(new Date()) }),
+    consolidate: (memory, notes) =>
+      consolidateNotes({ memory, notes, today: localDay(new Date()) }, haiku),
+    onConfigChanged: () => surface.bus.publish({ type: "config.changed" }),
+  });
+  // The web API over the running engine; a failed start stops the app.
+  const api = await startApiServer({
+    agentHome,
+    port: config.apiPort,
+    ...web,
+    log,
+    engine: { hub: app.hub, store: app.store, surface, files, purge: () => purgeTrash(agentHome) },
+  }).catch(async (err) => {
+    surface.cancelAll();
+    await app.stop();
+    throw err;
+  });
+  logEvent(log, "engine.started", { agentHome });
+  if (!signal.aborted)
+    await new Promise<void>((r) => signal.addEventListener("abort", () => r(), { once: true }));
+  // Open cards close first (bots waiting on an answer get deny / null), then the API, then the app.
+  surface.cancelAll();
+  try {
+    await api.stop();
   } finally {
-    await port.close();
+    await app.stop();
   }
 }

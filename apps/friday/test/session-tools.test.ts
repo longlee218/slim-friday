@@ -90,7 +90,7 @@ test("the tool context follows the current conversation: a group save lands in t
 
 test("commands of the effect tools get only the allowed env names", () => {
   expect(
-    commandEnv({ PATH: "/bin", HOME: "/h", GH_TOKEN: "g", DISCORD_TOKEN: "d", OAUTH: "o" }),
+    commandEnv({ PATH: "/bin", HOME: "/h", GH_TOKEN: "g", R2_SECRET_ACCESS_KEY: "d", OAUTH: "o" }),
   ).toEqual({ PATH: "/bin", HOME: "/h", GH_TOKEN: "g" });
 });
 

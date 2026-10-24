@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   CHILD_ENV_DENY,
   isChildEnvDenied,
@@ -20,13 +22,14 @@ describe("child env deny list (config/data/child-env-deny.yaml)", () => {
   });
 
   test("the schema is read at all (a renamed export cannot make the check above vacuous)", () => {
-    expect(ENV_SCHEMA_KEYS).toEqual(expect.arrayContaining(["DISCORD_TOKEN", "AGENT_HOME"]));
+    expect(ENV_SCHEMA_KEYS).toEqual(expect.arrayContaining(["R2_BUCKET", "AGENT_HOME"]));
   });
 
   test("the vars named in the phase spec are denied, by exact name and by prefix", () => {
     for (const k of [
       ...["CLAUDE_CODE_OAUTH_TOKEN", "AGENT_HOME", "LOG_LEVEL"],
-      ...["DISCORD_TOKEN", "OWNER_DISCORD_ID", "DISCORD_GUILD_ID", "MODEL", "MEMORY_MODEL"],
+      ...["R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET"],
+      ...["MODEL", "MEMORY_MODEL"],
       ...["GIT_AUTHOR", "MAX_TURNS", "MAX_BUDGET_USD", "TIMEOUT_MS", "MAX_CONCURRENT_RUNS"],
       ...["API_PORT", "WEB_ORIGIN", "AUTH_SECRET", "OWNER_EMAIL", "PUBLIC_API_URL"],
       ...["MODEL_HAIKU", "MODEL_DEV", "BUDGET_DEV_USD", "COMPACT_WINDOW_DEV"],
@@ -44,6 +47,19 @@ describe("child env deny list (config/data/child-env-deny.yaml)", () => {
       ],
     ])
       expect([k, isChildEnvDenied(k)]).toEqual([k, true]);
+  });
+
+  test("child env deny list covers the R2 names and no name of the removed chat app remains", () => {
+    const yaml = readFileSync(
+      join(import.meta.dir, "../../../packages/runtime-claude/src/floor/data/child-env-deny.yaml"),
+      "utf8",
+    );
+    for (const k of ["R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET"])
+      expect(CHILD_ENV_DENY.exact).toContain(k);
+    // The removed app's name is built from parts: `apps` and `packages` must not hold it as a literal.
+    const removed = new RegExp(["dis", "cord"].join(""), "i");
+    expect(yaml).not.toMatch(removed);
+    expect(ENV_SCHEMA_KEYS.filter((k) => removed.test(k))).toEqual([]);
   });
 
   test("the owner's own variables are not denied", () => {

@@ -4,6 +4,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createApiApp, type EngineDeps, ensureOwner } from "../src/index";
+import { fakeEngine } from "./helpers/engine-deps";
 import { testAuth } from "./helpers/test-auth";
 
 const ORIGIN = "https://friday.example.com";
@@ -13,7 +14,9 @@ const CALLBACK = `${ORIGIN}/setup-passkey`;
 let ipCounter = 0;
 
 /** An app over a fresh db, the owner created; every request carries a unique client ip (better-auth rate-limits by it). */
-async function fresh(over: { ownerEmail?: string; dbReachable?: () => boolean } = {}) {
+async function fresh(
+  over: { ownerEmail?: string; dbReachable?: () => boolean; engine?: EngineDeps } = {},
+) {
   const dir = mkdtempSync(join(tmpdir(), "api-app-"));
   const t = testAuth(dir);
   await ensureOwner(t.auth, "owner@example.com");
@@ -29,7 +32,7 @@ async function fresh(over: { ownerEmail?: string; dbReachable?: () => boolean } 
       },
       now: () => 1_700_000_000_000,
       dbReachable: over.dbReachable ?? (() => true),
-      ...({} as EngineDeps),
+      ...(over.engine ?? fakeEngine()),
     });
   const ip = `10.0.0.${++ipCounter}`;
   const wrap = (app: ReturnType<typeof make>) => ({
@@ -192,7 +195,7 @@ test("a throwing getSession is 401 and logs session_error", async () => {
     },
     now: () => 1_700_000_000_000,
     dbReachable: () => true,
-    ...({} as EngineDeps),
+    ...fakeEngine(),
   });
   const res = await purge(app as never, { origin: ORIGIN });
   expect(res.status).toBe(401);
@@ -218,9 +221,13 @@ test("an RPC call after updateAge returns the refreshed session cookie", async (
 });
 
 test("an unknown error in a procedure is logged and the client gets INTERNAL_SERVER_ERROR only", async () => {
-  const t = await fresh();
+  // The store fails with a plain TypeError (not an ORPCError).
+  const engine = fakeEngine();
+  engine.store.conversations.list = async () => {
+    throw new TypeError("boom");
+  };
+  const t = await fresh({ engine });
   const { cookie } = await login(t);
-  // No engine deps in this app, so the handler throws a TypeError.
   const res = await t.app.request(`${API}/rpc/conversations/list`, {
     method: "POST",
     headers: { "content-type": "application/json", origin: ORIGIN, cookie },

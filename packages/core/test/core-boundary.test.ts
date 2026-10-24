@@ -57,7 +57,7 @@ test("the scan itself catches what it must", () => {
 });
 
 test("core names no vendor or domain", () => {
-  expect(offenders(/\b(claude|anthropic|discord|sqlite|drizzle|sdk|git|tiktok)\b/i)).toEqual([]);
+  expect(offenders(/\b(claude|anthropic|sqlite|drizzle|sdk|git|tiktok)\b/i)).toEqual([]);
 });
 
 test("core logic reads no env, console or wall clock", () => {

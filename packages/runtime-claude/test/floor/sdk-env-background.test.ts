@@ -17,7 +17,7 @@ test("a worker env has the subprocess scrub on and no app secrets", () => {
     {
       PATH: "/bin",
       HOME: "/h",
-      DISCORD_TOKEN: "d",
+      R2_SECRET_ACCESS_KEY: "d",
       VIEWER_SECRET: "v",
       GITHUB_TOKEN: "g",
       AWS_SECRET_ACCESS_KEY: "a",
@@ -25,7 +25,12 @@ test("a worker env has the subprocess scrub on and no app secrets", () => {
     { worker: true, allowBackground: true },
   );
   expect(env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB).toBe("1");
-  for (const name of ["DISCORD_TOKEN", "VIEWER_SECRET", "GITHUB_TOKEN", "AWS_SECRET_ACCESS_KEY"])
+  for (const name of [
+    "R2_SECRET_ACCESS_KEY",
+    "VIEWER_SECRET",
+    "GITHUB_TOKEN",
+    "AWS_SECRET_ACCESS_KEY",
+  ])
     expect(name in env).toBe(false);
   expect(env.PATH).toBe("/bin");
   expect(env.HOME).toBe("/h");

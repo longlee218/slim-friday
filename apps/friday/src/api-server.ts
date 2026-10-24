@@ -20,8 +20,8 @@ export interface ApiServerOptions {
   authSecret: string;
   ownerEmail: string;
   log: ApiLog;
-  /** Engine handles for the conversation and chat routes; the engine wiring task passes them. */
-  engine?: EngineDeps;
+  /** Engine handles for the engine-backed routes (hub, store, surface, files, purge). */
+  engine: EngineDeps;
 }
 
 /**
@@ -53,8 +53,7 @@ export async function startApiServer(
       log: o.log,
       now: systemClock.now,
       dbReachable: authDb.ping,
-      // Without an engine the engine-backed routes cannot run; wiring supplies it.
-      ...(o.engine ?? ({} as EngineDeps)),
+      ...o.engine,
     });
     let server: ReturnType<typeof Bun.serve>;
     try {

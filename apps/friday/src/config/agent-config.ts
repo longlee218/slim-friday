@@ -27,28 +27,14 @@ const originUrl = z
     { message: "must be an origin like https://host" },
   );
 
-/** Raw env schema. Discord vars are optional here; the bot entry enforces them (`startEngine`). */
+/** Raw env schema. The web and R2 vars are optional here; the bot entry enforces them (`startEngine`). */
 const envSchema = z.object({
   CLAUDE_CODE_OAUTH_TOKEN: secret,
   AGENT_HOME: z.string().min(1),
   LOG_LEVEL: z.enum(["trace", "debug", "info", "warn", "error", "fatal", "silent"]).default("info"),
-  DISCORD_TOKEN: secret,
   /** Optional Axiom log shipping (metadata only); both must be set. Read by the logger bootstrap. */
   AXIOM_TOKEN: secret,
   AXIOM_DATASET: z.string().min(1).optional(),
-  OWNER_DISCORD_ID: z.string().min(1).optional(),
-  /** Guild snowflake; empty or the placeholder counts as unset, anything else must be 17-20 digits. */
-  DISCORD_GUILD_ID: z
-    .string()
-    .trim()
-    .transform((v) => (v === "" || v === PLACEHOLDER ? undefined : v))
-    .pipe(
-      z
-        .string()
-        .regex(/^\d{17,20}$/)
-        .optional(),
-    )
-    .optional(),
   /** Web API (Hono) port; it listens on 127.0.0.1 only. */
   API_PORT: z.coerce.number().int().min(1).max(65535).default(8787),
   /** Origin of the web app (CORS, passkey origin, trusted origin). */
@@ -64,6 +50,11 @@ const envSchema = z.object({
     .email()
     .transform((v) => v.toLowerCase())
     .optional(),
+  /** Cloudflare R2 (files of the web app): account, key pair and bucket. Never log the keys. */
+  R2_ACCOUNT_ID: secret,
+  R2_ACCESS_KEY_ID: secret,
+  R2_SECRET_ACCESS_KEY: secret,
+  R2_BUCKET: secret,
 });
 
 /** Names of the env variables the app itself reads: each must be classified in the runtime's child-env deny list. */
@@ -75,15 +66,11 @@ export interface AgentConfig {
   oauthToken: string | undefined;
   /** True only when the OAuth token exists and is not the REPLACE_ME placeholder. */
   hasRealAuth: boolean;
-  discordToken: string | undefined;
-  ownerDiscordId: string | undefined;
-  /** The one guild served (DISCORD_GUILD_ID). */
-  discordGuildId: string | undefined;
   agentHome: string;
   logLevel: string;
   /** Web API port (default 8787). */
   apiPort: number;
-  /** Web app origin; undefined when the web API is not configured (`startEngine` requires it). */
+  /** Web app origin; undefined when unset (`startEngine` requires it). */
   webOrigin?: string;
   /** Public origin of the web API. */
   publicApiUrl?: string;
@@ -91,37 +78,29 @@ export interface AgentConfig {
   authSecret?: string;
   /** The owner's login email, lower-cased. */
   ownerEmail?: string;
+  /** R2 credentials and bucket; each undefined when unset (`startEngine` requires all four). Keys: never log. */
+  r2: {
+    accountId: string | undefined;
+    accessKeyId: string | undefined;
+    secretAccessKey: string | undefined;
+    bucket: string | undefined;
+  };
 }
 
 /** True when a value is missing or the placeholder. */
 const isPlaceholder = (v: string | undefined): boolean => !v || v === PLACEHOLDER;
 
-/**
- * Parse and validate env. Throws a readable error naming bad variables only (no values).
- * @param requireDiscord set true for the bot entry: DISCORD_TOKEN and OWNER_DISCORD_ID must be real.
- */
-export function loadConfig(
-  env: Record<string, string | undefined> = process.env,
-  opts: { requireDiscord?: boolean } = {},
-): AgentConfig {
+/** Parse and validate env. Throws a readable error naming bad variables only (no values). */
+export function loadConfig(env: Record<string, string | undefined> = process.env): AgentConfig {
   const parsed = envSchema.safeParse(env);
   if (!parsed.success) {
     const names = parsed.error.issues.map((i) => i.path.join(".")).join(", ");
     throw new Error(`Invalid environment variables: ${names}`);
   }
   const e = parsed.data;
-  if (
-    opts.requireDiscord &&
-    (isPlaceholder(e.DISCORD_TOKEN) || isPlaceholder(e.OWNER_DISCORD_ID))
-  ) {
-    throw new Error("Invalid environment variables: DISCORD_TOKEN, OWNER_DISCORD_ID required");
-  }
   return {
     oauthToken: e.CLAUDE_CODE_OAUTH_TOKEN,
     hasRealAuth: !isPlaceholder(e.CLAUDE_CODE_OAUTH_TOKEN),
-    discordToken: e.DISCORD_TOKEN,
-    ownerDiscordId: e.OWNER_DISCORD_ID,
-    discordGuildId: e.DISCORD_GUILD_ID,
     agentHome: e.AGENT_HOME,
     logLevel: e.LOG_LEVEL,
     apiPort: e.API_PORT,
@@ -129,5 +108,11 @@ export function loadConfig(
     publicApiUrl: e.PUBLIC_API_URL,
     authSecret: e.AUTH_SECRET,
     ownerEmail: e.OWNER_EMAIL,
+    r2: {
+      accountId: e.R2_ACCOUNT_ID,
+      accessKeyId: e.R2_ACCESS_KEY_ID,
+      secretAccessKey: e.R2_SECRET_ACCESS_KEY,
+      bucket: e.R2_BUCKET,
+    },
   };
 }

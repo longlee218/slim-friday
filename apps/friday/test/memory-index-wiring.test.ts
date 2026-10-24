@@ -9,9 +9,9 @@ import type {
   MessageIndexStore,
 } from "@friday/core";
 import { FakeRuntime } from "../../../packages/core/test/fakes/fake-runtime";
-import { FakeDiscordPort } from "../../../packages/surface-discord/test/fake-discord-port";
 import { memoryFlush } from "../src/memory-flush";
 import { type RuntimeParts, startApp } from "../src/start-app";
+import { webParts } from "./web-fixture";
 
 const ann: MemoryOwner = { kind: "bot", botId: "ann" };
 const stoppers: (() => Promise<void>)[] = [];
@@ -32,7 +32,7 @@ async function boot(
   };
   let parts: RuntimeParts | undefined;
   const app = await startApp({
-    port: new FakeDiscordPort(),
+    ...webParts(home),
     runtime: (p) => {
       parts = p;
       return new FakeRuntime();

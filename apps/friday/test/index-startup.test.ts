@@ -7,9 +7,9 @@ import { homePaths } from "../src/config/home-paths";
 /** Each test spawns the real bot process (~1.5 s alone); under full-suite load that can pass 5 s. */
 setDefaultTimeout(20_000);
 
-/** Run src/index.ts as a real subprocess with the given Discord env. */
+/** Run src/index.ts as a real subprocess with the given env. */
 async function runIndex(
-  discord: Record<string, string>,
+  extra: Record<string, string>,
   home = mkdtempSync(join(tmpdir(), "friday-idx-")),
 ): Promise<{ code: number; log: string }> {
   const proc = Bun.spawn(["bun", "run", join(import.meta.dir, "..", "src", "index.ts")], {
@@ -19,7 +19,7 @@ async function runIndex(
       PATH: process.env.PATH!,
       HOME: process.env.HOME!,
       AGENT_HOME: home,
-      ...discord,
+      ...extra,
     },
     stdout: "pipe",
     stderr: "pipe",
@@ -42,22 +42,22 @@ async function runIndex(
   return { code, log };
 }
 
-test("exits 1 without connecting when Discord env is placeholder", async () => {
-  expect(
-    (await runIndex({ DISCORD_TOKEN: "REPLACE_ME", OWNER_DISCORD_ID: "REPLACE_ME" })).code,
-  ).toBe(1);
-});
+/** Web values only: the R2 ones stay unset. */
+const WEB = {
+  WEB_ORIGIN: "https://friday.example.com",
+  PUBLIC_API_URL: "https://friday-api.example.com",
+  AUTH_SECRET: "x".repeat(32),
+  OWNER_EMAIL: "owner@example.com",
+};
 
-test("exits 1 when Discord env is missing", async () => {
+test("exits 1 when the env is empty", async () => {
   expect((await runIndex({})).code).toBe(1);
 });
 
-test("exits 1 before Discord login when there is no credential", async () => {
-  // Real-looking (fake) Discord env, no LLM credential: must stop on the credential check.
-  const r = await runIndex({ DISCORD_TOKEN: "fake.discord.token", OWNER_DISCORD_ID: "1" });
+test("exits 1 on the credential check when there is no credential", async () => {
+  const r = await runIndex(WEB);
   expect(r.code).toBe(1);
   expect(r.log).toContain("CLAUDE_CODE_OAUTH_TOKEN missing or placeholder");
-  expect(r.log).not.toContain("discord login failed");
 });
 
 test("exits 1 when AGENT_HOME sits inside a git working tree", async () => {
@@ -65,18 +65,19 @@ test("exits 1 when AGENT_HOME sits inside a git working tree", async () => {
   mkdirSync(join(tree, ".git"));
   const home = join(tree, "friday-home");
   mkdirSync(home);
-  const r = await runIndex(
-    { DISCORD_TOKEN: "fake.discord.token", OWNER_DISCORD_ID: "1", CLAUDE_CODE_OAUTH_TOKEN: "tok" },
-    home,
-  );
+  const r = await runIndex({ ...WEB, CLAUDE_CODE_OAUTH_TOKEN: "tok" }, home);
   expect(r.code).toBe(1);
   expect(r.log).toContain("AGENT_HOME is inside a git working tree");
 });
 
-test("boots with only a credential: refuses on the missing Discord token, exits 1", async () => {
-  // The engine now needs Discord: a credential alone is not enough.
-  const home = mkdtempSync(join(tmpdir(), "friday-idx-"));
-  const r = await runIndex({ CLAUDE_CODE_OAUTH_TOKEN: "tok" }, home);
+test("boots with a credential and the web values but no R2: exits 1 naming R2_ACCOUNT_ID", async () => {
+  const r = await runIndex({ ...WEB, CLAUDE_CODE_OAUTH_TOKEN: "tok" });
   expect(r.code).toBe(1);
-  expect(r.log).toContain("DISCORD_TOKEN missing");
+  expect(r.log).toContain("R2_ACCOUNT_ID missing");
+});
+
+test("boots with only a credential: refuses on the first missing web value, exits 1", async () => {
+  const r = await runIndex({ CLAUDE_CODE_OAUTH_TOKEN: "tok" });
+  expect(r.code).toBe(1);
+  expect(r.log).toContain("WEB_ORIGIN missing");
 });
