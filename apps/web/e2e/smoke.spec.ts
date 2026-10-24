@@ -1,7 +1,10 @@
 import { expect, test } from "@playwright/test";
 import { signInFirstTime } from "./helpers";
 
-test("sign in with a passkey, chat, upload, answer an approval", async ({ page, context }) => {
+test("sign in with a passkey, chat, upload, answer an approval, run a ticket, open activity", async ({
+  page,
+  context,
+}) => {
   await signInFirstTime(page, context);
   // A fresh session: only the passkey can get back in.
   await context.clearCookies();
@@ -22,4 +25,22 @@ test("sign in with a passkey, chat, upload, answer an approval", async ({ page, 
   await page.getByRole("button", { name: "Allow once" }).click();
   await expect(page.getByText(/You allowed once:/)).toBeVisible();
   await expect(page.getByText("Pushed.")).toBeVisible();
+
+  // Tickets: create one, move it to Doing from the drawer, read the change in its history.
+  await page.goto("/tickets");
+  await page.getByRole("button", { name: "New ticket" }).click();
+  await page.getByLabel("Title").fill("Smoke ticket");
+  await page.getByRole("button", { name: "Create ticket" }).click();
+  const card = page.locator(".tcard", { hasText: "Smoke ticket" });
+  await expect(card).toBeVisible();
+  // Creating opens the new ticket's drawer (a click on its card would close it again).
+  await expect(page).toHaveURL(/\?t=FRI-\d+/);
+  await page.getByRole("combobox", { name: "Status" }).click();
+  await page.getByRole("option", { name: "Doing" }).click();
+  await page.getByRole("button", { name: "Open full page (↩)" }).click();
+  await expect(page.getByText(/moved it to Doing/)).toBeVisible();
+
+  // Activity: the sessions table is there.
+  await page.goto("/ops");
+  await expect(page.getByRole("heading", { name: "Sessions" })).toBeVisible();
 });
