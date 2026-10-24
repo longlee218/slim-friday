@@ -28,3 +28,6 @@ Call a tool's `handler` directly with a hand-made context, as `packages/tools/te
 ## Add a tool
 
 See "Adding a tool" in [CONTRIBUTING.md](../../CONTRIBUTING.md).
+
+## Design tools
+`packages/tools/src/design`: the `design` server holds `BotLookup` (read-only) and `BotDesign` (writes the owner's config). The app builds a `DesignContext` per session (`apps/friday/src/design-context.ts`): the config dir, the bot's scratch dir, the skill and bot dirs, and the app's parsers (`checkBot`, `checkGroup`, `checkMcp`), so the tools import nothing from `packages/config`.

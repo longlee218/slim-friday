@@ -99,6 +99,14 @@ bun run start
 - Per run: `$AGENT_HOME/logs/tasks/<taskId>.jsonl` (deleted 10 days after the last write; see [limits](limits-and-stop-conditions.md))
 - Example: `tail -f "$AGENT_HOME"/logs/app.$(date +%F).*.jsonl | jq 'select(.workspace=="<ws>")'`
 
+## Check the Friday bot as a designer (not verified live)
+1. Ask Friday: "make a dev bot". It must ask questions (the `bot-design` skill), propose, then show a `BotDesign` card; the file appears in `<AGENT_HOME>/config/bots/`.
+2. Ask it to give that bot a shipped skill: a card, the bot restarts, ask the bot to use the skill.
+3. Give Friday `owner/repo` and a skill name: it clones into its scratch dir, tells you the source, files and any script, and installs after your yes (`config/skills/<name>/`, `skills.lock.yaml`).
+4. Ask it to add an MCP server with a `${NAME}` env value: the card names the command, arguments and env names; check `config/mcp.yaml`.
+5. Ask Friday to write a file in `config/bots` with Bash: it must fail.
+6. If a bot does not see its skill: the SDK did not accept `plugins` + `skills` with empty `settingSources`; note the error line.
+
 ## Run in the background (launchd)
 `deploy/com.friday.agent.plist` starts the bot at login and restarts it after a failure (paths are for this Mac; edit them if the repo or bun moves).
 
