@@ -8,11 +8,16 @@ export interface BusItem {
 
 /** One live subscriber: events waiting to be read, and the reader's wake-up. */
 interface Subscriber {
+  /** Replayed events; they never count toward the overflow limit. */
+  replay: BusItem[];
+  /** Live events queued since subscribe; the overflow limit counts these. */
   queue: BusItem[];
   /** Set while the reader waits for the next item. */
-  wake?: () => void;
-  /** No more items after the queue drains. */
+  pending?: (r: IteratorResult<BusItem>) => void;
+  /** No more items after the queues drain. */
   closed: boolean;
+  /** Removes the abort listener. */
+  detach?: () => void;
 }
 
 /**
@@ -39,11 +44,11 @@ export class EventBus {
       sub.queue.push(item);
       // Too far behind: drop the backlog, send one resync, close.
       if (sub.queue.length >= this.size) {
+        sub.replay = [];
         sub.queue = [{ id: this.last, event: { type: "resync" } }];
-        sub.closed = true;
-        this.subs.delete(sub);
+        this.close(sub);
       }
-      sub.wake?.();
+      this.flush(sub);
     }
     return item.id;
   }
@@ -53,53 +58,77 @@ export class EventBus {
     return this.last;
   }
 
+  /** Number of open subscribers. */
+  subscriberCount(): number {
+    return this.subs.size;
+  }
+
   /**
    * Events after `lastEventId` (replayed when still held, else one `resync`), then live ones.
    * No id: live only. Registers at call time, ends when `signal` aborts.
    */
   subscribe(lastEventId: number | undefined, signal: AbortSignal): AsyncIterable<BusItem> {
-    const sub: Subscriber = { queue: [], closed: signal.aborted };
-    if (!sub.closed) {
-      if (lastEventId !== undefined) {
-        const oldestHeld = this.last - this.buffer.length + 1;
-        if (lastEventId >= oldestHeld - 1 && lastEventId <= this.last) {
-          sub.queue = this.buffer.filter((i) => i.id > lastEventId);
-        } else {
-          sub.queue = [{ id: this.last, event: { type: "resync" } }];
-        }
+    const sub: Subscriber = { replay: [], queue: [], closed: false };
+    if (lastEventId !== undefined) {
+      const oldestHeld = this.last - this.buffer.length + 1;
+      if (lastEventId >= oldestHeld - 1 && lastEventId <= this.last) {
+        sub.replay = this.buffer.filter((i) => i.id > lastEventId);
+      } else {
+        sub.replay = [{ id: this.last, event: { type: "resync" } }];
       }
-      this.subs.add(sub);
-      signal.addEventListener(
-        "abort",
-        () => {
-          sub.closed = true;
-          this.subs.delete(sub);
-          sub.wake?.();
-        },
-        { once: true },
-      );
     }
-    return this.read(sub);
+    if (signal.aborted) {
+      sub.replay = [];
+      sub.closed = true;
+    } else {
+      this.subs.add(sub);
+      const onAbort = () => {
+        sub.replay = [];
+        sub.queue = [];
+        this.close(sub);
+        this.flush(sub);
+      };
+      signal.addEventListener("abort", onAbort, { once: true });
+      sub.detach = () => signal.removeEventListener("abort", onAbort);
+    }
+    const iterator: AsyncIterableIterator<BusItem> = {
+      [Symbol.asyncIterator]: () => iterator,
+      next: () =>
+        new Promise((resolve) => {
+          sub.pending = resolve;
+          this.flush(sub);
+        }),
+      // Ends the stream; a pending next() resolves as done.
+      return: async () => {
+        sub.replay = [];
+        sub.queue = [];
+        this.close(sub);
+        this.flush(sub);
+        return { done: true, value: undefined };
+      },
+    };
+    return iterator;
   }
 
-  /** Yield queued items, waiting for more, until the subscriber closes and drains. */
-  private async *read(sub: Subscriber): AsyncGenerator<BusItem> {
-    try {
-      while (true) {
-        const next = sub.queue.shift();
-        if (next) {
-          yield next;
-        } else if (sub.closed) {
-          return;
-        } else {
-          await new Promise<void>((resolve) => {
-            sub.wake = resolve;
-          });
-          sub.wake = undefined;
-        }
-      }
-    } finally {
-      this.subs.delete(sub);
+  /** Stop feeding a subscriber and drop its abort listener; queued items stay readable. */
+  private close(sub: Subscriber): void {
+    sub.closed = true;
+    this.subs.delete(sub);
+    sub.detach?.();
+  }
+
+  /** Answer the reader's pending next() from the queues, or with done once closed and drained. */
+  private flush(sub: Subscriber): void {
+    if (!sub.pending) return;
+    const item = sub.replay.shift() ?? sub.queue.shift();
+    if (item) {
+      const resolve = sub.pending;
+      sub.pending = undefined;
+      resolve({ done: false, value: item });
+    } else if (sub.closed) {
+      const resolve = sub.pending;
+      sub.pending = undefined;
+      resolve({ done: true, value: undefined });
     }
   }
 }

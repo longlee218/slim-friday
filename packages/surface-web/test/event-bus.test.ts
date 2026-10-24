@@ -73,3 +73,50 @@ test("a subscriber `size` events behind gets resync and ends", async () => {
   for await (const x of it) got.push(x); // ends without abort
   expect(got).toEqual([{ id: 3, event: { type: "resync" } }]);
 });
+
+test("a replay of a full buffer does not trip overflow on the next publish", async () => {
+  const bus = new EventBus(3);
+  const sig = new AbortController().signal;
+  for (let i = 0; i < 3; i++) bus.publish(ev);
+  const it = bus.subscribe(0, sig);
+  bus.publish(ev);
+  const got = await firstN(it, 4);
+  expect(got.map((g) => g.id)).toEqual([1, 2, 3, 4]);
+  expect(got.every((g) => g.event.type === "config.changed")).toBe(true);
+});
+
+test("a publish between subscribe and the first read is delivered once", async () => {
+  const bus = new EventBus();
+  const ac = new AbortController();
+  const it = bus.subscribe(undefined, ac.signal);
+  bus.publish(ev);
+  const got: number[] = [];
+  const reading = (async () => {
+    for await (const x of it) got.push(x.id);
+  })();
+  await Promise.resolve();
+  ac.abort();
+  await reading;
+  expect(got).toEqual([1]);
+});
+
+test("abort drops queued items: nothing yields after it", async () => {
+  const bus = new EventBus();
+  const ac = new AbortController();
+  const it = bus.subscribe(undefined, ac.signal);
+  bus.publish(ev);
+  ac.abort();
+  expect(await firstN(it, 1)).toEqual([]);
+  expect(bus.subscriberCount()).toBe(0);
+});
+
+test("return() while next() is pending resolves it as done and removes the subscriber", async () => {
+  const bus = new EventBus();
+  const sig = new AbortController().signal;
+  const it = bus.subscribe(undefined, sig)[Symbol.asyncIterator]();
+  const pending = it.next();
+  expect(bus.subscriberCount()).toBe(1);
+  await it.return?.();
+  expect((await pending).done).toBe(true);
+  expect(bus.subscriberCount()).toBe(0);
+});
