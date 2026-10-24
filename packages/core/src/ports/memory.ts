@@ -18,6 +18,14 @@ export type ConsolidateFn = (
 /** Long-term notes of a bot or a group. */
 export interface Memory {
   read(owner: MemoryOwner): Promise<string>;
+  /**
+   * The owner's notes cut to `maxChars` for a prompt; `hidden` = notes left out, `chars` = size of the whole text.
+   * Adapters without it fall back to `read`.
+   */
+  readForPrompt?(
+    owner: MemoryOwner,
+    maxChars: number,
+  ): Promise<{ text: string; hidden: number; chars: number }>;
   /** Add one note; `kind` is the adapter's note kind (for example "fact"), default chosen by the adapter. */
   save(owner: MemoryOwner, note: string, kind?: string): Promise<void>;
   /** Replace one note by id; `null` deletes it. */

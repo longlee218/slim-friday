@@ -3,11 +3,11 @@ import { join } from "node:path";
 import type { Memory, MemoryOwner } from "@friday/core";
 import { bulletHash } from "./bullet-hash";
 import { MemoryBusyError, withMemoryLock, writeAtomic } from "./memory-file-lock";
+import { bulletsOf, memoryForPrompt } from "./memory-prompt";
 import {
   formatBullet,
   hasBullet,
   insertBullet,
-  KIND_HEADING,
   MEMORY_FILE_KINDS,
   type MemoryKind,
   stripDateSuffix,
@@ -34,8 +34,6 @@ export interface MemoryBullet {
 const ID = /^[a-z][a-z0-9-]{0,31}$/;
 /** Backups kept per memory file before an edit. */
 const BACKUPS_KEPT = 20;
-/** Section heading text → kind. */
-const KIND_OF = new Map(MEMORY_FILE_KINDS.map((k) => [`## ${KIND_HEADING[k]}`, k]));
 
 /** `<root>/bots/<id>` or `<root>/groups/<id>`; throws on an id that could leave the root. */
 export function ownerDir(root: string, owner: MemoryOwner): string {
@@ -72,6 +70,11 @@ export class FileMemory implements Memory {
   async read(owner: MemoryOwner): Promise<string> {
     const file = this.fileOf(owner);
     return existsSync(file) ? readFileSync(file, "utf8") : "";
+  }
+
+  /** The owner's notes cut to `maxChars` for a prompt (see `memoryForPrompt`); the file is not changed. */
+  async readForPrompt(owner: MemoryOwner, maxChars: number) {
+    return memoryForPrompt(await this.read(owner), maxChars);
   }
 
   async save(owner: MemoryOwner, note: string, kind = "fact"): Promise<void> {
@@ -154,16 +157,4 @@ export class FileMemory implements Memory {
       throw err;
     }
   }
-}
-
-/** Bullet lines inside the kind sections, with their line index and kind. */
-function bulletsOf(text: string): { line: string; kind: MemoryKind; index: number }[] {
-  const out: { line: string; kind: MemoryKind; index: number }[] = [];
-  let kind: MemoryKind | undefined;
-  text.split("\n").forEach((raw, index) => {
-    const line = raw.trimEnd();
-    if (/^#{1,2} /.test(line)) kind = KIND_OF.get(line);
-    else if (kind && line.startsWith("- ")) out.push({ line, kind, index });
-  });
-  return out;
 }

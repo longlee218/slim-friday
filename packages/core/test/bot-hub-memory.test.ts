@@ -1,5 +1,11 @@
 import { expect, test } from "bun:test";
-import type { Memory, MemoryOwner, MemorySearcher } from "../src";
+import {
+  CORE_DEFAULTS,
+  type CoreLimits,
+  type Memory,
+  type MemoryOwner,
+  type MemorySearcher,
+} from "../src";
 import { flush, makeHub } from "./bot-hub-harness";
 
 /** A memory whose texts the test sets by owner key (`bot:<id>` / `group:<id>`). */
@@ -118,4 +124,46 @@ test("a group turn carries a recalled block searched for the bot and the group",
   expect(runtime.nth(0).sent[0]?.recalled).toContain(
     "- [2026-10-20] from bot\n- [2026-10-20] from group",
   );
+});
+
+/** A memory whose readForPrompt cuts to the cap and reports the file size. */
+function cappedMemory(text: string) {
+  const caps: number[] = [];
+  const memory: Memory = {
+    read: async () => text,
+    readForPrompt: async (_o, max) => {
+      caps.push(max);
+      return { text: text.slice(0, max), hidden: text.length > max ? 1 : 0, chars: text.length };
+    },
+    save: async () => {},
+    edit: async () => {},
+  };
+  return { memory, caps };
+}
+
+test("the session spec gets the capped memory and a memory.large warning when the file is over twice the cap", async () => {
+  const { memory } = cappedMemory(`- ${"a".repeat(100)}`);
+  const limits: CoreLimits = {
+    ...CORE_DEFAULTS,
+    memoryPromptChars: 20,
+    groupMemoryPromptChars: 20,
+  } as unknown as CoreLimits;
+  const { runtime, surface, log } = makeHub(memory, { limits });
+  surface.deliver({ conversationId: "dc", text: "hi" });
+  await flush();
+  expect(runtime.nth(0).spec.memory).toBe(`- ${"a".repeat(18)}`);
+  expect(log.of("memory.large")[0]?.level).toBe("warn");
+});
+
+test("group memory on a turn is capped at groupMemoryPromptChars", async () => {
+  const { memory, caps } = cappedMemory("- team uses bun and deploys on friday");
+  const limits: CoreLimits = {
+    ...CORE_DEFAULTS,
+    groupMemoryPromptChars: 10,
+  } as unknown as CoreLimits;
+  const { runtime, surface } = makeHub(memory, { limits });
+  surface.deliver({ conversationId: "gc", text: "hello" });
+  await flush();
+  expect(caps).toContain(10);
+  expect(runtime.nth(0).sent[0]?.groupMemory).toBe("- team use");
 });

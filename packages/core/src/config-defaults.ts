@@ -20,6 +20,10 @@ export const CORE_DEFAULTS = {
   recallNotes: 5,
   /** Most characters of recalled notes added to a turn. */
   recallChars: 2000,
+  /** Most characters of a bot's MEMORY.md put in its system prompt (over it, older notes are left to search). */
+  memoryPromptChars: 12000,
+  /** Most characters of a group's memory put in a group turn. */
+  groupMemoryPromptChars: 6000,
 } as const;
 
 export type CoreLimits = typeof CORE_DEFAULTS;

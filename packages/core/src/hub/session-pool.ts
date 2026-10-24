@@ -1,3 +1,4 @@
+import { CORE_DEFAULTS } from "../config-defaults";
 import type { Bot, BotId } from "../domain/bot";
 import type { ConversationId } from "../domain/conversation";
 import type { Attachment, Author } from "../domain/message";
@@ -5,8 +6,10 @@ import type { WakeIntent } from "../domain/wake";
 import type { PermissionGate } from "../permission/permission-gate";
 import type { AgentRuntime, BotRuntimeSpec, BotSession } from "../ports/agent-runtime";
 import type { Clock } from "../ports/clock";
+import type { Log } from "../ports/log";
 import type { Memory } from "../ports/memory";
 import type { Store } from "../ports/store";
+import { promptMemory } from "./group-memory";
 
 /** A background task a bot started, remembered with the conversation that started it. */
 export interface TaskInfo {
@@ -79,6 +82,10 @@ export class SessionPool {
     private clock: Clock,
     private gate: PermissionGate,
     private memory?: Memory,
+    /** Cap of the bot memory in the system prompt, and where a too-large memory is reported. */
+    private memoryOpts: { memoryPromptChars: number; log?: Log } = {
+      memoryPromptChars: CORE_DEFAULTS.memoryPromptChars,
+    },
   ) {}
 
   /** The bot's open session, creating (or resuming) it when needed. */
@@ -135,7 +142,12 @@ export class SessionPool {
       currentConversation: () => (ref.entry?.busy ? ref.entry.current.conversationId : undefined),
     };
     // A memory that cannot be read must not keep the bot from answering.
-    const memory = await this.memory?.read({ kind: "bot", botId: bot.id }).catch(() => "");
+    const memory = await promptMemory(
+      this.memory,
+      { kind: "bot", botId: bot.id },
+      this.memoryOpts.memoryPromptChars,
+      this.memoryOpts.log,
+    );
     if (memory?.trim()) spec.memory = memory;
     const stored = await this.store.sessions.get(bot.id);
     let session: BotSession | undefined;

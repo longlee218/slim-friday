@@ -92,7 +92,10 @@ export class BotHub implements BotMessenger {
 
   constructor(private deps: BotHubDeps) {
     this.limits = deps.limits ?? CORE_DEFAULTS;
-    this.pool = new SessionPool(deps.runtime, deps.store, deps.clock, deps.gate, deps.memory);
+    this.pool = new SessionPool(deps.runtime, deps.store, deps.clock, deps.gate, deps.memory, {
+      memoryPromptChars: this.limits.memoryPromptChars,
+      log: deps.log,
+    });
     this.guard = new ChainGuard(deps.clock, this.limits);
     this.wakeLog = new WakeLog(deps.store, deps.clock, deps.log);
     this.tickets = new TicketBoard({
@@ -351,7 +354,13 @@ export class BotHub implements BotMessenger {
           ? await store.messages.recent(q.conversationId, this.limits.groupContextMessages)
           : [];
       const groupMemory = conv
-        ? await changedGroupMemory(entry, conv, this.deps.memory)
+        ? await changedGroupMemory(
+            entry,
+            conv,
+            this.deps.memory,
+            this.limits.groupMemoryPromptChars,
+            this.deps.log,
+          )
         : undefined;
       const tickets = await ticketContextFor(store, q.text);
       const recalled = await this.recalledFor(entry, conv, q.text);
