@@ -1,6 +1,7 @@
 import type { MiddlewareHandler } from "hono";
 import { logApiEvent } from "../api-log";
-import type { ApiDeps, OwnerSession } from "../rpc/context";
+import type { ApiDeps } from "../app";
+import type { OwnerSession } from "../rpc/context";
 
 /** Require a session of the configured owner; anything else is 401 (the web client then goes to /login). */
 export function ownerSession(
@@ -8,8 +9,12 @@ export function ownerSession(
 ): MiddlewareHandler<{ Variables: { session: OwnerSession } }> {
   return async (c, next) => {
     let session: OwnerSession | null;
+    // better-auth sets a refreshed cookie here once `updateAge` has passed; it must reach the browser.
+    let refreshed: Headers | undefined;
     try {
-      session = await deps.auth.api.getSession({ headers: c.req.raw.headers });
+      const r = await deps.auth.api.getSession({ headers: c.req.raw.headers, returnHeaders: true });
+      session = r.response;
+      refreshed = r.headers;
     } catch {
       // Metadata only: no error message or body is logged.
       logApiEvent(
@@ -25,5 +30,7 @@ export function ownerSession(
     }
     c.set("session", session);
     await next();
+    for (const cookie of refreshed?.getSetCookie() ?? [])
+      c.res.headers.append("set-cookie", cookie);
   };
 }

@@ -27,5 +27,5 @@ export function testAuth(dir: string, overrides: Partial<OwnerAuthOptions> = {})
     existsSync(ownerLinksFile)
       ? readFileSync(ownerLinksFile, "utf8").split("\n").filter(Boolean)
       : [];
-  return { auth, links, logs, db };
+  return { auth, links, logs, db, dbFile: join(dir, "engine.db") };
 }

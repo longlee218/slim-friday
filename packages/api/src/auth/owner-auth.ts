@@ -38,6 +38,16 @@ export function createOwnerAuth(o: OwnerAuthOptions) {
     baseURL: o.baseURL,
     basePath: "/api/auth",
     trustedOrigins: [o.webOrigin],
+    // better-auth would print to the console; keep only the level (messages may hold emails or tokens).
+    logger: {
+      log: (level) =>
+        logApiEvent(
+          o.log,
+          "auth.lib",
+          { level },
+          level === "error" ? "error" : level === "warn" ? "warn" : "info",
+        ),
+    },
     emailAndPassword: { enabled: false },
     session: { expiresIn: 30 * 24 * 3600, updateAge: 24 * 3600 },
     advanced: {

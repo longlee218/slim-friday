@@ -1,3 +1,4 @@
+import { Database } from "bun:sqlite";
 import { expect, test } from "bun:test";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -200,4 +201,16 @@ test("a throwing getSession is 401 and logs session_error", async () => {
     reason: "session_error",
   });
   expect(JSON.stringify(t.logs)).not.toContain("secret detail");
+});
+
+test("an RPC call after updateAge returns the refreshed session cookie", async () => {
+  const t = await fresh();
+  const { cookie } = await login(t);
+  // Age the session by 2 days (past updateAge of 1 day) straight in the db.
+  const raw = new Database(t.dbFile);
+  raw.run("UPDATE auth_session SET expires_at = expires_at - 2*86400000");
+  raw.close();
+  const res = await purge(t.app, { origin: ORIGIN, cookie });
+  expect(res.status).toBe(501);
+  expect(res.headers.getSetCookie().some((c) => c.includes("Max-Age=2592000"))).toBe(true);
 });

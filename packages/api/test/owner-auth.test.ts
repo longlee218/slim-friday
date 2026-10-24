@@ -108,3 +108,27 @@ test("the client ip comes from the tunnel header", async () => {
   const o = (await t.auth.$context).options;
   expect(o.advanced?.ipAddress?.ipAddressHeaders).toEqual(["cf-connecting-ip"]);
 });
+
+test("better-auth logs go to the ApiLog as auth.lib with the level only, not to its own console logger", async () => {
+  const t = fresh();
+  const seen: string[] = [];
+  const spies = (["log", "warn", "error"] as const).map((k) => {
+    const orig = console[k];
+    console[k] = (...a: unknown[]) => void seen.push(a.map(String).join(" "));
+    return () => {
+      console[k] = orig;
+    };
+  });
+  try {
+    // A closed db makes better-auth log an error while it handles the request.
+    t.db.close();
+    await post(t, "/sign-in/magic-link", { email: "owner@example.com", callbackURL: CALLBACK });
+  } finally {
+    for (const restore of spies) restore();
+  }
+  // better-call prints its own `# SERVER_ERROR` for an unexpected throw; that is outside the logger option.
+  expect(seen.filter((l) => l.includes("[Better Auth]"))).toEqual([]);
+  const lib = t.logs.filter((l) => (l as { event?: string }).event === "auth.lib");
+  expect(lib.length).toBeGreaterThan(0);
+  for (const l of lib) expect(l).toEqual({ event: "auth.lib", level: "error" });
+});

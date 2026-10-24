@@ -10,7 +10,7 @@ export function logApiEvent(
   log: ApiLog,
   event: string,
   fields: Record<string, unknown> = {},
-  level: "info" | "warn" = "info",
+  level: "info" | "warn" | "error" = "info",
 ): void {
   log[level]({ event, ...fields }, event);
 }

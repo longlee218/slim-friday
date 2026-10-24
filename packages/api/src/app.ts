@@ -1,11 +1,27 @@
 import { RPCHandler } from "@orpc/server/fetch";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import type { ApiLog } from "./api-log";
+import type { OwnerAuth } from "./auth/owner-auth";
 import { originCheck } from "./http/origin-check";
 import { requestLog } from "./http/request-log";
 import { ownerSession } from "./http/session";
-import type { ApiDeps, OwnerSession } from "./rpc/context";
+import type { OwnerSession } from "./rpc/context";
 import { appRouter } from "./rpc/router";
+
+/** What the app needs from the engine; later plans add fields here, never a second clock. */
+export interface ApiDeps {
+  auth: OwnerAuth;
+  /** The one allowed browser origin (CORS and the Origin check). */
+  webOrigin: string;
+  /** The only email allowed on `/rpc/*`. */
+  ownerEmail: string;
+  log: ApiLog;
+  /** Injected clock (ms). */
+  now: () => number;
+  /** True while the engine db answers; drives `GET /health`. */
+  dbReachable: () => boolean;
+}
 
 /** Build the HTTP app: log, CORS, Origin check, then health, auth and the owner-only RPC. */
 export function createApiApp(deps: ApiDeps): Hono {
