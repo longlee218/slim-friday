@@ -8,6 +8,7 @@ export * from "./domain/grant";
 export * from "./domain/group";
 export * from "./domain/message";
 export * from "./domain/tool";
+export * from "./domain/wake";
 export * from "./hub/bot-hub";
 export * from "./permission/classify-tool";
 export * from "./permission/decide";

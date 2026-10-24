@@ -69,3 +69,35 @@ export const audit = sqliteTable("audit", {
   answer: text("answer"),
   reason: text("reason").notNull(),
 });
+
+/** One row per message sent into a bot session: its chain, intent, state and timings. */
+export const wakes = sqliteTable(
+  "wakes",
+  {
+    id: text("id").primaryKey(),
+    chainId: text("chain_id").notNull(),
+    parentWakeId: text("parent_wake_id"),
+    conversationId: text("conversation_id").notNull(),
+    targetBot: text("target_bot").notNull(),
+    /** `user`, `bot` or `system`. */
+    senderKind: text("sender_kind").notNull(),
+    senderBotId: text("sender_bot_id"),
+    intent: text("intent").notNull(),
+    hop: integer("hop").notNull(),
+    text: text("text").notNull(),
+    /** JSON array of attachments (saved paths), if any. */
+    attachments: text("attachments"),
+    handoff: integer("handoff", { mode: "boolean" }),
+    status: text("status").notNull(),
+    blockReason: text("block_reason"),
+    attempts: integer("attempts").notNull(),
+    createdAt: integer("created_at").notNull(),
+    startedAt: integer("started_at"),
+    firstTextAt: integer("first_text_at"),
+    endedAt: integer("ended_at"),
+  },
+  (t) => [
+    index("wakes_status_idx").on(t.status, t.createdAt),
+    index("wakes_conversation_idx").on(t.conversationId, t.createdAt),
+  ],
+);

@@ -8,6 +8,7 @@ import type {
   Group,
   Store,
   StoredMessage,
+  WakeRow,
 } from "../../src";
 
 /** An in-memory Store; tests seed `bots`, `groups` and `convs` directly. */
@@ -63,6 +64,37 @@ export class FakeStore implements Store {
   audit = {
     append: async (e: AuditEntry) => {
       this.auditLog.push(e);
+    },
+  };
+  wakeMap = new Map<string, WakeRow>();
+  wakes = {
+    insert: async (w: WakeRow) => {
+      this.wakeMap.set(w.id, { ...w });
+    },
+    update: async (id: string, patch: Partial<Omit<WakeRow, "id">>) => {
+      const w = this.wakeMap.get(id);
+      if (w) Object.assign(w, patch);
+    },
+    get: async (id: string) => this.wakeMap.get(id),
+    open: async () =>
+      [...this.wakeMap.values()]
+        .filter((w) => w.status === "queued" || w.status === "running")
+        .sort((a, b) => a.createdAt - b.createdAt),
+    botSentSince: async (conversationId: ConversationId, since: number) =>
+      [...this.wakeMap.values()]
+        .filter(
+          (w) =>
+            w.sender.kind === "bot" && w.conversationId === conversationId && w.createdAt >= since,
+        )
+        .sort((a, b) => a.createdAt - b.createdAt),
+    deleteFinishedBefore: async (at: number) => {
+      let n = 0;
+      for (const [id, w] of this.wakeMap)
+        if (w.status !== "queued" && w.status !== "running" && (w.endedAt ?? w.createdAt) < at) {
+          this.wakeMap.delete(id);
+          n++;
+        }
+      return n;
     },
   };
 }

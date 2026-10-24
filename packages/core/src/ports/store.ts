@@ -4,6 +4,7 @@ import type { Conversation, ConversationId } from "../domain/conversation";
 import type { Grant } from "../domain/grant";
 import type { Group, GroupId } from "../domain/group";
 import type { StoredMessage } from "../domain/message";
+import type { WakeRow } from "../domain/wake";
 import type { ApprovalAnswer } from "./surface";
 
 /** One decision on one tool call, kept for review. */
@@ -42,4 +43,16 @@ export interface Store {
     total(botId: BotId, day: string): Promise<number>;
   };
   audit: { append(e: AuditEntry): Promise<void> };
+  /** Every message sent into a bot session, with its life and timings. */
+  wakes: {
+    insert(w: WakeRow): Promise<void>;
+    update(id: string, patch: Partial<Omit<WakeRow, "id">>): Promise<void>;
+    get(id: string): Promise<WakeRow | undefined>;
+    /** Rows with status queued or running, oldest first. */
+    open(): Promise<WakeRow[]>;
+    /** Wakes sent by a bot in a conversation created at or after `since`, oldest first. */
+    botSentSince(conversationId: ConversationId, since: number): Promise<WakeRow[]>;
+    /** Delete rows that ended before `at` (any status but queued and running); returns the count. */
+    deleteFinishedBefore(at: number): Promise<number>;
+  };
 }
