@@ -236,3 +236,13 @@ test("every git argv carries the hardening pins right after git", async () => {
   expect(gits.length).toBeGreaterThan(0);
   for (const c of gits) expect(c.slice(1, 1 + GIT_HARDEN.length)).toEqual([...GIT_HARDEN]);
 });
+
+test("a repo config with core.worktree is refused before MergeBranch checks anything out", async () => {
+  const { base, ws, ctx } = setup();
+  git(ws, "config", "core.worktree", join(base, "elsewhere"));
+  mkdirSync(join(base, "elsewhere"));
+  git(ws, "checkout", "-b", "feat");
+  const r = await call(createMergeBranchTool(ctx), { workspace: ws, from: "feat", into: "main" });
+  expect(r.isError).toBe(true);
+  expect(text(r)).toContain("core.worktree");
+});

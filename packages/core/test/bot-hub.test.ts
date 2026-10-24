@@ -223,3 +223,23 @@ test("the session spec tells the runtime which conversation the bot answers now"
   await flush();
   expect(s.spec.currentConversation?.()).toBeUndefined();
 });
+
+test("a send that throws does not leave the bot busy: the owner is told and the next message goes through", async () => {
+  const { runtime, surface } = makeHub();
+  surface.deliver({ conversationId: "dc", text: "one" });
+  await flush();
+  const s = runtime.nth(0);
+  s.emit({ type: "turn_end", costUsd: 0 });
+  await flush();
+  const real = s.send.bind(s);
+  s.send = () => {
+    throw new Error("disk full");
+  };
+  surface.deliver({ conversationId: "dc", text: "two" });
+  await flush();
+  expect(surface.posts.some((p) => p.message.text.includes("disk full"))).toBe(true);
+  s.send = real;
+  surface.deliver({ conversationId: "dc", text: "three" });
+  await flush();
+  expect(s.sent.at(-1)?.text).toBe("three");
+});

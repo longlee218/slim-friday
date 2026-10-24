@@ -178,15 +178,21 @@ export class BotHub {
     entry.busy = true;
     entry.lastActive = clock.now();
     surface.showActivity(q.conversationId, { kind: "typing", botId: entry.bot.id });
-    entry.session.send({
-      conversationId: q.conversationId,
-      from: q.sender,
-      text: q.text,
-      hop: q.hop,
-      context,
-      ...(q.attachments && { attachments: q.attachments }),
-      ...(groupMemory !== undefined && { groupMemory }),
-    });
+    try {
+      entry.session.send({
+        conversationId: q.conversationId,
+        from: q.sender,
+        text: q.text,
+        hop: q.hop,
+        context,
+        ...(q.attachments && { attachments: q.attachments }),
+        ...(groupMemory !== undefined && { groupMemory }),
+      });
+    } catch (err) {
+      // A send that fails (for example an unreadable attachment) must not leave the bot busy for good.
+      entry.busy = false;
+      throw err;
+    }
   }
 
   private runPump(entry: PoolEntry): Promise<void> {
@@ -200,8 +206,21 @@ export class BotHub {
       },
       onTurnEnd: async (e) => {
         e.busy = false;
-        const next = e.queue.shift();
-        if (next) await this.dispatch(e, next);
+        // A queued message that cannot be sent is reported; the next one still gets its turn.
+        for (let next = e.queue.shift(); next; next = e.queue.shift()) {
+          try {
+            await this.dispatch(e, next);
+            break;
+          } catch (err) {
+            const why = err instanceof Error ? err.message : String(err);
+            await this.deps.surface
+              .post(next.conversationId, {
+                author: { kind: "system" },
+                text: `Could not deliver the message: ${why}`,
+              })
+              .catch(() => {});
+          }
+        }
       },
       onClosed: async (e, crashed, reason) => {
         if (this.pool.entry(e.bot.id) === e) this.pool.remove(e.bot.id);

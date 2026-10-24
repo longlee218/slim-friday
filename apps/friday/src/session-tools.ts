@@ -176,6 +176,7 @@ export function sessionTools(deps: SessionToolsDeps) {
       botId: spec.bot.id,
       workspaces,
       scratchDir: join(deps.home, "scratch", spec.bot.id),
+      agentHome: deps.home,
       isSensitive: sensitiveCheck(workspaces, deps.isSensitive),
       conversation: () => spec.currentConversation?.(),
       postFile: deps.postFile,

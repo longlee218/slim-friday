@@ -63,7 +63,7 @@ export const GIT_RUN_ENV: Record<string, string> = {
 
 /** Repo config keys that make git run a program (or pull in another config file): a bot can write the repo config. */
 const COMMAND_KEYS = [
-  /^core\.(hookspath|fsmonitor|sshcommand|pager|editor|askpass|gitproxy|alternaterefscommand)$/,
+  /^core\.(hookspath|fsmonitor|sshcommand|pager|editor|askpass|gitproxy|alternaterefscommand|worktree)$/,
   /^(filter|gpg|credential|include|includeif|protocol|pager|alias|sequence)\./,
   /^merge\..+\.driver$/,
   /^diff\..+\.(command|textconv)$/,

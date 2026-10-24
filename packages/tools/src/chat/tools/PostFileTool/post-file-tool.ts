@@ -1,8 +1,8 @@
 import { lstatSync } from "node:fs";
-import { basename } from "node:path";
+import { basename, isAbsolute, relative, sep } from "node:path";
 import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
-import { checkInsideWorkspace } from "../../../effects/workspace-paths";
+import { checkInsideWorkspace, resolveReal } from "../../../effects/workspace-paths";
 import { textResult } from "../../../tool-result";
 import type { ChatContext } from "../../chat-context";
 import { POST_FILE_MAX_BYTES, POST_FILE_TOOL } from "./constants";
@@ -13,6 +13,16 @@ const SHAPE = {
   path: z.string().min(1).describe("Absolute path of the file."),
   caption: z.string().max(500).optional().describe("Short text sent with the file."),
 };
+
+/** True when `real` is `root` or under it (`root` is resolved first; an unresolvable root contains nothing). */
+function inside(root: string, real: string): boolean {
+  try {
+    const r = relative(resolveReal(root), real);
+    return r === "" || (r !== ".." && !r.startsWith(`..${sep}`) && !isAbsolute(r));
+  } catch {
+    return false;
+  }
+}
 
 /** `PostFile` for one session: only a regular file strictly inside the bot's workspaces or scratch dir goes out. */
 export function createPostFileTool(ctx: ChatContext) {
@@ -27,6 +37,9 @@ export function createPostFileTool(ctx: ChatContext) {
       // Same checks as the effect tools: absolute, not a link, strictly inside a root, no git dir, not secret.
       const c = checkInsideWorkspace(path, [...ctx.workspaces, ctx.scratchDir], ctx.isSensitive);
       if (typeof c === "string") return textResult(`Refused: ${c}`, true);
+      // A workspace may contain the agent home (config, memory, other bots' files): only the bot's own scratch dir is open.
+      if (inside(ctx.agentHome, c.real) && !inside(ctx.scratchDir, c.real))
+        return textResult(`Refused: inside the agent home: ${path}`, true);
       let size: number;
       try {
         const st = lstatSync(c.real);

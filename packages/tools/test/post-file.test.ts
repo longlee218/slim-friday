@@ -13,14 +13,14 @@ const call = (t: { handler: (a: never, e: unknown) => Promise<unknown> }, args: 
 const VCS_DIR = ".git";
 
 /** A home with the bot's scratch dir and one workspace; `posts` records what the surface was asked to send. */
-function setup(current: string | null = "c1") {
+function setup(current: string | null = "c1", wsIsBase = false) {
   const base = realpathSync(mkdtempSync(join(tmpdir(), "pf-")));
   const home = join(base, "home");
   const scratch = join(home, "scratch", "ann");
-  const ws = join(base, "ws");
+  const ws = wsIsBase ? base : join(base, "ws");
   mkdirSync(scratch, { recursive: true });
   mkdirSync(join(home, "config"), { recursive: true });
-  mkdirSync(ws);
+  mkdirSync(ws, { recursive: true });
   const posts: {
     conversationId: string;
     botId: string;
@@ -31,6 +31,7 @@ function setup(current: string | null = "c1") {
     botId: "ann",
     workspaces: [ws],
     scratchDir: scratch,
+    agentHome: home,
     isSensitive: (real) => basename(real).startsWith(".env"),
     conversation: () => current ?? undefined,
     postFile: async (conversationId, botId, file, caption) => {
@@ -99,4 +100,22 @@ test("a call between turns is refused", async () => {
   const r = await call(tool, { path: join(scratch, "a.txt") });
   expect(r.isError).toBe(true);
   expect(posts).toEqual([]);
+});
+
+test("a workspace that contains the agent home does not open it: only the bot's own scratch dir inside the home is sent", async () => {
+  const { home, scratch, posts, tool } = setup("c1", true);
+  mkdirSync(join(home, "data"), { recursive: true });
+  writeFileSync(join(home, "data", "engine.db"), "db");
+  writeFileSync(join(home, "config", "bots.md"), "x");
+  mkdirSync(join(home, "scratch", "bob"), { recursive: true });
+  writeFileSync(join(home, "scratch", "bob", "o.txt"), "o");
+  writeFileSync(join(scratch, "mine.txt"), "m");
+  for (const path of [
+    join(home, "data", "engine.db"),
+    join(home, "config", "bots.md"),
+    join(home, "scratch", "bob", "o.txt"),
+  ])
+    expect((await call(tool, { path })).isError).toBe(true);
+  expect((await call(tool, { path: join(scratch, "mine.txt") })).isError).toBeUndefined();
+  expect(posts).toHaveLength(1);
 });
