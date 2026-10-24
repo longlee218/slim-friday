@@ -1,8 +1,8 @@
 # Codebase Summary
 
-Last updated: 2026-10-24 (after plan 6). Design: [2026-10-23-friday-team-engine-design.md](superpowers/specs/2026-10-23-friday-team-engine-design.md).
+Last updated: 2026-10-24 (after plan 7). Design: [2026-10-23-friday-team-engine-design.md](superpowers/specs/2026-10-23-friday-team-engine-design.md).
 
-Friday is a self-hosted personal agent on the Claude Agent SDK (Bun + TypeScript + SQLite/Drizzle). The engine is rebuilt in packages; `src/` keeps the boot and the leftovers plan 7 removes.
+Friday is a self-hosted personal agent on the Claude Agent SDK (Bun + TypeScript + SQLite/Drizzle). The engine lives in packages; `src/` keeps only the boot.
 
 | Folder | Holds |
 |---|---|
@@ -11,19 +11,10 @@ Friday is a self-hosted personal agent on the Claude Agent SDK (Bun + TypeScript
 | `packages/store-sqlite/` | engine db (conversations, messages, grants, sessions, spend, audit) on Drizzle with its own migrations |
 | `packages/config/` | file config: bots, groups, settings, tool annotations; schemas, merge with defaults, live reload; `defaults/` (incl. the Friday bot) and `templates/` (three groups) |
 | `packages/surface-discord/` | `Surface` on Discord: `DiscordPort` + discord.js adapter, channel sync by topic, webhooks, approval buttons, owner commands (tests with a fake port) |
-| `packages/tools/` | built-in tools as per-session MCP servers: file memory (`FileMemory`), journal, search, memory tools; effect tools (`DeletePaths` + trash, `GitPush`, `CreatePullRequest`, `MergeBranch`, `CreateProject`) |
+| `packages/tools/` | built-in tools as per-session MCP servers: file memory (`FileMemory`), journal, search, memory tools; effect tools (`DeletePaths` + trash, `GitPush`, `CreatePullRequest`, `MergeBranch`, `CreateProject`); `chat` server (`PostFile`) |
 | `apps/friday/` | composition root: `startApp` (config, db, memory, surface, gate, hub, channel sync, reload, journal prune, `/purge`), `startEngine` (Discord + Claude runtime with MCP servers and the memory flush), `sessionTools`, Friday bot dirs |
-| `src/index.ts`, `src/lifecycle/` | boot, startup hygiene, trash and home-retention sweepers |
-| `src/config/` | env and file config, limits (the only place that reads env) |
-| `src/runtime/` | run agent, SDK options, run protection, supervisor, compaction hooks (sandbox, env builder, sensitive files moved to `packages/runtime-claude/src/floor/`; thin re-exports stay) |
-| `src/policy/` | tool guard, risk classes, approval envelope |
-| `src/effects/` | effect log, trash, delete / push / PR / merge effects, `reply` type |
-| `src/mcp/` | MCP servers: `memory`, `effects`, `playwright`, `firecrawl`; manifests and tool names |
-| `src/memory/` | `MEMORY.md` layers, save / edit notes, index and search, compaction flush, persona files |
-| `src/presets/`, `config/presets/` | roles as files (`preset.yaml` + `prompt.md`) and the loader |
-| `src/roles/`, `src/tools/` | role registry and the tool catalog |
-| `src/storage/` | the only place with SQL (db, migrations, stores) |
-| `src/locations/`, `src/workspaces/` | location registry, rules injection, project creation |
-| `src/owner-approval/`, `src/i18n/`, `src/observability/`, `src/text/` | approval prompts, catalogs, pino logger, text helpers |
+| `src/index.ts`, `src/lifecycle/` | process entry, boot checks, trash and home-retention sweepers |
+| `src/config/`, `src/observability/` | env and home paths (the only place that reads env besides `apps/friday`), pino logger |
+| `docs/ports/` | one page per port: interface, fake, steps to add an adapter |
 
-Tests are in `test/`. Layering is enforced by scan tests (`mcp-layering`, `no-sql-in-orchestrator`, `no-process-env-outside-config`, `retired-naming-scan`).
+Root tests are in `test/` (boot, startup, scan tests); each package has its own `test/`. Scan tests: package boundaries, `no-console`, `no-process-env-outside-config`, `no-sql-outside-storage`, `child-env-deny`, `retired-naming-scan`, `publish-scan`.

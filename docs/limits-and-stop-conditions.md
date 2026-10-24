@@ -1,6 +1,6 @@
 # Limits and Stop Conditions
 
-> **Status (2026-10-24, after plan 1):** the old goal / item / plan engine this page describes was removed; the rows and rules below that mention it are historical until plans 2-6 rewrite them. Kept and current: sandbox, policy guard, effect tools, memory, presets.
+> **Status (2026-10-24, after plan 7):** historical. The old goal / item / plan engine, its limits code and `test/limits-doc-drift.test.ts` are gone, so nothing below is checked against code. Current limits live in code: `packages/core/src/config-defaults.ts` (hub caps), `settings.yaml` (limits over the defaults), `packages/tools` (tool caps) and `packages/surface-discord/src/download-attachments.ts` (file caps).
 
 Single source of every limit and stop condition of the app. Other docs link here and do not repeat numbers.
 
