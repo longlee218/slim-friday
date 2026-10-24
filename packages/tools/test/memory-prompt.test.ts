@@ -48,3 +48,11 @@ test("the result never exceeds maxChars", () => {
     expect(memoryForPrompt(file, cap).text.length).toBeLessThanOrEqual(cap);
   }
 });
+
+test("kinds keep only those sections, also under the cap", () => {
+  const r = memoryForPrompt(file, 10_000, ["preference", "lesson"]);
+  expect(r.text).toBe(
+    "## Preferences\n- short answers (2026-05-01)\n## Lessons\n- run tests first (2026-08-01)",
+  );
+  expect(r.hidden).toBe(0);
+});

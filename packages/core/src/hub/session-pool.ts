@@ -8,6 +8,7 @@ import type { AgentRuntime, BotRuntimeSpec, BotSession } from "../ports/agent-ru
 import type { Clock } from "../ports/clock";
 import type { Log } from "../ports/log";
 import type { Memory } from "../ports/memory";
+import { GROUP_SESSION_KINDS } from "../ports/memory";
 import type { Store } from "../ports/store";
 import { promptMemory } from "./group-memory";
 import type { SessionScope } from "./session-scope";
@@ -176,6 +177,8 @@ export class SessionPool {
       { kind: "bot", botId: bot.id },
       this.memoryOpts.memoryPromptChars,
       this.memoryOpts.log,
+      // A group session gets only the bot's rules and lessons: its facts may come from the owner's direct chat.
+      scope.groupId ? GROUP_SESSION_KINDS : undefined,
     );
     if (memory?.trim()) spec.memory = memory;
     const stored = await this.store.sessions.get(scope.key);

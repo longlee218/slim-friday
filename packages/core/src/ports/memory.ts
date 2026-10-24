@@ -11,6 +11,12 @@ export interface PromotedNote {
   replaces?: number;
 }
 
+/**
+ * Kinds of a bot's own notes a group session is given (prompt, recall, memory tools): the owner's rules and the
+ * lessons apply everywhere; facts and decisions may come from the owner's direct chat and stay out of groups.
+ */
+export const GROUP_SESSION_KINDS: readonly PromotedNote["kind"][] = ["preference", "lesson"];
+
 /** Most memory notes one consolidation run may replace; further `replaces` are added as new notes. */
 export const MAX_REPLACED_PER_RUN = 3;
 
@@ -28,11 +34,12 @@ export interface Memory {
   read(owner: MemoryOwner): Promise<string>;
   /**
    * The owner's notes cut to `maxChars` for a prompt; `hidden` = notes left out, `chars` = size of the whole text.
-   * Adapters without it fall back to `read`.
+   * `kinds` keeps only notes of those kinds. Adapters without it fall back to `read` (and give nothing for `kinds`).
    */
   readForPrompt?(
     owner: MemoryOwner,
     maxChars: number,
+    kinds?: readonly string[],
   ): Promise<{ text: string; hidden: number; chars: number }>;
   /** Add one note; `kind` is the adapter's note kind (for example "fact"), default chosen by the adapter. */
   save(owner: MemoryOwner, note: string, kind?: string): Promise<void>;

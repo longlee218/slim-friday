@@ -108,7 +108,7 @@ test("a background task started in another conversation cannot use group scope w
   expect(own).toEqual({ behavior: "allow" });
 });
 
-test("a group turn carries a recalled block searched for the bot and the group", async () => {
+test("a group turn recalls only the group's notes; a direct turn recalls the bot's", async () => {
   const { memory } = fakeMemory();
   const asked: string[] = [];
   const recall: MemorySearcher = {
@@ -122,10 +122,43 @@ test("a group turn carries a recalled block searched for the bot and the group",
   const { runtime, surface } = makeHub(memory, { recall });
   surface.deliver({ conversationId: "gc", text: "what did we decide" });
   await flush();
-  expect(asked).toEqual(["bot:writer", "group:g"]);
-  expect(runtime.nth(0).sent[0]?.recalled).toContain(
-    "- [2026-10-20] from bot\n- [2026-10-20] from group",
-  );
+  expect(asked).toEqual(["group:g"]);
+  expect(runtime.nth(0).sent[0]?.recalled).toContain("- [2026-10-20] from group");
+  expect(runtime.nth(0).sent[0]?.recalled).not.toContain("from bot");
+  surface.deliver({ conversationId: "dc", text: "what did we decide" });
+  await flush();
+  expect(asked.slice(1)).toEqual(["bot:editor"]);
+});
+
+test("a group session gets only the preferences and lessons of the bot's memory; a direct one gets all", async () => {
+  const kindsAsked: (string | undefined)[] = [];
+  const memory: Memory = {
+    read: async () => "whole",
+    readForPrompt: async (_o, _max, kinds) => {
+      kindsAsked.push(kinds?.join(","));
+      return { text: `memory for ${kinds?.join(",") ?? "all"}`, hidden: 0, chars: 5 };
+    },
+    save: async () => {},
+    edit: async () => {},
+  };
+  const { runtime, surface } = makeHub(memory);
+  surface.deliver({ conversationId: "dc", text: "hi" });
+  await flush();
+  surface.deliver({ conversationId: "gc", text: "@editor hi" });
+  await flush();
+  const direct = runtime.all().find((s) => !s.spec.groupId);
+  const group = runtime.all().find((s) => s.spec.groupId === "g");
+  expect(direct?.spec.memory).toBe("memory for all");
+  expect(group?.spec.memory).toBe("memory for preference,lesson");
+});
+
+test("without readForPrompt a group session gets none of the bot's memory", async () => {
+  const { memory, texts } = fakeMemory();
+  texts.set("bot:writer", "## Facts\n- private fact");
+  const { runtime, surface } = makeHub(memory);
+  surface.deliver({ conversationId: "gc", text: "hi" });
+  await flush();
+  expect(runtime.nth(0).spec.memory).toBeUndefined();
 });
 
 /** A memory whose readForPrompt cuts to the cap and reports the file size. */

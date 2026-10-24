@@ -87,8 +87,12 @@ export class FileMemory implements Memory {
   }
 
   /** The owner's notes cut to `maxChars` for a prompt (see `memoryForPrompt`); the file is not changed. */
-  async readForPrompt(owner: MemoryOwner, maxChars: number) {
-    return memoryForPrompt(await this.read(owner), maxChars);
+  async readForPrompt(owner: MemoryOwner, maxChars: number, kinds?: readonly string[]) {
+    return memoryForPrompt(
+      await this.read(owner),
+      maxChars,
+      kinds?.filter((k): k is MemoryKind => MEMORY_FILE_KINDS.includes(k as MemoryKind)),
+    );
   }
 
   async save(owner: MemoryOwner, note: string, kind = "fact"): Promise<void> {

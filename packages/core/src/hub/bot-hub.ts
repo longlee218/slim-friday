@@ -9,6 +9,7 @@ import type { AgentRuntime } from "../ports/agent-runtime";
 import type { Clock } from "../ports/clock";
 import type { Log } from "../ports/log";
 import type { Memory, MemoryOwner } from "../ports/memory";
+import { GROUP_SESSION_KINDS } from "../ports/memory";
 import type { MemorySearcher } from "../ports/memory-recall";
 import type { BotMessenger, SendRequest, SendResult } from "../ports/messenger";
 import type { Store } from "../ports/store";
@@ -450,15 +451,19 @@ export class BotHub implements BotMessenger {
       { kind: "bot", botId: entry.bot.id },
       this.limits.memoryPromptChars,
       this.deps.log,
+      entry.groupId ? GROUP_SESSION_KINDS : undefined,
     );
     if (!text.trim() || text === entry.memoryShown) return undefined;
     entry.memoryShown = text;
     return text;
   }
 
-  /** Recalled notes for a turn: the bot's, then its group's on a group turn; memory already shown is skipped. */
+  /**
+   * Recalled notes for a turn: the bot's in a direct session, the group's on a group turn; memory already shown is
+   * skipped. A group session recalls none of the bot's own notes (its rules are in the prompt already).
+   */
   private recalledFor(entry: PoolEntry, conv: Conversation | undefined, text: string) {
-    const owners: MemoryOwner[] = [{ kind: "bot", botId: entry.bot.id }];
+    const owners: MemoryOwner[] = entry.groupId ? [] : [{ kind: "bot", botId: entry.bot.id }];
     let shown = entry.memoryShown;
     if (conv?.kind === "group") {
       owners.push({ kind: "group", groupId: conv.groupId });

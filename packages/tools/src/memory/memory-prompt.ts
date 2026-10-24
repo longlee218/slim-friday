@@ -27,20 +27,23 @@ const tailLine = (hidden: number): string =>
  * A MEMORY.md text cut to `maxChars` for a prompt; nothing in the file changes. Under the cap the text comes back
  * whole. Over it: sections Preferences, Decisions, Lessons, Facts, newest note first in each (by date stamp, later
  * line on a tie), until the next note would not fit; then the tail line with the hidden count. Text outside the
- * kind sections is left out. `chars` = size of the whole file.
+ * kind sections is left out. `chars` = size of the whole file. With `kinds`, only those sections are given, under
+ * the cap too (`hidden` counts only notes of those kinds, and no tail line when none is hidden).
  */
 export function memoryForPrompt(
   text: string,
   maxChars: number,
+  kinds?: readonly MemoryKind[],
 ): { text: string; hidden: number; chars: number } {
-  if (text.length <= maxChars) return { text, hidden: 0, chars: text.length };
-  const bullets = bulletsOf(text);
+  if (!kinds && text.length <= maxChars) return { text, hidden: 0, chars: text.length };
+  const order = kinds ? PROMPT_ORDER.filter((k) => kinds.includes(k)) : PROMPT_ORDER;
+  const bullets = bulletsOf(text).filter((b) => order.includes(b.kind));
   const parts: string[] = [];
   let used = 0;
   let shown = 0;
   // Room for the tail line, whatever the hidden count.
   const budget = maxChars - tailLine(bullets.length).length - 1;
-  outer: for (const kind of PROMPT_ORDER) {
+  outer: for (const kind of order) {
     const notes = bullets
       .filter((b) => b.kind === kind)
       .sort(
@@ -59,6 +62,8 @@ export function memoryForPrompt(
       shown++;
     }
   }
+  if (kinds && shown === bullets.length)
+    return { text: parts.join("\n"), hidden: 0, chars: text.length };
   const tail = tailLine(bullets.length - shown);
   const out = parts.length ? `${parts.join("\n")}\n${tail}` : tail;
   return { text: out.slice(0, maxChars), hidden: bullets.length - shown, chars: text.length };
