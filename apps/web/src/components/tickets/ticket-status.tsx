@@ -26,6 +26,9 @@ const PRIORITY: Record<TicketPriority, { tone: "red" | "amber" | "blue" | "gray"
 /** Display name of a status. */
 export const statusName = (s: TicketStatus): string => STATUS[s].name;
 
+/** Display name of a priority. */
+export const priorityName = (p: TicketPriority): string => PRIORITY[p].name;
+
 /** Small coloured dot of a status. */
 export function StatusDot({ status }: { status: TicketStatus }) {
   return <span className="sdot" style={{ background: STATUS[status].color }} />;

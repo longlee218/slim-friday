@@ -45,3 +45,12 @@ export function toggleTask(md: string, index: number): string {
   });
   return lines.join("\n");
 }
+
+/** Task number of the real task item on source line `line` (0-based), or -1 when that line is none. */
+export function taskIndexAtLine(md: string, line: number): number {
+  let found = -1;
+  eachTask(md.split("\n"), (i, n) => {
+    if (i === line) found = n;
+  });
+  return found;
+}
