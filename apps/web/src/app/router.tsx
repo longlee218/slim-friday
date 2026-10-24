@@ -35,5 +35,5 @@ export const createAppRouter = () => createBrowserRouter(appRoutes);
 
 /** An UNAUTHORIZED rpc reply sends the owner to the sign-in screen. */
 export function wireUnauthorized(router: { navigate: (to: string) => unknown }): void {
-  setUnauthorizedHandler(() => router.navigate("/login"));
+  setUnauthorizedHandler(() => router.navigate("/login?expired=1"));
 }

@@ -85,6 +85,14 @@ test("/login while signed in goes to /; a failed session check stays on /login",
   expect(offline.state.location.pathname).toBe("/login");
 });
 
+test("/login?expired=1 stays on the sign-in screen even if the session still reads valid", async () => {
+  mocks.getSession.mockResolvedValue({ data: { user: { id: "u" } } });
+  const router = createMemoryRouter(appRoutes, { initialEntries: ["/login?expired=1"] });
+  renderApp(router);
+  expect(await screen.findByText("Sign in to Friday")).toBeTruthy();
+  expect(router.state.location.pathname).toBe("/login");
+});
+
 test("every contract path is routed (placeholder pages)", async () => {
   mocks.getSession.mockResolvedValue({ data: { user: { id: "u" } } });
   for (const [path, title] of [
@@ -110,6 +118,7 @@ test("unauthorized rpc sends the owner to /login", async () => {
   mocks.getSession.mockResolvedValue({ data: null });
   handleUnauthorized(new ORPCError("UNAUTHORIZED"));
   await vi.waitFor(() => expect(router.state.location.pathname).toBe("/login"));
+  expect(router.state.location.search).toBe("?expired=1");
 });
 
 test("an unreachable API shows Can't reach Friday and Retry loads the route", async () => {

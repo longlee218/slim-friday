@@ -53,7 +53,7 @@ export function Sidebar({ onPalette }: { onPalette: () => void }) {
   const pending = (id: string) => approvals.filter((a) => a.conversationId === id).length;
 
   return (
-    <aside className="sidebar">
+    <>
       <div className="sb-top">
         <span className="brand">
           <Avatar name="Friday" size={22} />
@@ -143,6 +143,6 @@ export function Sidebar({ onPalette }: { onPalette: () => void }) {
           <Fingerprint size={16} strokeWidth={1.75} />
         </a>
       </div>
-    </aside>
+    </>
   );
 }

@@ -118,3 +118,24 @@ test("a drag that starts away from the edge does nothing", () => {
   const top = [...root.querySelectorAll<HTMLElement>(".ios-view")].at(-1) as HTMLElement;
   expect(top.style.transform).toBe("");
 });
+
+test("a vertical-first move cancels the swipe", () => {
+  renderPhone(phoneClient(), "/c/bot:dev");
+  const root = document.querySelector(".ios") as HTMLElement;
+  fireEvent.pointerDown(root, { clientX: 10, clientY: 300, pointerId: 1 });
+  fireEvent.pointerMove(root, { clientX: 14, clientY: 330, pointerId: 1 });
+  fireEvent.pointerMove(root, { clientX: 300, clientY: 332, pointerId: 1 });
+  const top = [...root.querySelectorAll<HTMLElement>(".ios-view")].at(-1) as HTMLElement;
+  expect(top.style.transform).toBe("");
+  expect(top.className).not.toContain("dragging");
+});
+
+test("a pointercancel past a third still pops; a short one only settles", () => {
+  const { router } = renderPhone(phoneClient(), "/c/bot:dev");
+  const root = drag(10, 50);
+  fireEvent.pointerCancel(root, { pointerId: 1 });
+  expect(router.state.location.pathname).toBe("/c/bot:dev");
+  drag(10, 220);
+  fireEvent.pointerCancel(root, { pointerId: 1 });
+  expect(router.state.location.pathname).toBe("/");
+});

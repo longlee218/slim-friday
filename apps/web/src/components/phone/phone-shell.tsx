@@ -71,6 +71,7 @@ export function useBackLabel(): string | undefined {
 export const useViewIndex = (): number => useContext(ViewContext);
 
 /** Renders the route that matches `path` (not the browser location), so under views keep their screen. */
+// useRoutes under the pathless layout logs a dev-only "no trailing *" warning; harmless.
 function Screen({ routes, path }: { routes: RouteObject[]; path: string }) {
   return useRoutes(routes, path);
 }

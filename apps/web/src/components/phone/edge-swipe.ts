@@ -4,6 +4,8 @@ import { type RefObject, useEffect, useRef } from "react";
 const EDGE_PX = 24;
 /** Fraction of the width the finger must travel for the release to pop. */
 const POP_FRACTION = 0.33;
+/** A move this far up or down before sideways cancels the swipe. */
+const VERTICAL_PX = 8;
 /** How far the view underneath sits left of its place at rest (percent of the width). */
 const UNDER_SHIFT = 28;
 
@@ -16,7 +18,8 @@ export const edgeSwipePop = (dx: number, width: number): boolean => dx > width *
 /**
  * iOS edge swipe back on the `.ios` root: the pushed view follows the finger while the one under
  * it slides from -28% to 0, with no transition (`.dragging`, also under Reduce Motion). A release
- * past a third of the width calls `onPop`; a shorter one lets CSS settle both views back.
+ * past a third of the width calls `onPop` (a cancelled pointer counts as a release); a shorter
+ * one lets CSS settle both views back. A vertical-first move cancels the gesture (it is a scroll).
  */
 export function useEdgeSwipe(
   root: RefObject<HTMLElement | null>,
@@ -31,14 +34,23 @@ export function useEdgeSwipe(
     if (!el || !enabled) return;
     let x0: number | null = null;
     let dx = 0;
+    let y0 = 0;
     let views: HTMLElement[] = [];
 
-    const settle = () => {
-      for (const v of views) {
-        v.style.transform = "";
-        v.classList.remove("dragging");
-      }
+    /**
+     * Ends the drag. Not popping: clear the inline transform so CSS animates the views back.
+     * Popping: keep the dragged position until the `.leave` class is on (next frame), so the
+     * top view slides out from where the finger left it instead of jumping back first.
+     */
+    const settle = (popping: boolean) => {
+      const done = views;
       views = [];
+      for (const v of done) v.classList.remove("dragging");
+      const clear = () => {
+        for (const v of done) v.style.transform = "";
+      };
+      if (popping) requestAnimationFrame(clear);
+      else clear();
     };
     const down = (e: PointerEvent) => {
       if (!edgeSwipeStart(e.clientX)) return;
@@ -48,12 +60,21 @@ export function useEdgeSwipe(
       if (all.length < 2) return;
       views = all.slice(-2);
       x0 = e.clientX;
+      y0 = e.clientY;
       dx = 0;
     };
     const move = (e: PointerEvent) => {
       if (x0 === null) return;
       const width = el.clientWidth || window.innerWidth;
-      dx = Math.max(0, e.clientX - x0);
+      const rawDx = e.clientX - x0;
+      const dy = Math.abs(e.clientY - y0);
+      // Vertical first: it is a scroll, not a back swipe.
+      if (dx === 0 && dy > Math.abs(rawDx) && dy > VERTICAL_PX) {
+        x0 = null;
+        settle(false);
+        return;
+      }
+      dx = Math.max(0, rawDx);
       const [under, top] = views;
       top.classList.add("dragging");
       under.classList.add("dragging");
@@ -64,7 +85,7 @@ export function useEdgeSwipe(
       if (x0 === null) return;
       const pops = edgeSwipePop(dx, el.clientWidth || window.innerWidth);
       x0 = null;
-      settle();
+      settle(pops);
       if (pops) pop.current();
     };
     el.addEventListener("pointerdown", down);
@@ -76,7 +97,7 @@ export function useEdgeSwipe(
       el.removeEventListener("pointermove", move);
       el.removeEventListener("pointerup", up);
       el.removeEventListener("pointercancel", up);
-      settle();
+      settle(false);
     };
   }, [root, enabled]);
 }

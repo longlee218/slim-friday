@@ -1,4 +1,4 @@
-import { Navigate, type RouteObject } from "react-router";
+import { Link, Navigate, type RouteObject } from "react-router";
 import { ChatView } from "../components/chat/chat-view";
 import { ChatsList } from "../components/phone/chats-list";
 import { PhoneChat } from "../components/phone/phone-chat";
@@ -26,6 +26,18 @@ function Placeholder({ title }: { title: string }) {
   return useIsPhone() ? <PhonePlaceholder title={title} /> : <RoutePlaceholder title={title} />;
 }
 
+/** Any other path: a small not-found page (not the session error). */
+function NotFound() {
+  return (
+    <div className="empty" style={{ position: "relative", height: "100%" }}>
+      <h3>Nothing here.</h3>
+      <Link to="/" className="linkbtn">
+        Go to Chats
+      </Link>
+    </div>
+  );
+}
+
 /**
  * Routes of the signed-in app. `ResponsiveRoot` renders them in its outlet on desktop and
  * through `PhoneShell` (one per stack entry) on the phone. Each has its own error element, so
@@ -38,4 +50,5 @@ export const protectedChildren: RouteObject[] = [
   { path: "/tickets/:ref", element: <Placeholder title="Ticket" /> },
   { path: "/ops", element: <Placeholder title="Ops" /> },
   { path: "/settings/*", element: <Placeholder title="Settings" /> },
+  { path: "*", element: <NotFound /> },
 ].map((r) => ({ ...r, errorElement: <RouteError /> }));

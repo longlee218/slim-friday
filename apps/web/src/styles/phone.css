@@ -77,3 +77,6 @@
 /* Rows are links and the live row a button here: neutral their default look. */
 a.crow { color: inherit; text-decoration: none; }
 button.live { border: 0; width: calc(100% - 32px); text-align: left; color: inherit; font: inherit; }
+/* A short swipe release settles back with the sheet ease; pan-y keeps horizontal pointer streams for the edge swipe. */
+.ios-view.pushed:not(.leave) { transition: transform var(--t-mid) var(--ease-sheet); }
+.ios-view { touch-action: pan-y; }

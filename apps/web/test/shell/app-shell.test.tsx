@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import { useEffect } from "react";
 import { createMemoryRouter, RouterProvider, useLocation } from "react-router";
 import { beforeEach, expect, test, vi } from "vitest";
 import { AppShell } from "../../src/components/shell/app-shell";
@@ -18,6 +19,8 @@ function resize(width: number) {
 function Probe({ onPalette }: { onPalette?: () => void }) {
   useShortcuts({ onPalette });
   const { pathname } = useLocation();
+  // ResponsiveRoot owns this in the app.
+  useEffect(() => navHistory.sync(pathname), [pathname]);
   return (
     <>
       <Toolbar title="Dev" />

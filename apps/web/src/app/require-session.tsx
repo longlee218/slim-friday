@@ -14,7 +14,9 @@ export async function requireSession(): Promise<null> {
  * Route loader of `/login`: a signed-in owner goes to `/`. A failed session check (API
  * unreachable) stays on the sign-in screen, which then fails on its own call.
  */
-export async function redirectIfSignedIn(): Promise<null> {
+export async function redirectIfSignedIn({ request }: { request: Request }): Promise<null> {
+  // `?expired=1` means the server just refused the session: stay, or the two redirects would loop.
+  if (new URL(request.url).searchParams.has("expired")) return null;
   try {
     const { data } = await authClient.getSession();
     if (data) throw redirect("/");

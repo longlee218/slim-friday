@@ -1,8 +1,9 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { matchPath, Outlet, useLocation } from "react-router";
 import { PhoneShell } from "../components/phone/phone-shell";
 import { AppShell } from "../components/shell/app-shell";
 import { Inspector } from "../components/shell/inspector";
+import { navHistory } from "../components/shell/nav-history";
 import { useNotifier } from "../components/shell/notification-toast";
 import { Sidebar } from "../components/shell/sidebar";
 import { useTabTitle } from "../components/shell/tab-title";
@@ -11,6 +12,9 @@ import { useEventStream } from "../events/use-event-stream";
 import { protectedChildren } from "./protected-routes";
 import { ConnectionContext, PaletteContext } from "./shell-context";
 import { useIsPhone } from "./use-is-phone";
+
+/** Notify callback of the phone: nothing. */
+const NO_NOTIFY = () => {};
 
 /** Keyboard shortcuts need the panels of `AppShell`, so they mount inside its main pane. */
 function Shortcuts({ onPalette }: { onPalette: () => void }) {
@@ -28,8 +32,14 @@ export function ResponsiveRoot() {
   const phone = useIsPhone();
   const { pathname } = useLocation();
   const chatId = matchPath("/c/:conversationId", pathname)?.params.conversationId ?? null;
+  // Keep the window-style history (back/forward, last chat) aligned with the URL on both layouts.
+  useEffect(() => navHistory.sync(pathname), [pathname]);
   const notify = useNotifier();
-  const connection = useEventStream({ activeConversationId: chatId, notify });
+  // Toasts are desktop only; the phone shows badges. The stream reads notify through a ref.
+  const connection = useEventStream({
+    activeConversationId: chatId,
+    notify: phone ? NO_NOTIFY : notify,
+  });
   useTabTitle();
   const [_paletteOpen, setPaletteOpen] = useState(false);
   const openPalette = useCallback(() => setPaletteOpen(true), []);

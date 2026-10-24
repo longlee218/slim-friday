@@ -6,12 +6,17 @@ import { beforeEach, expect, test, vi } from "vitest";
 
 // The real hook with a counting subscribe seam that never ends, so mounts are observable.
 const subscribe = vi.hoisted(() => vi.fn());
+const seen = vi.hoisted(() => ({ notify: undefined as undefined | ((n: unknown) => void) }));
+const toasts = vi.hoisted(() => ({ custom: vi.fn(), dismiss: vi.fn() }));
+vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), toasts), Toaster: () => null }));
 vi.mock("../../src/events/use-event-stream", async (orig) => {
   const real = await orig<typeof import("../../src/events/use-event-stream")>();
   return {
     ...real,
-    useEventStream: (o: Parameters<typeof real.useEventStream>[0]) =>
-      real.useEventStream({ ...o, subscribe: subscribe as never }),
+    useEventStream: (o: Parameters<typeof real.useEventStream>[0]) => {
+      seen.notify = o.notify as never;
+      return real.useEventStream({ ...o, subscribe: subscribe as never });
+    },
   };
 });
 
@@ -55,6 +60,7 @@ beforeEach(() => {
   window.innerWidth = 1200;
   navHistory.reset("/c/bot:dev");
   subscribe.mockReset();
+  toasts.custom.mockReset();
   subscribe.mockImplementation(async (_i: unknown, o?: { signal?: AbortSignal }) =>
     hang(o?.signal),
   );
@@ -122,4 +128,33 @@ test("a render bug in a desktop screen says Something went wrong, not Can't reac
   );
   expect(await screen.findByText("Something went wrong.")).toBeTruthy();
   expect(screen.queryByText("Can't reach Friday.")).toBeNull();
+});
+
+const note = { conversationId: "bot:pia", botId: "pia", title: "Pia", text: "hi" };
+
+test("desktop toasts a notification; the phone does not", () => {
+  renderRoot("/c/bot:dev");
+  seen.notify?.(note);
+  expect(toasts.custom).toHaveBeenCalledTimes(1);
+  toasts.custom.mockReset();
+  resize(390);
+  seen.notify?.(note);
+  expect(toasts.custom).not.toHaveBeenCalled();
+});
+
+test("exactly one .sidebar on desktop", () => {
+  renderRoot("/c/bot:dev");
+  expect(document.querySelectorAll(".sidebar")).toHaveLength(1);
+});
+
+test("an unknown path shows Nothing here with a link to Chats", () => {
+  renderRoot("/foo");
+  expect(screen.getByText("Nothing here.")).toBeTruthy();
+  expect(screen.getByRole("link", { name: "Go to Chats" }).getAttribute("href")).toBe("/");
+});
+
+test("the phone follows navigation into the last chat memory", () => {
+  window.innerWidth = 390;
+  renderRoot("/c/bot:pia");
+  expect(navHistory.lastChat).toBe("/c/bot:pia");
 });
