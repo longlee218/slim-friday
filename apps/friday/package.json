@@ -11,6 +11,7 @@
     "@friday/core": "workspace:*",
     "@friday/memory-honcho": "workspace:*",
     "@friday/runtime-claude": "workspace:*",
+    "@friday/store-r2": "workspace:*",
     "@friday/store-sqlite": "workspace:*",
     "@friday/surface-discord": "workspace:*",
     "@friday/tools": "workspace:*",

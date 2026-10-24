@@ -23,6 +23,7 @@
         "@friday/core": "workspace:*",
         "@friday/memory-honcho": "workspace:*",
         "@friday/runtime-claude": "workspace:*",
+        "@friday/store-r2": "workspace:*",
         "@friday/store-sqlite": "workspace:*",
         "@friday/surface-discord": "workspace:*",
         "@friday/tools": "workspace:*",
@@ -81,6 +82,13 @@
         "@anthropic-ai/claude-agent-sdk": "0.3.295",
         "@friday/core": "workspace:*",
         "zod": "^4.6.5",
+      },
+    },
+    "packages/store-r2": {
+      "name": "@friday/store-r2",
+      "version": "0.1.0",
+      "dependencies": {
+        "@friday/core": "workspace:*",
       },
     },
     "packages/store-sqlite": {
@@ -258,6 +266,8 @@
     "@friday/memory-honcho": ["@friday/memory-honcho@workspace:packages/memory-honcho"],
 
     "@friday/runtime-claude": ["@friday/runtime-claude@workspace:packages/runtime-claude"],
+
+    "@friday/store-r2": ["@friday/store-r2@workspace:packages/store-r2"],
 
     "@friday/store-sqlite": ["@friday/store-sqlite@workspace:packages/store-sqlite"],
 
