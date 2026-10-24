@@ -81,7 +81,7 @@ test("memoryFlush writes the journal and the notes are searchable", async () => 
   await memoryFlush(
     join(home, "memory"),
     async () => ["owner likes jasmine tea"],
-    { error() {} },
+    { error() {}, warn() {} },
     parts.memoryChanged,
   )(spec, "summary");
   expect((await parts.recall.search(ann, "jasmine")).map((h) => h.where)).toHaveLength(1);

@@ -4,7 +4,7 @@ import type { MemoryOwner } from "@friday/core";
 import { localDay, ownerDir } from "./file-memory";
 import { withMemoryLock, writeAtomic } from "./memory-file-lock";
 import { normalizeBullet } from "./memory-sections";
-import { sanitizeBullet } from "./sanitize-bullet";
+import { MEMORY_NOTE_MAX_CHARS, sanitizeBullet } from "./sanitize-bullet";
 
 /** A day file is refused at this many lines (runaway guard; never trimmed). */
 export const JOURNAL_MAX_LINES = 300;
@@ -17,9 +17,24 @@ const DAY_FILE = /^(\d{4}-\d{2}-\d{2})\.md$/;
 export const journalDir = (root: string, owner: MemoryOwner): string =>
   join(ownerDir(root, owner), "journal");
 
+/** What `appendJournal` did: `full` = the day file already has 300 lines (nothing written); `cut` = notes shortened. */
+export interface JournalAppend {
+  status: "saved" | "empty" | "full";
+  cut: number;
+}
+
+/** A cleaned note within the memory note limit: a longer one is cut at the last word that fits and ends with `…`. */
+function fitNote(note: string): { text: string; cut: boolean } {
+  const text = sanitizeBullet(note, Number.POSITIVE_INFINITY);
+  if (text.length <= MEMORY_NOTE_MAX_CHARS) return { text, cut: false };
+  const head = text.slice(0, MEMORY_NOTE_MAX_CHARS - 1);
+  const space = head.lastIndexOf(" ");
+  return { text: `${(space > 0 ? head.slice(0, space) : head).trimEnd()}…`, cut: true };
+}
+
 /**
  * Append one `## HH:MM <label>` block of notes to the owner's journal for the local day of `now`. Notes are cleaned
- * like memory bullets; empty and repeated ones are dropped. `full` = the day file already has 300 lines (nothing written).
+ * like memory bullets (a long one is cut visibly, see `fitNote`); empty and repeated ones are dropped.
  */
 export function appendJournal(
   root: string,
@@ -27,10 +42,12 @@ export function appendJournal(
   label: string,
   notes: string[],
   now: Date,
-): "saved" | "empty" | "full" {
+): JournalAppend {
   const seen = new Set<string>();
-  const lines = notes
-    .map((n) => sanitizeBullet(n))
+  const fitted = notes.map(fitNote);
+  const cut = fitted.filter((f) => f.cut).length;
+  const lines = fitted
+    .map((f) => f.text)
     .filter((n) => {
       const key = normalizeBullet(n);
       if (!n || seen.has(key)) return false;
@@ -38,7 +55,7 @@ export function appendJournal(
       return true;
     })
     .map((n) => `- ${n}`);
-  if (!lines.length) return "empty";
+  if (!lines.length) return { status: "empty", cut: 0 };
   const day = localDay(now);
   const hhmm = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
   const title = sanitizeBullet(label, LABEL_CHARS) || "Notes";
@@ -47,10 +64,10 @@ export function appendJournal(
   const file = join(dir, `${day}.md`);
   return withMemoryLock(file, () => {
     const cur = existsSync(file) ? readFileSync(file, "utf8") : `# Journal ${day}\n`;
-    if (cur.split("\n").length > JOURNAL_MAX_LINES) return "full";
+    if (cur.split("\n").length > JOURNAL_MAX_LINES) return { status: "full", cut: 0 };
     const base = cur.endsWith("\n") ? cur : `${cur}\n`;
     writeAtomic(file, `${base}\n## ${hhmm} ${title}\n${lines.join("\n")}\n`);
-    return "saved";
+    return { status: "saved", cut };
   });
 }
 

@@ -10,8 +10,12 @@ const dayFile = (root: string, day: string) => join(root, "bots", "ann", "journa
 
 test("two appends on one day give two blocks in one file", () => {
   const root = mkdtempSync(join(tmpdir(), "jr-"));
-  expect(appendJournal(root, bot, "Flush", ["first"], at("2026-10-24T09:05:00"))).toBe("saved");
-  expect(appendJournal(root, bot, "Flush", ["second"], at("2026-10-24T10:30:00"))).toBe("saved");
+  expect(appendJournal(root, bot, "Flush", ["first"], at("2026-10-24T09:05:00")).status).toBe(
+    "saved",
+  );
+  expect(appendJournal(root, bot, "Flush", ["second"], at("2026-10-24T10:30:00")).status).toBe(
+    "saved",
+  );
   const text = readFileSync(dayFile(root, "2026-10-24"), "utf8");
   expect(text.startsWith("# Journal 2026-10-24\n")).toBe(true);
   expect(text).toContain("## 09:05 Flush\n- first");
@@ -25,8 +29,23 @@ test("notes are cleaned, duplicates in one block dropped, all-empty writes nothi
   expect(text).not.toContain("<");
   expect(text.match(/^- a$/gm)).toHaveLength(1);
   expect(text).toContain("- b");
-  expect(appendJournal(root, bot, "x", ["<b></b>", " "], at("2026-10-25T09:00:00"))).toBe("empty");
+  expect(appendJournal(root, bot, "x", ["<b></b>", " "], at("2026-10-25T09:00:00")).status).toBe(
+    "empty",
+  );
   expect(existsSync(dayFile(root, "2026-10-25"))).toBe(false);
+});
+
+test("a note over 200 chars is cut at a word with a visible mark and counted", () => {
+  const root = mkdtempSync(join(tmpdir(), "jr-"));
+  const long = `${"word ".repeat(70)}end`;
+  const r = appendJournal(root, bot, "Flush", [long, "short"], at("2026-10-24T09:00:00"));
+  expect(r).toEqual({ status: "saved", cut: 1 });
+  const line =
+    readFileSync(dayFile(root, "2026-10-24"), "utf8")
+      .split("\n")
+      .find((l) => l.startsWith("- word")) ?? "";
+  expect(line.endsWith("word…")).toBe(true);
+  expect(line.length - 2).toBeLessThanOrEqual(200);
 });
 
 test("a day file at 300 lines is full and left as is", () => {
@@ -35,7 +54,9 @@ test("a day file at 300 lines is full and left as is", () => {
   mkdirSync(join(f, ".."), { recursive: true });
   const big = `${"- x\n".repeat(300)}`;
   writeFileSync(f, big);
-  expect(appendJournal(root, bot, "Flush", ["more"], at("2026-10-24T09:00:00"))).toBe("full");
+  expect(appendJournal(root, bot, "Flush", ["more"], at("2026-10-24T09:00:00")).status).toBe(
+    "full",
+  );
   expect(readFileSync(f, "utf8")).toBe(big);
 });
 

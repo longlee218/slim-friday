@@ -75,7 +75,7 @@ test("idle close with 2+ messages writes an Idle flush block and it is searchabl
       return ["ledger uses postgres"];
     },
     memoryChanged: parts.memoryChanged,
-    log: { error() {} },
+    log: { error() {}, warn() {} },
   })({ botId: "friday", key: "friday", conversationIds: [c], since: 0 });
   expect(seen[0]).toContain("user: we pick postgres for the ledger\nuser: and redis for the queue");
   const hits = await parts.recall.search(friday, "ledger postgres");
@@ -97,7 +97,7 @@ test("idle close with one message calls no flushNotes", async () => {
       return [];
     },
     memoryChanged: parts.memoryChanged,
-    log: { error() {} },
+    log: { error() {}, warn() {} },
   })({ botId: "friday", key: "friday", conversationIds: [c], since: 1000 });
   expect(called).toBe(false);
 });
@@ -136,4 +136,24 @@ test("stop() does not wait for a consolidation call that never answers", async (
     Bun.sleep(2000).then(() => "hung"),
   ]);
   expect(r).toBe("stopped");
+});
+
+test("idle flush logs a full journal day instead of dropping the notes silently", async () => {
+  const home = mkdtempSync(join(tmpdir(), "life-"));
+  const { parts } = await boot(home);
+  const c = await fridayChat(parts);
+  await say(parts, c, "we pick postgres for the ledger");
+  await say(parts, c, "and redis for the queue");
+  const dir = join(home, "memory", "bots", "friday", "journal");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, `${localDay(new Date())}.md`), "- x\n".repeat(300));
+  const warns: string[] = [];
+  await idleFlush({
+    store: parts.store,
+    memoryRoot: join(home, "memory"),
+    flushNotes: async () => ["ledger uses postgres", `${"word ".repeat(70)}end`],
+    memoryChanged: parts.memoryChanged,
+    log: { error() {}, warn: (_o: object, msg: string) => void warns.push(msg) },
+  })({ botId: "friday", key: "friday", conversationIds: [c], since: 0 });
+  expect(warns).toEqual(["memory.journal_full"]);
 });

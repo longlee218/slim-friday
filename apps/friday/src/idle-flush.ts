@@ -1,5 +1,6 @@
 import type { IdleClose, MemoryOwner, Store, StoredMessage } from "@friday/core";
 import { appendJournal } from "@friday/tools";
+import { logJournalAppend } from "./journal-append-log";
 
 /** Messages read per conversation of the closed session. */
 const RECENT = 200;
@@ -15,7 +16,7 @@ export interface IdleFlushDeps {
   flushNotes: (transcript: string) => Promise<string[]>;
   /** Tell the index the bot's journal changed. */
   memoryChanged: (owner: MemoryOwner) => void;
-  log: { error(o: object, msg: string): void };
+  log: { error(o: object, msg: string): void; warn(o: object, msg: string): void };
 }
 
 /** `author: text`, with the bot's id for a bot. */
@@ -39,8 +40,9 @@ export function idleFlush(deps: IdleFlushDeps) {
       const transcript = all.map(lineOf).join("\n").slice(-MAX_TRANSCRIPT);
       const notes = await deps.flushNotes(transcript);
       const owner: MemoryOwner = { kind: "bot", botId: e.botId };
-      if (appendJournal(deps.memoryRoot, owner, "Idle flush", notes, new Date()) === "saved")
-        deps.memoryChanged(owner);
+      const r = appendJournal(deps.memoryRoot, owner, "Idle flush", notes, new Date());
+      logJournalAppend(deps.log, e.botId, r, notes.length);
+      if (r.status === "saved") deps.memoryChanged(owner);
     } catch (err) {
       deps.log.error({ error: String(err), botId: e.botId }, "memory.idle_flush");
     }
