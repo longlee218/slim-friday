@@ -371,7 +371,7 @@ export async function startApp(deps: AppDeps) {
       await botHub.stopAll();
       // A daily run may still use the index and the db.
       await Promise.all([memoryReady, running]);
-      if (memory instanceof WriteThroughMemory) await memory.flush();
+      if (memory instanceof WriteThroughMemory) await memory.stop();
       memoryIndex.close();
       engine.close();
     },

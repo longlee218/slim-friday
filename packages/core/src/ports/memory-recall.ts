@@ -59,6 +59,9 @@ export interface RecallNote {
   kind: string;
 }
 
+/** A source failure that trying again cannot fix (the provider rejected the request): the write queue gives up at once. */
+export class PermanentSourceError extends Error {}
+
 /** One searchable source of recall: the builtin index, or a provider plugin's source. */
 export interface RecallSource {
   id: string;

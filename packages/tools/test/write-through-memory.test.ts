@@ -2,7 +2,12 @@ import { expect, test } from "bun:test";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { MemoryOwner, RecallNote, RecallSource } from "@friday/core";
+import {
+  type MemoryOwner,
+  PermanentSourceError,
+  type RecallNote,
+  type RecallSource,
+} from "@friday/core";
 import { MemoryError } from "../src/memory/file-memory";
 import { WriteThroughMemory } from "../src/memory/write-through-memory";
 
@@ -26,13 +31,41 @@ function recorder(fail = false) {
   return { source, log };
 }
 
-function make(sources: RecallSource[]) {
+function make(
+  sources: RecallSource[],
+  retry: { retryDelaysMs?: number[]; sleep?: (ms: number) => Promise<void> } = {},
+) {
   const root = mkdtempSync(join(tmpdir(), "wt-"));
   const warns: string[] = [];
   const mem = new WriteThroughMemory(root, sources, {
     log: { warn: (_o, m) => void warns.push(m) },
+    sleep: async () => {},
+    ...retry,
   });
   return { root, mem, warns };
+}
+
+/** A source whose first `failures` calls throw `err`, then succeeds; `calls` counts every try. */
+function flaky(failures: number, err: Error = new Error("down")) {
+  const log: string[] = [];
+  let calls = 0;
+  const hit = () => {
+    calls++;
+    if (calls <= failures) throw err;
+  };
+  const source: RecallSource = {
+    id: "flaky",
+    search: async () => [],
+    write: async (_o, n) => {
+      hit();
+      log.push(`write ${n.text}`);
+    },
+    forget: async (_o, t) => {
+      hit();
+      log.push(`forget ${t}`);
+    },
+  };
+  return { source, log, calls: () => calls };
 }
 
 test("a save reaches the file and every writable source", async () => {
@@ -78,4 +111,54 @@ test("a duplicate save writes nothing", async () => {
   await expect(mem.save(ann, "uses bun")).rejects.toBeInstanceOf(MemoryError);
   await mem.flush();
   expect(a.log).toEqual(["write fact uses bun"]);
+});
+
+test("a transient failure is retried after the next delay and then lands, with no warning", async () => {
+  const waits: number[] = [];
+  const f = flaky(2);
+  const { mem, warns } = make([f.source], {
+    retryDelaysMs: [1000, 5000, 30000],
+    sleep: async (ms) => void waits.push(ms),
+  });
+  await mem.save(ann, "retry me");
+  await mem.flush();
+  expect(f.calls()).toBe(3);
+  expect(waits).toEqual([1000, 5000]);
+  expect(f.log).toHaveLength(1);
+  expect(warns).toEqual([]);
+});
+
+test("after the last delay the call is given up with one warning, and the next call still runs in order", async () => {
+  const f = flaky(4);
+  const { mem, warns } = make([f.source], { retryDelaysMs: [1, 5, 30] });
+  await mem.save(ann, "first note");
+  await mem.save(ann, "second note");
+  await mem.flush();
+  expect(warns).toEqual(["memory.provider"]);
+  expect(f.calls()).toBe(5); // 4 tries of the first, 1 of the second
+  expect(f.log).toEqual(["write second note"]);
+});
+
+test("a permanent failure is not retried", async () => {
+  const f = flaky(1, new PermanentSourceError("bad request"));
+  const { mem, warns } = make([f.source], { retryDelaysMs: [1, 5, 30] });
+  await mem.save(ann, "rejected");
+  await mem.flush();
+  expect(f.calls()).toBe(1);
+  expect(warns).toEqual(["memory.provider"]);
+});
+
+test("stop() cuts a pending wait short and gives up the rest", async () => {
+  const f = flaky(99);
+  const { mem, warns } = make([f.source], {
+    retryDelaysMs: [60_000, 60_000],
+    sleep: () => new Promise(() => {}),
+  });
+  await mem.save(ann, "never delivered");
+  const done = await Promise.race([
+    mem.stop().then(() => "stopped"),
+    new Promise((r) => setTimeout(() => r("hung"), 500)),
+  ]);
+  expect(done).toBe("stopped");
+  expect(warns).toEqual(["memory.provider"]);
 });

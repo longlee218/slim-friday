@@ -10,7 +10,10 @@ export interface HonchoConnection {
 }
 
 /** Outcome of one call. */
-export type HonchoResult<T> = { ok: true; value: T } | { ok: false; error: string };
+export type HonchoResult<T> =
+  | { ok: true; value: T }
+  /** `permanent`: Honcho rejected the request itself (4xx except 408 and 429); the same call would fail again. */
+  | { ok: false; error: string; permanent?: true };
 
 /** A stored conclusion: a note one peer (observer) holds about another (observed). */
 export interface HonchoConclusion {
@@ -97,9 +100,11 @@ async function request(
   if (res.status === 404 && opts.allow404) return { ok: true, value: null };
   if (!res.ok || !opts.json) {
     await res.body?.cancel().catch(() => undefined);
-    return res.ok
-      ? { ok: true, value: undefined }
-      : { ok: false, error: `Honcho request failed: ${res.status}` };
+    if (res.ok) return { ok: true, value: undefined };
+    const error = `Honcho request failed: ${res.status}`;
+    const rejected =
+      res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429;
+    return rejected ? { ok: false, error, permanent: true } : { ok: false, error };
   }
   try {
     return { ok: true, value: JSON.parse(await readCapped(res, MAX_BODY_BYTES)) };

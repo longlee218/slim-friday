@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { MemoryOwner } from "@friday/core";
+import { type MemoryOwner, PermanentSourceError } from "@friday/core";
 import { recallSourceContract } from "../../tools/test/recall-source-contract";
 import { HONCHO_OBSERVED_PEER, honchoSource } from "../src/honcho-source";
 import { fakeHoncho } from "./fake-honcho";
@@ -81,4 +81,25 @@ test("a search that gives up does not fail a write waiting on the same peer setu
   release();
   await writing;
   expect(h.conclusions.map((c) => c.content)).toEqual(["uses docker"]);
+});
+
+test("a rejected write throws a permanent error, an unreachable server a plain one", async () => {
+  const rejecting = honchoSource({
+    baseUrl: "http://localhost:8000",
+    fetch: (async (url: string | URL) =>
+      new URL(String(url)).pathname.endsWith("/conclusions")
+        ? new Response("{}", { status: 400 })
+        : new Response("{}")) as typeof fetch,
+  });
+  const err = await rejecting.write?.(ann, { text: "x", kind: "fact" }).catch((e) => e);
+  expect(err).toBeInstanceOf(PermanentSourceError);
+  const down = honchoSource({
+    baseUrl: "http://localhost:8000",
+    fetch: (async () => {
+      throw new Error("ECONNREFUSED");
+    }) as unknown as typeof fetch,
+  });
+  const err2 = await down.write?.(ann, { text: "x", kind: "fact" }).catch((e) => e);
+  expect(err2).toBeInstanceOf(Error);
+  expect(err2).not.toBeInstanceOf(PermanentSourceError);
 });

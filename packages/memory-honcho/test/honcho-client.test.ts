@@ -161,3 +161,24 @@ test("checkHonchoUrl: https anywhere, http only to localhost or a private addres
   ])
     expect(checkHonchoUrl(bad)).toBeString();
 });
+
+test("a rejected request (400) is permanent; 429, 503 and a dead connection can be retried", async () => {
+  const call = async (r: () => Response | Promise<Response>) =>
+    createConclusions(conn(fakeFetch(r).fn), "friday", [
+      { content: "x", observerId: "bot-a", observedId: "friday-owner" },
+    ]);
+  expect(await call(() => json({}, 400))).toMatchObject({ ok: false, permanent: true });
+  expect(await call(() => json({}, 429))).toEqual({
+    ok: false,
+    error: "Honcho request failed: 429",
+  });
+  expect(await call(() => json({}, 503))).toEqual({
+    ok: false,
+    error: "Honcho request failed: 503",
+  });
+  const down = await call(() => {
+    throw new Error("ECONNREFUSED");
+  });
+  expect(down).toMatchObject({ ok: false });
+  expect((down as { permanent?: boolean }).permanent).toBeUndefined();
+});

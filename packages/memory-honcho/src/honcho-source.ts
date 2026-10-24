@@ -1,4 +1,9 @@
-import type { MemoryOwner, RecallHit, RecallSource } from "@friday/core";
+import {
+  type MemoryOwner,
+  PermanentSourceError,
+  type RecallHit,
+  type RecallSource,
+} from "@friday/core";
 import {
   createConclusions,
   deleteConclusion,
@@ -35,7 +40,7 @@ function within<T>(p: Promise<T>, signal?: AbortSignal): Promise<T> {
 
 /** The value of a call, or a throw with its error (the caller logs and skips the source). */
 function unwrap<T>(r: HonchoResult<T>): T {
-  if (!r.ok) throw new Error(r.error);
+  if (!r.ok) throw r.permanent ? new PermanentSourceError(r.error) : new Error(r.error);
   return r.value;
 }
 
