@@ -2,7 +2,7 @@ import { BotIdSchema, type GroupInputDto, GroupInputDtoSchema } from "@friday/co
 import { useDirectory } from "../../api/directory";
 import { TicketSelect } from "../tickets/ticket-select";
 import { Avatar } from "../ui/avatar";
-import { Row, SaveBar } from "./form-parts";
+import { Row, SaveBar, StaleNotice } from "./form-parts";
 import { TokenList } from "./token-list";
 import { type FieldErrors, useFormState } from "./use-form-state";
 
@@ -68,6 +68,7 @@ export function GroupForm({
   );
   return (
     <>
+      {form.stale && <StaleNotice what="group" />}
       <div className="formgroup">
         {text("name", "Name")}
         {mode === "create" && text("id", "Id", "The file name. It cannot change later.")}
@@ -102,8 +103,9 @@ export function GroupForm({
             addLabel="Add member"
             onChange={(next) => {
               set("members", next);
-              // The first member becomes the entry bot of an empty group.
-              if (!v.entryBot && next[0]) set("entryBot", next[0]);
+              // The entry bot must stay a member: move it to the first one left (or clear it);
+              // `set` marks it touched so its error shows.
+              if (!next.includes(v.entryBot)) set("entryBot", next[0] ?? "");
             }}
           />
         </Row>

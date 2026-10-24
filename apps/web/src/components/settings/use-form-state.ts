@@ -11,7 +11,9 @@ export interface FormState<T> {
   set<K extends keyof T>(k: K, v: T[K]): void;
   /** True when `value` differs from the last saved (or initial) value. */
   dirty: boolean;
-  /** Puts the saved value back and clears every error. */
+  /** True when the server value changed while the owner has unsaved edits. */
+  stale: boolean;
+  /** Puts the latest server (or saved) value back and clears every error. */
   revert(): void;
   /** Validator errors of the fields the owner changed, then the server's per-field errors. */
   errors: FieldErrors<T>;
@@ -36,6 +38,17 @@ export function useFormState<T extends object>(
 ): FormState<T> {
   const [saved, setSaved] = useState(initial);
   const [value, setValue] = useState(initial);
+  // The server value the form last took in. A new `initial` replaces a clean form; a dirty form
+  // keeps the owner's edits and reports `stale`.
+  const serverKey = JSON.stringify(initial);
+  const [base, setBase] = useState(serverKey);
+  const dirty = JSON.stringify(value) !== JSON.stringify(saved);
+  const stale = dirty && serverKey !== base && serverKey !== JSON.stringify(saved);
+  if (serverKey !== base && !dirty) {
+    setBase(serverKey);
+    setSaved(initial);
+    setValue(initial);
+  }
   const [touched, setTouched] = useState<ReadonlySet<keyof T>>(new Set());
   const [server, setServer] = useState<FieldErrors<T>>({});
   const [saving, setSaving] = useState(false);
@@ -50,10 +63,14 @@ export function useFormState<T extends object>(
   }, []);
 
   const revert = useCallback(() => {
-    setValue(saved);
+    // A stale form loads the latest server value; otherwise the last saved one.
+    const next = stale ? initial : saved;
+    setBase(serverKey);
+    setSaved(next);
+    setValue(next);
     setTouched(new Set());
     setServer({});
-  }, [saved]);
+  }, [stale, initial, saved, serverKey]);
 
   const submit = useCallback(async (fn: (v: T) => Promise<unknown>) => {
     const sent = latest.current;
@@ -82,7 +99,8 @@ export function useFormState<T extends object>(
   return {
     value,
     set,
-    dirty: JSON.stringify(value) !== JSON.stringify(saved),
+    dirty,
+    stale,
     revert,
     errors,
     valid: Object.keys(found).length === 0,

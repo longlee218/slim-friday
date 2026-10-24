@@ -62,3 +62,33 @@ test("a validator's error shows only for a field the owner has changed", () => {
   expect(result.current.errors.name).toBe("Required");
   expect(result.current.valid).toBe(false);
 });
+
+test("a clean form follows new server data", () => {
+  const { result, rerender } = renderHook(({ v }) => useFormState(v), {
+    initialProps: { v: initial },
+  });
+  rerender({ v: { name: "Dev", title: "New" } });
+  expect(result.current.value.title).toBe("New");
+  expect(result.current.dirty).toBe(false);
+  expect(result.current.stale).toBe(false);
+});
+
+test("a dirty form keeps the edits, flags stale, and revert loads the new data", () => {
+  const { result, rerender } = renderHook(({ v }) => useFormState(v), {
+    initialProps: { v: initial },
+  });
+  act(() => result.current.set("title", "mine"));
+  rerender({ v: { name: "Dev", title: "New" } });
+  expect(result.current.value.title).toBe("mine");
+  expect(result.current.stale).toBe(true);
+  act(() => result.current.revert());
+  expect(result.current.value.title).toBe("New");
+  expect(result.current.stale).toBe(false);
+  expect(result.current.dirty).toBe(false);
+});
+
+test("saving resets after a failed submit", async () => {
+  const { result } = renderHook(() => useFormState(initial));
+  await act(() => result.current.submit(() => Promise.reject(new Error("boom"))));
+  expect(result.current.saving).toBe(false);
+});

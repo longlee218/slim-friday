@@ -64,11 +64,17 @@ export function BotPage() {
       </SettingsPage>
     );
   }
+  /** The newest bot in the cache, so a save never builds on a stale copy. */
+  const latest = () => qc.getQueryData(orpc.config.bots.get.queryKey({ input: { id } })) ?? bot;
   const shipped = bot.shipped === true;
   const tabAt = TABS.findIndex(([t]) => t === tab);
   /** Saves the owner's fields; the name always comes from the latest bot (rename has its own door). */
-  const save = async (input: Omit<BotFormValue, "id">, name = bot.name) => {
-    await client.config.bots.save({ id: bot.id, bot: { ...input, name }, mode: "update" });
+  const save = async (input: Omit<BotFormValue, "id">, name?: string) => {
+    await client.config.bots.save({
+      id: bot.id,
+      bot: { ...input, name: name ?? latest().name },
+      mode: "update",
+    });
     await qc.invalidateQueries({ queryKey: orpc.config.bots.key() });
   };
   const initial: BotFormValue = { ...BotInputDtoSchema.parse(bot), id: bot.id };
@@ -80,7 +86,7 @@ export function BotPage() {
           <InlineName
             value={bot.name}
             disabled={shipped}
-            onSave={(name) => save(BotInputDtoSchema.parse(bot), name)}
+            onSave={(name) => save(BotInputDtoSchema.parse(latest()), name)}
           />
           <div className="r">{[bot.title, bot.model].filter(Boolean).join(" · ")}</div>
         </div>

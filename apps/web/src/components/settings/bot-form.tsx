@@ -1,7 +1,7 @@
 import { type BotFormValue, validateBot } from "./bot-form-value";
 import { BotProfileTab } from "./bot-profile-tab";
 import { BotToolsTab } from "./bot-tools-tab";
-import { SaveBar } from "./form-parts";
+import { SaveBar, StaleNotice } from "./form-parts";
 import { useFormState } from "./use-form-state";
 
 export type { BotFormValue } from "./bot-form-value";
@@ -26,6 +26,7 @@ export function BotForm({ initial, mode, tab, shipped = false, onSave }: BotForm
   const props = { form, readOnly: shipped, mode };
   return (
     <>
+      {form.stale && <StaleNotice what="bot" />}
       {shipped && <div className="foot-note">Shipped with Friday: read only.</div>}
       {tab === "profile" ? <BotProfileTab {...props} /> : <BotToolsTab {...props} />}
       {!shipped && (
