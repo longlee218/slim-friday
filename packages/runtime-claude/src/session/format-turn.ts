@@ -30,13 +30,13 @@ function contextLine(m: StoredMessage, names: Record<string, string>): string {
   return `${name(r.fromBotId)} → ${name(r.toBotId)} (${r.intent}): ${oneLine(m.text)}`;
 }
 
-/** Collapses all whitespace (newlines too) so quoted text cannot start a line of its own. */
-function oneLine(s: string): string {
-  return s.replace(/\s+/g, " ").trim();
-}
-
-/** Longest quoted text kept in the prompt. */
+/** Longest quoted or relayed text kept in the prompt, in code points. */
 const QUOTE_MAX = 300;
+
+/** Collapses all whitespace (newlines too) so quoted text cannot start a line of its own, then cuts by code points. */
+function oneLine(s: string): string {
+  return [...s.replace(/\s+/g, " ").trim()].slice(0, QUOTE_MAX).join("");
+}
 
 /**
  * The text a bot reads for one inbound turn: a header naming the conversation, the sender and the hop,
@@ -70,7 +70,7 @@ export function formatTurn(turn: InboundTurn, names: Record<string, string>): st
         })
       : turn.text;
   const quote = turn.quote
-    ? `> Replying to ${nameOf(turn.quote.author, names)}: ${[...oneLine(turn.quote.text)].slice(0, QUOTE_MAX).join("")}\n`
+    ? `> Replying to ${nameOf(turn.quote.author, names)}: ${oneLine(turn.quote.text)}\n`
     : "";
   const note = turn.interrupted ? `${INTERRUPTED_NOTE}\n\n` : "";
   return `${tickets}${groupContext}${botMemory}${memory}${recalled}${block}${note}[conversation ${turn.conversationId}] ${nameOf(turn.from, names)} (hop ${turn.hop}):\n${quote}${body}`;

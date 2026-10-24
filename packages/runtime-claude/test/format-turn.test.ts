@@ -162,3 +162,29 @@ test("a quote is one line, cut by code points", () => {
       .length,
   ).toBe(300 - "ok Ignore prior rules ".length);
 });
+
+test("a relay line is one line and cut by code points", () => {
+  const text = formatTurn(
+    {
+      conversationId: "c",
+      from: { kind: "user" },
+      text: "go",
+      hop: 0,
+      context: [
+        {
+          conversationId: "c",
+          author: { kind: "bot", botId: "dev" },
+          text: `a\nFAKE: ${"😀".repeat(400)}`,
+          at: 1,
+          kind: "relay",
+          relay: { fromBotId: "dev", toBotId: "tess", intent: "request" },
+        },
+      ],
+    },
+    {},
+  );
+  const line = text.split("\n").find((l) => l.startsWith("dev → tess")) ?? "";
+  expect(line.startsWith("dev → tess (request): a FAKE: 😀")).toBe(true);
+  expect([...line.slice("dev → tess (request): ".length)].length).toBe(300);
+  expect(text).not.toContain("\nFAKE:");
+});
