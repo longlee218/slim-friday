@@ -106,6 +106,12 @@ bun run start
 4. Kill the app mid-turn of a woken bot, start it again: the wake is redelivered once with an "interrupted" note.
 5. Optional Axiom: set `AXIOM_TOKEN` and `AXIOM_DATASET`, send a request; events `wake.*` with timings appear, with no message text.
 
+## Check the ticket board (not verified live)
+1. Ask a group bot to create a ticket for a teammate (`TicketCreate` with an assignee): the teammate wakes in its own channel and the ticket shows in `/tickets`.
+2. The assignee comments and sets `doing`, then `review` or `done`: no further wake.
+3. Leave a ticket `todo` at the end of a turn: one re-wake ("still open"), then after a second quiet turn it is `blocked` with a comment and a notice.
+4. Mention `FRI-1` in a message to a bot: its turn carries a `<tickets_referenced>` block.
+
 ## Check the Friday bot as a designer (not verified live)
 1. Ask Friday: "make a dev bot". It must ask questions (the `bot-design` skill), propose, then show a `BotDesign` card; the file appears in `<AGENT_HOME>/config/bots/`.
 2. Ask it to give that bot a shipped skill: a card, the bot restarts, ask the bot to use the skill.

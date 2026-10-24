@@ -1,16 +1,19 @@
-import type { Bot, BotHub, BotId, Store } from "@friday/core";
+import { type Bot, type BotHub, type BotId, type Store, ticketRef } from "@friday/core";
 import type { CommandHandler } from "@friday/surface-discord";
 import { purgeTrash } from "@friday/tools";
 
 /** What the commands need from the app. */
 interface CommandDeps {
   hub: BotHub;
-  store: Pick<Store, "bots" | "groups" | "conversations">;
+  store: Pick<Store, "bots" | "groups" | "conversations" | "tickets">;
   /** The agent home (`/purge` empties `<home>/trash`). */
   home: string;
 }
 
-/** `/status`, `/stop` and `/purge` as plain text answers. */
+/** Most tickets `/tickets` shows. */
+const TICKETS_SHOWN = 25;
+
+/** `/status`, `/stop`, `/purge` and `/tickets` as plain text answers. */
 export function appCommands({ hub, store, home }: CommandDeps): CommandHandler {
   /** Display name of every bot by id. */
   const names = async (): Promise<Map<BotId, Bot>> =>
@@ -20,6 +23,20 @@ export function appCommands({ hub, store, home }: CommandDeps): CommandHandler {
     if (c.name === "purge") return `Purged ${purgeTrash(home)} trash item(s).`;
     const bots = await names();
     const nameOf = (id: BotId) => bots.get(id)?.name ?? id;
+    if (c.name === "tickets") {
+      // Open = not done and not closed; the store hides closed, done is dropped here.
+      const open = (await store.tickets.list({ excludeClosed: true, limit: 100 }))
+        .filter((t) => t.status !== "done")
+        .slice(0, TICKETS_SHOWN);
+      return open.length
+        ? open
+            .map(
+              (t) =>
+                `${ticketRef(t.number)} [${t.status}] ${t.title} — ${t.assigneeBotId ? nameOf(t.assigneeBotId) : "unassigned"}`,
+            )
+            .join("\n")
+        : "No open tickets.";
+    }
     if (c.name === "status") {
       const lines = hub
         .status()

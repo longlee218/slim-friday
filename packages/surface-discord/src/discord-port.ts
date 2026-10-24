@@ -28,7 +28,7 @@ export interface IncomingClick {
 export interface IncomingCommand {
   channelId: string;
   userId: string;
-  name: "stop" | "status" | "purge";
+  name: "stop" | "status" | "purge" | "tickets";
   /** The optional `bot` argument of `/stop`. */
   botName?: string;
   /** Reply that only the caller sees. */

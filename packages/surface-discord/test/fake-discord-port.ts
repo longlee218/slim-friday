@@ -75,7 +75,7 @@ export class FakeDiscordPort implements DiscordPort {
   }
   /** A slash command; returns the replies the handler sent. */
   async emitCommand(
-    c: { channelId: string; name: "stop" | "status" | "purge"; botName?: string },
+    c: { channelId: string; name: "stop" | "status" | "purge" | "tickets"; botName?: string },
     userId = this.ownerId,
   ): Promise<string[]> {
     const replies: string[] = [];

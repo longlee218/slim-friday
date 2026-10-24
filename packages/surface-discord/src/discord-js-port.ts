@@ -75,6 +75,7 @@ export async function connectDiscord(opts: {
     },
     { name: "status", description: "Show what the bots in this channel are doing" },
     { name: "purge", description: "Empty the trash of deleted files now" },
+    { name: "tickets", description: "List the open tickets of the shared board" },
   ]);
 
   /** A channel of the guild that can take text. */
@@ -158,12 +159,12 @@ export async function connectDiscord(opts: {
     onCommand(h: (c: IncomingCommand) => void) {
       client.on(Events.InteractionCreate, (i) => {
         if (!i.isChatInputCommand() || i.guildId !== opts.guildId) return;
-        if (i.commandName !== "stop" && i.commandName !== "status" && i.commandName !== "purge")
-          return;
+        const name = i.commandName;
+        if (name !== "stop" && name !== "status" && name !== "purge" && name !== "tickets") return;
         h({
           channelId: i.channelId,
           userId: i.user.id,
-          name: i.commandName,
+          name,
           botName: i.options.getString("bot") ?? undefined,
           reply: async (text) => {
             await i.reply({ content: text, flags: MessageFlags.Ephemeral });
