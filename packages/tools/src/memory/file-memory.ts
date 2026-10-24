@@ -34,6 +34,8 @@ export interface MemoryBullet {
   id: string;
   kind: MemoryKind;
   text: string;
+  /** The date stamp of the note (`YYYY-MM-DD`), when it has one. */
+  day?: string;
 }
 
 /** Bot and group ids double as dir names: the core id pattern keeps them inside the root. */
@@ -120,6 +122,7 @@ export class FileMemory implements Memory {
       id: bulletHash(line),
       kind,
       text: stripDateSuffix(line.trim()).replace(/^- /, ""),
+      day: /\((\d{4}-\d{2}-\d{2})\)$/.exec(line.trim())?.[1],
     }));
   }
 
