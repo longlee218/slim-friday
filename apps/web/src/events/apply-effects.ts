@@ -54,7 +54,7 @@ export function applyEffects(qc: QueryClient, effects: CacheEffect[], notify: No
         endRun(qc, e.conversationId, e.botId);
         break;
       case "startRun":
-        startRun(qc, e.conversationId, e.botId, e.at);
+        startRun(qc, e.conversationId, e.botId, e.at, true);
         break;
       case "runStep":
         runStep(qc, e.conversationId, e.botId, e.step);

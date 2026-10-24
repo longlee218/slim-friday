@@ -12,6 +12,8 @@ export interface LiveRun {
   steps: RunStepDto[];
   /** Label of the latest subagent activity. */
   tail?: string;
+  /** True once a server event named this run; an optimistic run from a send starts unconfirmed. */
+  confirmed?: boolean;
 }
 
 /** A closed card kept in the transcript as a receipt. */

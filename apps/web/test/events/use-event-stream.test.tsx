@@ -153,7 +153,7 @@ test("resync clears stale live runs before it refetches", async () => {
     { wrapper },
   );
   await waitFor(() => expect(runsAtRefetch).not.toBe("unset"));
-  expect(runsAtRefetch).toBeUndefined();
+  expect(runsAtRefetch).toEqual({});
 });
 
 test("a reconnect with no event id yet resyncs (the gap is unknown)", async () => {
@@ -168,7 +168,7 @@ test("a reconnect with no event id yet resyncs (the gap is unknown)", async () =
   expect(calls[1]).toEqual({});
   await waitFor(() => expect(spy).toHaveBeenCalledWith({ type: "active" }));
   expect(spy).toHaveBeenCalledTimes(1);
-  expect(qc.getQueryData(liveRunKey("bot:dev"))).toBeUndefined();
+  expect(qc.getQueryData(liveRunKey("bot:dev"))).toEqual({});
 });
 
 test("the first open and a reconnect with an event id do not resync", async () => {
