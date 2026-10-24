@@ -32,14 +32,27 @@ test("opening creates the five auth tables next to the engine tables", () => {
   for (const t of ["conversations", "messages", "sessions", "wakes"]) expect(names).toContain(t);
 });
 
-test("the engine store opens the same file afterwards", () => {
+/** Rows in the migration log of the db file. */
+const logCount = (file: string) => {
+  const raw = new Database(file, { readonly: true });
+  const row = raw.query<{ n: number }, []>("SELECT COUNT(*) AS n FROM __drizzle_migrations").get();
+  raw.close();
+  return row?.n ?? 0;
+};
+
+test("the engine store opens the same file afterwards with one migration log", () => {
   const f = tmpFile();
   openAuthDb(f).close();
+  const before = logCount(f);
   openEngineStore(f).close();
-  const raw = new Database(f, { readonly: true });
-  const log = raw.query<{ n: number }, []>("SELECT COUNT(*) AS n FROM __drizzle_migrations").get();
-  raw.close();
-  expect(log?.n).toBe(4);
+  expect(before).toBeGreaterThan(0);
+  expect(logCount(f)).toBe(before);
+});
+
+test(":memory: opens and answers ping", () => {
+  const a = openAuthDb(":memory:");
+  expect(a.ping()).toBe(true);
+  a.close();
 });
 
 test("ping is true while open, false (no throw) after close", () => {

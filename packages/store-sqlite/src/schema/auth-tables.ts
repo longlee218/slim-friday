@@ -4,7 +4,8 @@ import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 /*
  * better-auth tables (core + passkey plugin), same columns and types as the better-auth 1.7.12 CLI
  * output for drizzle/sqlite. SQL names carry an `auth_` prefix so they never meet the engine's
- * `sessions` table. No `$onUpdate` hooks (the package bans wall-clock calls; better-auth sets `updated_at` itself). Migrations come from `bun run db:generate:engine`, not from better-auth.
+ * `sessions` table. No `$onUpdate` hooks (the package bans wall-clock calls; better-auth sets
+ * `updated_at` itself). Migrations come from `bun run db:generate:engine`, not from better-auth.
  */
 
 /** Current time in epoch milliseconds, as a column default. */
