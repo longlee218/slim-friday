@@ -41,3 +41,13 @@ test("a throwing handler replies with the failure", async () => {
   });
   expect(await port.emitCommand({ channelId: "ch1", name: "status" })).toEqual(["Failed: boom"]);
 });
+
+test("/purge reaches the handler for the owner and is refused for anyone else", async () => {
+  const { port } = setup(async (c) => (c.name === "purge" ? "Purged 2 trash item(s)." : "x"));
+  expect(await port.emitCommand({ channelId: "ch1", name: "purge" })).toEqual([
+    "Purged 2 trash item(s).",
+  ]);
+  expect(await port.emitCommand({ channelId: "ch1", name: "purge" }, "stranger")).toEqual([
+    "Only the owner can do that.",
+  ]);
+});

@@ -1,4 +1,10 @@
 /** Built-in tools: file memory, memory tools, effect tools. */
+
+export * from "./effects/effects-context";
+export * from "./effects/effects-server";
+export * from "./effects/trash";
+export { trashRoot } from "./effects/trash-store";
+export { checkInsideWorkspace } from "./effects/workspace-paths";
 export * from "./mcp-server-names";
 export * from "./memory/file-memory";
 export * from "./memory/journal";

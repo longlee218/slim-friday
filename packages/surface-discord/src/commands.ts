@@ -3,7 +3,7 @@ import type { DiscordPort } from "./discord-port";
 /** A slash command as the app handles it. */
 export interface CommandRequest {
   conversationId: string;
-  name: "stop" | "status";
+  name: "stop" | "status" | "purge";
   botName?: string;
 }
 
