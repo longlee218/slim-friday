@@ -157,3 +157,47 @@ test("unknown path -> 404", async () => {
   const t = await fresh();
   expect((await t.app.request(`${API}/nope`)).status).toBe(404);
 });
+
+test("HEAD and GET on /rpc are 405 even with an owner cookie and no Origin", async () => {
+  const t = await fresh();
+  const { cookie } = await login(t);
+  for (const method of ["HEAD", "GET"]) {
+    const res = await t.app.request(`${API}/rpc/control/purge`, { method, headers: { cookie } });
+    expect(res.status).toBe(405);
+  }
+});
+
+test("preflight on /rpc is still 204", async () => {
+  const t = await fresh();
+  const res = await t.app.request(`${API}/rpc/control/purge`, {
+    method: "OPTIONS",
+    headers: { origin: ORIGIN, "access-control-request-method": "POST" },
+  });
+  expect(res.status).toBe(204);
+});
+
+test("a throwing getSession is 401 and logs session_error", async () => {
+  const t = await fresh();
+  const boom = { ...t.auth, api: { getSession: () => Promise.reject(new Error("secret detail")) } };
+  const app = createApiApp({
+    auth: boom as never,
+    webOrigin: ORIGIN,
+    ownerEmail: "owner@example.com",
+    log: {
+      info: (o) => void t.logs.push(o),
+      warn: (o) => void t.logs.push(o),
+      error: (o) => void t.logs.push(o),
+    },
+    now: () => 1_700_000_000_000,
+    dbReachable: () => true,
+  });
+  const res = await purge(app as never, { origin: ORIGIN });
+  expect(res.status).toBe(401);
+  expect(t.logs).toContainEqual({
+    event: "auth.failed",
+    route: "/rpc/control/purge",
+    status: 401,
+    reason: "session_error",
+  });
+  expect(JSON.stringify(t.logs)).not.toContain("secret detail");
+});

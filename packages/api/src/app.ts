@@ -30,13 +30,14 @@ export function createApiApp(deps: ApiDeps): Hono {
     return c.json({ ok: db, db }, db ? 200 : 503);
   });
   app.on(["GET", "POST"], "/api/auth/*", (c) => deps.auth.handler(c.req.raw));
-  app.use("/rpc/*", ownerSession(deps));
-  app.all("/rpc/*", async (c) => {
+  // RPC is POST only: HEAD and GET must never reach the handler (RPCHandler treats HEAD like POST).
+  app.post("/rpc/*", ownerSession(deps), async (c) => {
     const { matched, response } = await rpcHandler.handle(c.req.raw, {
       prefix: "/rpc",
       context: { session: c.var.session, deps },
     });
     return matched ? c.newResponse(response.body, response) : c.notFound();
   });
+  app.all("/rpc/*", (c) => c.json({ code: "METHOD_NOT_ALLOWED" }, 405));
   return app as unknown as Hono;
 }
