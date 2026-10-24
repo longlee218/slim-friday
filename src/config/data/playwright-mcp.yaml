@@ -1,4 +1,0 @@
-# Pinned Playwright MCP server (npm package, exact version). A bump is a data change plus a review.
-# Version 0.0.83 (2026-09-28) needs the Playwright chromium 1247 browser: run `npx playwright install chromium` once.
-package: "@playwright/mcp"
-version: "0.0.83"

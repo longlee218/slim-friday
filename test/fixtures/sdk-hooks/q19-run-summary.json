@@ -1,6 +1,0 @@
-{
-  "subtype": "success",
-  "total_cost_usd": 0.2307038,
-  "num_turns": 1,
-  "resultText": "**Final Answer:**\n- **agentId:** `a31ec2ab423988654`\n- **SendMessage result text:** `PINEAPPLE`\n- **Error:** None"
-}

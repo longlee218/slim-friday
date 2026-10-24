@@ -1,1 +1,0 @@
-- Commit: only when the brief asks, a local commit of only the files of this item, one short conventional line ({{vars.commitPrefixes}}), never any AI or model attribution, never a secret or key file. Push, merge, PR and deleting existing files are the developer's (checked tools, owner approval). The shell does not block them, so do not run them.

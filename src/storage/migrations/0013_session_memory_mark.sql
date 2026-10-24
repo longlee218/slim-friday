@@ -1,1 +1,0 @@
-ALTER TABLE `sessions` ADD `memory_mark` text;

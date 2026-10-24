@@ -3,13 +3,11 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { homePlacementError } from "../src/lifecycle/home-placement-check";
-import { assertTempHome } from "./helpers";
 
 const dirs: string[] = [];
 /** Fresh temp dir (never the real home). */
 const tmp = () => {
   const d = realpathSync(mkdtempSync(join(tmpdir(), "hpc-")));
-  assertTempHome(d);
   dirs.push(d);
   return d;
 };

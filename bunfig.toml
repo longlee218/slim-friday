@@ -1,3 +1,2 @@
 [test]
 root = "."
-preload = ["./test/cleanup-temp-dirs.ts"]

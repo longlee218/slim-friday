@@ -9,9 +9,7 @@
   ],
   "scripts": {
     "start": "bun run src/index.ts",
-    "db:generate": "drizzle-kit generate",
     "db:generate:engine": "drizzle-kit generate --config packages/store-sqlite/drizzle.config.ts",
-    "metrics:skills": "bun run scripts/metrics-skills.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "format": "biome format --write src test packages apps",
