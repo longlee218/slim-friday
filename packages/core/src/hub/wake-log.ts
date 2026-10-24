@@ -17,10 +17,6 @@ function base(w: WakeRow) {
   };
 }
 
-/**
- * The life of a wake in the store, with one log line per step: queued, started, done, blocked,
- * interrupted, dropped. Timings are measured from the time the wake was created.
- */
 /** Run fields a new wake may leave out. */
 type RunDefaults =
   | "scopeKey"
@@ -30,6 +26,10 @@ type RunDefaults =
   | "transientRetries"
   | "setupFailures";
 
+/**
+ * The life of a wake in the store, with one log line per step: queued, started, done, blocked,
+ * interrupted, dropped. Timings are measured from the time the wake was created.
+ */
 export class WakeLog {
   constructor(
     private store: Store,

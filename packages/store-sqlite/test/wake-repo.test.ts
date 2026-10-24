@@ -101,3 +101,12 @@ test("deleteFinishedBefore removes finished rows only and returns the count", as
   expect((await s.wakes.open()).map((w) => w.id).sort()).toEqual(["f", "g"]);
   expect(await s.wakes.get("h")).toBeDefined();
 });
+
+test("deleteFinishedBefore keeps leased and waiting_input rows", async () => {
+  const s = openEngineStore(":memory:");
+  await s.wakes.insert(wake("l", { status: "leased", createdAt: 1 }));
+  await s.wakes.insert(wake("w", { status: "waiting_input", createdAt: 1 }));
+  expect(await s.wakes.deleteFinishedBefore(100)).toBe(0);
+  expect(await s.wakes.get("l")).toBeDefined();
+  expect(await s.wakes.get("w")).toBeDefined();
+});

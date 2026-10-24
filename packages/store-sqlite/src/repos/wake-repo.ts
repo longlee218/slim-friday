@@ -8,6 +8,8 @@ type Row = typeof wakes.$inferSelect;
 
 /** Statuses of a wake still to be delivered or being delivered (`leased` and `waiting_input` are not: `open` is the old restart recovery). */
 const OPEN = ["queued", "running"];
+/** Every status that is not finished: never pruned. */
+const ACTIVE = ["queued", "leased", "running", "waiting_input"];
 
 const toAuthor = (r: Row): Author =>
   r.senderKind === "bot" && r.senderBotId
@@ -48,7 +50,7 @@ export function fromRow(r: Row): WakeRow {
     ...(r.resultText != null && { resultText: r.resultText }),
     ...(r.error != null && { error: r.error }),
     ...(r.outcomeReturnedAt != null && { outcomeReturnedAt: r.outcomeReturnedAt }),
-    ...(r.dedupeKey && { dedupeKey: r.dedupeKey }),
+    ...(r.dedupeKey != null && { dedupeKey: r.dedupeKey }),
     cuts: r.cuts,
     transientRetries: r.transientRetries,
     setupFailures: r.setupFailures,
@@ -101,7 +103,7 @@ export function wakeRepo(db: BunSQLiteDatabase): Store["wakes"] {
       const added = db
         .insert(wakes)
         .values(toColumns(w) as typeof wakes.$inferInsert)
-        .onConflictDoNothing()
+        .onConflictDoNothing({ target: [wakes.conversationId, wakes.dedupeKey] })
         .returning({ id: wakes.id })
         .all();
       if (added.length) return { inserted: true as const };
@@ -137,7 +139,7 @@ export function wakeRepo(db: BunSQLiteDatabase): Store["wakes"] {
         .delete(wakes)
         .where(
           and(
-            notInArray(wakes.status, OPEN),
+            notInArray(wakes.status, ACTIVE),
             or(lt(wakes.endedAt, at), and(sql`${wakes.endedAt} IS NULL`, lt(wakes.createdAt, at))),
           ),
         )

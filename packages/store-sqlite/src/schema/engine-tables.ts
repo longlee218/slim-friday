@@ -126,18 +126,27 @@ export const wakes = sqliteTable(
     leaseOwner: text("lease_owner"),
     /** Raised by one at every claim; a stale holder's writes are refused. */
     leaseFence: integer("lease_fence").notNull().default(0),
+    /** When the lease ends; after it another worker may reclaim the run. */
     leaseExpiresAt: integer("lease_expires_at"),
     /** Not claimable before this time. */
     wakeAt: integer("wake_at"),
+    /** The activity card that shows this run. */
     cardId: text("card_id"),
+    /** Set when the run read untrusted input. */
     tainted: integer("tainted", { mode: "boolean" }),
+    /** The final answer text of the run. */
     resultText: text("result_text"),
+    /** Why the run failed. */
     error: text("error"),
+    /** When the outcome was returned to the sender. */
     outcomeReturnedAt: integer("outcome_returned_at"),
     /** Unique per conversation when set: a repeated delivery finds the first row. */
     dedupeKey: text("dedupe_key"),
+    /** Times the run was cut short and continued. */
     cuts: integer("cuts").notNull().default(0),
+    /** Retries after transient errors. */
     transientRetries: integer("transient_retries").notNull().default(0),
+    /** Failures before the session started. */
     setupFailures: integer("setup_failures").notNull().default(0),
   },
   (t) => [

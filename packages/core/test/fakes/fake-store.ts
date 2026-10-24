@@ -18,6 +18,9 @@ import type {
   WakeStatus,
 } from "../../src";
 
+/** Statuses of a wake not finished yet. */
+const ACTIVE_STATUSES: WakeStatus[] = ["queued", "leased", "running", "waiting_input"];
+
 /** An in-memory Store; tests seed `bots`, `groups` and `convs` directly. */
 export class FakeStore implements Store {
   botMap = new Map<BotId, Bot>();
@@ -179,7 +182,7 @@ export class FakeStore implements Store {
     deleteFinishedBefore: async (at: number) => {
       let n = 0;
       for (const [id, w] of this.wakeMap)
-        if (w.status !== "queued" && w.status !== "running" && (w.endedAt ?? w.createdAt) < at) {
+        if (!ACTIVE_STATUSES.includes(w.status) && (w.endedAt ?? w.createdAt) < at) {
           this.wakeMap.delete(id);
           n++;
         }
@@ -205,7 +208,8 @@ export class FakeStore implements Store {
           ? (w.wakeAt == null || w.wakeAt <= o.now) &&
             !all.some((x) => x.scopeKey === w.scopeKey && held(x))
           : held(w) &&
-            ((w.leaseExpiresAt ?? 0) <= o.now || !w.leaseOwner?.startsWith(`${o.bootId}:`));
+            ((w.leaseExpiresAt != null && w.leaseExpiresAt <= o.now) ||
+              !w.leaseOwner?.startsWith(`${o.bootId}:`));
       const rank = (w: WakeRow) => (w.priority === "interactive" ? 0 : 1);
       const row = all
         .filter(ok)

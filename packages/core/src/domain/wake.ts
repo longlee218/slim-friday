@@ -61,17 +61,26 @@ export interface WakeRow {
   leaseOwner?: string;
   /** Raised by one at every claim; a stale holder's writes are refused. */
   leaseFence: number;
+  /** When the lease ends; after it another worker may reclaim the run. */
   leaseExpiresAt?: number;
   /** Not claimable before this time. */
   wakeAt?: number;
+  /** The activity card that shows this run. */
   cardId?: string;
+  /** Set when the run read untrusted input. */
   tainted?: boolean;
+  /** The final answer text of the run. */
   resultText?: string;
+  /** Why the run failed. */
   error?: string;
+  /** When the outcome was returned to the sender. */
   outcomeReturnedAt?: number;
   /** Unique per conversation when set. */
   dedupeKey?: string;
+  /** Times the run was cut short and continued. */
   cuts: number;
+  /** Retries after transient errors. */
   transientRetries: number;
+  /** Failures before the session started. */
   setupFailures: number;
 }

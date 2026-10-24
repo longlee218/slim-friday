@@ -164,7 +164,7 @@ export interface Store {
     open(): Promise<WakeRow[]>;
     /** Wakes sent by a bot in a conversation created at or after `since`, oldest first. */
     botSentSince(conversationId: ConversationId, since: number): Promise<WakeRow[]>;
-    /** Delete rows that ended before `at` (any status but queued and running); returns the count. */
+    /** Delete rows that ended before `at` (any status but queued, leased, running and waiting_input); returns the count. */
     deleteFinishedBefore(at: number): Promise<number>;
     /** Insert unless a row with the same conversation and `dedupeKey` exists; then return that row. */
     insertDeduped(w: WakeRow): Promise<{ inserted: true } | { inserted: false; existing: WakeRow }>;

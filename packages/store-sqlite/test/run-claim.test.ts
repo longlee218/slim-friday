@@ -139,7 +139,8 @@ test("insertDeduped allows two rows with null keys", async () => {
   expect(await s.wakes.insertDeduped(wake("b"))).toEqual({ inserted: true });
 });
 
-test("two connections racing claimNext get one row", async () => {
+// Cross-process atomicity relies on the IMMEDIATE transaction in claimNext; this checks the result only.
+test("sequential claims on two connections claim the run once", async () => {
   const file = join(mkdtempSync(join(tmpdir(), "run-claim-")), "engine.db");
   const a = openEngineStore(file);
   const b = openEngineStore(file);
