@@ -69,8 +69,14 @@ export interface Store {
   };
   /** The shared ticket board. */
   tickets: {
-    /** Allocates the next number in the same step, so two creates never share one. */
-    create(t: Omit<Ticket, "id" | "number" | "updatedAt" | "completedAt">): Promise<Ticket>;
+    /**
+     * Allocates the next number in the same step, so two creates never share one.
+     * `events` builds history rows from the saved ticket; they are written in the same transaction.
+     */
+    create(
+      t: Omit<Ticket, "id" | "number" | "updatedAt" | "completedAt">,
+      opts?: { events?: (next: Ticket) => TicketEvent[] },
+    ): Promise<Ticket>;
     get(id: string): Promise<Ticket | undefined>;
     getByNumber(n: number): Promise<Ticket | undefined>;
     /** Newest first. `before` is the (createdAt, id) of the last ticket of the previous page. */
@@ -86,6 +92,8 @@ export interface Store {
      * `blockedReason` is cleared whenever the resulting status is not `blocked` (`null` clears it too).
      * `updatedAt` becomes `max(now, previous + 1)`, so it moves even within one millisecond.
      * With `ifUpdatedAt` the write happens only when the stored `updatedAt` equals it, else `"conflict"`.
+     * `events` builds history rows from the ticket before and after; they are written in the same
+     * transaction, so a conflict writes neither the change nor any event.
      */
     update(
       id: string,
@@ -93,7 +101,7 @@ export interface Store {
         Pick<Ticket, "title" | "description" | "status" | "priority" | "assigneeBotId">
       > & { conversationId?: ConversationId; blockedReason?: string | null },
       now: number,
-      opts?: { ifUpdatedAt?: number },
+      opts?: { ifUpdatedAt?: number; events?: (prev: Ticket, next: Ticket) => TicketEvent[] },
     ): Promise<Ticket | "conflict" | undefined>;
     /** Also moves the ticket's `updatedAt` to `max(updatedAt + 1, createdAt)`. */
     addComment(c: Omit<TicketComment, "id">): Promise<TicketComment>;

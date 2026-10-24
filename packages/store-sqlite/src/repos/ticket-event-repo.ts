@@ -3,22 +3,27 @@ import { asc, eq, sql } from "drizzle-orm";
 import type { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import { ticketEvents } from "../schema/engine-tables";
 
+/** Insert one history row; `db` may be a transaction, so callers can write it with a ticket change. */
+export function insertTicketEvent(db: Pick<BunSQLiteDatabase, "insert">, e: TicketEvent): void {
+  db.insert(ticketEvents)
+    .values({
+      id: e.id,
+      ticketId: e.ticketId,
+      kind: e.kind,
+      fromValue: e.from ?? null,
+      toValue: e.to ?? null,
+      actorKind: e.actor.kind,
+      actorBotId: e.actor.kind === "bot" ? e.actor.botId : null,
+      at: e.at,
+    })
+    .run();
+}
+
 /** The history of ticket changes. */
 export function ticketEventRepo(db: BunSQLiteDatabase): Store["ticketEvents"] {
   return {
     async append(e) {
-      db.insert(ticketEvents)
-        .values({
-          id: e.id,
-          ticketId: e.ticketId,
-          kind: e.kind,
-          fromValue: e.from ?? null,
-          toValue: e.to ?? null,
-          actorKind: e.actor.kind,
-          actorBotId: e.actor.kind === "bot" ? e.actor.botId : null,
-          at: e.at,
-        })
-        .run();
+      insertTicketEvent(db, e);
     },
     async list(ticketId) {
       return (

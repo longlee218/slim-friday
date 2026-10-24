@@ -14,13 +14,13 @@ import {
   INVALID,
   NOT_FOUND,
   PRIORITIES,
-  reasonRequired,
+  REASON_REQUIRED,
   STATUSES,
   TITLE_MAX,
   type TicketResult,
   UNKNOWN_BOT,
 } from "./ticket-board-rules";
-import { createdEvent, type NewTicketEvent, ticketChangeEvents } from "./ticket-change-events";
+import { createdEvent, ticketChangeEvents } from "./ticket-change-events";
 import { type TicketDetail, TicketReads } from "./ticket-reads";
 
 export type { TicketErrorCode, TicketResult } from "./ticket-board-rules";
@@ -59,17 +59,20 @@ export class TicketBoard {
     if (i.priority !== undefined && !PRIORITIES.includes(i.priority)) return INVALID;
     const assigneeBotId = i.assigneeBotId ?? (actor.kind === "bot" ? actor.botId : undefined);
     if (assigneeBotId && !(await this.deps.store.bots.get(assigneeBotId))) return UNKNOWN_BOT;
-    const ticket = await this.deps.store.tickets.create({
-      title,
-      ...(i.description && { description: i.description }),
-      status: "todo",
-      priority: i.priority ?? "normal",
-      ...(assigneeBotId && { assigneeBotId }),
-      ...(i.conversationId && { conversationId: i.conversationId }),
-      createdBy: actor,
-      createdAt: this.deps.clock.now(),
-    });
-    await this.record(createdEvent(ticket, actor, ticket.createdAt));
+    // The created event is written in the same transaction as the ticket.
+    const ticket = await this.deps.store.tickets.create(
+      {
+        title,
+        ...(i.description && { description: i.description }),
+        status: "todo",
+        priority: i.priority ?? "normal",
+        ...(assigneeBotId && { assigneeBotId }),
+        ...(i.conversationId && { conversationId: i.conversationId }),
+        createdBy: actor,
+        createdAt: this.deps.clock.now(),
+      },
+      { events: (t) => [createdEvent(t, actor, t.createdAt)] },
+    );
     this.changed(ticket);
     if (assigneeBotId && !(actor.kind === "bot" && actor.botId === assigneeBotId))
       await this.deps.wake(ticket, assigneeBotId, actor);
@@ -123,7 +126,7 @@ export class TicketBoard {
     const blocks = (i.status ?? cur.status) === "blocked";
     if (reason !== undefined && (!blocks || reason.length > BLOCKED_REASON_MAX)) return INVALID;
     // A ticket already blocked keeps its reason; moving into blocked needs one.
-    if (blocks && cur.status !== "blocked" && !reason) return reasonRequired;
+    if (blocks && cur.status !== "blocked" && !reason) return REASON_REQUIRED;
     const now = this.deps.clock.now();
     const ticket = await this.deps.store.tickets.update(
       cur.id,
@@ -135,15 +138,18 @@ export class TicketBoard {
         ...(i.status && { status: i.status }),
         ...(i.assigneeBotId && { assigneeBotId: i.assigneeBotId }),
         ...(reason && { blockedReason: reason }),
-        // A bot's conversation is the ticket's "last worked" one; the owner passes none.
-        ...(i.conversationId && { conversationId: i.conversationId }),
+        // A bot's conversation is the ticket's "last worked" one; the owner's is ignored.
+        ...(actor.kind === "bot" && i.conversationId && { conversationId: i.conversationId }),
       },
       now,
-      i.expectedUpdatedAt !== undefined ? { ifUpdatedAt: i.expectedUpdatedAt } : undefined,
+      {
+        ...(i.expectedUpdatedAt !== undefined && { ifUpdatedAt: i.expectedUpdatedAt }),
+        // Written in the same transaction, so a conflict leaves no event behind.
+        events: (prev, next) => ticketChangeEvents(prev, next, actor, now),
+      },
     );
     if (ticket === "conflict") return CONFLICT;
     if (!ticket) return NOT_FOUND;
-    for (const e of ticketChangeEvents(cur, ticket, actor, now)) await this.record(e);
     this.changed(ticket);
     const to = i.assigneeBotId;
     const byActor = actor.kind === "bot" && actor.botId === to;
@@ -173,11 +179,6 @@ export class TicketBoard {
     const saved = await store.tickets.get(ticket.id);
     if (saved) this.changed(saved);
     return { ok: true, comment };
-  }
-
-  /** Append one history entry with a fresh id. */
-  private record(e: NewTicketEvent): Promise<void> {
-    return this.deps.store.ticketEvents.append({ id: crypto.randomUUID(), ...e });
   }
 
   /** Tell `onChange`; a failing listener must never fail the change that was already saved. */

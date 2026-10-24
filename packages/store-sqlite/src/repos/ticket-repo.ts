@@ -2,6 +2,7 @@ import type { Author, Store, Ticket, TicketComment } from "@friday/core";
 import { and, asc, desc, eq, inArray, lt, ne, or, sql } from "drizzle-orm";
 import type { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import { ticketComments, ticketCounter, tickets } from "../schema/engine-tables";
+import { insertTicketEvent } from "./ticket-event-repo";
 
 type Row = typeof tickets.$inferSelect;
 
@@ -33,7 +34,7 @@ const fromRow = (r: Row): Ticket => ({
 export function ticketRepo(db: BunSQLiteDatabase): Store["tickets"] {
   const byId = (id: string) => db.select().from(tickets).where(eq(tickets.id, id)).get();
   return {
-    async create(t) {
+    async create(t, opts) {
       // The counter is read and bumped in one transaction, so two creates never get the same number.
       return db.transaction((tx) => {
         const row = tx.select().from(ticketCounter).get();
@@ -59,7 +60,9 @@ export function ticketRepo(db: BunSQLiteDatabase): Store["tickets"] {
             completedAt: FINISHED.includes(t.status) ? t.createdAt : null,
           })
           .run();
-        return fromRow(tx.select().from(tickets).where(eq(tickets.id, id)).get() as Row);
+        const next = fromRow(tx.select().from(tickets).where(eq(tickets.id, id)).get() as Row);
+        for (const e of opts?.events?.(next) ?? []) insertTicketEvent(tx, e);
+        return next;
       });
     },
     async get(id) {
@@ -96,6 +99,7 @@ export function ticketRepo(db: BunSQLiteDatabase): Store["tickets"] {
       return db.transaction((tx) => {
         const cur = tx.select().from(tickets).where(eq(tickets.id, id)).get();
         if (!cur) return undefined;
+        const prev = fromRow(cur);
         if (opts?.ifUpdatedAt !== undefined && opts.ifUpdatedAt !== cur.updatedAt)
           return "conflict" as const;
         const status = patch.status ?? cur.status;
@@ -116,7 +120,10 @@ export function ticketRepo(db: BunSQLiteDatabase): Store["tickets"] {
           })
           .where(eq(tickets.id, id))
           .run();
-        return fromRow(tx.select().from(tickets).where(eq(tickets.id, id)).get() as Row);
+        const next = fromRow(tx.select().from(tickets).where(eq(tickets.id, id)).get() as Row);
+        // Same transaction as the change: both land or neither does.
+        for (const e of opts?.events?.(prev, next) ?? []) insertTicketEvent(tx, e);
+        return next;
       });
     },
     async addComment(c) {

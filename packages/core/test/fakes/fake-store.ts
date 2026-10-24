@@ -205,7 +205,10 @@ export class FakeStore implements Store {
   private lastTicketNumber = 0;
   private nextId = 0;
   tickets = {
-    create: async (t: Omit<Ticket, "id" | "number" | "updatedAt" | "completedAt">) => {
+    create: async (
+      t: Omit<Ticket, "id" | "number" | "updatedAt" | "completedAt">,
+      opts?: { events?: (next: Ticket) => TicketEvent[] },
+    ) => {
       const done = t.status === "done" || t.status === "closed";
       const ticket: Ticket = {
         ...t,
@@ -215,6 +218,7 @@ export class FakeStore implements Store {
         ...(done && { completedAt: t.createdAt }),
       };
       this.ticketMap.set(ticket.id, ticket);
+      for (const e of opts?.events?.({ ...ticket }) ?? []) this.ticketEventList.push({ ...e });
       return { ...ticket };
     },
     // Copies, like a db read: a caller holding a ticket does not see later updates.
@@ -251,10 +255,11 @@ export class FakeStore implements Store {
         Pick<Ticket, "title" | "description" | "status" | "priority" | "assigneeBotId">
       > & { conversationId?: string; blockedReason?: string | null },
       now: number,
-      opts?: { ifUpdatedAt?: number },
+      opts?: { ifUpdatedAt?: number; events?: (prev: Ticket, next: Ticket) => TicketEvent[] },
     ) => {
       const t = this.ticketMap.get(id);
       if (!t) return undefined;
+      const prev = { ...t };
       if (opts?.ifUpdatedAt !== undefined && opts.ifUpdatedAt !== t.updatedAt)
         return "conflict" as const;
       const { blockedReason, ...rest } = patch;
@@ -265,6 +270,7 @@ export class FakeStore implements Store {
       if (t.status !== "blocked") t.blockedReason = undefined;
       if (t.status === "done" || t.status === "closed") t.completedAt = t.completedAt ?? now;
       else t.completedAt = undefined;
+      for (const e of opts?.events?.(prev, { ...t }) ?? []) this.ticketEventList.push({ ...e });
       return { ...t };
     },
     addComment: async (c: Omit<TicketComment, "id">) => {

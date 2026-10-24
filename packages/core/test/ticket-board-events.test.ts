@@ -31,8 +31,9 @@ async function setup() {
   });
   const r = await board.create(writer, { title: "Draft", description: "see FRI-2" });
   if (!r.ok) throw new Error(r.error);
+  const afterCreate = [...changed];
   changed.length = 0;
-  return { store, clock, board, changed, t: r.ticket };
+  return { store, clock, board, changed, afterCreate, t: r.ticket };
 }
 
 describe("TicketBoard update refusals", () => {
@@ -42,6 +43,21 @@ describe("TicketBoard update refusals", () => {
     expect(r).toEqual({ ok: false, code: "conflict", error: "Ticket changed since you read it." });
     expect(await store.ticketEvents.list(t.id)).toHaveLength(1);
     expect((await store.tickets.get(t.id))?.status).toBe("todo");
+  });
+
+  test("a conflict writes neither the change nor any event", async () => {
+    const { board, store, t } = await setup();
+    const before = (await store.tickets.get(t.id))?.updatedAt;
+    const r = await board.update(owner, {
+      id: "FRI-1",
+      status: "review",
+      priority: "high",
+      expectedUpdatedAt: 1,
+    });
+    expect(r).toMatchObject({ ok: false, code: "conflict" });
+    expect(await store.tickets.get(t.id)).toMatchObject({ status: "todo", priority: "normal" });
+    expect((await store.tickets.get(t.id))?.updatedAt).toBe(before);
+    expect(await store.ticketEvents.list(t.id)).toHaveLength(1);
   });
 
   test("blocked without a reason is refused", async () => {
@@ -124,13 +140,24 @@ describe("TicketBoard events", () => {
     expect((await store.tickets.get(t.id))?.conversationId).toBe("g:1");
   });
 
-  test("onChange gets the saved ticket after create, update and comment, and never throws into the caller", async () => {
-    const { board, changed } = await setup();
+  test("the owner passing a conversationId leaves it unchanged", async () => {
+    const { board, store, t } = await setup();
+    await board.update(owner, { id: "FRI-1", priority: "low", conversationId: "dc" });
+    expect((await store.tickets.get(t.id))?.conversationId).toBeUndefined();
+  });
+
+  test("onChange gets the saved ticket after create, update and comment", async () => {
+    const { board, changed, afterCreate } = await setup();
+    expect(afterCreate.map((t) => t.status)).toEqual(["todo"]);
     await board.update(owner, { id: "FRI-1", status: "doing" });
     await board.comment(owner, { id: "FRI-1", body: "note" });
     expect(changed.map((t) => t.status)).toEqual(["doing", "doing"]);
+  });
+
+  test("a throwing onChange never reaches the caller", async () => {
+    const { store } = await setup();
     const throwing = new TicketBoard({
-      store: (board as never as { deps: { store: FakeStore } }).deps.store,
+      store,
       clock: new FakeClock(5000),
       wake: async () => {},
       onChange: () => {
@@ -141,7 +168,7 @@ describe("TicketBoard events", () => {
   });
 
   test("detail merges comments and events and resolves related tickets", async () => {
-    const { board, store } = await setup();
+    const { board } = await setup();
     await board.create(owner, { title: "Other" });
     await board.comment(owner, { id: "FRI-1", body: "also FRI-2 and FRI-99" });
     const r = await board.detail("FRI-1");
@@ -150,6 +177,5 @@ describe("TicketBoard events", () => {
     expect(r.related.map((t) => t.number)).toEqual([2]);
     expect(r.commentCount).toBe(1);
     expect(await board.detail("FRI-9")).toMatchObject({ ok: false, code: "not_found" });
-    void store;
   });
 });

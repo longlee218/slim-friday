@@ -114,6 +114,39 @@ describe("unfinished tickets", () => {
     ).toBe(true);
   });
 
+  test("a refused auto-block posts no comment and no notice", async () => {
+    const h = makeHub();
+    const t = await assigned(h);
+    const ed = h.runtime.nth(0);
+    ed.emit({ type: "turn_end", costUsd: 0 });
+    await flush();
+    // The board refuses the system's block: the ticket is gone from its point of view.
+    h.hub.tickets.update = async () => ({ ok: false, code: "conflict", error: "x" });
+    const posts = h.surface.posts.length;
+    ed.emit({ type: "turn_end", costUsd: 0 });
+    await flush();
+    expect(await h.store.tickets.comments(t.id)).toEqual([]);
+    expect(h.surface.posts).toHaveLength(posts);
+  });
+
+  test("the auto comment goes through the board, so onChange sees its count", async () => {
+    const seen: number[] = [];
+    const h = makeHub();
+    const t = await assigned(h);
+    const orig = h.hub.tickets.comment.bind(h.hub.tickets);
+    h.hub.tickets.comment = async (a, i) => {
+      const r = await orig(a, i);
+      seen.push((await h.store.tickets.comments(t.id)).length);
+      return r;
+    };
+    const ed = h.runtime.nth(0);
+    ed.emit({ type: "turn_end", costUsd: 0 });
+    await flush();
+    ed.emit({ type: "turn_end", costUsd: 0 });
+    await flush();
+    expect(seen).toEqual([1]);
+  });
+
   test("an errored turn gets no re-wake", async () => {
     const h = makeHub();
     await assigned(h);

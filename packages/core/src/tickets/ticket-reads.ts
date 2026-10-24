@@ -34,7 +34,8 @@ export class TicketReads {
     ]);
     const related: Ticket[] = [];
     for (const r of relatedRefs(ticket, comments)) {
-      const t = await store.tickets.getByNumber(Number(r.split("-")[1]));
+      const n = parseTicketRef(r);
+      const t = n === undefined ? undefined : await store.tickets.getByNumber(n);
       if (t) related.push(t);
     }
     return {

@@ -152,3 +152,32 @@ test("commentCounts counts per ticket and omits none", async () => {
   );
   expect((await s.tickets.commentCounts([])).size).toBe(0);
 });
+
+test("events of create and update are written with the change; a conflict writes none", async () => {
+  const s = openEngineStore(":memory:");
+  const actor = { kind: "user" } as const;
+  const t = await s.tickets.create(input("a"), {
+    events: (n) => [{ id: "e1", ticketId: n.id, kind: "created", actor, at: 1 }],
+  });
+  const ev = (id: string, ticketId: string) => ({
+    id,
+    ticketId,
+    kind: "status" as const,
+    actor,
+    at: 2,
+  });
+  const stale = await s.tickets.update(t.id, { status: "doing" }, 5, {
+    ifUpdatedAt: 99,
+    events: (p) => [ev("e2", p.id)],
+  });
+  expect(stale).toBe("conflict");
+  expect((await s.ticketEvents.list(t.id)).map((e) => e.id)).toEqual(["e1"]);
+  await s.tickets.update(t.id, { status: "doing" }, 5, {
+    ifUpdatedAt: t.updatedAt,
+    events: (p, n) => [{ ...ev("e3", p.id), from: p.status, to: n.status }],
+  });
+  expect((await s.ticketEvents.list(t.id)).map((e) => [e.id, e.to])).toEqual([
+    ["e1", undefined],
+    ["e3", "doing"],
+  ]);
+});
