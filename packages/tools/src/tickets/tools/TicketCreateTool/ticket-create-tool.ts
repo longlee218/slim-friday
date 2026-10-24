@@ -22,6 +22,7 @@ export function createTicketCreateTool(ctx: TicketsContext) {
       assigneeBotId = await resolveBot(ctx, i.assignee);
       if (!assigneeBotId) return textResult("Unknown bot.", true);
     }
+    const conversationId = ctx.conversation?.();
     const r = await ctx.board.create(
       { kind: "bot", botId: ctx.botId },
       {
@@ -29,6 +30,7 @@ export function createTicketCreateTool(ctx: TicketsContext) {
         ...(i.description && { description: i.description }),
         ...(i.priority && { priority: i.priority }),
         ...(assigneeBotId && { assigneeBotId }),
+        ...(conversationId && { conversationId }),
       },
     );
     return r.ok ? textResult(JSON.stringify(ticketView(r.ticket))) : textResult(r.error, true);

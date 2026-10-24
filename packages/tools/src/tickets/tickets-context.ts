@@ -1,10 +1,19 @@
-import { type BotId, type Store, type Ticket, type TicketBoard, ticketRef } from "@friday/core";
+import {
+  type BotId,
+  type ConversationId,
+  type Store,
+  type Ticket,
+  type TicketBoard,
+  ticketRef,
+} from "@friday/core";
 
 /** What the ticket tools of one session need: who is acting, the board, and the bots to resolve assignees. */
 export interface TicketsContext {
   botId: BotId;
   board: TicketBoard;
   bots: Pick<Store, "bots">["bots"];
+  /** The conversation the session is working in now (read when the tool runs); recorded on the ticket. */
+  conversation?: () => ConversationId | undefined;
 }
 
 /** A bot id from an id or an exact name (any case); undefined when no bot matches. */
@@ -26,6 +35,8 @@ export function ticketView(t: Ticket) {
     title: t.title,
     ...(t.description !== undefined && { description: t.description }),
     status: t.status,
+    ...(t.blockedReason !== undefined && { blockedReason: t.blockedReason }),
+    ...(t.conversationId !== undefined && { conversationId: t.conversationId }),
     priority: t.priority,
     ...(t.assigneeBotId && { assignee: t.assigneeBotId }),
     createdAt: t.createdAt,
