@@ -1,4 +1,4 @@
-import type { Store } from "@friday/core";
+import type { AttemptStatus, Store } from "@friday/core";
 import { and, eq } from "drizzle-orm";
 import type { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import { runAttempts } from "../schema/engine-tables";
@@ -18,6 +18,15 @@ export function attemptRepo(db: BunSQLiteDatabase): Store["attempts"] {
         .set({ status, endedAt: at, ...(error !== undefined && { error }) })
         .where(and(eq(runAttempts.id, id), eq(runAttempts.status, "running")))
         .run();
+    },
+    /** The status of one attempt, or undefined. */
+    async status(id) {
+      const row = db
+        .select({ status: runAttempts.status })
+        .from(runAttempts)
+        .where(eq(runAttempts.id, id))
+        .get();
+      return row?.status as AttemptStatus | undefined;
     },
   };
 }

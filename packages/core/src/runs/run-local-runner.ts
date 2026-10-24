@@ -4,16 +4,17 @@ import { applyCardAnswer } from "./run-cards";
 import { RunClaimer } from "./run-claimer";
 import { abortRun } from "./run-exec";
 import { executeRun } from "./run-executor";
-import type { InProcessHints } from "./run-hints";
+import type { HintSource, RunnerIdentity } from "./run-hints";
 import { deliverSteering } from "./run-steering";
 
 /** A log that drops every line (the hub may run without one). */
 const SILENT: Log = { info() {}, warn() {}, error() {} };
 
 /**
- * The runner of the main process (no workers yet; Task 15 keeps it as the `workers = 0` mode): in-process
- * hints wake a claimer that executes runs here. A random boot id per start makes every lease of an earlier
- * boot reclaimable at once. The claimer starts on `start()` or on the first hint, whichever comes first.
+ * Claims and executes runs in this process: in the main process when there are no workers (`workers = 0`),
+ * or in a worker process. Hints from `hints` wake a claimer; the lease owner is `<bootId>:<name>`, so every
+ * lease of an earlier boot is reclaimable at once. The claimer starts on `start()` or on the first hint,
+ * whichever comes first. Without an identity a random boot id is drawn and the name is `main`.
  */
 export class LocalRunner {
   /** Claims and executes the runs. */
@@ -23,16 +24,17 @@ export class LocalRunner {
 
   constructor(
     private ctx: HubContext,
-    hints: InProcessHints,
+    hints: HintSource,
     freeMemoryMb: () => number = () => Number.POSITIVE_INFINITY,
+    who: RunnerIdentity = { bootId: crypto.randomUUID(), name: "main" },
   ) {
-    const bootId = crypto.randomUUID();
+    const { bootId } = who;
     this.claimer = new RunClaimer({
       store: ctx.deps.store,
       clock: ctx.deps.clock,
       limits: ctx.limits,
       log: ctx.deps.log ?? SILENT,
-      owner: `${bootId}:main`,
+      owner: `${bootId}:${who.name}`,
       bootId,
       execute: (row, lease) => executeRun(ctx, row, lease),
       freeMemoryMb,
@@ -56,7 +58,7 @@ export class LocalRunner {
     this.claimer.start();
   }
 
-  /** Abort every run of this process (`shutdown`: their rows stay claimable) and stop claiming. */
+  /** Abort every run of this process (`shutdown`: their rows go back to queued, no cut) and stop claiming. */
   async stop(): Promise<void> {
     // A run a pass still in progress starts now is aborted by the executor (`closing`).
     this.ctx.closing = true;

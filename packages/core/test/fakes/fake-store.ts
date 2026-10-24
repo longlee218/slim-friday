@@ -1,4 +1,5 @@
 import type {
+  AttemptStatus,
   AuditEntry,
   Bot,
   BotId,
@@ -283,6 +284,13 @@ export class FakeStore implements Store {
       Object.assign(w, patch);
       return true;
     },
+    expireLeasesOf: async (owner: string, now: number) => {
+      const held = [...this.wakeMap.values()].filter(
+        (w) => w.leaseOwner === owner && (w.status === "leased" || w.status === "running"),
+      );
+      for (const w of held) w.leaseExpiresAt = now;
+      return held.map((w) => w.id);
+    },
     renew: async (id: string, owner: string, fence: number, until: number) => {
       const w = this.wakeMap.get(id);
       if (!w || w.leaseOwner !== owner || w.leaseFence !== fence) return false;
@@ -344,6 +352,7 @@ export class FakeStore implements Store {
         ...(error !== undefined && { error }),
       });
     },
+    status: async (id: string) => this.attemptMap.get(id)?.status as AttemptStatus | undefined,
   };
   /** Steering rows by id. */
   steerMap = new Map<string, SteeringRow>();

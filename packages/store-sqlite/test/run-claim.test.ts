@@ -150,3 +150,25 @@ test("sequential claims on two connections claim the run once", async () => {
   a.close();
   b.close();
 });
+
+test("expireLeasesOf ends a dead worker's leases so a worker of the same boot reclaims them", async () => {
+  const s = openEngineStore(":memory:");
+  const held = { leaseOwner: "boot-a:w0", leaseExpiresAt: 10_000, leaseFence: 1 };
+  await s.wakes.insert(wake("r", { ...held, status: "running" }));
+  await s.wakes.insert(
+    wake("other", { ...held, status: "running", leaseOwner: "boot-a:w1", scopeKey: "s2" }),
+  );
+  await s.wakes.insert(wake("done", { ...held, status: "done", scopeKey: "s3" }));
+  expect(await claim(s)).toBeUndefined();
+  expect(await s.wakes.expireLeasesOf("boot-a:w0", 100)).toEqual(["r"]);
+  expect(await claim(s)).toMatchObject({ id: "r", claimedFrom: "running", leaseFence: 2 });
+});
+
+test("attempts.status reads one attempt", async () => {
+  const s = openEngineStore(":memory:");
+  await s.attempts.start({ id: "w:1", wakeId: "w", fence: 1, owner: "b:w0", startedAt: 1 });
+  expect(await s.attempts.status("w:1")).toBe("running");
+  await s.attempts.finish("w:1", "interrupted", 2);
+  expect(await s.attempts.status("w:1")).toBe("interrupted");
+  expect(await s.attempts.status("nope")).toBeUndefined();
+});

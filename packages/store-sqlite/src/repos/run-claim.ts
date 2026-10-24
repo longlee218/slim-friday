@@ -30,6 +30,7 @@ export function runClaim(
   Store["wakes"],
   | "claimNext"
   | "transition"
+  | "expireLeasesOf"
   | "renew"
   | "activeInScope"
   | "activeOfBot"
@@ -82,6 +83,15 @@ export function runClaim(
           .returning({ id: wakes.id })
           .all().length === 1
       );
+    },
+    async expireLeasesOf(owner, now) {
+      return db
+        .update(wakes)
+        .set({ leaseExpiresAt: now })
+        .where(and(eq(wakes.leaseOwner, owner), inArray(wakes.status, ["leased", "running"])))
+        .returning({ id: wakes.id })
+        .all()
+        .map((r) => r.id);
     },
     async renew(id, owner, fence, until) {
       return (

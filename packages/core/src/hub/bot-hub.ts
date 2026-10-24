@@ -28,8 +28,9 @@ export type { BotHubDeps, BotStatus } from "./hub-types";
 
 /**
  * Drives the bots: routes each user message to the right bots as stored runs, carries a bot's `SendToBot` /
- * `HandOff` to its target, and applies the loop, rate and spend caps. Without `deps.hints` it also executes the
- * runs in this process (`LocalRunner`: one claimed run = one session turn). The work lives in the focused files
+ * `HandOff` to its target, and applies the loop, rate and spend caps. Without `deps.hints`, or with
+ * `deps.runner` (a worker process), it also executes runs in this process (`LocalRunner`: one claimed run = one
+ * session turn). The work lives in the focused files
  * beside this one; this class owns the shared state and the public API.
  */
 export class BotHub implements BotMessenger {
@@ -37,7 +38,7 @@ export class BotHub implements BotMessenger {
   private ctx: HubContext;
   /** The shared ticket board; assigning a ticket wakes its assignee through this hub. */
   readonly tickets: TicketBoard;
-  /** Executes the runs in this process; unset when `deps.hints` names another runner. */
+  /** Executes the runs in this process; unset when `deps.hints` is given without `deps.runner` (main with workers). */
   private runner?: LocalRunner;
 
   constructor(private deps: BotHubDeps) {
@@ -56,6 +57,8 @@ export class BotHub implements BotMessenger {
         wake(this.ctx, botId, conversationId, sender, text, hop, opts),
     };
     if (local) this.runner = new LocalRunner(this.ctx, local, deps.freeMemoryMb);
+    else if (deps.runner)
+      this.runner = new LocalRunner(this.ctx, deps.runner.hints, deps.freeMemoryMb, deps.runner);
     this.tickets = new TicketBoard({
       store: deps.store,
       clock: deps.clock,
@@ -162,6 +165,11 @@ export class BotHub implements BotMessenger {
     } finally {
       this.runner?.start();
     }
+  }
+
+  /** A worker process: begin claiming runs (the main process has recovered the rows of the last boot). */
+  startRunner(): void {
+    this.runner?.start();
   }
 
   /** Wake the assignee of a ticket in its own direct conversation; nothing is posted to the channel. */

@@ -5,6 +5,7 @@ import { checkUnfinished } from "../hub/ticket-wakes";
 import { returnOutcomeSafe } from "./outcome-outbox";
 import { cardResume, parkAtClaim, parkRun, resumeCardId } from "./run-cards";
 import { settleCutSteering } from "./run-continuation";
+import { cutShort, requeuedByShutdown } from "./run-cut-short";
 import { abortRun, newRunExec, type RunExec, untilStop } from "./run-exec";
 import { countCut, handleRunError } from "./run-failure";
 import { finishRun } from "./run-finish";
@@ -34,8 +35,10 @@ export async function executeRun(ctx: HubContext, row: WakeRow, lease: RunLease)
   const counted = await countCut(ctx, row, fence, scope.bot);
   if (!counted) return;
   const claimed = cardId ? { ...counted, cardId } : counted;
+  // Requeued by a graceful shutdown: the turn gets the cut note, but no cut was counted.
+  const requeued = await requeuedByShutdown(ctx, claimed);
   // A run reclaimed after a cut: rows its earlier attempt answered go, the others are offered again.
-  if (claimed.claimedFrom === "running") await settleCutSteering(ctx, claimed);
+  if (claimed.claimedFrom === "running" || requeued) await settleCutSteering(ctx, claimed);
   // Spec "Taint flag": not started by the owner, resumes a cut or parked run, or a second attempt.
   const tainted =
     claimed.sender.kind !== "user" || claimed.cuts > 0 || claimed.cardId !== undefined || fence > 1;
@@ -50,6 +53,7 @@ export async function executeRun(ctx: HubContext, row: WakeRow, lease: RunLease)
   // The working sign does not wait for the session to start.
   surface.showActivity(row.conversationId, { kind: "typing", botId: scope.bot.id });
   const exec = newRunExec({ ...claimed, ...patch }, scope, now, tainted);
+  exec.cutBefore = claimed.cuts > 0 || requeued;
   ctx.runs.set(exec.key, exec);
   lease.listen((why) => abortRun(exec, { kind: "lease", why }));
   if (ctx.closing) abortRun(exec, { kind: "shutdown" });
@@ -118,7 +122,7 @@ async function runSession(
     const turn = await untilStop(
       exec,
       buildRunTurn(ctx, exec.row, {
-        cut: exec.row.cuts > 0,
+        cut: exec.cutBefore,
         shown: opened.memory,
         ...(resume && { resume: resume.text }),
       }),
@@ -159,23 +163,6 @@ async function settle(ctx: HubContext, exec: RunExec, end: PumpEnd): Promise<voi
   const done = { status: "done" as const, ...(resultText !== undefined && { resultText }) };
   if (!(await finishRun(ctx, row, fence, done))) return;
   await checkUnfinished(ctx, exec);
-}
-
-/**
- * A run cut short by the owner's stop (`cancelled`), a lost lease or a shutdown. Only a stop changes the row;
- * after a lost lease another worker owns it, and after a shutdown the next boot reclaims it with a cut.
- */
-async function cutShort(ctx: HubContext, exec: RunExec): Promise<void> {
-  const { store, clock } = ctx.deps;
-  const { row } = exec;
-  const now = clock.now();
-  if (exec.stop?.kind === "stopped") {
-    const patch = { status: "cancelled" as const, endedAt: now };
-    if (!(await store.wakes.transition(row.id, row.leaseFence, ["running"], patch))) return;
-    await store.scopes.finished(row.scopeKey, now, Math.max(0, row.createdAt - 1));
-    await returnOutcomeSafe(ctx, { ...row, ...patch });
-  }
-  await store.attempts.finish(`${row.id}:${row.leaseFence}`, "interrupted", now);
 }
 
 /** The session scope of a run; undefined when its bot, conversation or group membership is gone. */

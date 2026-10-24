@@ -23,8 +23,20 @@ export interface RunHints {
   configChanged(): void;
 }
 
+/** Where a runner hears hints: in-process emitters, or the hints a worker process receives over IPC. */
+export interface HintSource {
+  /** Listen to every hint; returns a function that stops listening. */
+  on(listener: (h: RunHint) => void): () => void;
+}
+
+/** Who a runner claims as: the boot id of the main process and this runner's name (`main`, `w0`, ...). */
+export interface RunnerIdentity {
+  bootId: string;
+  name: string;
+}
+
 /** Hints delivered to listeners in this process (tests and the in-process worker). */
-export class InProcessHints implements RunHints {
+export class InProcessHints implements RunHints, HintSource {
   /** Who hears each hint. */
   private listeners = new Set<(h: RunHint) => void>();
 
@@ -56,7 +68,7 @@ export class InProcessHints implements RunHints {
   }
 
   /** Give the hint to every listener; a listener that throws must not stop the writer or the others. */
-  private emit(h: RunHint): void {
+  emit(h: RunHint): void {
     for (const l of this.listeners) {
       try {
         l(h);

@@ -196,6 +196,11 @@ export interface Store {
       from: WakeStatus[],
       patch: Partial<WakeRow>,
     ): Promise<boolean>;
+    /**
+     * The worker `owner` is known dead (its process exited): end the leases of its leased and running rows at
+     * `now`, so any worker reclaims them at once. Returns the ids of those rows.
+     */
+    expireLeasesOf(owner: string, now: number): Promise<string[]>;
     /** Extend the lease to `until` when owner and fence still match; true when it did. */
     renew(id: string, owner: string, fence: number, until: number): Promise<boolean>;
     /** Queued, leased, running and waiting_input rows of a scope, oldest first. */
@@ -246,5 +251,16 @@ export interface Store {
       at: number,
       error?: string,
     ): Promise<void>;
+    /** The status of attempt `id` (`<wakeId>:<fence>`); undefined when there is none. */
+    status(id: string): Promise<AttemptStatus | undefined>;
   };
 }
+
+/** How one attempt of a run stands. */
+export type AttemptStatus =
+  | "running"
+  | "done"
+  | "failed"
+  | "interrupted"
+  | "parked"
+  | "setup_failed";

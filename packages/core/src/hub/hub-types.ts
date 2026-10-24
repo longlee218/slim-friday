@@ -12,7 +12,7 @@ import type { MemorySearcher } from "../ports/memory-recall";
 import type { Store } from "../ports/store";
 import type { Surface } from "../ports/surface";
 import type { ProjectRulesReader } from "../routing/group-context";
-import type { RunHints } from "../runs/run-hints";
+import type { HintSource, RunHints, RunnerIdentity } from "../runs/run-hints";
 import type { IdleCloseHook } from "./idle-close";
 import type { ScopeBot } from "./session-scope";
 
@@ -84,6 +84,11 @@ export interface BotHubDeps {
    * runs. Unset: the hub runs them itself, in this process (an in-process claimer over in-process hints).
    */
   hints?: RunHints;
-  /** Free memory of the machine in MB, for the in-process claimer's memory floor; unset: never short. */
+  /**
+   * A worker process: claim and execute runs here on the hints `runner.hints` delivers (from the main process),
+   * as `<bootId>:<name>`, while `hints` carries this process's own hints out. Unset with `hints` set: no runs here.
+   */
+  runner?: RunnerIdentity & { hints: HintSource };
+  /** Free memory of the machine in MB, for the claimer's memory floor; unset: never short. */
   freeMemoryMb?: () => number;
 }

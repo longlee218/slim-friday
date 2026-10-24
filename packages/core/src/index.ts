@@ -43,6 +43,7 @@ export * from "./routing/route-message";
 export * from "./runs/effect-key";
 export * from "./runs/run-card-answer";
 export type { ConfigChange } from "./runs/run-config-change";
+export * from "./runs/run-hints";
 export * from "./runs/run-rules";
 export * from "./tickets/ticket";
 export * from "./tickets/ticket-board";

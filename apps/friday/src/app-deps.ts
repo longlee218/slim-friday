@@ -16,6 +16,7 @@ import type {
 } from "@friday/core";
 import type { EngineStore } from "@friday/store-sqlite";
 import type { FileMemory, MemoryRecall, MessageSearchDeps } from "@friday/tools";
+import type { WorkerLauncher } from "./workers/main-workers";
 
 /** What a runtime factory gets: the parts the runtime's tools need. */
 export interface RuntimeParts {
@@ -65,6 +66,11 @@ export interface AppDeps {
   env?: Record<string, string | undefined>;
   /** HTTP for memory provider plugins (tests pass a fake). */
   fetch?: typeof fetch;
+  /**
+   * Starts worker processes: with it and `limits.workers` > 0 the workers claim and run every run and this
+   * process runs none; without it (tests) or with `workers: 0` the runs execute in this process.
+   */
+  workers?: WorkerLauncher;
   /** Called after a config reload has synced the conversations (the web surface publishes `config.changed`). */
   onConfigChanged?: () => void;
   log: Log;

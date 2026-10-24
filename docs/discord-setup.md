@@ -119,3 +119,16 @@ bun run start
 4. Ask it to add an MCP server with a `${NAME}` env value: the card names the command, arguments and env names; check `config/mcp.yaml`.
 5. Ask Friday to write a file in `config/bots` with Bash: it must fail.
 6. If a bot does not see its skill: the SDK did not accept `plugins` + `skills` with empty `settingSources`; note the error line.
+
+## Durable runs: check live (not verified live)
+Main process (web, intake, sweeps, reconciler, config watch) plus `workers` worker processes (`settings.yaml` `limits.workers`, default 2; `0` runs everything in the main process). A second main on the same `AGENT_HOME` exits 1 (`<AGENT_HOME>/data/main.lock`).
+1. Follow-up turn after a background task: ask a bot for work that starts a background subagent; the run stays open until the subagent reports and its follow-up turn answers.
+2. Steering push after the last tool result: write while the bot runs its last tool; the push must be answered in the same turn (not as a second, unread turn).
+3. Approval resume: approve a parked call; the resumed model must re-send the exact approved input (an optional field that changes is asked again).
+4. Park re-offers carried steering: write while a run parks on a card; the continuation answers it, and the resumed run may answer it again (possible duplicate answer).
+5. A background task that never reports holds the scope: nothing else runs for that bot and scope until Stop (no hard cap yet).
+6. Parking during a background task: the card shows while the subagent runs; answer it then; the answer is applied in place, without a resume.
+7. Kill a worker mid-run (`kill -9 <worker pid>`): another worker resumes the run at once with the "your previous turn was cut" note; the killed worker is restarted.
+8. Close the laptop mid-run: on reopen the run resumes (same session) with the cut note.
+9. Stop the app (Ctrl-C) mid-run, start it again: the run resumes with the cut note and no cut is counted (a graceful stop never trips the 3-cut guard).
+10. Not covered yet: an MCP server that fails to start keeps its current handling (its failure class was not reviewed for workers).

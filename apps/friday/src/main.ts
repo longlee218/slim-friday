@@ -1,37 +1,24 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { TEMPLATES_DIR } from "@friday/config";
-import {
-  ClaudeRuntime,
-  consolidateNotes,
-  extractNotes,
-  isSensitivePath,
-} from "@friday/runtime-claude";
+import { consolidateNotes, extractNotes } from "@friday/runtime-claude";
 import { R2FileStore } from "@friday/store-r2";
 import { openEngineStore } from "@friday/store-sqlite";
 import { WebSurface } from "@friday/surface-web";
 import { localDay, purgeTrash } from "@friday/tools";
 import { startApiServer } from "./api-server";
+import { claudeRuntimeFactory } from "./claude-runtime-factory";
 import type { AgentConfig } from "./config/agent-config";
 import { HAIKU_SUMMARY_MODEL } from "./config/model-ids";
 import { readProcessEnv } from "./config/process-env";
-import { designContextFor } from "./design-context";
-import { fridayExtraDirs } from "./friday-bot";
-import { memoryFlush } from "./memory-flush";
+import { acquireMainLock } from "./lifecycle/main-lock";
 import { logEvent, logger } from "./observability/logger";
-import { sessionTools } from "./session-tools";
-import { sessionSharedDirs } from "./shared-dirs";
-import { skillDirs } from "./skills-dirs";
-import { type RuntimeParts, startApp } from "./start-app";
+import { need, r2Of } from "./required-config";
+import { startApp } from "./start-app";
 import { systemClock } from "./system-clock";
+import { bootId } from "./workers/boot-id";
+import { workerLauncher } from "./workers/worker-spawn";
 
 const log = logger.child({ module: "engine" });
-
-/** A required value: missing and the `REPLACE_ME` placeholder both count as absent. */
-function need(name: string, value: string | undefined): string {
-  if (!value || value === "REPLACE_ME") throw new Error(`${name} missing`);
-  return value;
-}
 
 /**
  * Run the bot engine on the web surface until `signal` aborts: R2 file store, engine db, web surface, Claude runtime,
@@ -50,12 +37,24 @@ export async function startEngine(opts: {
     authSecret: need("AUTH_SECRET", config.authSecret),
     ownerEmail: need("OWNER_EMAIL", config.ownerEmail),
   };
-  const r2 = {
-    accountId: need("R2_ACCOUNT_ID", config.r2.accountId),
-    accessKeyId: need("R2_ACCESS_KEY_ID", config.r2.accessKeyId),
-    secretAccessKey: need("R2_SECRET_ACCESS_KEY", config.r2.secretAccessKey),
-    bucket: need("R2_BUCKET", config.r2.bucket),
-  };
+  const r2 = r2Of(config);
+  // One main per agent home (a second one exits 1 with the holder's pid); released when the engine stops.
+  const releaseLock = acquireMainLock(agentHome);
+  try {
+    await runEngine(config, agentHome, signal, web, r2);
+  } finally {
+    releaseLock();
+  }
+}
+
+/** `startEngine` once the values are checked and the main lock is held. */
+async function runEngine(
+  config: AgentConfig,
+  agentHome: string,
+  signal: AbortSignal,
+  web: { webOrigin: string; publicApiUrl: string; authSecret: string; ownerEmail: string },
+  r2: ReturnType<typeof r2Of>,
+): Promise<void> {
   // The S3 client is lazy: nothing reaches R2 until a file is read or written.
   const files = new R2FileStore(r2);
   mkdirSync(join(agentHome, "data"), { recursive: true });
@@ -68,55 +67,7 @@ export async function startEngine(opts: {
     log,
   });
   const env = readProcessEnv();
-  const memoryDir = join(agentHome, "memory");
-  const runtime = (parts: RuntimeParts) => {
-    // Missing env values are reported once at start; the servers are read again for every new session.
-    for (const p of parts.config.mcpServers(env).problems) log.warn(p, "config.problem");
-    return new ClaudeRuntime({
-      oauthToken: config.oauthToken,
-      agentHome,
-      scratchRoot: join(agentHome, "scratch"),
-      skillDirs: skillDirs(agentHome),
-      env,
-      // A group session gets that group's shared dir only; the direct session every group's.
-      extraDirsFor: (bot, groupId) => {
-        const friday = fridayExtraDirs(TEMPLATES_DIR)(bot);
-        const shared = sessionSharedDirs(agentHome, parts.config.groupIdsOf)(bot.id, groupId);
-        return { write: [...friday.write, ...shared], read: friday.read };
-      },
-      mcpServers: () => parts.config.mcpServers(env).servers,
-      mcpServersFor: sessionTools({
-        design: designContextFor({ config: parts.config, agentHome }),
-        memory: parts.memory,
-        insight: parts.insight,
-        recall: parts.recall,
-        messages: parts.messages,
-        store: parts.store,
-        messenger: parts.messenger,
-        tickets: parts.tickets,
-        groupIdsOf: parts.config.groupIdsOf,
-        home: agentHome,
-        projectsDir: parts.config.projectsDir,
-        isSensitive: isSensitivePath,
-        env,
-        postFile: (conversationId, botId, file, caption) =>
-          parts.surface.postFile(conversationId, { kind: "bot", botId }, file, caption),
-      }),
-      // After a compaction, keep what matters in the bot's journal (never in MEMORY.md, which the bot curates).
-      onCompact: memoryFlush(
-        memoryDir,
-        (summary) =>
-          extractNotes(summary, {
-            model: HAIKU_SUMMARY_MODEL,
-            env,
-            oauthToken: config.oauthToken,
-            today: localDay(new Date()),
-          }),
-        log,
-        parts.memoryChanged,
-      ),
-    });
-  };
+  const runtime = claudeRuntimeFactory(config, agentHome, log);
   /** The one-turn Haiku call shared by the note extraction and the consolidation. */
   const haiku = { model: HAIKU_SUMMARY_MODEL, env, oauthToken: config.oauthToken };
   // A failed start leaves no open db.
@@ -133,6 +84,8 @@ export async function startEngine(opts: {
     consolidate: (memory, notes) =>
       consolidateNotes({ memory, notes, today: localDay(new Date()) }, haiku),
     onConfigChanged: () => surface.bus.publish({ type: "config.changed" }),
+    // `limits.workers` worker processes run the runs (0: this process does).
+    workers: workerLauncher({ bootId: bootId(), config: { ...config, agentHome } }),
   }).catch((err) => {
     // startApp closes what it opened; closing the db here too is harmless and covers a throw before it took it.
     engine.close();

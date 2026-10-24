@@ -76,6 +76,8 @@ export interface RunExec {
   cancelGrace?: () => void;
   /** Between the claim and the end of the event pump; tools may send and ask only then. */
   live: boolean;
+  /** An earlier attempt was cut (crash, lost lease or graceful shutdown): the turn carries the cut note. */
+  cutBefore: boolean;
   /** Set when the run read untrusted input (spec "Taint flag"); the permission gate gets it. */
   tainted: boolean;
   /** An ask of this run is storing its card or waiting for it (set synchronously; one ask per run at a time). */
@@ -130,6 +132,7 @@ export function newRunExec(row: WakeRow, scope: SessionScope, now: number, taint
     followUp: false,
     taskDoneInTurn: false,
     live: true,
+    cutBefore: row.cuts > 0,
     tainted,
     asking: false,
     firstTextSeen: false,
