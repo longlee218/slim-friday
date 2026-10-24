@@ -1,6 +1,7 @@
 import type { Bot, BotId } from "../domain/bot";
 import type { ConversationId } from "../domain/conversation";
 import type { Attachment, Author } from "../domain/message";
+import type { WakeIntent } from "../domain/wake";
 import type { PermissionGate } from "../permission/permission-gate";
 import type { AgentRuntime, BotRuntimeSpec, BotSession } from "../ports/agent-runtime";
 import type { Clock } from "../ports/clock";
@@ -22,6 +23,8 @@ export interface QueuedWake {
   sender: Author;
   text: string;
   hop: number;
+  intent: WakeIntent;
+  handoff?: boolean;
   attachments?: Attachment[];
 }
 
@@ -35,6 +38,10 @@ export interface PoolEntry {
   busy: boolean;
   /** The wake the bot is answering now; none between turns. */
   currentWakeId?: string;
+  /** Texts the bot said in the current turn, in order (the last one is its answer). */
+  turnTexts: string[];
+  /** Bots this bot sent an explicit `result` in the current turn. */
+  sentResults: Set<BotId>;
   /** The conversation (and chain depth) the bot is answering now. */
   current: { conversationId: ConversationId; hop: number };
   tasks: Map<string, TaskInfo>;
@@ -136,6 +143,8 @@ export class SessionPool {
       busy: false,
       current: { conversationId: "", hop: 0 },
       tasks: new Map(),
+      turnTexts: [],
+      sentResults: new Set(),
       queue: [],
       stopping: false,
       groupMemorySent: new Map(),

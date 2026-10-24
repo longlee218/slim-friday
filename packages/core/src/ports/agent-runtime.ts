@@ -3,6 +3,7 @@ import type { ConversationId } from "../domain/conversation";
 import type { EffortControl } from "../domain/effort";
 import type { Attachment, Author, StoredMessage } from "../domain/message";
 import type { RuntimeToolCall } from "../domain/tool";
+import type { WakeIntent } from "../domain/wake";
 
 /** One message pushed into a bot session. */
 export interface InboundTurn {
@@ -13,6 +14,10 @@ export interface InboundTurn {
   hop: number;
   /** Recent messages of the conversation, oldest first. */
   context: StoredMessage[];
+  /** What the sender wants (a user message is a `request`). */
+  intent?: WakeIntent;
+  /** The sender gave the whole step to this bot (`HandOff`). */
+  handoff?: boolean;
   /** The group's memory; set on a group turn only when it changed since the bot last saw it. */
   groupMemory?: string;
   /** Files the user attached to this message; only the turn that answers that message carries them, never a hand-off. */

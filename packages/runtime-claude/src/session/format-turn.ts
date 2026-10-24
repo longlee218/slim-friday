@@ -1,6 +1,6 @@
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
-import type { Attachment, Author, InboundTurn } from "@friday/core";
+import { type Attachment, type Author, buildWakePrompt, type InboundTurn } from "@friday/core";
 import type { UserContent } from "./input-queue";
 
 /** Image types the model reads inline. */
@@ -26,7 +26,17 @@ export function formatTurn(turn: InboundTurn, names: Record<string, string>): st
     ? `Recent messages:\n${recent.map((m) => `${nameOf(m.author, names)}: ${m.text}`).join("\n")}\n\n`
     : "";
   const memory = turn.groupMemory ? `Group memory:\n${turn.groupMemory}\n\n` : "";
-  return `${memory}${block}[conversation ${turn.conversationId}] ${nameOf(turn.from, names)} (hop ${turn.hop}):\n${turn.text}`;
+  // A bot's message is wrapped as untrusted peer content with what is expected of the receiver.
+  const body =
+    turn.from.kind === "bot"
+      ? buildWakePrompt({
+          from: { id: turn.from.botId, name: nameOf(turn.from, names) },
+          text: turn.text,
+          intent: turn.intent ?? "request",
+          ...(turn.handoff && { handoff: true }),
+        })
+      : turn.text;
+  return `${memory}${block}[conversation ${turn.conversationId}] ${nameOf(turn.from, names)} (hop ${turn.hop}):\n${body}`;
 }
 
 /**

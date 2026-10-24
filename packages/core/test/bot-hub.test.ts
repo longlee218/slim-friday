@@ -33,11 +33,11 @@ test("group message with no mention wakes only the entry bot, with the group con
   expect(turn.context.at(-1)?.text).toBe("plan a video");
 });
 
-test("a bot reply that mentions a member hands off with hop + 1; nobody else wakes", async () => {
-  const { runtime, surface } = makeHub();
+test("a bot's SendToBot wakes a member with hop + 1; nobody else wakes", async () => {
+  const { runtime, surface, hub } = makeHub();
   surface.deliver({ conversationId: "gc", text: "make it" });
   await flush();
-  runtime.opened[0]?.emit({ type: "text", text: "@editor please check" });
+  await hub.send("writer", { to: "editor", text: "please check", intent: "request" });
   await flush();
   expect(runtime.opened).toHaveLength(2);
   expect(runtime.opened[1]?.spec.bot.id).toBe("editor");
