@@ -121,6 +121,7 @@ async function composeApp(deps: AppDeps, opened: Array<() => unknown>) {
       }),
     }),
     limits: config.limits(),
+    ...(deps.onTicketChange && { onTicketChange: deps.onTicketChange }),
     scopeBot: scopeBotFor(agentHome, config),
     projectRules: readProjectRules,
     log,

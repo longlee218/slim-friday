@@ -1,5 +1,6 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { ticketDtoFor } from "@friday/api";
 import { TEMPLATES_DIR } from "@friday/config";
 import type { AgentRuntime, FileStore } from "@friday/core";
 import {
@@ -142,6 +143,11 @@ export async function startEngine(
     consolidate: (memory, notes) =>
       consolidateNotes({ memory, notes, today: localDay(new Date()) }, haiku),
     onConfigChanged: () => surface.bus.publish({ type: "config.changed" }),
+    // Every saved ticket change goes to the web app with its fresh comment count.
+    onTicketChange: (t) =>
+      void ticketDtoFor(engine, t)
+        .then((ticket) => surface.bus.publish({ type: "ticket", ticket }))
+        .catch((err) => log.error({ error: String(err), ticketId: t.id }, "ticket.publish_failed")),
   }).catch((err) => {
     // startApp closes what it opened; closing the db here too is harmless and covers a throw before it took it.
     engine.close();

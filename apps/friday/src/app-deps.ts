@@ -12,6 +12,7 @@ import type {
   MessageIndexStore,
   Store,
   Surface,
+  Ticket,
   TicketBoard,
 } from "@friday/core";
 import type { EngineStore } from "@friday/store-sqlite";
@@ -67,5 +68,7 @@ export interface AppDeps {
   fetch?: typeof fetch;
   /** Called after a config reload has synced the conversations (the web surface publishes `config.changed`). */
   onConfigChanged?: () => void;
+  /** Told after every saved ticket create, update and comment (the web surface publishes `ticket`). */
+  onTicketChange?: (t: Ticket) => void;
   log: Log;
 }

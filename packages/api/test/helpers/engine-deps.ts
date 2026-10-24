@@ -11,6 +11,7 @@ import { FakeStore } from "../../../core/test/fakes/fake-store";
 import { FakeToolCatalog } from "../../../core/test/fakes/fake-tool-catalog";
 import type { ApiDeps, EngineDeps } from "../../src/index";
 import { appRouter } from "../../src/index";
+import { ticketDtoFor } from "../../src/routers/tickets/ticket-dto";
 
 /** A bot with only a name that matters. */
 export const bot = (id: string, name: string): Bot => ({
@@ -43,7 +44,16 @@ export function engineHarness() {
     catalog: new FakeToolCatalog([]),
     settings: () => ({ level: "balanced" }),
   });
-  const hub = new BotHub({ runtime: new FakeRuntime(), surface, store, clock, gate });
+  // Same wiring as the app: every ticket change becomes a `ticket` event on the bus.
+  const hub = new BotHub({
+    runtime: new FakeRuntime(),
+    surface,
+    store,
+    clock,
+    gate,
+    onTicketChange: (t) =>
+      void ticketDtoFor(store, t).then((ticket) => surface.bus.publish({ type: "ticket", ticket })),
+  });
   hub.start();
   const deps = {
     hub,
@@ -53,6 +63,7 @@ export function engineHarness() {
     purge: () => 0,
     listGroups: async () => [...store.groupMap.values()],
     now: () => clock.now(),
+    limits: { maxSpendPerBotPerDayUsd: 10 },
     log: { info() {}, warn() {}, error() {} },
   } as unknown as ApiDeps;
   const client = createRouterClient(appRouter, {
