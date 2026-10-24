@@ -40,6 +40,11 @@ export class FakeStore implements Store {
     },
     recent: async (c: ConversationId, limit: number) =>
       this.msgs.filter((m) => m.conversationId === c).slice(-limit),
+    after: async (afterId: number, limit: number) =>
+      this.msgs
+        .map((m, i) => ({ ...m, id: i + 1 }))
+        .filter((m) => m.id > afterId)
+        .slice(0, limit),
   };
   grants = {
     list: async (botId: BotId) =>

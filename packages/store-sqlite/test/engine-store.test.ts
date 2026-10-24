@@ -106,3 +106,22 @@ test("audit rows are kept, answer null when absent", async () => {
   expect(rows[1]?.answer).toBeNull();
   db.close();
 });
+
+test("after returns messages past an id, oldest first, capped", async () => {
+  const s = openEngineStore(":memory:");
+  for (const t of ["m1", "m2", "m3", "m4"]) await s.messages.append(msg("c1", { kind: "user" }, t));
+  await s.messages.append(msg("c2", { kind: "bot", botId: "b1" }, "m5", 7));
+  const first = await s.messages.after(0, 2);
+  expect(first.map((m) => [m.id, m.text])).toEqual([
+    [1, "m1"],
+    [2, "m2"],
+  ]);
+  const rest = await s.messages.after(2, 10);
+  expect(rest.map((m) => m.text)).toEqual(["m3", "m4", "m5"]);
+  expect(rest.at(-1)).toMatchObject({
+    conversationId: "c2",
+    author: { kind: "bot", botId: "b1" },
+    at: 7,
+  });
+  expect(await s.messages.after(5, 10)).toEqual([]);
+});

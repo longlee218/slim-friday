@@ -22,3 +22,6 @@ export interface StoredMessage {
   /** Epoch milliseconds. */
   at: number;
 }
+
+/** A stored message with its row id (ids grow with time). */
+export type IndexedMessage = StoredMessage & { id: number };

@@ -1,5 +1,5 @@
 import type { Author, Store } from "@friday/core";
-import { desc, eq } from "drizzle-orm";
+import { asc, desc, eq, gt } from "drizzle-orm";
 import type { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import { messages } from "../schema/engine-tables";
 
@@ -26,15 +26,34 @@ export function messageRepo(db: BunSQLiteDatabase): Store["messages"] {
         .limit(limit)
         .all();
       // Newest first from the query; the port wants the last N oldest first.
-      return rows.reverse().map((r) => {
-        const author: Author =
-          r.authorKind === "bot"
-            ? { kind: "bot", botId: r.authorBotId ?? "" }
-            : r.authorKind === "system"
-              ? { kind: "system" }
-              : { kind: "user" };
-        return { conversationId: r.conversationId, author, text: r.text, at: r.at };
-      });
+      return rows.reverse().map((r) => ({
+        conversationId: r.conversationId,
+        author: authorOf(r),
+        text: r.text,
+        at: r.at,
+      }));
+    },
+    async after(afterId, limit) {
+      return db
+        .select()
+        .from(messages)
+        .where(gt(messages.id, afterId))
+        .orderBy(asc(messages.id))
+        .limit(limit)
+        .all()
+        .map((r) => ({
+          id: r.id,
+          conversationId: r.conversationId,
+          author: authorOf(r),
+          text: r.text,
+          at: r.at,
+        }));
     },
   };
+}
+
+/** The author of a stored row. */
+function authorOf(r: { authorKind: string; authorBotId: string | null }): Author {
+  if (r.authorKind === "bot") return { kind: "bot", botId: r.authorBotId ?? "" };
+  return r.authorKind === "system" ? { kind: "system" } : { kind: "user" };
 }

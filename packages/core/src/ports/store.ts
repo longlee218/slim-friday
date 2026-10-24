@@ -3,7 +3,7 @@ import type { Bot, BotId } from "../domain/bot";
 import type { Conversation, ConversationId } from "../domain/conversation";
 import type { Grant } from "../domain/grant";
 import type { Group, GroupId } from "../domain/group";
-import type { StoredMessage } from "../domain/message";
+import type { IndexedMessage, StoredMessage } from "../domain/message";
 import type { WakeRow } from "../domain/wake";
 import type { Ticket, TicketComment, TicketStatus } from "../tickets/ticket";
 import type { ApprovalAnswer } from "./surface";
@@ -58,6 +58,8 @@ export interface Store {
     append(m: StoredMessage): Promise<void>;
     /** The last `limit` messages, oldest first. */
     recent(c: ConversationId, limit: number): Promise<StoredMessage[]>;
+    /** Messages with an id above `afterId`, oldest first, at most `limit` (feeds the message index). */
+    after(afterId: number, limit: number): Promise<IndexedMessage[]>;
   };
   grants: {
     /** The bot's grants plus the grants for every bot ("*"). */

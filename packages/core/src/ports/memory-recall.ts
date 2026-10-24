@@ -1,3 +1,5 @@
+import type { ConversationId } from "../domain/conversation";
+import type { Author, IndexedMessage } from "../domain/message";
 import type { MemoryOwner } from "./memory";
 
 /** A piece of text the index holds; `ref` is unique inside its doc. */
@@ -55,4 +57,24 @@ export interface RecallHit {
 export interface RecallSource {
   id: string;
   search(q: RecallQuery): Promise<RecallHit[]>;
+}
+
+/** A past message found by the message index. Higher `score` is better. */
+export interface MessageHit {
+  id: number;
+  conversationId: ConversationId;
+  author: Author;
+  at: number;
+  text: string;
+  score: number;
+}
+
+/** Search over past messages; every search names the conversations it may look in. */
+export interface MessageIndexStore {
+  /** Highest message id indexed, 0 when none. */
+  lastMessageId(): number;
+  /** Add messages; an id already indexed is skipped. */
+  addMessages(rows: IndexedMessage[]): void;
+  /** Best messages for the words of `query` inside the given conversations only; [] for no ids. */
+  searchMessages(conversationIds: ConversationId[], query: string, limit: number): MessageHit[];
 }

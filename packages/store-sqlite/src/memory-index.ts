@@ -1,89 +1,27 @@
-import { Database } from "bun:sqlite";
-import { chmodSync, existsSync, mkdirSync, rmSync } from "node:fs";
-import { dirname } from "node:path";
-import type { IndexChunk, MemoryIndexStore, MemoryOwner, ScoredChunk } from "@friday/core";
-
-/** Bump when the tables change: an index with another version is dropped and rebuilt from the files. */
-const SCHEMA_VERSION = 1;
-/** Shortest query word searched (one letter matches too much). */
-const MIN_WORD = 2;
-
-/** `bot:<id>` or `group:<id>`: the key every row is scoped by. */
-const ownerKey = (o: MemoryOwner): string =>
-  o.kind === "bot" ? `bot:${o.botId}` : `group:${o.groupId}`;
-
-/** Text as the index sees it: NFC, lower case, `đ` as `d` (FTS5 folds other diacritics itself). */
-const fold = (s: string): string => s.normalize("NFC").toLowerCase().replace(/đ/g, "d");
+import type { Database } from "bun:sqlite";
+import type {
+  ConversationId,
+  IndexChunk,
+  IndexedMessage,
+  MemoryIndexStore,
+  MemoryOwner,
+  MessageHit,
+  MessageIndexStore,
+  ScoredChunk,
+} from "@friday/core";
+import { fold, matchOf, openIndexDb, ownerKey } from "./memory-index-db";
+import { addMessages, lastMessageId, searchMessages } from "./message-index";
 
 /**
- * An FTS5 MATCH for the words of `query`: each word quoted (so operators and punctuation are plain text) and
- * OR-ed, so a chunk with more of the words ranks higher. Empty when no word is long enough.
+ * Open (creating if needed) the memory index at `file`: the notes of every bot and group and the past messages.
+ * A damaged or older file is rebuilt empty (see `openIndexDb`); the caller refills it from the files and the engine db.
  */
-function matchOf(query: string): string {
-  const words = new Set(
-    fold(query)
-      .split(/[^\p{L}\p{N}]+/u)
-      .filter((w) => w.length >= MIN_WORD),
-  );
-  return [...words].map((w) => `"${w}"`).join(" OR ");
+export function openMemoryIndex(file: string): MemoryIndexStore & MessageIndexStore {
+  return new SqliteMemoryIndex(openIndexDb(file));
 }
 
-/** Create the tables of a fresh index. */
-function createSchema(db: Database): void {
-  db.run(
-    "CREATE TABLE docs (owner TEXT NOT NULL, doc_id TEXT NOT NULL, hash TEXT NOT NULL, PRIMARY KEY (owner, doc_id))",
-  );
-  db.run(
-    `CREATE TABLE chunks (
-      id INTEGER PRIMARY KEY, owner TEXT NOT NULL, doc_id TEXT NOT NULL,
-      ref TEXT NOT NULL, path TEXT NOT NULL, at TEXT, text TEXT NOT NULL)`,
-  );
-  db.run("CREATE INDEX chunks_doc_idx ON chunks (owner, doc_id)");
-  db.run(
-    "CREATE VIRTUAL TABLE chunks_fts USING fts5(body, tokenize = 'unicode61 remove_diacritics 2')",
-  );
-  db.run(`PRAGMA user_version = ${SCHEMA_VERSION}`);
-}
-
-/** Open `file`; throws when it is not a usable index of the current version. */
-function openChecked(file: string): Database {
-  const db = new Database(file, { create: true });
-  try {
-    db.run("PRAGMA journal_mode = WAL");
-    db.run("PRAGMA busy_timeout = 5000");
-    const version = db.query<{ user_version: number }, []>("PRAGMA user_version").get();
-    if (version?.user_version === 0) createSchema(db);
-    else if (version?.user_version !== SCHEMA_VERSION)
-      throw new Error(`memory index version ${version?.user_version}`);
-    return db;
-  } catch (err) {
-    db.close();
-    throw err;
-  }
-}
-
-/**
- * Open (creating if needed) the memory index at `file`. The index only mirrors the memory files, so a file that
- * is corrupt or of another version is deleted and made again empty (the caller then reindexes). The file and its
- * WAL / SHM sidecars are owner-only. `":memory:"` gives a throwaway index.
- */
-export function openMemoryIndex(file: string): MemoryIndexStore {
-  if (file !== ":memory:") mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
-  let db: Database;
-  try {
-    db = openChecked(file);
-  } catch {
-    if (file === ":memory:") throw new Error("memory index could not be created");
-    for (const f of [file, `${file}-wal`, `${file}-shm`]) rmSync(f, { force: true });
-    db = openChecked(file);
-  }
-  if (file !== ":memory:")
-    for (const f of [file, `${file}-wal`, `${file}-shm`]) if (existsSync(f)) chmodSync(f, 0o600);
-  return new SqliteMemoryIndex(db);
-}
-
-/** `MemoryIndexStore` on SQLite: chunks in a plain table, their folded text in an FTS5 table with the same rowid. */
-class SqliteMemoryIndex implements MemoryIndexStore {
+/** The index on SQLite: note chunks in a plain table, their folded text in an FTS5 table with the same rowid; messages likewise. */
+class SqliteMemoryIndex implements MemoryIndexStore, MessageIndexStore {
   constructor(private readonly db: Database) {}
 
   docHash(owner: MemoryOwner, docId: string): string | undefined {
@@ -150,6 +88,18 @@ class SqliteMemoryIndex implements MemoryIndexStore {
       text: r.text,
       score: r.score,
     }));
+  }
+
+  lastMessageId(): number {
+    return lastMessageId(this.db);
+  }
+
+  addMessages(rows: IndexedMessage[]): void {
+    addMessages(this.db, rows);
+  }
+
+  searchMessages(conversationIds: ConversationId[], query: string, limit: number): MessageHit[] {
+    return searchMessages(this.db, conversationIds, query, limit);
   }
 
   close(): void {
