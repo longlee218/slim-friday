@@ -17,4 +17,16 @@ describe("task list", () => {
   test("toggleTask leaves the text alone for an unknown index", () => {
     expect(toggleTask(md, 5)).toBe(md);
   });
+  test("a longer fence is closed only by a run at least as long", () => {
+    expect(taskProgress("````\n```\n- [ ] code\n```\n````\n- [ ] b")).toEqual({ done: 0, all: 1 });
+  });
+  test("a fence line with an info string never closes a block", () => {
+    expect(taskProgress("```\n```js\n- [ ] code\n```\n- [ ] b\n- [x] c")).toEqual({
+      done: 1,
+      all: 2,
+    });
+  });
+  test("a fence indented 4+ spaces is no fence", () => {
+    expect(taskProgress("    ```\n- [ ] a")).toEqual({ done: 0, all: 1 });
+  });
 });

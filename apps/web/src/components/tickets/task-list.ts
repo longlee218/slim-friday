@@ -1,23 +1,28 @@
 /** A task item line: `- [ ]`, `* [x]` or `+ [X]`, optionally indented. */
 const TASK = /^(\s*[-*+] \[)( |x|X)(\] )/;
-/** A fence line opens or closes a code block. */
-const FENCE = /^\s*(```|~~~)/;
+/** A fence line (CommonMark): at most 3 spaces of indent, a run of 3+ backticks or tildes, the rest. */
+const FENCE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
 
 /**
  * Calls `visit` for every real task line (outside fenced code) with its line index.
- * A fence closes only with the same marker that opened it.
+ * CommonMark fence rules: a block closes only with a run of the same character at least as long
+ * as the opening one and nothing but spaces after it; any other fence-like line inside is code.
  */
 function eachTask(lines: string[], visit: (line: number, n: number) => void): void {
   let fence: string | null = null;
   let n = 0;
   lines.forEach((line, i) => {
-    const f = FENCE.exec(line)?.[1];
-    if (f) {
-      if (fence === null) fence = f;
-      else if (fence === f) fence = null;
+    const m = FENCE.exec(line);
+    if (fence !== null) {
+      const run = m?.[1];
+      if (run && run[0] === fence[0] && run.length >= fence.length && !m[2]?.trim()) fence = null;
       return;
     }
-    if (fence === null && TASK.test(line)) visit(i, n++);
+    if (m?.[1]) {
+      fence = m[1];
+      return;
+    }
+    if (TASK.test(line)) visit(i, n++);
   });
 }
 
