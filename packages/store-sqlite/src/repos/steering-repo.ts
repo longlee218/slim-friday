@@ -1,0 +1,96 @@
+import type { SteeringRow, Store } from "@friday/core";
+import { and, asc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import type { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
+import { steering } from "../schema/engine-tables";
+
+type Row = typeof steering.$inferSelect;
+
+/** Owner messages sent while a run was busy: held, bound to a wake, claimed by its turn. */
+export function steeringRepo(db: BunSQLiteDatabase): Store["steering"] {
+  return {
+    async add(r) {
+      db.insert(steering)
+        .values({
+          id: r.id,
+          messageId: r.messageId,
+          conversationId: r.conversationId,
+          scopeKey: r.scopeKey,
+          wakeId: r.wakeId ?? null,
+          text: r.text,
+          attachments: r.attachments ? JSON.stringify(r.attachments) : null,
+          createdAt: r.createdAt,
+          claimedAt: r.claimedAt ?? null,
+        })
+        .run();
+    },
+    async claim(wakeId, at) {
+      // IMMEDIATE: select and mark in one write lock, so a row is claimed by one caller only.
+      return db.transaction(
+        (tx) => {
+          const mine = and(eq(steering.wakeId, wakeId), isNull(steering.claimedAt));
+          const rows = tx
+            .select()
+            .from(steering)
+            .where(mine)
+            .orderBy(asc(steering.createdAt), asc(steering.id))
+            .all();
+          if (rows.length) {
+            tx.update(steering)
+              .set({ claimedAt: at })
+              .where(
+                inArray(
+                  steering.id,
+                  rows.map((r) => r.id),
+                ),
+              )
+              .run();
+          }
+          return rows.map((r) => fromRow({ ...r, claimedAt: at }));
+        },
+        { behavior: "immediate" },
+      );
+    },
+    async held(scopeKey) {
+      return db
+        .select()
+        .from(steering)
+        .where(and(eq(steering.scopeKey, scopeKey), isNull(steering.wakeId)))
+        .orderBy(asc(steering.createdAt), asc(steering.id))
+        .all()
+        .map(fromRow);
+    },
+    async bind(ids, wakeId) {
+      if (!ids.length) return;
+      db.update(steering).set({ wakeId }).where(inArray(steering.id, ids)).run();
+    },
+    async deleteClaimed(wakeId) {
+      db.delete(steering)
+        .where(and(eq(steering.wakeId, wakeId), isNotNull(steering.claimedAt)))
+        .run();
+    },
+    async releaseClaimed(wakeId) {
+      db.update(steering)
+        .set({ claimedAt: null })
+        .where(and(eq(steering.wakeId, wakeId), isNotNull(steering.claimedAt)))
+        .run();
+    },
+    async deleteForScope(scopeKey) {
+      db.delete(steering).where(eq(steering.scopeKey, scopeKey)).run();
+    },
+  };
+}
+
+/** A row as a domain value; null columns become absent fields. */
+function fromRow(r: Row): SteeringRow {
+  return {
+    id: r.id,
+    messageId: r.messageId,
+    conversationId: r.conversationId,
+    scopeKey: r.scopeKey,
+    ...(r.wakeId !== null && { wakeId: r.wakeId }),
+    text: r.text,
+    ...(r.attachments && { attachments: JSON.parse(r.attachments) }),
+    createdAt: r.createdAt,
+    ...(r.claimedAt !== null && { claimedAt: r.claimedAt }),
+  };
+}

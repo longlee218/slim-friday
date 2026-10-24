@@ -39,8 +39,13 @@ export const messages = sqliteTable(
     run: text("run"),
     /** JSON `RelayInfo`. */
     relay: text("relay"),
+    /** Client-chosen id that makes a send idempotent; null for messages without one. */
+    clientNonce: text("client_nonce"),
   },
-  (t) => [index("messages_conversation_idx").on(t.conversationId, t.id)],
+  (t) => [
+    index("messages_conversation_idx").on(t.conversationId, t.id),
+    uniqueIndex("messages_conversation_nonce_uq").on(t.conversationId, t.clientNonce),
+  ],
 );
 
 /** Stored "always allow" decisions. */
@@ -286,3 +291,87 @@ export const ticketEvents = sqliteTable(
   },
   (t) => [index("ticket_events_ticket_idx").on(t.ticketId, t.at)],
 );
+
+/** Owner messages that arrive while a run is busy; bound to a wake, then claimed by its turn. */
+export const steering = sqliteTable(
+  "steering",
+  {
+    id: text("id").primaryKey(),
+    /** The stored message this row came from. */
+    messageId: integer("message_id").notNull(),
+    conversationId: text("conversation_id").notNull(),
+    scopeKey: text("scope_key").notNull(),
+    /** The wake that will deliver it; null while the row is held. */
+    wakeId: text("wake_id"),
+    text: text("text").notNull(),
+    /** JSON `Attachment[]`. */
+    attachments: text("attachments"),
+    /** Epoch milliseconds. */
+    createdAt: integer("created_at").notNull(),
+    /** Set when a turn took the row; null until then. */
+    claimedAt: integer("claimed_at"),
+  },
+  (t) => [
+    index("steering_wake_idx").on(t.wakeId, t.createdAt),
+    index("steering_scope_idx").on(t.scopeKey),
+  ],
+);
+
+/** Approval and question cards put to the owner by a run. */
+export const cards = sqliteTable(
+  "cards",
+  {
+    id: text("id").primaryKey(),
+    /** `approval` or `question`. */
+    kind: text("kind").notNull(),
+    wakeId: text("wake_id").notNull(),
+    botId: text("bot_id").notNull(),
+    conversationId: text("conversation_id").notNull(),
+    scopeKey: text("scope_key").notNull(),
+    /** JSON approval details (approval cards only). */
+    approval: text("approval"),
+    /** JSON `QuestionCard` (question cards only). */
+    question: text("question"),
+    /** `open`, `answered`, `withdrawn` or `used`. */
+    status: text("status").notNull(),
+    /** JSON `ApprovalAnswer` or `QuestionAnswer`. */
+    answer: text("answer"),
+    /** Epoch milliseconds. */
+    createdAt: integer("created_at").notNull(),
+    answeredAt: integer("answered_at"),
+    /** When the owner was reminded (once). */
+    remindedAt: integer("reminded_at"),
+  },
+  (t) => [
+    index("cards_status_idx").on(t.status),
+    index("cards_scope_idx").on(t.scopeKey, t.status),
+  ],
+);
+
+/** Side-effect tool calls, so a replayed run does not repeat one that already ran. */
+export const effectCalls = sqliteTable("effect_calls", {
+  /** Idempotency key of the call. */
+  key: text("key").primaryKey(),
+  wakeId: text("wake_id").notNull(),
+  tool: text("tool").notNull(),
+  /** `started` or `done`. */
+  state: text("state").notNull(),
+  /** The stored result once done. */
+  result: text("result"),
+  /** Epoch milliseconds. */
+  startedAt: integer("started_at").notNull(),
+  finishedAt: integer("finished_at"),
+});
+
+/** Small per-scope state that outlives a run. */
+export const scopes = sqliteTable("scopes", {
+  key: text("key").primaryKey(),
+  /** Effort chosen for the scope; null = bot default. */
+  effort: text("effort"),
+  /** 1 when the next session of the scope must start fresh. */
+  resetPending: integer("reset_pending").notNull().default(0),
+  /** Epoch ms of the last finished run. */
+  lastFinishedAt: integer("last_finished_at"),
+  /** Epoch ms of the last memory flush. */
+  lastFlushedAt: integer("last_flushed_at"),
+});

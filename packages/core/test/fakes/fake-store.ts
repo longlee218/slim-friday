@@ -2,6 +2,7 @@ import type {
   AuditEntry,
   Bot,
   BotId,
+  CardRow,
   Conversation,
   ConversationId,
   FileRow,
@@ -9,6 +10,8 @@ import type {
   Group,
   GroupId,
   IndexedMessage,
+  ScopeState,
+  SteeringRow,
   Store,
   StoredMessage,
   Ticket,
@@ -54,8 +57,18 @@ export class FakeStore implements Store {
   private live(): IndexedMessage[] {
     return this.msgs.flatMap((m, i) => (m ? [{ ...m, id: i + 1 }] : []));
   }
+  /** Message ids by `<conversation>\0<nonce>`. */
+  private nonces = new Map<string, number>();
   messages = {
     append: async (m: StoredMessage) => this.msgs.push(m),
+    appendOnce: async (m: StoredMessage, clientNonce: string) => {
+      const k = `${m.conversationId}\u0000${clientNonce}`;
+      const first = this.nonces.get(k);
+      if (first !== undefined) return { id: first, replayed: true };
+      const id = this.msgs.push(m);
+      this.nonces.set(k, id);
+      return { id, replayed: false };
+    },
     get: async (id: number) => this.live().find((m) => m.id === id),
     page: async (c: ConversationId, f: { before?: number; limit: number }) =>
       this.live()
@@ -275,6 +288,118 @@ export class FakeStore implements Store {
         ...(error !== undefined && { error }),
       });
     },
+  };
+  steerMap = new Map<string, SteeringRow>();
+  private steerRows = (f: (r: SteeringRow) => boolean) =>
+    [...this.steerMap.values()]
+      .filter(f)
+      .sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : 1));
+  steering = {
+    add: async (r: SteeringRow) => {
+      this.steerMap.set(r.id, { ...r });
+    },
+    claim: async (wakeId: string, at: number) =>
+      this.steerRows((r) => r.wakeId === wakeId && r.claimedAt === undefined).map((r) => {
+        r.claimedAt = at;
+        return { ...r };
+      }),
+    held: async (scopeKey: string) =>
+      this.steerRows((r) => r.scopeKey === scopeKey && r.wakeId === undefined).map((r) => ({
+        ...r,
+      })),
+    bind: async (ids: string[], wakeId: string) => {
+      for (const id of ids) {
+        const r = this.steerMap.get(id);
+        if (r) r.wakeId = wakeId;
+      }
+    },
+    deleteClaimed: async (wakeId: string) => {
+      for (const r of this.steerRows((r) => r.wakeId === wakeId && r.claimedAt !== undefined))
+        this.steerMap.delete(r.id);
+    },
+    releaseClaimed: async (wakeId: string) => {
+      for (const r of this.steerRows((r) => r.wakeId === wakeId && r.claimedAt !== undefined))
+        r.claimedAt = undefined;
+    },
+    deleteForScope: async (scopeKey: string) => {
+      for (const r of this.steerRows((r) => r.scopeKey === scopeKey)) this.steerMap.delete(r.id);
+    },
+  };
+  cardMap = new Map<string, CardRow>();
+  private cardRows = (f: (c: CardRow) => boolean) =>
+    [...this.cardMap.values()]
+      .filter(f)
+      .sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : 1))
+      .map((c) => ({ ...c }));
+  cards = {
+    insert: async (c: CardRow) => {
+      this.cardMap.set(c.id, { ...c });
+    },
+    get: async (id: string) => {
+      const c = this.cardMap.get(id);
+      return c && { ...c };
+    },
+    open: async () => this.cardRows((c) => c.status === "open"),
+    openForScope: async (scopeKey: string) =>
+      this.cardRows((c) => c.status === "open" && c.scopeKey === scopeKey),
+    answer: async (id: string, answer: CardRow["answer"], at: number) => {
+      const c = this.cardMap.get(id);
+      if (c?.status !== "open") return false;
+      Object.assign(c, { status: "answered", answer, answeredAt: at });
+      return true;
+    },
+    setStatus: async (id: string, from: CardRow["status"], to: CardRow["status"]) => {
+      const c = this.cardMap.get(id);
+      if (c?.status !== from) return false;
+      c.status = to;
+      return true;
+    },
+    markReminded: async (id: string, at: number) => {
+      const c = this.cardMap.get(id);
+      if (c) c.remindedAt = at;
+    },
+  };
+  effectMap = new Map<string, { state: "started" | "done"; result?: string }>();
+  effects = {
+    begin: async (key: string, _wakeId: string, _tool: string, _at: number) => {
+      const e = this.effectMap.get(key);
+      if (!e) {
+        this.effectMap.set(key, { state: "started" });
+        return { state: "new" as const };
+      }
+      return e.state === "done"
+        ? { state: "done" as const, result: e.result ?? "" }
+        : { state: "started" as const };
+    },
+    finish: async (key: string, result: string, _at: number) => {
+      const e = this.effectMap.get(key);
+      if (e) Object.assign(e, { state: "done", result });
+    },
+  };
+  scopeMap = new Map<string, ScopeState>();
+  /** Create-or-patch, like the repo's upsert. */
+  private scopeSet(key: string, patch: Partial<ScopeState>) {
+    this.scopeMap.set(key, { resetPending: false, ...this.scopeMap.get(key), ...patch });
+  }
+  scopes = {
+    get: async (key: string) => {
+      const s = this.scopeMap.get(key);
+      return s && { ...s };
+    },
+    setEffort: async (key: string, effort: string) => this.scopeSet(key, { effort }),
+    markReset: async (key: string) => this.scopeSet(key, { resetPending: true }),
+    clearReset: async (key: string) => this.scopeSet(key, { resetPending: false }),
+    finished: async (key: string, at: number) => this.scopeSet(key, { lastFinishedAt: at }),
+    flushed: async (key: string, at: number) => this.scopeSet(key, { lastFlushedAt: at }),
+    quiet: async (before: number) =>
+      [...this.scopeMap.entries()]
+        .filter(
+          ([, s]) =>
+            s.lastFinishedAt !== undefined &&
+            s.lastFinishedAt < before &&
+            (s.lastFlushedAt === undefined || s.lastFlushedAt < s.lastFinishedAt),
+        )
+        .map(([k]) => k),
   };
   ticketMap = new Map<string, Ticket>();
   ticketComments: TicketComment[] = [];

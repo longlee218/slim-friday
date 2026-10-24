@@ -3,14 +3,18 @@ import { drizzle } from "drizzle-orm/bun-sqlite";
 import { openEngineDb } from "./open-engine-db";
 import { attemptRepo } from "./repos/attempt-repo";
 import { auditRepo } from "./repos/audit-repo";
+import { cardRepo } from "./repos/card-repo";
 import { conversationRepo } from "./repos/conversation-repo";
+import { effectCallRepo } from "./repos/effect-call-repo";
 import { fileRepo } from "./repos/file-repo";
 import { grantRepo } from "./repos/grant-repo";
 import { insightRepo } from "./repos/insight-repo";
 import { messageRepo } from "./repos/message-repo";
 import { readRepo } from "./repos/read-repo";
+import { scopeRepo } from "./repos/scope-repo";
 import { sessionRepo } from "./repos/session-repo";
 import { spendRepo } from "./repos/spend-repo";
+import { steeringRepo } from "./repos/steering-repo";
 import { ticketRepo } from "./repos/ticket-repo";
 import { uploadRepo } from "./repos/upload-repo";
 import { wakeRepo } from "./repos/wake-repo";
@@ -40,6 +44,10 @@ export function openEngineStore(file: string): EngineStore {
     audit: auditRepo(db),
     wakes: wakeRepo(db),
     attempts: attemptRepo(db),
+    steering: steeringRepo(db),
+    cards: cardRepo(db),
+    effects: effectCallRepo(db),
+    scopes: scopeRepo(db),
     tickets: ticketRepo(db),
     insight: insightRepo(db),
     close: () => client.close(),

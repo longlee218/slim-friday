@@ -9,23 +9,25 @@ type Row = typeof messages.$inferSelect;
 export function messageRepo(db: BunSQLiteDatabase): Store["messages"] {
   return {
     async append(m) {
+      return db.insert(messages).values(toValues(m)).returning({ id: messages.id }).get().id;
+    },
+    async appendOnce(m, clientNonce) {
+      // One INSERT decides who is first; a conflict on (conversation, nonce) means a replay.
       const row = db
         .insert(messages)
-        .values({
-          conversationId: m.conversationId,
-          authorKind: m.author.kind,
-          authorBotId: m.author.kind === "bot" ? m.author.botId : null,
-          text: m.text,
-          at: m.at,
-          kind: m.kind ?? "text",
-          replyTo: m.replyTo ?? null,
-          files: m.files ? JSON.stringify(m.files) : null,
-          run: m.run ? JSON.stringify(m.run) : null,
-          relay: m.relay ? JSON.stringify(m.relay) : null,
-        })
+        .values({ ...toValues(m), clientNonce })
+        .onConflictDoNothing({ target: [messages.conversationId, messages.clientNonce] })
         .returning({ id: messages.id })
         .get();
-      return row.id;
+      if (row) return { id: row.id, replayed: false };
+      const first = db
+        .select({ id: messages.id })
+        .from(messages)
+        .where(
+          and(eq(messages.conversationId, m.conversationId), eq(messages.clientNonce, clientNonce)),
+        )
+        .get();
+      return { id: first?.id ?? 0, replayed: true };
     },
     async get(id) {
       const r = db.select().from(messages).where(eq(messages.id, id)).get();
@@ -66,6 +68,22 @@ export function messageRepo(db: BunSQLiteDatabase): Store["messages"] {
         .all()
         .map(toIndexed);
     },
+  };
+}
+
+/** Column values of a new message row. */
+function toValues(m: StoredMessage) {
+  return {
+    conversationId: m.conversationId,
+    authorKind: m.author.kind,
+    authorBotId: m.author.kind === "bot" ? m.author.botId : null,
+    text: m.text,
+    at: m.at,
+    kind: m.kind ?? "text",
+    replyTo: m.replyTo ?? null,
+    files: m.files ? JSON.stringify(m.files) : null,
+    run: m.run ? JSON.stringify(m.run) : null,
+    relay: m.relay ? JSON.stringify(m.relay) : null,
   };
 }
 

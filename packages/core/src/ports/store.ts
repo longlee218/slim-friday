@@ -6,6 +6,7 @@ import type { Group, GroupId } from "../domain/group";
 import type { IndexedMessage, StoredMessage } from "../domain/message";
 import type { WakeRow, WakeStatus } from "../domain/wake";
 import type { Ticket, TicketComment, TicketStatus } from "../tickets/ticket";
+import type { CardPort, EffectPort, ScopePort, SteeringPort } from "./run-state-ports";
 import type { ApprovalAnswer } from "./surface";
 
 /** One decision on one tool call, kept for review. */
@@ -97,6 +98,8 @@ export interface Store {
   messages: {
     /** Returns the id of the new message (ids grow with time). */
     append(m: StoredMessage): Promise<number>;
+    /** Insert once per `(conversation, clientNonce)`; a repeat returns the first id with `replayed: true`. */
+    appendOnce(m: StoredMessage, clientNonce: string): Promise<{ id: number; replayed: boolean }>;
     get(id: number): Promise<IndexedMessage | undefined>;
     /** Newest first. `before` is the id of the oldest message of the previous page. */
     page(c: ConversationId, f: { before?: number; limit: number }): Promise<IndexedMessage[]>;
@@ -190,6 +193,14 @@ export interface Store {
     /** Queued, leased, running and waiting_input rows of a scope, oldest first. */
     activeInScope(scopeKey: string): Promise<WakeRow[]>;
   };
+  /** Owner messages sent while a run is busy. */
+  steering: SteeringPort;
+  /** Approval and question cards. */
+  cards: CardPort;
+  /** Side-effect call records. */
+  effects: EffectPort;
+  /** Per-scope state. */
+  scopes: ScopePort;
   /** Tries of a run. */
   attempts: {
     start(a: {
