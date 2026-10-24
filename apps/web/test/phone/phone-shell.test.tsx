@@ -48,6 +48,13 @@ test("chats list pills, previews and live row", () => {
   expect(screen.getByText("1 approval waiting · $1.50 today")).toBeTruthy();
 });
 
+test("a row with an open approval shows the amber count, not the unread count", () => {
+  renderPhone(phoneClient(), "/");
+  const dev = screen.getByText("Dev").closest(".crow") as HTMLElement;
+  expect(dev.querySelector(".badge.amber")?.textContent).toBe("1");
+  expect(dev.querySelector(".badge.tint")).toBeNull();
+});
+
 test("search filters the list by name", () => {
   renderPhone(phoneClient(), "/");
   fireEvent.change(screen.getByPlaceholderText("Search"), { target: { value: "pi" } });

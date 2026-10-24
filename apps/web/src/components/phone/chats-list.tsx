@@ -8,8 +8,8 @@ import { type Directory, useDirectory } from "../../api/directory";
 import { useOpenPalette } from "../../app/shell-context";
 import { formatClock, formatCost } from "../../lib/format";
 import { conversationParts } from "../chat/conversation-parts";
+import { Trailing, trailingMark } from "../shell/sidebar-row";
 import { Avatar, AvatarStack } from "../ui/avatar";
-import { Badge } from "../ui/badge";
 import { Pill } from "../ui/pill";
 import { PhoneNavBar } from "./phone-nav-bar";
 
@@ -97,7 +97,8 @@ export function ChatsList() {
             const { bot, group } = conversationParts(dir, c);
             const name = group?.name ?? bot?.name ?? c.title;
             const live = bot && status.find((b) => b.botId === bot.id && b.working);
-            const approval = approvals.some((a) => a.conversationId === c.id);
+            const approvalCount = approvals.filter((a) => a.conversationId === c.id).length;
+            const approval = approvalCount > 0;
             const ask = questions.some((q) => q.conversationId === c.id);
             const members = (group?.members ?? []).slice(0, 2).map((id) => dir.bots.get(id));
             return (
@@ -129,7 +130,14 @@ export function ChatsList() {
                   <div className="l1">
                     <b>{name}</b>
                     <time>{c.lastMessage ? formatClock(c.lastMessage.at, now) : ""}</time>
-                    {c.unread > 0 && <Badge tone="tint" count={c.unread} />}
+                    {/* Same priority as the sidebar; the working label lives on line 2. */}
+                    <Trailing
+                      mark={trailingMark({
+                        approvals: approvalCount,
+                        unread: c.unread,
+                        working: false,
+                      })}
+                    />
                   </div>
                   <div className="l2">
                     {approval ? (
