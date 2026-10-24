@@ -22,6 +22,17 @@ const MAX_FORGET = 200;
 const observerOf = (o: MemoryOwner): string =>
   honchoId(o.kind === "bot" ? `bot-${o.botId}` : `group-${o.groupId}`);
 
+/** `p`, or a rejection when `signal` aborts first (`p` itself keeps running for its other waiters). */
+function within<T>(p: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return p;
+  return new Promise<T>((resolve, reject) => {
+    const stop = () => reject(signal.reason);
+    if (signal.aborted) return stop();
+    signal.addEventListener("abort", stop, { once: true });
+    p.then(resolve, reject).finally(() => signal.removeEventListener("abort", stop));
+  });
+}
+
 /** The value of a call, or a throw with its error (the caller logs and skips the source). */
 function unwrap<T>(r: HonchoResult<T>): T {
   if (!r.ok) throw new Error(r.error);
@@ -37,15 +48,18 @@ export function honchoSource(c: HonchoConnection, opts: { workspace?: string } =
   const workspace = honchoId(opts.workspace ?? HONCHO_DEFAULT_WORKSPACE);
   const ensured = new Map<string, Promise<void>>();
 
-  /** Make the owner's peers exist (cached; a failure clears the cache entry). */
+  /**
+   * Make the owner's peers exist (cached; a failure clears the cache entry). The shared call is bounded only by the
+   * client timeout, never by one caller's signal, so a search that gives up does not fail a write waiting on it.
+   */
   const ensure = (observer: string, signal?: AbortSignal): Promise<void> => {
     let p = ensured.get(observer);
     if (!p) {
-      p = ensurePeers(c, workspace, [observer, HONCHO_OBSERVED_PEER], signal).then(unwrap);
+      p = ensurePeers(c, workspace, [observer, HONCHO_OBSERVED_PEER]).then(unwrap);
       p.catch(() => ensured.delete(observer));
       ensured.set(observer, p);
     }
-    return p;
+    return within(p, signal);
   };
 
   /** Conclusions of the owner that match `text`, best first. */

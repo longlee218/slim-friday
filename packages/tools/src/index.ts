@@ -21,6 +21,7 @@ export * from "./memory/memory-server";
 export * from "./memory/recall/builtin-source";
 export * from "./memory/recall/chunk-memory";
 export * from "./memory/recall/indexer";
+export * from "./memory/recall/live-notes-only";
 export * from "./memory/recall/memory-recall";
 export * from "./memory/recall/message-catch-up";
 export * from "./memory/recall/rrf";

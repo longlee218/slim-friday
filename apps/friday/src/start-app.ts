@@ -23,6 +23,7 @@ import {
   consolidateAll,
   FileMemory,
   Indexer,
+  liveNotesOnly,
   MemoryRecall,
   type MessageSearchDeps,
   pruneJournals,
@@ -169,7 +170,11 @@ export async function startApp(deps: AppDeps) {
     (providers.sources.some((s) => s.write)
       ? new WriteThroughMemory(memoryRoot, providers.sources, { onChange: memoryChanged, log })
       : new FileMemory(memoryRoot, undefined, memoryChanged));
-  const recall = new MemoryRecall([builtinSource(memoryIndex), ...providers.sources], { log });
+  // A provider hit counts only while its note is still in MEMORY.md (a failed forget must not bring it back).
+  const recall = new MemoryRecall(
+    [builtinSource(memoryIndex), ...providers.sources.map((s) => liveNotesOnly(s, memory))],
+    { log },
+  );
   // Past messages are indexed from the engine db on demand (each search first catches up).
   const messages: MessageSearchDeps = {
     index: memoryIndex,

@@ -68,3 +68,17 @@ test("forget removes every verbatim copy and leaves near matches", async () => {
   await s.forget?.(ann, "uses bun");
   expect(h.conclusions.map((c) => c.content)).toEqual(["uses bun daily"]);
 });
+
+test("a search that gives up does not fail a write waiting on the same peer setup", async () => {
+  const h = fakeHoncho();
+  const release = h.holdPeers();
+  const s = honchoSource({ baseUrl: "http://localhost:8000", fetch: h.fetch });
+  const ac = new AbortController();
+  const searching = s.search({ owner: ann, text: "docker", limit: 5, signal: ac.signal });
+  const writing = s.write?.(ann, { text: "uses docker", kind: "fact" });
+  ac.abort();
+  await expect(searching).rejects.toThrow();
+  release();
+  await writing;
+  expect(h.conclusions.map((c) => c.content)).toEqual(["uses docker"]);
+});

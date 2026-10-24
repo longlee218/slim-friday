@@ -6,6 +6,8 @@ export function fakeHoncho() {
   const queries: { filters: { observer_id: string; observed_id: string } }[] = [];
   let next = 1;
   let failPeers = 0;
+  /** While set, peer calls wait for it (or for their request's abort). */
+  let held: Promise<void> | undefined;
   const words = (s: string) =>
     new Set(
       s
@@ -18,6 +20,14 @@ export function fakeHoncho() {
     const path = new URL(String(input)).pathname;
     const body = init.body ? JSON.parse(String(init.body)) : {};
     if (path.endsWith("/peers")) {
+      if (held) {
+        const gate = held;
+        await new Promise<void>((resolve, reject) => {
+          if (init.signal?.aborted) return reject(init.signal.reason);
+          gate.then(resolve);
+          init.signal?.addEventListener("abort", () => reject(init.signal?.reason), { once: true });
+        });
+      }
       if (failPeers > 0) {
         failPeers--;
         return reply({}, 503);
@@ -63,6 +73,17 @@ export function fakeHoncho() {
     /** Make the next `n` peer calls fail with 503. */
     failNextPeers: (n: number) => {
       failPeers = n;
+    },
+    /** Hold every peer call until the returned function is called. */
+    holdPeers: () => {
+      let release = () => {};
+      held = new Promise<void>((r) => {
+        release = r;
+      });
+      return () => {
+        held = undefined;
+        release();
+      };
     },
   };
 }

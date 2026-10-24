@@ -1,11 +1,13 @@
 /** Private IPv4 ranges a plain-http Honcho may live in (plus loopback). */
 const PRIVATE_V4 = [/^127\./, /^10\./, /^192\.168\./, /^172\.(1[6-9]|2\d|3[01])\./];
+/** A dotted-quad IPv4 literal (a DNS name such as `10.evil.com` is not one). */
+const IPV4 = /^\d{1,3}(\.\d{1,3}){3}$/;
 
 /** True for `localhost`, a loopback, or a private IP literal. */
 function isLocalHost(host: string): boolean {
   if (host === "localhost" || host === "[::1]") return true;
   if (/^\[(fc|fd)[0-9a-f]{2}:/i.test(host)) return true;
-  return PRIVATE_V4.some((re) => re.test(host));
+  return IPV4.test(host) && PRIVATE_V4.some((re) => re.test(host));
 }
 
 /**
