@@ -25,6 +25,8 @@ interface Loose {
         }[];
   };
   task_id?: string;
+  /** On task_started: the id of the Agent call that started the task. */
+  tool_use_id?: string;
   description?: string;
   status?: "completed" | "failed" | "stopped";
   summary?: string;
@@ -80,7 +82,14 @@ export function mapMessage(message: SDKMessage): RuntimeEvent[] {
       .map((b) => ({ type: "tool_result", toolUseId: b.tool_use_id ?? "", ok: !b.is_error }));
   }
   if (m.type === "system" && m.subtype === "task_started")
-    return [{ type: "task_started", taskId: m.task_id ?? "", description: m.description ?? "" }];
+    return [
+      {
+        type: "task_started",
+        taskId: m.task_id ?? "",
+        description: m.description ?? "",
+        ...(m.tool_use_id && { toolUseId: m.tool_use_id }),
+      },
+    ];
   if (m.type === "system" && m.subtype === "task_notification")
     return [
       {

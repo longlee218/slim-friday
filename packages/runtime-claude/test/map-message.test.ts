@@ -40,6 +40,15 @@ test("task_started and task_notification map to task events", () => {
   expect(
     m({ type: "system", subtype: "task_started", task_id: "t1", description: "read" }),
   ).toEqual([{ type: "task_started", taskId: "t1", description: "read" }]);
+  expect(
+    m({
+      type: "system",
+      subtype: "task_started",
+      task_id: "t1",
+      description: "read",
+      tool_use_id: "toolu_1",
+    }),
+  ).toEqual([{ type: "task_started", taskId: "t1", description: "read", toolUseId: "toolu_1" }]);
   for (const status of ["completed", "failed", "stopped"] as const)
     expect(
       m({ type: "system", subtype: "task_notification", task_id: "t1", status, summary: "s" }),

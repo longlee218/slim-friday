@@ -82,11 +82,23 @@ test("background task start and end are subagent steps", async () => {
 test("task_started reuses the Agent tool step instead of adding a second one", async () => {
   const { s, surface, store } = await open();
   s.emit({ type: "tool_call", toolUseId: "a1", tool: "Agent", input: { description: "d" } });
-  s.emit({ type: "task_started", taskId: "k1", description: "scan repo" });
+  s.emit({ type: "task_started", taskId: "k1", description: "scan repo", toolUseId: "a1" });
   s.emit({ type: "task_done", taskId: "k1", status: "completed", summary: "" });
   s.emit({ type: "text", text: "x" });
   await flush();
   expect(new Set(surface.runs.map((r) => r.step.id))).toEqual(new Set(["a1"]));
   expect(store.msgs.at(-1)?.run).toHaveLength(1);
   expect(store.msgs.at(-1)?.run?.[0]).toMatchObject({ target: "scan repo", state: "done" });
+});
+
+test("with parallel Agent calls, task_started maps to the step of its tool use id", async () => {
+  const { s, surface } = await open();
+  s.emit({ type: "tool_call", toolUseId: "a1", tool: "Agent", input: { description: "one" } });
+  s.emit({ type: "tool_call", toolUseId: "a2", tool: "Agent", input: { description: "two" } });
+  s.emit({ type: "task_started", taskId: "k2", description: "second", toolUseId: "a2" });
+  s.emit({ type: "task_done", taskId: "k2", status: "completed", summary: "" });
+  await flush();
+  const last = surface.runs.at(-1)?.step;
+  expect(last).toMatchObject({ id: "a2", state: "done", target: "second" });
+  expect(surface.runs.some((r) => r.step.id === "a1" && r.step.state === "done")).toBe(false);
 });

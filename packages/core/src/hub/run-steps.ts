@@ -63,22 +63,19 @@ export class RunTracker {
   }
 
   /**
-   * A background task started or ended. The runtime's task start carries the Agent call's tool_use id, but
-   * the runtime event has only the task id: the task adopts the oldest running subagent step that no task
-   * owns yet (so there is one line per subagent, not two) and falls back to its own `task-<id>` step.
+   * A background task started or ended. task_started carries the tool_use id of the Agent call: the task
+   * owns that step (one line per subagent, right one with parallel subagents). Without a matching step
+   * the task gets its own `task-<id>` step.
    */
   onTask(
     e:
-      | { type: "task_started"; taskId: string; description: string }
+      | { type: "task_started"; taskId: string; description: string; toolUseId?: string }
       | { type: "task_done"; taskId: string; status: "completed" | "failed" | "stopped" },
     now: number,
   ): RunStep | undefined {
     if (e.type === "task_started") {
-      const owned = new Set(this.taskSteps.values());
-      const adopt = [...this.steps.values()].find(
-        (s) => s.kind === "subagent" && s.state === "running" && !owned.has(s.id),
-      );
-      const step: RunStep = adopt ?? {
+      const known = e.toolUseId ? this.steps.get(e.toolUseId) : undefined;
+      const step: RunStep = known ?? {
         id: `task-${e.taskId}`,
         kind: "subagent",
         label: "Started subagent",
@@ -86,7 +83,7 @@ export class RunTracker {
         startedAt: now,
       };
       if (e.description) step.target = e.description;
-      if (!adopt) this.add(step);
+      if (!known) this.add(step);
       this.taskSteps.set(e.taskId, step.id);
       return copy(step);
     }

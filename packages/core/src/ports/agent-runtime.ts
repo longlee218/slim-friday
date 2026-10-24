@@ -45,7 +45,7 @@ export type RuntimeEvent =
   | { type: "tool_result"; toolUseId: string; ok: boolean }
   /** The model is thinking (no text is carried). */
   | { type: "thinking" }
-  | { type: "task_started"; taskId: string; description: string }
+  | { type: "task_started"; taskId: string; description: string; toolUseId?: string }
   | {
       type: "task_done";
       taskId: string;
