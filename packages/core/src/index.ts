@@ -29,6 +29,7 @@ export * from "./ports/memory";
 export * from "./ports/memory-provider-plugin";
 export * from "./ports/memory-recall";
 export * from "./ports/messenger";
+export * from "./ports/settings-admin";
 export * from "./ports/store";
 export * from "./ports/surface";
 export * from "./ports/tool-catalog";
