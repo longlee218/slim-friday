@@ -43,11 +43,11 @@ function Pre({ node, children }: { node?: HastNode; children?: ReactNode }) {
   return <CodeBlock code={text} lang={lang} title={fenceTitle(code.data?.meta)} />;
 }
 
-/** `a` renderer: ticket links stay in the app, absolute http(s) links open in a new tab. */
+/** `a` renderer: ticket links stay in the app, absolute http(s) and protocol-relative links open in a new tab. */
 function Link({ href, children }: ComponentProps<"a"> & { node?: unknown }) {
   const ticket = href ? TICKET_HREF.exec(href) : null;
   if (ticket?.[1]) return <TicketLink ticketRef={ticket[1]} />;
-  if (href && /^https?:\/\//i.test(href)) {
+  if (href && /^(https?:)?\/\//i.test(href)) {
     return (
       <a href={href} target="_blank" rel="noopener noreferrer">
         {children}

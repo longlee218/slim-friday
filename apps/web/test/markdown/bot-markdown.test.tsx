@@ -10,7 +10,10 @@ const mocks = vi.hoisted(() => ({
   render: vi.fn(),
   initialize: vi.fn(),
 }));
-vi.mock("shiki", () => ({ codeToHtml: mocks.codeToHtml }));
+vi.mock("shiki", () => ({
+  codeToHtml: mocks.codeToHtml,
+  bundledLanguages: { ts: {}, html: {} },
+}));
 vi.mock("mermaid", () => ({ default: { initialize: mocks.initialize, render: mocks.render } }));
 
 /** Render markdown inside a router (ticket links navigate in-app). */
@@ -50,6 +53,21 @@ test("javascript: links are neutralised", () => {
   view("[x](javascript:alert(1))");
   const href = screen.getByText("x").closest("a")?.getAttribute("href") ?? "";
   expect(href).not.toMatch(/^javascript:/);
+});
+
+test("protocol-relative links count as external", () => {
+  view("[cdn](//evil.example/x)");
+  const a = screen.getByRole("link", { name: "cdn" });
+  expect(a.getAttribute("target")).toBe("_blank");
+  expect(a.getAttribute("rel")).toBe("noopener noreferrer");
+});
+
+test("Copy does not throw without a clipboard", async () => {
+  const user = userEvent.setup();
+  view("```ts\nconst a = 1;\n```");
+  vi.stubGlobal("navigator", { ...navigator, clipboard: undefined });
+  await user.click(screen.getByRole("button", { name: /Copy/ }));
+  expect(screen.getByRole("button", { name: /Copy/ })).not.toBeNull();
 });
 
 test("external links open in a new tab safely", () => {
@@ -119,9 +137,9 @@ test("header shows the language when there is no title, and highlights", async (
 });
 
 test("an unknown language stays a plain pre", async () => {
-  mocks.codeToHtml.mockRejectedValue(new Error("unknown language"));
   const { container } = view("```nope\nhello\n```");
-  await waitFor(() => expect(mocks.codeToHtml).toHaveBeenCalled());
+  await new Promise((r) => setTimeout(r, 20));
+  expect(mocks.codeToHtml).not.toHaveBeenCalled();
   expect(container.querySelector("pre.shiki")).toBeNull();
   expect(container.querySelector("pre")?.textContent).toContain("hello");
 });
@@ -151,6 +169,16 @@ test("a drawn diagram injects the SVG and initialises mermaid strictly", async (
       themeVariables: expect.objectContaining({ primaryColor: "#e8edff", darkMode: false }),
     }),
   );
+});
+
+test("a mocked svg with script and onload is sanitised", async () => {
+  mocks.render.mockResolvedValue({
+    svg: '<svg onload="alert(1)"><script>alert(1)</script><rect data-testid="ok" /></svg>',
+  });
+  const { container } = view("```mermaid\nA-->B\n```");
+  await screen.findByTestId("ok");
+  expect(container.querySelector("script")).toBeNull();
+  expect(container.querySelector("svg")?.hasAttribute("onload")).toBe(false);
 });
 
 test("a failed diagram shows the source", async () => {
@@ -189,6 +217,8 @@ test("Expand opens the wide sheet", async () => {
   await screen.findByTestId("dg");
   await user.click(screen.getByRole("button", { name: /Expand/ }));
   expect(document.querySelector(".sheet.wide")).not.toBeNull();
+  // One SVG only while the sheet is open, so element ids stay unique.
+  expect(document.querySelectorAll("[data-testid=dg]").length).toBe(1);
 });
 
 test("task list items render a check box and mark done items", () => {

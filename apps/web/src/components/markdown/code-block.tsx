@@ -16,14 +16,16 @@ export function CodeBlock({ code, lang, title }: { code: string; lang?: string; 
     if (!lang) return;
     let live = true;
     import("shiki")
-      .then(({ codeToHtml }) =>
-        codeToHtml(code, {
+      .then(({ bundledLanguages, codeToHtml }) => {
+        // Own-property check: names like `__proto__` would otherwise poison shiki's highlighter.
+        if (!Object.hasOwn(bundledLanguages, lang)) return null;
+        return codeToHtml(code, {
           lang,
           themes: { light: "github-light", dark: "github-dark" },
           defaultColor: false,
-        }),
-      )
-      .then((out) => live && setHtml(out))
+        });
+      })
+      .then((out) => live && out !== null && setHtml(out))
       // Unknown language or load failure: keep the plain block.
       .catch(() => {});
     return () => {

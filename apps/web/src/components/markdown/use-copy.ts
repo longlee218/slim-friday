@@ -6,8 +6,9 @@ export function useCopy(text: string): [copied: boolean, copy: () => void] {
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
   const copy = useCallback(() => {
+    // `clipboard` is missing on insecure origins; then the label simply stays "Copy".
     navigator.clipboard
-      .writeText(text)
+      ?.writeText(text)
       .then(() => {
         setCopied(true);
         clearTimeout(timer.current);

@@ -2,6 +2,7 @@ import { Copy, Maximize2, Workflow } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { Button } from "../ui/button";
 import { Sheet } from "../ui/sheet";
+import { sanitizeSvg } from "./sanitize-svg";
 import { useCopy } from "./use-copy";
 import { useIsDark } from "./use-is-dark";
 
@@ -75,7 +76,7 @@ export function Diagram({ source }: { source: string }) {
           themeVariables: themeVariables(dark),
         });
         const { svg } = await mermaid.render(id, source);
-        if (live) setState({ status: "done", svg });
+        if (live) setState({ status: "done", svg: sanitizeSvg(svg) });
       })
       .catch(() => live && setState({ status: "failed" }));
     return () => {
@@ -100,7 +101,8 @@ export function Diagram({ source }: { source: string }) {
           </button>
         </span>
       </div>
-      <DiagramBody state={state} source={source} />
+      {/* Only one SVG at a time: the sheet shows it while open, so ids stay unique. */}
+      {open ? null : <DiagramBody state={state} source={source} />}
       <Sheet wide open={open} onOpenChange={setOpen}>
         <h3>Diagram</h3>
         <div className="diagram">
