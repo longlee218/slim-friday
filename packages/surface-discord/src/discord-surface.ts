@@ -1,10 +1,15 @@
 import type {
   Activity,
+  ApprovalAnswer,
+  ApprovalCard,
   BotId,
   ConversationId,
   InboundMessage,
   OutboundMessage,
+  Surface,
 } from "@friday/core";
+import { ApprovalCards } from "./approval-cards";
+import { type CommandHandler, registerCommands } from "./commands";
 import type { ChannelTarget, DiscordPort } from "./discord-port";
 import { splitText } from "./split-text";
 
@@ -12,15 +17,18 @@ import { splitText } from "./split-text";
  * The core `Surface` on Discord. Every mapped channel is one conversation (channel id = conversation id);
  * only the owner's messages count. Bot posts go out through webhooks under the bot's own name.
  */
-export class DiscordSurface {
+export class DiscordSurface implements Surface {
   /** Channel id to what it stands for (set by the channel sync). */
   private channels = new Map<string, ChannelTarget>();
+  private readonly cards: ApprovalCards;
 
   constructor(
     protected readonly port: DiscordPort,
     /** Display name of a bot id (an unknown id is shown as is). */
     private readonly botName: (id: BotId) => string | undefined,
-  ) {}
+  ) {
+    this.cards = new ApprovalCards(port);
+  }
 
   /** Start accepting messages from a channel. */
   mapChannel(channelId: string, target: ChannelTarget): void {
@@ -57,5 +65,20 @@ export class DiscordSurface {
   /** Typing indicator; a failure is not worth stopping for. */
   showActivity(conversationId: ConversationId, a: Activity): void {
     if (a.kind === "typing") this.port.typing(conversationId).catch(() => {});
+  }
+
+  /** Ask the owner with a card of buttons; resolves on their click. */
+  askApproval(conversationId: ConversationId, card: ApprovalCard): Promise<ApprovalAnswer> {
+    return this.cards.ask(conversationId, card);
+  }
+
+  /** Settle every open card as a deny (shutdown). */
+  cancelApprovals(note?: string): Promise<void> {
+    return this.cards.cancelAll(note);
+  }
+
+  /** Owner-only `/stop` and `/status`. */
+  onCommand(handler: CommandHandler): void {
+    registerCommands(this.port, handler);
   }
 }
