@@ -194,35 +194,32 @@ test("state is live once a stream opens, even with no payload", async () => {
   await waitFor(() => expect(result.current).toBe("live"));
 });
 
-test("a throw while applying does not advance lastEventId", async () => {
+test("an event whose apply throws refetches once and the stream goes on", async () => {
   const { calls, subscribe } = fake([
     async function* () {
       yield evt(msg(7), 2);
+      yield evt(msg(8), 3);
+      yield* hang();
     },
   ]);
-  let first = true;
-  const notify = () => {};
-  renderHook(
-    () =>
-      useEventStream({
-        activeConversationId: null,
-        notify,
-        subscribe,
-        sleep,
-      }),
-    { wrapper },
-  );
-  // Make the first apply throw by breaking the cache write once.
-  const spy = vi.spyOn(qc, "setQueryData").mockImplementation(() => {
-    if (first) {
-      first = false;
+  const invalidate = vi.spyOn(qc, "invalidateQueries").mockResolvedValue();
+  // Only the first cache write throws (the apply of message 7).
+  const real = qc.setQueryData.bind(qc);
+  let thrown = false;
+  vi.spyOn(qc, "setQueryData").mockImplementation(((...a: Parameters<typeof real>) => {
+    if (!thrown) {
+      thrown = true;
       throw new Error("boom");
     }
-    return undefined;
-  });
-  await waitFor(() => expect(calls).toHaveLength(2));
-  expect(calls[1]).toEqual({});
-  spy.mockRestore();
+    return real(...a);
+  }) as typeof real);
+  renderHook(
+    () => useEventStream({ activeConversationId: null, notify: () => {}, subscribe, sleep }),
+    { wrapper },
+  );
+  await waitFor(() => expect(page0().some((m) => m.id === 8)).toBe(true));
+  expect(invalidate).toHaveBeenCalledTimes(1);
+  expect(calls).toHaveLength(1);
 });
 
 test("UNAUTHORIZED stops the loop", async () => {

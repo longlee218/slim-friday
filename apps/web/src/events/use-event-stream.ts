@@ -111,8 +111,13 @@ export function useEventStream(opts: UseEventStreamOptions): ConnectionState {
             attempt = 0;
             setState("live");
             for await (const payload of stream) {
-              await handle(payload);
-              // Advance only after the event is applied, so a throw replays it.
+              try {
+                await handle(payload);
+              } catch {
+                // An apply error is a client bug that a reconnect cannot fix: rebuild the
+                // cache from the server and keep the stream open.
+                void qc.invalidateQueries();
+              }
               lastEventId = getEventMeta(payload)?.id ?? lastEventId;
             }
           } catch (error) {
