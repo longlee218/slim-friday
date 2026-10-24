@@ -73,29 +73,38 @@ test("a crashing session is dropped, a notice is posted, the next message resume
 });
 
 test("status lists running tasks; text after task_done goes to the conversation that started the task", async () => {
-  const { runtime, surface, hub } = makeHub();
-  surface.deliver({ conversationId: "dc", text: "research this" });
+  const { runtime, surface, hub, store } = makeHub();
+  // A second chat of the same group shares editor's group session.
+  store.convMap.set("gc2", { id: "gc2", kind: "group", groupId: "g" });
+  const editorTasks = () =>
+    hub.status().find((r) => r.botId === "editor" && r.groupId === "g")?.tasks;
+  surface.deliver({ conversationId: "gc2", text: "@editor research this" });
   await flush();
   const s = runtime.nth(0);
   s.emit({ type: "task_started", taskId: "t1", description: "dig" });
   await flush();
-  expect(hub.status()[0]?.tasks).toEqual([{ taskId: "t1", description: "dig" }]);
+  expect(editorTasks()).toEqual([{ taskId: "t1", description: "dig" }]);
   s.emit({ type: "turn_end", costUsd: 0 });
   await flush();
-  // the same bot is now asked in the group chat meanwhile
+  // the same session is now asked in the other chat of the group meanwhile
   surface.deliver({ conversationId: "gc", text: "@editor quick question" });
+  await flush();
+  expect(runtime.opened).toHaveLength(1);
+  s.emit({ type: "turn_end", costUsd: 0 });
   await flush();
   s.emit({ type: "task_done", taskId: "t1", status: "completed", summary: "found" });
   await flush();
-  expect(hub.status()[0]?.tasks).toEqual([]);
+  expect(editorTasks()).toEqual([]);
   s.emit({ type: "text", text: "the research result" });
   await flush();
-  expect(surface.posts.at(-1)?.conversationId).toBe("dc");
+  expect(surface.posts.at(-1)?.conversationId).toBe("gc2");
 });
 
 test("a tool decision made by a task asks in the conversation that started the task", async () => {
-  const { runtime, surface } = makeHub();
-  surface.deliver({ conversationId: "dc", text: "go" });
+  const { runtime, surface, store } = makeHub();
+  // A second chat of the same group shares editor's group session.
+  store.convMap.set("gc2", { id: "gc2", kind: "group", groupId: "g" });
+  surface.deliver({ conversationId: "gc2", text: "@editor go" });
   await flush();
   const s = runtime.nth(0);
   s.emit({ type: "task_started", taskId: "t1", description: "dig" });
@@ -104,11 +113,11 @@ test("a tool decision made by a task asks in the conversation that started the t
   await flush();
   surface.deliver({ conversationId: "gc", text: "@editor other chat" });
   await flush();
+  expect(runtime.opened).toHaveLength(1);
   surface.answerWith("once");
   await s.spec.decide({ tool: "Unknown", input: {}, taskId: "t1" });
-  expect(surface.approvals.at(-1)?.conversationId).toBe("dc");
-  // The group chat runs in the bot's group session, which asks there.
-  await runtime.nth(1).spec.decide({ tool: "Unknown", input: {} });
+  expect(surface.approvals.at(-1)?.conversationId).toBe("gc2");
+  await s.spec.decide({ tool: "Unknown", input: {} });
   expect(surface.approvals.at(-1)?.conversationId).toBe("gc");
 });
 
