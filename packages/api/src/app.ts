@@ -1,9 +1,10 @@
 import type { BotHub, FileStore, Store } from "@friday/core";
 import type { WebSurface } from "@friday/surface-web";
+import { ORPCError, onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import type { ApiLog } from "./api-log";
+import { type ApiLog, logApiEvent } from "./api-log";
 import type { OwnerAuth } from "./auth/owner-auth";
 import { originCheck } from "./http/origin-check";
 import { requestLog } from "./http/request-log";
@@ -39,7 +40,16 @@ export type EngineDeps = Pick<ApiDeps, "hub" | "store" | "surface" | "files" | "
 /** Build the HTTP app: log, CORS, Origin check, then health, auth and the owner-only RPC. */
 export function createApiApp(deps: ApiDeps): Hono {
   const app = new Hono<{ Variables: { session: OwnerSession } }>();
-  const rpcHandler = new RPCHandler(appRouter);
+  const rpcHandler = new RPCHandler(appRouter, {
+    // An unknown error (not an ORPCError) is logged here; the client only sees INTERNAL_SERVER_ERROR.
+    clientInterceptors: [
+      onError((err) => {
+        if (!(err instanceof ORPCError)) {
+          logApiEvent(deps.log, "rpc.error", { error: String(err) }, "error");
+        }
+      }),
+    ],
+  });
 
   app.use("*", requestLog(deps.log, deps.now));
   app.use(

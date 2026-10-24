@@ -57,6 +57,9 @@ export const conversationsRouter = {
   markRead: authed.conversations.markRead.handler(async ({ input, context, errors }) => {
     const { store } = context.deps;
     if (!(await store.conversations.get(input.id))) throw errors.NOT_FOUND();
+    // The message must exist and belong to this conversation before the read mark moves.
+    const msg = await store.messages.get(input.messageId);
+    if (msg?.conversationId !== input.id) throw errors.NOT_FOUND();
     await store.reads.set(input.id, input.messageId);
     return { ok: true as const };
   }),

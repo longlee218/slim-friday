@@ -216,3 +216,19 @@ test("an RPC call after updateAge returns the refreshed session cookie", async (
   expect(res.status).toBe(501);
   expect(res.headers.getSetCookie().some((c) => c.includes("Max-Age=2592000"))).toBe(true);
 });
+
+test("an unknown error in a procedure is logged and the client gets INTERNAL_SERVER_ERROR only", async () => {
+  const t = await fresh();
+  const { cookie } = await login(t);
+  // No engine deps in this app, so the handler throws a TypeError.
+  const res = await t.app.request(`${API}/rpc/conversations/list`, {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: ORIGIN, cookie },
+    body: "{}",
+  });
+  expect(res.status).toBe(500);
+  const body = await res.text();
+  expect(body).toContain("INTERNAL_SERVER_ERROR");
+  expect(body).not.toContain("TypeError");
+  expect(t.logs.some((l) => (l as { event?: string }).event === "rpc.error")).toBe(true);
+});

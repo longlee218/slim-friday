@@ -83,3 +83,16 @@ test("messages: newest first, reply excerpt only from the same conversation", as
   const page = await h.client.conversations.messages({ id: "bot:a", before: 4, limit: 1 });
   expect(page.map((m) => m.text)).toEqual(["answer"]);
 });
+
+test("markRead with a bogus or foreign message id is NOT_FOUND and leaves unread alone", async () => {
+  const h = engineHarness();
+  h.store.convMap.set("bot:a", { id: "bot:a", kind: "direct", botId: "a" });
+  h.store.convMap.set("bot:b", { id: "bot:b", kind: "direct", botId: "b" });
+  const other = await h.store.messages.append(fromBot("bot:b", "b", "x"));
+  for (const messageId of [999_999, other]) {
+    await expect(h.client.conversations.markRead({ id: "bot:a", messageId })).rejects.toMatchObject(
+      { code: "NOT_FOUND" },
+    );
+  }
+  expect(await h.store.reads.get("bot:a")).toBe(0);
+});
