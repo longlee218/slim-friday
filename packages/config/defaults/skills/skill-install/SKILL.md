@@ -21,4 +21,4 @@ The owner gives `owner/repo` and the skill name.
 4. Only after the owner says yes: `BotDesign` `install_skill` with the clone dir, the skill name and the source. The tool re-checks the files and records the source and commit.
 
 ## Add an MCP server
-`BotDesign` `set_mcp` with the server name and its definition. Secrets only as `${NAME}` (read from the engine's env), never the value. The card shows the command, arguments and env names. A server starts third-party code when a bot session opens: say that to the owner. A bot gets the server by naming `mcp__<server>` in its `tools`.
+`BotDesign` `set_mcp` with the server name and its definition. Secrets only as `${NAME}` in `env` or `headers` (read from the engine's env), never the value, never in the command, arguments or URL; the engine's own tokens (`CLAUDE_CODE_*`, `ANTHROPIC_*`, `DISCORD_*`) cannot be named. The card shows the command, arguments and env names. A server starts third-party code when a bot session opens: say that to the owner. A bot gets the server by naming `mcp__<server>` in its `tools`.

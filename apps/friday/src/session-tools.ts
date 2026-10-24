@@ -16,6 +16,7 @@ import {
   memoryServer,
   type ToolSessionContext,
 } from "@friday/tools";
+import { FRIDAY_BOT_ID } from "./friday-bot";
 
 /** Longest a git or gh command of an effect tool may run. */
 const RUN_TIMEOUT_MS = 120_000;
@@ -195,7 +196,12 @@ export function sessionTools(deps: SessionToolsDeps) {
       };
       servers[EFFECTS_MCP_SERVER] = effectsServer(ctx, deps.projectsDir(), spec.bot.tools);
     }
-    if (deps.design && wantsServer(spec.bot.tools, DESIGN_MCP_SERVER))
+    // The design tools are the Friday bot\'s alone, whatever another bot file names.
+    if (
+      deps.design &&
+      spec.bot.id === FRIDAY_BOT_ID &&
+      wantsServer(spec.bot.tools, DESIGN_MCP_SERVER)
+    )
       servers[DESIGN_MCP_SERVER] = designServer(deps.design(spec, run));
     return servers;
   };

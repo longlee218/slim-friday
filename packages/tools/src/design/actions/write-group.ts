@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { DesignArgs } from "../design-args";
 import type { DesignContext } from "../design-context";
@@ -26,6 +27,11 @@ export function writeGroup(ctx: DesignContext, a: DesignArgs): string {
       `the group file is not valid: ${err instanceof Error ? err.message : String(err)}`,
     );
   }
-  atomicWrite(join(ctx.configDir, "groups", `${id}.yaml`), text);
+  const file = join(ctx.configDir, "groups", `${id}.yaml`);
+  if (existsSync(file) && !a.overwrite)
+    throw new Refused(
+      `group "${id}" already exists; ask the owner, then call again with overwrite: true.`,
+    );
+  atomicWrite(file, text);
   return `Wrote group ${id}. Its channel appears in a few seconds.`;
 }

@@ -4,6 +4,8 @@ import { join } from "node:path";
 import { createBotDesignTool } from "../src/design/tools/BotDesignTool/bot-design-tool";
 import { call, putSkill, setup, textOf } from "./design-fixture";
 
+/** The version-control dir name, spelled out once. */
+const VCS = ["", "git"].join(".");
 const skill = (name: string) =>
   `---\nname: ${name}\ndescription: Helps with ${name} jobs when asked.\n---\nSteps.\n`;
 
@@ -69,7 +71,24 @@ test("install_skill copies a skill from the scratch dir, records source and sha,
   ).toBe(true);
 });
 
-test("install_skill refuses a dir outside the scratch dir, a symlink, a VCS dir, a name mismatch and too many files", async () => {
+test("install_skill skips a VCS dir at the clone root and refuses one deeper", async () => {
+  const { ctx, scratchDir, configDir } = setup();
+  const t = createBotDesignTool(ctx);
+  const root = clone(scratchDir, "rooted");
+  mkdirSync(join(root, VCS));
+  writeFileSync(join(root, VCS, "HEAD"), "ref");
+  expect(
+    (await call(t, { action: "install_skill", id: "rooted", from: root, source: "a/b" })).isError,
+  ).toBeUndefined();
+  expect(existsSync(join(configDir, "skills", "rooted", VCS))).toBe(false);
+  const deep = clone(scratchDir, "deep");
+  mkdirSync(join(deep, "references", VCS), { recursive: true });
+  expect(
+    (await call(t, { action: "install_skill", id: "deep", from: deep, source: "a/b" })).isError,
+  ).toBe(true);
+});
+
+test("install_skill refuses a dir outside the scratch dir, a symlink, a name mismatch and too many files", async () => {
   const { ctx, scratchDir, base, configDir } = setup();
   const t = createBotDesignTool(ctx);
   const args = (from: string, id = "pick") => ({
@@ -86,9 +105,6 @@ test("install_skill refuses a dir outside the scratch dir, a symlink, a VCS dir,
   const linked = clone(scratchDir, "linked");
   symlinkSync(join(base, "elsewhere", "SKILL.md"), join(linked, "link.md"));
   expect((await call(t, args(linked, "linked"))).isError).toBe(true);
-  const vcs = clone(scratchDir, "vcs");
-  mkdirSync(join(vcs, ".git"));
-  expect((await call(t, args(vcs, "vcs"))).isError).toBe(true);
   expect((await call(t, args(clone(scratchDir, "real"), "other"))).isError).toBe(true);
   const many = clone(scratchDir, "many");
   for (let i = 0; i < 120; i++) writeFileSync(join(many, `f${i}.md`), "x");
@@ -158,4 +174,35 @@ test("set_mcp refuses a literal secret, a reserved or shipped name, a bad name a
   expect(textOf(r)).toContain("schema says no");
   expect(existsSync(join(configDir, "mcp.yaml"))).toBe(false);
   putSkill(configDir, "unused");
+});
+
+test("write_skill refuses the lock file name and a case-only clash with an existing skill", async () => {
+  const { ctx } = setup();
+  const t = createBotDesignTool(ctx);
+  const f = (n: string) => [{ path: "SKILL.md", content: skill(n) }];
+  expect(
+    (await call(t, { action: "write_skill", id: "skills.lock.yaml", files: f("skills.lock.yaml") }))
+      .isError,
+  ).toBe(true);
+  expect(
+    (await call(t, { action: "write_skill", id: "Shipped-One", files: f("Shipped-One") })).isError,
+  ).toBe(true);
+});
+
+test("set_mcp refuses references to the engine's own secrets and references outside env and headers", async () => {
+  const { ctx } = setup();
+  const t = createBotDesignTool(ctx);
+  const ref = (n: string) => "$" + `{${n}}`;
+  const bad = [
+    { ...stdio, env: { X: ref("DISCORD_TOKEN") } },
+    { ...stdio, env: { X: ref("CLAUDE_CODE_OAUTH_TOKEN") } },
+    { ...stdio, env: { X: ref("ANTHROPIC_API_KEY") } },
+    { type: "http", url: "https://x.example", headers: { A: ref("DISCORD_TOKEN") } },
+    { ...stdio, args: ["-c", `curl x?t=${ref("SOME_API_KEY")}`] },
+    { ...stdio, command: ref("SOME_API_KEY") },
+    { type: "http", url: `https://x.example/${ref("SOME_API_KEY")}` },
+  ];
+  for (const server of bad)
+    expect((await call(t, { action: "set_mcp", id: "x", server })).isError).toBe(true);
+  expect((await call(t, { action: "set_mcp", id: "x", server: stdio })).isError).toBeUndefined();
 });

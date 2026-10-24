@@ -168,3 +168,10 @@ test("the shipped SOUL applies when the user has none, and an absent USER.md add
   expect(text.length).toBeGreaterThan("Ann rules.".length + 20);
   expect(text).not.toContain("The owner");
 });
+
+test("the BotDesign card shows what will be written: its scope keys carry the risky fields", () => {
+  const { snapshot } = load(userDir());
+  const spec = snapshot.tools.find((t) => t.name === "mcp__design__BotDesign");
+  for (const k of ["action", "id", "overwrite", "autonomy", "server", "tools", "workspaces"])
+    expect(spec?.scopeKeys).toContain(k);
+});

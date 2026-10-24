@@ -41,4 +41,5 @@ tools:
   - { name: mcp__effects__CreateProject, annotations: { destructiveHint: false, openWorldHint: false } }
   - { name: mcp__design__BotLookup, annotations: { readOnlyHint: true } }
   # Writes the owner's config (bots, skills, MCP servers that run code): asked at every level, never "Always allow".
-  - { name: mcp__design__BotDesign, annotations: { destructiveHint: true, idempotentHint: false, openWorldHint: true } }
+  # scopeKeys put the risky fields on the approval card, in this order (the card is cut at a fixed length).
+  - { name: mcp__design__BotDesign, annotations: { destructiveHint: true, idempotentHint: false, openWorldHint: true }, scopeKeys: [action, id, overwrite, autonomy, server, tools, workspaces, skills, source, name, members] }

@@ -47,7 +47,7 @@ export class ApprovalCards {
       { id: `appr:${this.nonce}:${n}:deny`, label: "Deny", style: "danger" },
     ];
     // The summary comes from the model: flatten backticks and line breaks so it cannot fake the card or its outcome.
-    const summary = card.summary.replace(/[`\r\n]+/g, " ").slice(0, 300);
+    const summary = card.summary.replace(/[`\r\n]+/g, " ").slice(0, 1200);
     const text = `**${card.botName}** wants to run \`${summary}\``;
     const messageId = await this.port.sendButtons(channelId, text, buttons);
     return new Promise((settle) => {

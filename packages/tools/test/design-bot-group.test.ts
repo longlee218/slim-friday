@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createBotDesignTool } from "../src/design/tools/BotDesignTool/bot-design-tool";
 import { call, putSkill, setup, textOf } from "./design-fixture";
@@ -120,4 +120,40 @@ test("a skill name is known to write_bot after write_skill", async () => {
   expect(
     (await call(createBotDesignTool(ctx), { ...bot, skills: ["mine"] })).isError,
   ).toBeUndefined();
+});
+
+test("write_bot refuses autonomous, a tool of the design server and an existing bot without overwrite", async () => {
+  const { ctx, configDir } = setup({ catalogTools: () => ["Read", "mcp__design__BotDesign"] });
+  const t = createBotDesignTool(ctx);
+  expect((await call(t, { ...bot, autonomy: "autonomous" })).isError).toBe(true);
+  expect((await call(t, { ...bot, tools: ["mcp__design__BotDesign"] })).isError).toBe(true);
+  expect((await call(t, { ...bot, tools: ["mcp__design"] })).isError).toBe(true);
+  expect((await call(t, { ...bot, autonomy: "careful" })).isError).toBeUndefined();
+  expect((await call(t, bot)).isError).toBe(true);
+  expect(
+    (await call(t, { ...bot, instructions: "New.", overwrite: true })).isError,
+  ).toBeUndefined();
+  expect(readFileSync(join(configDir, "bots", "ann.md"), "utf8")).toContain("New.");
+});
+
+test("overwriting a bot keeps its subagents", async () => {
+  const { ctx, configDir } = setup();
+  writeFileSync(
+    join(configDir, "bots", "ann.md"),
+    "---\nname: Ann\ntitle: t\nmodel: m\nsubagents:\n  - name: helper\n    description: d\n    prompt: p\n---\nOld.\n",
+  );
+  const r = await call(createBotDesignTool(ctx), { ...bot, overwrite: true });
+  expect(r.isError).toBeUndefined();
+  const text = readFileSync(join(configDir, "bots", "ann.md"), "utf8");
+  expect(text).toContain("helper");
+  expect(text).toContain("Review PRs.");
+});
+
+test("write_group refuses an existing group without overwrite", async () => {
+  const { ctx } = setup({ botSummaries: () => [{ id: "ann", name: "Ann", title: "t" }] });
+  const t = createBotDesignTool(ctx);
+  const g = { action: "write_group", id: "solo", name: "Solo", members: ["ann"], entryBot: "ann" };
+  expect((await call(t, g)).isError).toBeUndefined();
+  expect((await call(t, g)).isError).toBe(true);
+  expect((await call(t, { ...g, overwrite: true })).isError).toBeUndefined();
 });

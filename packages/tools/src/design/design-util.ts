@@ -88,3 +88,14 @@ export function replaceDir(target: string, files: Map<string, Buffer | string>):
   rmSync(target, { recursive: true, force: true });
   renameSync(tmp, target);
 }
+
+/** The `subagents` header of an existing bot file (kept when the file is replaced); none when absent or unreadable. */
+export function existingSubagents(file: string): unknown[] {
+  try {
+    const head = /^---\r?\n([\s\S]*?)\r?\n---/.exec(readFileSync(file, "utf8"))?.[1] ?? "";
+    const parsed = Bun.YAML.parse(head) as { subagents?: unknown[] } | null;
+    return Array.isArray(parsed?.subagents) ? parsed.subagents : [];
+  } catch {
+    return [];
+  }
+}

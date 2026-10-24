@@ -16,12 +16,17 @@ export function skillName(value: string | undefined): string {
   const v = need(value, "id");
   if (!SKILL_NAME_RE.test(v))
     throw new Refused("a skill name is letters, digits, `.`, `_` and `-`.");
+  // `skills.lock.yaml` lives in the same dir: a skill may not take its name (or any `.yaml` name).
+  if (v.toLowerCase().endsWith(".yaml")) throw new Refused("a skill name may not end with .yaml.");
   return v;
 }
 
 /** Refuse a skill that already exists (owner or shipped) unless `overwrite` is set. */
 export function refuseExisting(ctx: DesignContext, name: string, overwrite?: boolean): void {
-  if (!overwrite && listSkills(ctx.skillDirs).some((s) => s.name === name))
+  if (
+    !overwrite &&
+    listSkills(ctx.skillDirs).some((s) => s.name.toLowerCase() === name.toLowerCase())
+  )
     throw new Refused(
       `skill "${name}" already exists; ask the owner, then call again with overwrite: true.`,
     );

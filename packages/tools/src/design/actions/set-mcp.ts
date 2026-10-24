@@ -9,6 +9,8 @@ import { atomicWrite, ENV_REF_EXAMPLE, need, Refused, toYaml } from "../design-u
 const RESERVED = ["memory", "effects", "chat", "design"];
 /** A server name: part of every tool name of that server. */
 const NAME_RE = /^[a-z][a-z0-9-]{0,31}$/;
+/** Env names the engine keeps for itself (its own tokens and settings). */
+const ENGINE_ENV = /^(CLAUDE_CODE_|ANTHROPIC_|DISCORD_|OWNER_DISCORD|AGENT_HOME)/;
 /** A value that is only an env reference. */
 const ENV_REF = /^\$\{[A-Za-z_][A-Za-z0-9_]*\}$/;
 
@@ -19,15 +21,22 @@ export function setMcp(ctx: DesignContext, a: DesignArgs): string {
   if (RESERVED.includes(name)) throw new Refused(`"${name}" is a name the app keeps.`);
   const s = a.server;
   if (!s) throw new Refused("server is required.");
-  // Env and header values hold secrets: only a `${NAME}` reference is allowed there; args may not look like a secret.
-  for (const v of [...Object.values(s.env ?? {}), ...Object.values(s.headers ?? {})])
+  // Env and header values hold secrets: only a reference to a name the engine does not keep for itself is allowed there.
+  // Nowhere else may a reference stand: a command, argument or URL built from the engine's env could leak it.
+  for (const v of [...Object.values(s.env ?? {}), ...Object.values(s.headers ?? {})]) {
     if (!ENV_REF.test(v))
       throw new Refused(
         `env and header values must be a ${ENV_REF_EXAMPLE} reference, never the value.`,
       );
-  for (const v of [...(s.args ?? []), s.url ?? "", s.command ?? ""])
+    if (ENGINE_ENV.test(v.slice(2, -1)))
+      throw new Refused(`${v} is one of the engine's own secrets and cannot be given to a server.`);
+  }
+  for (const v of [...(s.args ?? []), s.url ?? "", s.command ?? ""]) {
+    if (v.includes("${"))
+      throw new Refused("a reference is allowed only in env and header values.");
     if (redactText(v) !== v)
-      throw new Refused(`an argument looks like a secret: use a ${ENV_REF_EXAMPLE} reference.`);
+      throw new Refused("an argument looks like a secret: pass it as an env reference.");
+  }
   const file = join(ctx.configDir, "mcp.yaml");
   const servers: Record<string, unknown> = existsSync(file)
     ? ((Bun.YAML.parse(readFileSync(file, "utf8")) as { servers?: Record<string, unknown> } | null)

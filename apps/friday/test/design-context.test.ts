@@ -106,4 +106,7 @@ test("sessionTools adds the design server only for a bot that names it", () => {
   expect(Object.keys(forSpec(specOf(bot(["Read"]))))).not.toContain("design");
   expect(Object.keys(forSpec(specOf(bot(["mcp__design__BotDesign"]))))).toContain("design");
   expect(Object.keys(forSpec(specOf(bot(["mcp__design"]))))).toContain("design");
+  // Only the Friday bot gets the design tools, whatever another bot names.
+  const other = { ...bot(["mcp__design__BotDesign"]), id: "ann" };
+  expect(Object.keys(forSpec(specOf(other)))).not.toContain("design");
 });
