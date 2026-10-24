@@ -110,6 +110,15 @@
         "discord.js": "^14.27.0",
       },
     },
+    "packages/surface-web": {
+      "name": "@friday/surface-web",
+      "version": "0.1.0",
+      "dependencies": {
+        "@friday/contracts": "workspace:*",
+        "@friday/core": "workspace:*",
+        "image-size": "2.0.2",
+      },
+    },
     "packages/tools": {
       "name": "@friday/tools",
       "version": "0.1.0",
@@ -272,6 +281,8 @@
     "@friday/store-sqlite": ["@friday/store-sqlite@workspace:packages/store-sqlite"],
 
     "@friday/surface-discord": ["@friday/surface-discord@workspace:packages/surface-discord"],
+
+    "@friday/surface-web": ["@friday/surface-web@workspace:packages/surface-web"],
 
     "@friday/tools": ["@friday/tools@workspace:packages/tools"],
 
@@ -526,6 +537,8 @@
     "http-errors": ["http-errors@2.0.1", "", { "dependencies": { "depd": "~2.0.0", "inherits": "~2.0.4", "setprototypeof": "~1.2.0", "statuses": "~2.0.2", "toidentifier": "~1.0.1" } }, "sha512-4FbRdAX+bSdmo4AUFuS0WNiPz8NgFt+r8ThgNWmlrjQjt1Q7ZR9+zTlce2859x4KSXrwIsaeTqDoKQmtP8pLmQ=="],
 
     "iconv-lite": ["iconv-lite@0.7.3", "", { "dependencies": { "safer-buffer": ">= 2.1.2 < 3.0.0" } }, "sha512-IKXpvIzjnC9XTAUbVBcMfGS0EPaIXtW6v+zr+RRp+hqULEpo0owZax6wyRwPOJbWbzjYspQwusTsfVr0ifh4uQ=="],
+
+    "image-size": ["image-size@2.0.2", "", { "bin": { "image-size": "bin/image-size.js" } }, "sha512-IRqXKlaXwgSMAMtpNzZa1ZAe8m+Sa1770Dhk8VkSsP9LS+iHD62Zd8FQKs8fbPiagBE7BzoFX23cxFnwshpV6w=="],
 
     "inherits": ["inherits@2.0.4", "", {}, "sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ=="],
 

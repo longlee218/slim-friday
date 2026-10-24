@@ -1,0 +1,12 @@
+{
+  "name": "@friday/surface-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "dependencies": {
+    "@friday/core": "workspace:*",
+    "@friday/contracts": "workspace:*",
+    "image-size": "2.0.2"
+  }
+}
