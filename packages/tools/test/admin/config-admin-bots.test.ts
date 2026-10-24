@@ -231,10 +231,6 @@ test("groups: create, get, update keeps avatar, bad member, avatar, delete to tr
   expect(() => admin.getGroup("team")).toThrow(expect.objectContaining({ code: "NOT_FOUND" }));
 });
 
-test("the other settings methods are not available yet", () => {
-  expect(() => admin.listMcp()).toThrow(expect.objectContaining({ code: "BAD_REQUEST" }));
-});
-
 test("a broken group file does not lock lists, deleteBot or deleteGroup", () => {
   admin.saveBot(dev, "create");
   admin.saveBot({ ...dev, id: "ann", name: "Ann" }, "create");

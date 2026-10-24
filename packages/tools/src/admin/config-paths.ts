@@ -1,4 +1,4 @@
-import { existsSync, realpathSync } from "node:fs";
+import { existsSync, lstatSync, realpathSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, sep } from "node:path";
 import { AdminError } from "@friday/core";
 
@@ -21,6 +21,19 @@ export function insideConfig(configDir: string, file: string): string {
   if (r === ".." || r.startsWith(`..${sep}`) || isAbsolute(r))
     throw new AdminError("BAD_REQUEST", "the file is outside the config dir");
   return join(parent, rest, basename(file));
+}
+
+/** Like `insideConfig`, and the file itself must not be a symlink (a link in the config dir is never followed). */
+export function insideConfigFile(configDir: string, file: string): string {
+  const real = insideConfig(configDir, file);
+  try {
+    // lstat, not exists: a dangling link has no target but must still be refused.
+    if (lstatSync(real).isSymbolicLink())
+      throw new AdminError("BAD_REQUEST", "the file is a symlink");
+  } catch (err) {
+    if (err instanceof AdminError) throw err; // anything else: the file does not exist yet
+  }
+  return real;
 }
 
 /** `<config>/bots/<id>.md` (the id is already checked). */

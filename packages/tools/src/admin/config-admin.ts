@@ -1,4 +1,4 @@
-import { AdminError, type AvatarTarget, type ConfigAdmin } from "@friday/core";
+import type { AvatarTarget, ConfigAdmin } from "@friday/core";
 import { editBotHeader } from "../design/bot-file-edit";
 import type { DesignContext } from "../design/design-context";
 import { plainId, Refused } from "../design/design-util";
@@ -10,6 +10,8 @@ import {
   requireOwnerBot,
   saveBotFile,
 } from "./bot-admin";
+import { checkMcpServer, deleteMcp, listMcp, saveMcp } from "./config-admin-mcp";
+import { readOwnerFile, saveOwnerFile } from "./config-admin-owner";
 import {
   deleteGroupFile,
   getGroupEntry,
@@ -21,13 +23,8 @@ import {
 /** An avatar value that names an upload; the parser checks its shape (an id is never used as a path). */
 const UPLOAD_PREFIX = "upload:";
 
-/** What later tasks add (owner files and MCP servers). */
-const later = (): never => {
-  throw new AdminError("BAD_REQUEST", "not available yet");
-};
-
 /**
- * The settings admin over the config files: bots and groups. Every write runs the checks `BotDesign` uses (through
+ * The settings admin over the config files: bots, groups, owner files and MCP servers. Every write runs the checks `BotDesign` uses (through
  * `ctx.checkBot` and `ctx.checkGroup`) and goes to `<config>/` only; the config watcher reloads what changed.
  */
 export function createConfigAdmin(ctx: DesignContext): ConfigAdmin {
@@ -42,12 +39,12 @@ export function createConfigAdmin(ctx: DesignContext): ConfigAdmin {
     deleteGroup: (id) => deleteGroupFile(ctx, id),
     setAvatar: (t, avatar) => setAvatar(ctx, t, avatar),
     presets: () => ctx.presetAvatars(),
-    readOwnerFile: later,
-    saveOwnerFile: later,
-    listMcp: later,
-    saveMcp: later,
-    deleteMcp: later,
-    checkMcpServer: later,
+    readOwnerFile: (f) => readOwnerFile(ctx, f),
+    saveOwnerFile: (f, text) => saveOwnerFile(ctx, f, text),
+    listMcp: () => listMcp(ctx),
+    saveMcp: (name, s, mode) => saveMcp(ctx, name, s, mode),
+    deleteMcp: (name) => deleteMcp(ctx, name),
+    checkMcpServer: (name, s) => checkMcpServer(ctx, name, s),
   };
 }
 

@@ -36,6 +36,7 @@ export function designContextFor(deps: DesignDeps) {
     configDir: join(agentHome, "config"),
     // The session's own scratch dir (a group session has its own), as the runtime and the chat tools use.
     scratchDir: sessionScratchDir(agentHome, spec),
+    defaultsDir: DEFAULTS_DIR,
     botDirs: [join(agentHome, "config", "bots"), join(DEFAULTS_DIR, "bots")],
     skillDirs: skillDirs(agentHome),
     reservedBotIds: RESERVED_BOT_IDS,

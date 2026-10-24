@@ -41,6 +41,7 @@ export function setup(over: Partial<DesignContext> = {}) {
     agentHome: home,
     configDir,
     scratchDir,
+    defaultsDir: join(base, "defaults"),
     botDirs: [join(configDir, "bots"), shippedBots],
     skillDirs: [join(configDir, "skills"), shippedSkills],
     reservedBotIds: ["friday"],

@@ -10,6 +10,8 @@ export interface DesignContext {
   configDir: string;
   /** The bot's own scratch dir: a skill to install must lie inside it. */
   scratchDir: string;
+  /** The shipped defaults dir (`SOUL.md`, `mcp.yaml`, ...); read only. */
+  defaultsDir: string;
   /** Where bot files are read: the owner's `bots/` dir first, then the shipped one. */
   botDirs: string[];
   /** Where skills are read: the owner's `skills/` dir first, then the shipped one. */
