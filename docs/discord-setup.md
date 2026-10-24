@@ -36,6 +36,28 @@ Friday is a team engine ([design](superpowers/specs/2026-10-23-friday-team-engin
 - Read the log for `engine.started`, `config.problem` and `channels.sync` lines (see Logs).
 - Unverified in the code: the SDK `agentID` equals the `task_id` of a background task (`scripts/smoke-runtime-claude.ts`), webhook creation limits (15 per channel), rate limits on many channels at once.
 
+## Tools (plan 6, owner live checklist, nothing verified live yet)
+- Memory lives in `$AGENT_HOME/memory/bots/<id>/` and `groups/<id>/`: `MEMORY.md` (edit by hand any time), `journal/<date>.md`, `backups/`.
+- Playwright: the default `mcp.yaml` starts `npx -y @playwright/mcp@0.0.83 --headless --isolated`; install the browser once: `npx playwright install chromium`. A bot gets it by naming tools like `mcp__playwright__browser_navigate` in its `tools`.
+- Firecrawl (example extension, not shipped): put in `$AGENT_HOME/config/mcp.yaml`
+  ```yaml
+  servers:
+    firecrawl:
+      type: http
+      url: https://mcp.firecrawl.dev/v2/mcp
+      headers: { Authorization: "Bearer ${FIRECRAWL_API_KEY}" }
+  ```
+  and set `FIRECRAWL_API_KEY` in `.env`; without it the server is left out and the log has a `config.problem` line `server "firecrawl" needs FIRECRAWL_API_KEY`.
+- `/purge` (owner only) empties the trash now: `Purged <n> trash item(s).` The trash keeps deleted files 7 days otherwise.
+
+Checks:
+- Ask a bot to remember a fact; `/stop` it; talk again: the fact is in its answer (its `MEMORY.md` is in the new session's prompt).
+- In a group, ask a member to save a group note: the next turn of every member gets it (`Group memory:`).
+- A bot with `mcp__effects__DeletePaths` deletes a file in its workspace: a card asks; after `Allow once` the file is in `$AGENT_HOME/trash/<botId>/<stamp>/`.
+- A bot with `mcp__effects__GitPush` pushes a branch: it asks once per branch (`Always allow` covers that workspace, remote and branch).
+- Run a long session until the SDK compacts it: a `## HH:MM Flush` block appears in `memory/bots/<id>/journal/<today>.md`; `MemorySearch` finds a word from it.
+- Ask Friday for a new project: `CreateProject` asks (careful), the repo appears under `~/friday-projects/<name>`, and Friday may put that path in a bot's `workspaces`.
+
 ## Skill packs (phase 2c, owner live checklist)
 
 Phase 2c (2026-10-20) is unit-tested only; nothing below was verified live.

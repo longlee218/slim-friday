@@ -1,8 +1,8 @@
 # Codebase Summary
 
-Last updated: 2026-10-24 (after plan 5). Design: [2026-10-23-friday-team-engine-design.md](superpowers/specs/2026-10-23-friday-team-engine-design.md).
+Last updated: 2026-10-24 (after plan 6). Design: [2026-10-23-friday-team-engine-design.md](superpowers/specs/2026-10-23-friday-team-engine-design.md).
 
-Friday is a self-hosted personal agent on the Claude Agent SDK (Bun + TypeScript + SQLite/Drizzle). The engine is rebuilt in packages; `src/` keeps the boot and the pieces plan 6 will move.
+Friday is a self-hosted personal agent on the Claude Agent SDK (Bun + TypeScript + SQLite/Drizzle). The engine is rebuilt in packages; `src/` keeps the boot and the leftovers plan 7 removes.
 
 | Folder | Holds |
 |---|---|
@@ -11,7 +11,8 @@ Friday is a self-hosted personal agent on the Claude Agent SDK (Bun + TypeScript
 | `packages/store-sqlite/` | engine db (conversations, messages, grants, sessions, spend, audit) on Drizzle with its own migrations |
 | `packages/config/` | file config: bots, groups, settings, tool annotations; schemas, merge with defaults, live reload; `defaults/` (incl. the Friday bot) and `templates/` (three groups) |
 | `packages/surface-discord/` | `Surface` on Discord: `DiscordPort` + discord.js adapter, channel sync by topic, webhooks, approval buttons, owner commands (tests with a fake port) |
-| `apps/friday/` | composition root: `startApp` (config, db, surface, gate, hub, channel sync, reload), `startEngine` (Discord + Claude runtime), Friday bot dirs |
+| `packages/tools/` | built-in tools as per-session MCP servers: file memory (`FileMemory`), journal, search, memory tools; effect tools (`DeletePaths` + trash, `GitPush`, `CreatePullRequest`, `MergeBranch`, `CreateProject`) |
+| `apps/friday/` | composition root: `startApp` (config, db, memory, surface, gate, hub, channel sync, reload, journal prune, `/purge`), `startEngine` (Discord + Claude runtime with MCP servers and the memory flush), `sessionTools`, Friday bot dirs |
 | `src/index.ts`, `src/lifecycle/` | boot, startup hygiene, trash and home-retention sweepers |
 | `src/config/` | env and file config, limits (the only place that reads env) |
 | `src/runtime/` | run agent, SDK options, run protection, supervisor, compaction hooks (sandbox, env builder, sensitive files moved to `packages/runtime-claude/src/floor/`; thin re-exports stay) |

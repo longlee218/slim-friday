@@ -48,6 +48,7 @@ bun run db:generate         # drizzle-kit generate: after a schema edit
 - Config as data: roles stay TypeScript objects. Roles as files plus a resolver is closed (owner decision, 2026-10-12). Keep role data flat so the move stays possible.
 
 ## MCP Tools
+- New tools (team engine, plan 6) live in `packages/tools/src/<domain>/tools/<Name>Tool/` with the same three files; `memory-server.ts` / `effects-server.ts` list them; the annotation goes in `packages/config/defaults/tools.yaml`; a bot gets a tool by naming `mcp__<server>__<Name>` in its `tools`. No tool-name literal outside `constants.ts` (`packages/tools/test/memory-tools.test.ts`). The rest of this section describes the old `src/mcp` tools, removed in plan 7.
 - In-process servers listed in `src/mcp/manifests.ts`: `memory`, `effects` (plus the external `playwright` and `firecrawl` servers).
 - Tool folder: `src/mcp/<server>/tools/<Name>Tool/` (PascalCase folder). Files are kebab-case:
   - `constants.ts`: leaf data with the `<NAME>_TOOL` name constant. It imports only leaf files (two memory tools import `src/memory/memory-limits.ts`).
@@ -105,6 +106,7 @@ Scan tests read `src/` (and `docs/` where noted) on every `bun test` run. A viol
 | Retired names stay out of `src/`, `test/` and the living docs (the changelog is exempt) | `test/retired-naming-scan.test.ts`, `test/handoff-retired-scan.test.ts` |
 | Relative links in `docs/` point at existing files | `test/retired-naming-scan.test.ts` |
 | `discord.js` only in `packages/surface-discord/src/discord-js-port.ts` and `private-overwrites.ts` | `packages/surface-discord/test/boundary.test.ts` |
+| `packages/tools` imports only core, the SDK, zod and node; no env, no `console` | `packages/tools/test/boundary.test.ts` |
 | No `console.*` in `src/` | `test/no-console.test.ts` |
 | Env read only in `src/config/` | `test/no-process-env-outside-config.test.ts` |
 | No raw SQL under `src/orchestrator/` | `test/no-sql-in-orchestrator.test.ts` |
