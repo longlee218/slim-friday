@@ -13,7 +13,7 @@ export const apprCard = (extra: Partial<ApprovalCardDto> = {}): ApprovalCardDto 
   summary: "Push the branch to origin.",
   scope: { repo: "friday", branch: "feat/x" },
   offerAlways: true,
-  expiresAt: 581_000,
+  input: '{\n  "branch": "feat/x"\n}',
   ...extra,
 });
 

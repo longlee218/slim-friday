@@ -1,7 +1,7 @@
 import type { ApprovalCardDto, BotStatusDto } from "@friday/contracts";
 import { CircleStop, MessageCircle } from "lucide-react";
 import { formatCost, formatDuration } from "../../lib/format";
-import { countdown, useNow } from "../chat/countdown";
+import { useNow } from "../chat/countdown";
 import { Avatar } from "../ui/avatar";
 import { IconButton } from "../ui/button";
 import { Pill } from "../ui/pill";
@@ -18,7 +18,7 @@ export interface ActivityPopoverProps {
 
 /**
  * Body of the capsule popover: who is working (open chat, stop), what waits for the owner
- * (with the auto-deny countdown when the card has an expiry) and a link to Activity.
+ * and a link to Activity.
  */
 export function ActivityPopover({ status, approvals, avatarOf, onClose }: ActivityPopoverProps) {
   const go = useAppNavigate();
@@ -87,10 +87,7 @@ export function ActivityPopover({ status, approvals, avatarOf, onClose }: Activi
                 <Avatar src={avatarOf(a.botId)} name={a.botName} size={28} />
                 <div className="grow">
                   <div className="t1">{first ? `${a.tool} · ${first}` : a.tool}</div>
-                  <div className="t2">
-                    {a.botName}
-                    {a.expiresAt !== undefined && ` · ${countdown(a.expiresAt, now)}`}
-                  </div>
+                  <div className="t2">{a.botName}</div>
                 </div>
                 <Pill tone="amber">Review</Pill>
               </a>

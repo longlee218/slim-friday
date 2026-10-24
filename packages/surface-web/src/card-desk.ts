@@ -1,76 +1,45 @@
 import type { ApprovalCardDto, QuestionCardDto } from "@friday/contracts";
-import type { ApprovalAnswer, CardRow, Clock, QuestionAnswer } from "@friday/core";
+import type { ApprovalAnswer, CardRow, QuestionAnswer, Store } from "@friday/core";
+import { toApprovalDto, toQuestionDto } from "./card-dto";
 import type { EventBus } from "./event-bus";
-import { flattenSummary } from "./flatten-summary";
-
-/** An open card as the web shows it, with when it was shown (for the answer latency log). */
-interface Shown<T> {
-  dto: T;
-  /** Epoch ms the card was shown. */
-  openedAt: number;
-}
 
 /**
- * The web's view of the open approval and question cards. The cards are rows in the engine db (the truth): the
- * engine shows a stored card here (`open`), and closes it after the owner's answer went through the hub's
- * `answerCard` (`close`). Each change is published on the event bus. No promise waits on a card and nothing
- * times out; after a restart the app shows the stored open cards again. (Task 16 replaces this view with db reads.)
+ * The web's view of the open approval and question cards. The cards are rows in the engine db (the truth) and
+ * every read goes to the db, so nothing is kept here: after a restart the stored open cards are listed again.
+ * The engine shows a stored card (`open`) and closes it after the owner's answer went through the hub's
+ * `answerCard` (`close`); each change is published on the event bus. No promise waits on a card and nothing
+ * times out.
  */
 export class CardDesk {
-  /** Open approvals, by card id. */
-  private approvals = new Map<string, Shown<ApprovalCardDto>>();
-  /** Open questions, by card id. */
-  private questions = new Map<string, Shown<QuestionCardDto>>();
+  /**
+   * Display names of the bots that asked, learned from `open` (the app shows every stored open card at start,
+   * so it is filled again after a restart). Bot names live in the config files, not in the db.
+   */
+  private names = new Map<string, string>();
 
   constructor(
     private bus: EventBus,
-    private clock: Clock,
+    private store: Pick<Store, "cards">,
   ) {}
 
-  /** Show a stored open card under the asking bot's name; showing the same card again changes nothing. */
+  /** Publish a stored open card under the asking bot's name. */
   open(card: CardRow, botName: string): void {
-    if (this.approvals.has(card.id) || this.questions.has(card.id)) return;
-    const openedAt = this.clock.now();
-    const base = {
-      cardId: card.id,
-      conversationId: card.conversationId,
-      botId: card.botId,
-      botName,
-    };
-    if (card.approval) {
-      const a = card.approval;
-      const dto: ApprovalCardDto = {
-        ...base,
-        tool: a.tool,
-        summary: flattenSummary(a.summary),
-        scope: a.scope,
-        offerAlways: a.offerAlways,
-      };
-      this.approvals.set(card.id, { dto, openedAt });
-      this.bus.publish({ type: "approval.opened", card: dto });
-    } else if (card.question) {
-      const q = card.question;
-      const dto: QuestionCardDto = {
-        ...base,
-        question: q.question,
-        kind: q.kind,
-        options: q.options,
-        allowText: q.allowText,
-      };
-      this.questions.set(card.id, { dto, openedAt });
-      this.bus.publish({ type: "question.opened", card: dto });
-    }
+    this.names.set(card.botId, botName);
+    const approval = toApprovalDto(card, botName);
+    if (approval) this.bus.publish({ type: "approval.opened", card: approval });
+    const question = toQuestionDto(card, botName);
+    if (question) this.bus.publish({ type: "question.opened", card: question });
   }
 
-  /** Close a card that was answered or withdrawn (a withdrawn question closes with no answer). */
+  /** Publish that a card was answered or withdrawn (a withdrawn question closes with no answer). */
   close(card: CardRow): void {
-    if (this.approvals.delete(card.id))
+    if (card.kind === "approval")
       this.bus.publish({
         type: "approval.closed",
         cardId: card.id,
         answer: (card.answer as ApprovalAnswer | undefined) ?? "deny",
       });
-    else if (this.questions.delete(card.id))
+    else
       this.bus.publish({
         type: "question.closed",
         cardId: card.id,
@@ -78,26 +47,40 @@ export class CardDesk {
       });
   }
 
-  /** When an open card (either kind) was shown; undefined once closed or unknown. */
-  openedAt(cardId: string): number | undefined {
-    return (this.approvals.get(cardId) ?? this.questions.get(cardId))?.openedAt;
+  /** When an open card was created (epoch ms); undefined once it is not open or unknown. */
+  async openedAt(cardId: string): Promise<number | undefined> {
+    const card = await this.store.cards.get(cardId);
+    return card?.status === "open" ? card.createdAt : undefined;
   }
 
-  /** Approval cards still open. */
-  pendingApprovals(): ApprovalCardDto[] {
-    return [...this.approvals.values()].map((o) => o.dto);
+  /** Approval cards still open, from the db. */
+  async pendingApprovals(): Promise<ApprovalCardDto[]> {
+    const out: ApprovalCardDto[] = [];
+    for (const card of await this.store.cards.open()) {
+      const dto = toApprovalDto(card, this.botName(card));
+      if (dto) out.push(dto);
+    }
+    return out;
   }
 
-  /** Question cards still open. */
-  pendingQuestions(): QuestionCardDto[] {
-    return [...this.questions.values()].map((o) => o.dto);
+  /** Question cards still open, from the db. */
+  async pendingQuestions(): Promise<QuestionCardDto[]> {
+    const out: QuestionCardDto[] = [];
+    for (const card of await this.store.cards.open()) {
+      const dto = toQuestionDto(card, this.botName(card));
+      if (dto) out.push(dto);
+    }
+    return out;
   }
 
   /** How many cards (both kinds) are open in one conversation. */
-  openIn(conversationId: string): number {
-    return (
-      this.pendingApprovals().filter((c) => c.conversationId === conversationId).length +
-      this.pendingQuestions().filter((c) => c.conversationId === conversationId).length
-    );
+  async openIn(conversationId: string): Promise<number> {
+    return (await this.store.cards.open()).filter((c) => c.conversationId === conversationId)
+      .length;
+  }
+
+  /** The asking bot's display name: the last shown one, else the one stored on a question card, else its id. */
+  private botName(card: CardRow): string {
+    return this.names.get(card.botId) ?? card.question?.botName ?? card.botId;
   }
 }

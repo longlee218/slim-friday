@@ -35,4 +35,5 @@ export const approvalCard = (cardId = "c1"): ApprovalCardDto => ({
   summary: "run ls",
   scope: {},
   offerAlways: true,
+  input: "{}",
 });

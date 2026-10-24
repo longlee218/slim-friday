@@ -107,15 +107,18 @@ const qcard = (id = "c1"): CardRow => ({
 });
 
 test("a shown card publishes unread counting the open card", async () => {
+  await store.cards.insert(qcard());
   surface.showCard(qcard(), "Ann");
   await Bun.sleep(5);
   expect(seen.at(-1)).toEqual({ type: "unread", conversationId: "bot:a", unread: 1 });
 });
 
 test("a card closing publishes the unread count without it", async () => {
+  await store.cards.insert(qcard());
   surface.showCard(qcard(), "Ann");
   await Bun.sleep(5);
   seen.length = 0;
+  await store.cards.answer("c1", { choices: ["x"] }, 2);
   surface.closeCard({ ...qcard(), status: "answered", answer: { choices: ["x"] } });
   await Bun.sleep(5);
   expect(seen[0]).toEqual({ type: "question.closed", cardId: "c1", answer: { choices: ["x"] } });
@@ -176,7 +179,8 @@ test("a failing unread lookup does not stop a card from showing", async () => {
   store.reads.unread = async () => {
     throw new Error("db down");
   };
+  await store.cards.insert(qcard());
   surface.showCard(qcard(), "Ann");
   await Bun.sleep(5);
-  expect(surface.cards.pendingQuestions().map((c) => c.cardId)).toEqual(["c1"]);
+  expect((await surface.cards.pendingQuestions()).map((c) => c.cardId)).toEqual(["c1"]);
 });

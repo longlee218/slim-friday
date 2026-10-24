@@ -68,6 +68,7 @@ const card = {
   summary: "ls",
   scope: { cmd: "ls" },
   offerAlways: true,
+  input: "{}",
 };
 const qcard = {
   cardId: "q1",

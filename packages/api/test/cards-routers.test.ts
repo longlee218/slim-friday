@@ -83,7 +83,7 @@ test("an answer logs approval.answered with ids and latency, no text", async () 
   const logs: Record<string, unknown>[] = [];
   const rec = (o: object) => void logs.push(o as Record<string, unknown>);
   h.deps.log = { info: rec, warn: rec, error: rec };
-  const { cardId } = await openApproval(h);
+  const { id: cardId } = await stored(h, { createdAt: 5000 });
   await h.client.approvals.answer({ cardId, answer: "once" });
   expect(logs).toEqual([
     { event: "approval.answered", cardId, kind: "approval", answer: "once", ms: 0 },

@@ -168,3 +168,38 @@ test("a row whose session will not open is retried later and the next one still 
   expect(await store.wakes.get("w1")).toMatchObject({ status: "queued", setupFailures: 1 });
   expect((await store.wakes.get("w2"))?.status).toBe("running");
 });
+
+test("old open wakes become queued runs at first start", async () => {
+  const store = oldStore();
+  // Rows of the previous build: scope key is the bot id, whatever the conversation; no lease.
+  await store.wakes.insert(
+    row("q-group", { conversationId: "gc", targetBot: "writer", scopeKey: "writer" }),
+  );
+  await store.wakes.insert(row("q-ticket", { ticketId: "FRI-1", scopeKey: "editor" }));
+  await store.wakes.insert(
+    row("r-group", {
+      conversationId: "gc",
+      targetBot: "writer",
+      scopeKey: "writer",
+      status: "running",
+    }),
+  );
+  await store.wakes.insert(
+    row("r-ticket", { ticketId: "FRI-2", scopeKey: "editor", status: "running" }),
+  );
+  const { hub } = restart(store);
+  await hub.recover();
+  expect(await store.wakes.get("q-group")).toMatchObject({
+    scopeKey: "writer@g",
+    priority: "interactive",
+  });
+  expect(await store.wakes.get("q-ticket")).toMatchObject({
+    scopeKey: "editor",
+    priority: "background",
+  });
+  // A running row of the old build runs in the right scope and the claimer counts it as one cut.
+  expect(await store.wakes.get("r-group")).toMatchObject({ scopeKey: "writer@g" });
+  expect(await store.wakes.get("r-ticket")).toMatchObject({ priority: "background" });
+  await flush();
+  expect((await store.wakes.get("r-group"))?.cuts).toBe(1);
+});

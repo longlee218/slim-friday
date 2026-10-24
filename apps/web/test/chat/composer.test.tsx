@@ -135,6 +135,7 @@ test("composer sends with replyTo and clears the reply bar", async () => {
     conversationId: "group:crew",
     text: "looks good",
     replyTo: 7,
+    clientNonce: expect.any(String),
   });
   expect(screen.queryByText("Replying to Dev")).toBeNull();
   expect(input().value).toBe("");
@@ -190,6 +191,24 @@ test("send failure keeps the message as failed; Retry resends the same payload",
   await waitFor(() => expect(ids(qc, "bot:dev")).toEqual([50]));
   expect(mocks.send).toHaveBeenCalledTimes(2);
   expect(mocks.send.mock.calls[1]).toEqual(mocks.send.mock.calls[0]);
+});
+
+test("each message gets its own clientNonce and a Retry reuses it", async () => {
+  mocks.send.mockRejectedValueOnce(new Error("down"));
+  const u = userEvent.setup();
+  view(<Harness conversation={devConv} />, client());
+  await u.type(input(), "one");
+  await u.click(sendBtn());
+  await u.click(await screen.findByRole("button", { name: /^failed -\d+$/ }));
+  await waitFor(() => expect(mocks.send).toHaveBeenCalledTimes(2));
+  await u.type(input(), "two");
+  await u.click(sendBtn());
+  await waitFor(() => expect(mocks.send).toHaveBeenCalledTimes(3));
+  const nonces = mocks.send.mock.calls.map((c) => c[0].clientNonce);
+  expect(nonces[0]).toBeTruthy();
+  expect(nonces[1]).toBe(nonces[0]);
+  expect(nonces[2]).toBeTruthy();
+  expect(nonces[2]).not.toBe(nonces[0]);
 });
 
 test("sending starts a live run for the routed bot", async () => {
@@ -314,6 +333,7 @@ test("send waits for the upload, then sends its id", async () => {
     conversationId: "bot:dev",
     text: "see",
     uploadIds: ["11111111-1111-4111-8111-111111111111"],
+    clientNonce: expect.any(String),
   });
   expect(screen.queryByText("a.png")).toBeNull();
 });

@@ -23,6 +23,8 @@ export const chat = {
         text: z.string(),
         uploadIds: z.array(z.uuid()).max(MAX_FILES_PER_MESSAGE).optional(),
         replyTo: z.number().int().optional(),
+        /** One per message, reused on a retry: a resend never stores a second message. */
+        clientNonce: z.string().min(1).max(100).optional(),
       }),
     )
     .output(z.object({ messageId: z.number().int() })),

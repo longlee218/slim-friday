@@ -9,6 +9,8 @@ export interface SendPayload {
   text: string;
   uploadIds?: string[];
   replyTo?: number;
+  /** Made once per message and kept in the payload, so a Retry resends the same nonce (one stored message). */
+  clientNonce?: string;
 }
 
 /** Client-only state of an owner message not yet confirmed by the engine. */

@@ -15,7 +15,8 @@ export const ApprovalCardDtoSchema = z.object({
   summary: z.string(),
   scope: z.record(z.string(), z.string()),
   offerAlways: z.boolean(),
-  expiresAt: z.number().optional(),
+  /** The exact call a one-shot approval binds: the input as pretty JSON, cut when long. */
+  input: z.string(),
 });
 export type ApprovalCardDto = z.infer<typeof ApprovalCardDtoSchema>;
 
@@ -37,7 +38,6 @@ export const QuestionCardDtoSchema = z.object({
   kind: z.enum(["single", "multi", "confirm"]),
   options: z.array(QuestionOptionDtoSchema),
   allowText: z.boolean(),
-  expiresAt: z.number().optional(),
 });
 export type QuestionCardDto = z.infer<typeof QuestionCardDtoSchema>;
 

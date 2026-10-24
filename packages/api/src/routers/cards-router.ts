@@ -24,7 +24,7 @@ export const approvalsRouter = {
     context.deps.surface.cards.pendingApprovals(),
   ),
   answer: authed.approvals.answer.handler(async ({ input, context, errors }) => {
-    const openedAt = context.deps.surface.cards.openedAt(input.cardId);
+    const openedAt = await context.deps.surface.cards.openedAt(input.cardId);
     const r = await context.deps.hub.answerCard(input.cardId, input.answer);
     if (r === "conflict") throw errors.CONFLICT();
     if (r === "not_found") throw errors.NOT_FOUND();
@@ -40,7 +40,7 @@ export const questionsRouter = {
     context.deps.surface.cards.pendingQuestions(),
   ),
   answer: authed.questions.answer.handler(async ({ input, context, errors }) => {
-    const openedAt = context.deps.surface.cards.openedAt(input.cardId);
+    const openedAt = await context.deps.surface.cards.openedAt(input.cardId);
     const r = await context.deps.hub.answerCard(input.cardId, {
       choices: input.choices ?? [],
       ...(input.text !== undefined && { text: input.text }),

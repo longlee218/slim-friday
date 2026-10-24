@@ -182,3 +182,13 @@ test("an open card is listed again after a restart and its answer resumes the ru
   await until(() => h.runtime.created.length === 1 && h.runtime.created[0]?.sent.length === 1);
   expect(h.runtime.created[0]?.sent[0]?.text).toContain("The user denied this action.");
 });
+
+test("resend with the same clientNonce shows one message", async () => {
+  const h = await boot();
+  const input = { conversationId: "bot:friday", text: "once only", clientNonce: "n-1" };
+  const first = await h.client.chat.send(input);
+  const again = await h.client.chat.send(input);
+  expect(again.messageId).toBe(first.messageId);
+  const page = await h.client.conversations.messages({ id: "bot:friday", limit: 20 });
+  expect(page.filter((m) => m.text === "once only")).toHaveLength(1);
+});

@@ -59,7 +59,8 @@ export function useSendMessage() {
       /** Shows the message and sends it; resolves when the call settled. */
       send(input: SendInput): Promise<void> {
         const tempId = nextTemp--;
-        const { payload } = input;
+        // One nonce per message; `retry` resends this payload, so the engine stores the message once.
+        const payload: SendPayload = { ...input.payload, clientNonce: crypto.randomUUID() };
         const message: MessageDto = {
           id: tempId,
           conversationId: payload.conversationId,

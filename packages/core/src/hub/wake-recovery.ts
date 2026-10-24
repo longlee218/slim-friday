@@ -1,15 +1,26 @@
+import type { WakeRow } from "../domain/wake";
 import { type HubContext, tell } from "./hub-context";
 import { errText } from "./hub-types";
+import { placeInScope } from "./wake-admission";
 
 /**
  * At start, check the queued runs the last boot left: a run that waited over `wakeExpireMs` is expired, one
  * whose bot or conversation is gone is dropped, the rest get their caps checked and are released (`admit`).
- * `leased` and `running` rows are left to the claimer: it reclaims rows of an older boot and counts the cut.
+ * First start of the new build: a `running` row with no lease owner was left by the previous build. It keeps
+ * its status, so the claimer takes it as a cut (cuts + 1, the bot is told it was interrupted, and the third
+ * cut ends it as `interrupted`), but it first gets the scope key and priority the claimer needs. Rows of the
+ * new build (`leased`, or `running` with an owner) are left to the claimer, which reclaims rows of an older
+ * boot. Each row is fixed once: later boots find the scope and priority already right.
  */
 export async function recoverWakes(ctx: HubContext): Promise<void> {
   const { store, clock } = ctx.deps;
   const now = clock.now();
-  for (const r of await store.wakes.open()) {
+  const open = await store.wakes.open();
+  // Old `running` rows first: admitting a queued row hints the claimers, which may take them at once.
+  for (const r of open) {
+    if (r.status === "running" && r.leaseOwner === undefined) await recoverOldRunning(ctx, r);
+  }
+  for (const r of open) {
     if (r.status !== "queued") continue;
     const bot = await store.bots.get(r.targetBot);
     const conv = await store.conversations.get(r.conversationId);
@@ -34,5 +45,15 @@ export async function recoverWakes(ctx: HubContext): Promise<void> {
       ctx.deps.log?.error({ error: errText(err), wakeId: r.id }, "hub.recover_failed");
       await ctx.wakeLog.dropped(r.id).catch(() => {});
     }
+  }
+}
+
+/** A `running` row of the previous build: place it in its scope, or drop it when its bot or conversation is gone. */
+async function recoverOldRunning(ctx: HubContext, r: WakeRow): Promise<void> {
+  const bot = await ctx.deps.store.bots.get(r.targetBot);
+  try {
+    if (!bot || !(await placeInScope(ctx, r, bot))) await ctx.wakeLog.dropped(r.id);
+  } catch (err) {
+    ctx.deps.log?.error({ error: errText(err), wakeId: r.id }, "hub.recover_failed");
   }
 }

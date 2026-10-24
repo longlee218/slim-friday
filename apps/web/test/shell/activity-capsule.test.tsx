@@ -1,5 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider, useLocation } from "react-router";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
@@ -86,14 +86,14 @@ test("capsule shows the ticker, summed cost and the approvals badge", () => {
 test("popover lists working bots, waiting cards and Open Activity", async () => {
   renderCapsule({
     status: [status("dev", "Dev", true, "Running tests", 1.84)],
-    approvals: [approval("a1", "dev", { expiresAt: Date.now() + 125_000 })],
+    approvals: [approval("a1", "dev")],
   });
   await userEvent.click(screen.getByRole("button", { name: "Activity" }));
   expect(await screen.findByText("Working now")).toBeTruthy();
   expect(screen.getByText("$1.84 today")).toBeTruthy();
   expect(screen.getByText("Waiting for you")).toBeTruthy();
   expect(screen.getByText("Bash · git push")).toBeTruthy();
-  expect(screen.getByText(/Dev · Auto-denies in 2:0\d/)).toBeTruthy();
+  expect(screen.queryByText(/Auto-denies/)).toBeNull();
   expect(screen.getByText("⌘3")).toBeTruthy();
   await userEvent.click(screen.getByText("Review"));
   expect(screen.getByTestId("path").textContent).toBe("/c/bot:dev");
@@ -204,22 +204,6 @@ test("badge bumps on a count change, not on first paint, and clears", () => {
     vi.advanceTimersByTime(420);
   });
   expect(screen.getByText("2").className).not.toContain("bump");
-});
-
-test("popover countdown ticks", () => {
-  vi.useFakeTimers();
-  renderCapsule({
-    status: [],
-    approvals: [approval("a1", "dev", { expiresAt: Date.now() + 125_000 })],
-  });
-  act(() => {
-    fireEvent.click(screen.getByRole("button", { name: "Activity" }));
-  });
-  expect(screen.getByText(/Auto-denies in 2:05/)).toBeTruthy();
-  act(() => {
-    vi.advanceTimersByTime(5000);
-  });
-  expect(screen.getByText(/Auto-denies in 2:00/)).toBeTruthy();
 });
 
 test("a failed stop says so", async () => {

@@ -63,7 +63,13 @@ async function claimAll(deps: WebSurfaceDeps, rows: UploadRow[]): Promise<void> 
 export async function sendOwnerMessage(
   deps: WebSurfaceDeps,
   handler: ((m: InboundMessage) => Promise<number | undefined>) | undefined,
-  i: { conversationId: string; text: string; uploadIds?: string[]; replyTo?: number },
+  i: {
+    conversationId: string;
+    text: string;
+    uploadIds?: string[];
+    replyTo?: number;
+    clientNonce?: string;
+  },
 ): Promise<{ messageId: number }> {
   if (!handler) throw new Error("no handler: the engine is not started");
   const rows = await checkSendInput(deps, i);
@@ -119,6 +125,7 @@ export async function sendOwnerMessage(
       conversationId: i.conversationId,
       text: i.text,
       ...(i.replyTo !== undefined && { replyTo: i.replyTo }),
+      ...(i.clientNonce !== undefined && { clientNonce: i.clientNonce }),
       files,
       attachments,
     });

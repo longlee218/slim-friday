@@ -1,5 +1,5 @@
 import type { ApprovalAnswer, ApprovalCardDto } from "@friday/contracts";
-import { Hand, Timer } from "lucide-react";
+import { Hand } from "lucide-react";
 import type { Receipt } from "../../events/client-keys";
 import { Avatar } from "../ui/avatar";
 import { Button } from "../ui/button";
@@ -7,7 +7,6 @@ import { Pill } from "../ui/pill";
 import { ApprovalDetail } from "./approval-detail";
 import { APPROVAL_VERB, approvalTitle, scopeLine } from "./approval-text";
 import { CardReceiptLine } from "./card-receipt-line";
-import { countdown, useNow } from "./countdown";
 import { useAnswerApproval } from "./use-answer-card";
 import { useBotFace } from "./use-bot-face";
 import { useReceipt } from "./use-receipt";
@@ -20,7 +19,6 @@ export function ApprovalCard({ card, receipt }: { card: ApprovalCardDto; receipt
   const cached = useReceipt(card.cardId);
   const done = receipt ?? cached;
   const answer = useAnswerApproval();
-  const now = useNow();
   const face = useBotFace(card.botId);
   const send = (a: ApprovalAnswer) => answer.mutate({ card, answer: a });
   const busy = answer.isPending;
@@ -43,10 +41,7 @@ export function ApprovalCard({ card, receipt }: { card: ApprovalCardDto; receipt
               <div className="appr-in">
                 <ApprovalDetail card={card} />
                 <div className="appr-actions">
-                  <span className="left">
-                    <Timer strokeWidth={1.75} />
-                    {countdown(card.expiresAt, now)}
-                  </span>
+                  <span className="left" />
                   <Button disabled={busy} onClick={() => send("deny")}>
                     Deny
                   </Button>

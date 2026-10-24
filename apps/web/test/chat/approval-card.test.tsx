@@ -7,7 +7,6 @@ import { ApprovalCard } from "../../src/components/chat/approval-card";
 import { ApprovalReceipt } from "../../src/components/chat/approval-receipt";
 import { ApprovalRow } from "../../src/components/chat/approval-row";
 import { approvalTitle, scopeLine } from "../../src/components/chat/approval-text";
-import { countdown } from "../../src/components/chat/countdown";
 import type { Receipt } from "../../src/events/client-keys";
 import { receiptsKey } from "../../src/events/client-keys";
 import { apprCard, cardClient } from "./cards-fixtures";
@@ -47,12 +46,6 @@ test("button order with Always", () => {
   ]);
 });
 
-test("countdown text", () => {
-  expect(countdown(581_000, 0)).toBe("Auto-denies in 9:41");
-  expect(countdown(1000, 5000)).toBe("Auto-denies in 0:00");
-  expect(countdown(undefined, 0)).toBe("");
-});
-
 test("title and scope line", () => {
   expect(approvalTitle(apprCard())).toBe("Dev wants to use GitPush");
   expect(scopeLine({ repo: "friday", branch: "feat/x" })).toBe("feat/x");
@@ -60,14 +53,15 @@ test("title and scope line", () => {
   expect(scopeLine({})).toBe("");
 });
 
-test("shows summary, tool and scope rows, pill and countdown", () => {
+test("shows summary, tool and scope rows, the exact input and the pill", () => {
   view(<ApprovalCard card={apprCard()} />);
   expect(screen.getByText("Dev wants to use GitPush")).toBeTruthy();
   expect(screen.getByText("Waiting for you")).toBeTruthy();
   expect(screen.getByText("Push the branch to origin.")).toBeTruthy();
   expect(screen.getByText("Tool").nextElementSibling?.textContent).toBe("GitPush");
   expect(screen.getByText("branch").nextElementSibling?.textContent).toBe("feat/x");
-  expect(screen.getByText(/Auto-denies in \d+:\d\d/)).toBeTruthy();
+  expect(document.querySelector(".appr-input")?.textContent).toBe('{\n  "branch": "feat/x"\n}');
+  expect(screen.queryByText(/Auto-denies/)).toBeNull();
 });
 
 test("allow once folds into a receipt", async () => {
@@ -162,7 +156,7 @@ test("phone row: Review opens the sheet; Allow once answers and folds to the rec
   mocks.approve.mockResolvedValue({ ok: true });
   const card = apprCard();
   view(<ApprovalRow card={card} />, cardClient(card));
-  expect(screen.getByText(/GitPush · Auto-denies in/)).toBeTruthy();
+  expect(screen.getByText("GitPush")).toBeTruthy();
   await userEvent.click(screen.getByRole("button", { name: "Review" }));
   const order = screen.getAllByRole("button").map((b) => b.textContent);
   expect(order.slice(-3)).toEqual(["Allow once", "Always allow", "Deny"]);

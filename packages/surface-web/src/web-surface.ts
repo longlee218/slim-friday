@@ -23,7 +23,7 @@ const REPLAY_EVENTS = 500;
 
 /** What the web surface needs from the engine. */
 export interface WebSurfaceDeps {
-  store: Pick<Store, "conversations" | "messages" | "files" | "uploads" | "reads">;
+  store: Pick<Store, "conversations" | "messages" | "files" | "uploads" | "reads" | "cards">;
   files: FileStore;
   clock: Clock;
   /** Directory for files from the owner (used by the inbound side). */
@@ -41,7 +41,7 @@ export class WebSurface implements Surface {
   constructor(protected deps: WebSurfaceDeps) {
     // Ids start from boot time, so a tab's id from a previous run is older than the buffer: resync.
     this.bus = new EventBus(REPLAY_EVENTS, deps.clock.now() * 1000);
-    this.cards = new CardDesk(this.bus, deps.clock);
+    this.cards = new CardDesk(this.bus, deps.store);
   }
 
   onMessage(handler: (m: InboundMessage) => Promise<number | undefined>): void {
@@ -54,7 +54,13 @@ export class WebSurface implements Surface {
   }
 
   /** Check the owner's message and uploads, save the files for the bot, hand it to the hub. */
-  send(i: { conversationId: string; text: string; uploadIds?: string[]; replyTo?: number }) {
+  send(i: {
+    conversationId: string;
+    text: string;
+    uploadIds?: string[];
+    replyTo?: number;
+    clientNonce?: string;
+  }) {
     return sendOwnerMessage(this.deps, this.handler, i);
   }
 
@@ -71,7 +77,7 @@ export class WebSurface implements Surface {
 
   /** Unread messages plus open cards of the conversation (one number for the list and the event). */
   async unreadOf(c: ConversationId): Promise<number> {
-    return (await this.deps.store.reads.unread(c)) + this.cards.openIn(c);
+    return (await this.deps.store.reads.unread(c)) + (await this.cards.openIn(c));
   }
 
   /** Publish the conversation's unread count. */
