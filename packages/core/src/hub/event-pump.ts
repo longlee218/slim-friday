@@ -78,6 +78,7 @@ export async function pumpEvents(
         entry.groupContextSent.clear();
         // The system prompt keeps the rules from open; later changes and group rules must come again.
         entry.rulesShown = entry.rulesAtOpen;
+        entry.ownerShown = entry.ownerAtOpen;
         for (const k of entry.groupRulesSent.keys()) entry.groupRulesSent.set(k, RULES_COMPACTED);
         entry.memoryStale = true;
       } else if (e.type === "turn_end") {

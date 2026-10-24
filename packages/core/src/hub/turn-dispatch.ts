@@ -5,6 +5,7 @@ import { changedGroupContext } from "./group-context";
 import { changedGroupMemory, promptMemory } from "./group-memory";
 import type { HubContext } from "./hub-context";
 import { EMPTY_MEMORY_NOTE } from "./memory-label";
+import { ownerFilesForTurn } from "./owner-files-for-turn";
 import { rulesForTurn } from "./rules-for-turn";
 import type { PoolEntry, QueuedWake } from "./session-pool";
 import { ticketContextFor } from "./ticket-support";
@@ -24,9 +25,11 @@ export async function dispatch(ctx: HubContext, entry: PoolEntry, q: QueuedWake)
   // The memory shown before this turn: a failed send puts it back so the updated memory goes with the next turn.
   const shownBefore = entry.memoryShown;
   const rulesBefore = entry.rulesShown;
+  const ownerBefore = entry.ownerShown;
   let groupRulesBefore: string | undefined;
   let botMemory: string | undefined;
   let botRules: string | undefined;
+  let ownerFiles: string | undefined;
   try {
     conv = await store.conversations.get(q.conversationId);
     const context =
@@ -34,6 +37,7 @@ export async function dispatch(ctx: HubContext, entry: PoolEntry, q: QueuedWake)
         ? await store.messages.recent(q.conversationId, ctx.limits.groupContextMessages)
         : [];
     if (conv?.kind === "group") groupRulesBefore = entry.groupRulesSent.get(conv.groupId);
+    ownerFiles = await ownerFilesForTurn(entry, store.bots);
     const rules = await rulesForTurn(entry, conv, ctx.deps.memory, ctx.deps.log);
     botRules = rules.botRules;
     botMemory = await botMemoryAfterCompaction(ctx, entry);
@@ -68,6 +72,7 @@ export async function dispatch(ctx: HubContext, entry: PoolEntry, q: QueuedWake)
       ...(q.attachments && { attachments: q.attachments }),
       ...(q.quote && { quote: q.quote }),
       ...(groupContext !== undefined && { groupContext }),
+      ...(ownerFiles !== undefined && { ownerFiles }),
       ...(botRules !== undefined && { botRules }),
       ...(rules.groupRules !== undefined && { groupRules: rules.groupRules }),
       ...(botMemory !== undefined && { botMemory }),
@@ -78,6 +83,7 @@ export async function dispatch(ctx: HubContext, entry: PoolEntry, q: QueuedWake)
     // A send that fails (for example an unreadable attachment) must not leave the bot busy for good.
     entry.busy = false;
     // Nor mark any memory or context as sent: the next turn carries them again.
+    if (ownerFiles !== undefined) entry.ownerShown = ownerBefore;
     if (botRules !== undefined) entry.rulesShown = rulesBefore;
     if (botMemory !== undefined) {
       entry.memoryShown = shownBefore;

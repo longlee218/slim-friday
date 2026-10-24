@@ -19,7 +19,13 @@ export interface Bot {
   id: BotId;
   name: string;
   title: string;
+  /** Bot instructions; for a bot of the config files they start with `ownerPreface` (the owner's SOUL and USER). */
   instructions: string;
+  /**
+   * The owner's SOUL.md and USER.md text already at the start of `instructions` (config files only). A change of it
+   * is told to a running session in its next turn instead of restarting the session.
+   */
+  ownerPreface?: string;
   model: string;
   tools: string[];
   skills: string[];

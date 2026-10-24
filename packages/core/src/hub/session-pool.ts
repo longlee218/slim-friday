@@ -79,6 +79,10 @@ export interface PoolEntry {
   memoryShown: string;
   /** A compaction may have dropped notes saved since `memoryShown`: re-read the memory on the next turn. */
   memoryStale?: boolean;
+  /** The owner's SOUL and USER text in the system prompt at open ("" when none); a compaction falls back to it. */
+  ownerAtOpen: string;
+  /** Owner text this session was last given: at open or in a turn ("" when none). */
+  ownerShown: string;
   /** The rules text in the system prompt at open ("" when none); a compaction falls back to it. */
   rulesAtOpen: string;
   /** Bot rules text this session was last given: at open or in a turn ("" when none). */
@@ -245,6 +249,8 @@ export class SessionPool {
       queue: [],
       stopping: false,
       memoryShown: spec.memory ?? "",
+      ownerAtOpen: bot.ownerPreface ?? "",
+      ownerShown: bot.ownerPreface ?? "",
       rulesAtOpen: spec.rules ?? "",
       rulesShown: spec.rules ?? "",
       groupRulesSent: new Map(),

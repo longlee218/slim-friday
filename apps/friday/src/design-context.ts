@@ -29,13 +29,40 @@ export interface DesignDeps {
  * the app's own parsers decide whether a bot, group or MCP file is valid. `run` is the effect tools' command runner.
  */
 export function designContextFor(deps: DesignDeps) {
+  return (spec: BotRuntimeSpec, run: EffectsContext["run"]): DesignContextBase =>
+    // The session's own scratch dir (a group session has its own), as the runtime and the chat tools use.
+    designContextOf(deps, spec.bot.id, sessionScratchDir(deps.agentHome, spec), run);
+}
+
+/** Id of the owner in a design context made for the settings admins (no bot holds those tools). */
+export const OWNER_DESIGN_ID = "owner";
+
+/** The design context of the owner's settings admins: `botId: "owner"`; `scratchDir` is never used. */
+export function ownerDesignContext(
+  deps: DesignDeps,
+  run: EffectsContext["run"],
+): DesignContextBase {
+  return designContextOf(
+    deps,
+    OWNER_DESIGN_ID,
+    join(deps.agentHome, "scratch", OWNER_DESIGN_ID),
+    run,
+  );
+}
+
+/** The shared body of both contexts: the config dir, the parsers and the lookups over the live config. */
+function designContextOf(
+  deps: DesignDeps,
+  botId: string,
+  scratchDir: string,
+  run: EffectsContext["run"],
+): DesignContextBase {
   const { config, agentHome } = deps;
-  return (spec: BotRuntimeSpec, run: EffectsContext["run"]): DesignContextBase => ({
-    botId: spec.bot.id,
+  return {
+    botId,
     agentHome,
     configDir: join(agentHome, "config"),
-    // The session's own scratch dir (a group session has its own), as the runtime and the chat tools use.
-    scratchDir: sessionScratchDir(agentHome, spec),
+    scratchDir,
     defaultsDir: DEFAULTS_DIR,
     botDirs: [join(agentHome, "config", "bots"), join(DEFAULTS_DIR, "bots")],
     skillDirs: skillDirs(agentHome),
@@ -73,5 +100,5 @@ export function designContextFor(deps: DesignDeps) {
       const r = await run(["git", ...GIT_HARDEN, "rev-parse", "HEAD"], dir, GIT_RUN_ENV);
       return r.code === 0 ? r.out.trim() || undefined : undefined;
     },
-  });
+  };
 }

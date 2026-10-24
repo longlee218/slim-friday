@@ -85,7 +85,11 @@ export function loadConfig(
     bots.set(
       id,
       preface
-        ? { ...entry.bot, instructions: `${preface}\n\n${entry.bot.instructions}` }
+        ? {
+            ...entry.bot,
+            instructions: `${preface}\n\n${entry.bot.instructions}`,
+            ownerPreface: preface,
+          }
         : entry.bot,
     );
   }

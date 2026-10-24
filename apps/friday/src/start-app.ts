@@ -170,6 +170,8 @@ async function composeApp(deps: AppDeps, opened: Array<() => unknown>) {
   return {
     hub: botHub,
     config,
+    /** The app's memory files (the settings admins write through it, so the index follows). */
+    memory,
     /** The composed store (engine db + config bots and groups), for the web API. */
     store,
     /** Settles when the first consolidation, prune and message catch-up are done (tests wait on it). */

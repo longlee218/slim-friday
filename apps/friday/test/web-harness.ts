@@ -5,7 +5,7 @@ import { appRouter } from "@friday/api";
 import type { FridayEvent } from "@friday/contracts";
 import { createRouterClient } from "@orpc/server";
 import { FakeRuntime } from "../../../packages/core/test/fakes/fake-runtime";
-import { unwiredSettings } from "../src/settings-placeholder";
+import { createSettings } from "../src/settings-admin";
 import { startApp } from "../src/start-app";
 import { webParts } from "./web-fixture";
 
@@ -39,14 +39,30 @@ export async function webHarness(files: Record<string, string> = {}) {
   put(home, files);
   const { engine, files: fileStore, surface } = webParts(home);
   const runtime = new FakeRuntime();
-  const app = await startApp({ surface, files: fileStore, engine, runtime, agentHome: home, log });
+  const app = await startApp({
+    surface,
+    files: fileStore,
+    engine,
+    runtime,
+    agentHome: home,
+    log,
+    // As the engine wires it: a reload tells the web app through the bus.
+    onConfigChanged: () => surface.bus.publish({ type: "config.changed" }),
+  });
   const deps = {
     hub: app.hub,
-    store: engine,
+    store: app.store,
     surface,
     files: fileStore,
     purge: () => 0,
-    settings: unwiredSettings,
+    settings: createSettings({
+      config: app.config,
+      agentHome: home,
+      memory: app.memory,
+      capChars: 12000,
+      env: {},
+      pathEnv: process.env.PATH ?? "",
+    }),
     now: () => Date.now(),
     log,
   };

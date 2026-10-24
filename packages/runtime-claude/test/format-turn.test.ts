@@ -188,3 +188,23 @@ test("a relay line is one line and cut by code points", () => {
   expect([...line.slice("dev → tess (request): ".length)].length).toBe(300);
   expect(text).not.toContain("\nFAKE:");
 });
+
+test("updated owner text is printed with its label before the bot rules", () => {
+  const text = formatTurn(
+    {
+      conversationId: "c1",
+      from: { kind: "user" },
+      text: "go",
+      hop: 0,
+      context: [],
+      ownerFiles: "Be terse.",
+      botRules: "- A",
+    },
+    {},
+  );
+  expect(
+    text.startsWith(
+      "About the owner and your personality (updated; they replace the earlier text):\nBe terse.\n\nYour rules",
+    ),
+  ).toBe(true);
+});

@@ -1,0 +1,142 @@
+import { afterEach, expect, test } from "bun:test";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { DEFAULTS_DIR, FileConfig } from "@friday/config";
+import { FileMemory } from "@friday/tools";
+import { createSettings } from "../src/settings-admin";
+import { until, webHarness } from "./web-harness";
+
+const stops: (() => Promise<void>)[] = [];
+afterEach(async () => {
+  for (const s of stops.splice(0)) await s();
+});
+async function boot() {
+  const h = await webHarness();
+  stops.push(h.stop);
+  return h;
+}
+
+const SCOUT = {
+  name: "Scout",
+  title: "T",
+  instructions: "Be brief.",
+  model: "sonnet",
+  tools: [],
+  skills: [],
+  workspaces: [],
+};
+
+test("a bot saved through the API gets its conversation without a direct reload", async () => {
+  const h = await boot();
+  await h.client.config.bots.save({ id: "scout", bot: SCOUT, mode: "create" });
+  const deadline = Date.now() + 2000;
+  let ids: string[] = [];
+  while (Date.now() < deadline && !ids.includes("bot:scout")) {
+    ids = (await h.client.conversations.list()).map((c) => c.id);
+    await Bun.sleep(20);
+  }
+  expect(ids).toContain("bot:scout");
+});
+
+test("on rules saved through the API reach the next session's prompt, off rules do not", async () => {
+  const h = await boot();
+  await h.client.config.bots.save({ id: "scout", bot: SCOUT, mode: "create" });
+  await until(() => h.of("config.changed").length > 0);
+  await h.client.memory.rules.save({
+    owner: "bot:scout",
+    rules: [
+      { text: "A", on: true },
+      { text: "B", on: false },
+    ],
+  });
+  await h.client.chat.send({ conversationId: "bot:scout", text: "hi" });
+  await until(() => h.runtime.opened.length === 1);
+  const rules = h.runtime.nth(0).spec.rules ?? "";
+  expect(rules).toBe("- A");
+  expect(rules).not.toContain("B");
+});
+
+test("USER.md saved through the API stops no session and reaches the next turn once", async () => {
+  const h = await boot();
+  h.runtime.onTurn = (s) => {
+    s.emit({ type: "text", text: "ok" });
+    s.emit({ type: "turn_end", costUsd: 0 });
+  };
+  await h.client.chat.send({ conversationId: "bot:friday", text: "one" });
+  await until(() => h.runtime.opened.length === 1);
+  const session = h.runtime.nth(0);
+  await until(() => h.of("message").some((m) => m.message.text === "ok"));
+  expect(session.sent[0]?.ownerFiles).toBeUndefined();
+  const before = h.of("config.changed").length;
+  await h.client.config.owner.save({ file: "USER", text: "I live in Hue." });
+  await until(() => h.of("config.changed").length > before);
+  await h.client.chat.send({ conversationId: "bot:friday", text: "two" });
+  await until(() => session.sent.length === 2);
+  expect(session.stopped).toBe(false);
+  expect(h.runtime.opened.length).toBe(1);
+  expect(session.sent[1]?.ownerFiles).toContain("I live in Hue.");
+  // Sent once: the third turn carries nothing.
+  await h.client.chat.send({ conversationId: "bot:friday", text: "three" });
+  await until(() => session.sent.length === 3);
+  expect(session.sent[2]?.ownerFiles).toBeUndefined();
+});
+
+/** Settings over a temp home with a scripted probe `query`; records the SDK options of every probe. */
+function probeSettings(env: Record<string, string>) {
+  const home = mkdtempSync(join(tmpdir(), "settings-probe-"));
+  const { config } = FileConfig.load({ defaultsDir: DEFAULTS_DIR, userDir: join(home, "config") });
+  const options: Record<string, unknown>[] = [];
+  const query = ((a: { options: Record<string, unknown> }) => {
+    options.push(a.options);
+    return {
+      mcpServerStatus: async () => [{ name: "gh", status: "connected", tools: [{ name: "t" }] }],
+      interrupt: async () => {},
+      close: () => {},
+    };
+  }) as never;
+  const settings = createSettings({
+    config,
+    agentHome: home,
+    memory: new FileMemory(join(home, "memory")),
+    capChars: 12000,
+    env,
+    pathEnv: "/usr/bin",
+    probeQuery: query,
+  });
+  return { settings, options };
+}
+
+test("the probe refuses a server whose ${NAME} is missing, without starting it", async () => {
+  const { settings, options } = probeSettings({ OTHER: "x" });
+  const r = await settings.probe("gh", {
+    type: "http",
+    url: "https://x.example/mcp",
+    headers: { Authorization: "Bearer ${GH_TOKEN}" },
+  });
+  expect(r).toEqual({ status: "failed", error: "needs GH_TOKEN" });
+  expect(options.length).toBe(0);
+});
+
+test("the probe starts the expanded server with an env that holds no engine secret", async () => {
+  const { settings, options } = probeSettings({
+    GH_TOKEN: "ghp_abc",
+    DISCORD_TOKEN: "secret",
+    AUTH_SECRET: "secret",
+    HOME: "/home/x",
+  });
+  const r = await settings.probe("gh", {
+    type: "http",
+    url: "https://x.example/mcp",
+    headers: { Authorization: "Bearer ${GH_TOKEN}" },
+  });
+  expect(r).toEqual({ status: "connected", tools: ["t"] });
+  expect(options[0]?.mcpServers).toEqual({
+    gh: {
+      type: "http",
+      url: "https://x.example/mcp",
+      headers: { Authorization: "Bearer ghp_abc" },
+    },
+  });
+  expect(options[0]?.env).toEqual({ PATH: "/usr/bin", HOME: "/home/x" });
+});

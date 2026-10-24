@@ -22,7 +22,7 @@ import { fridayExtraDirs } from "./friday-bot";
 import { memoryFlush } from "./memory-flush";
 import { logEvent, logger } from "./observability/logger";
 import { sessionTools } from "./session-tools";
-import { unwiredSettings } from "./settings-placeholder";
+import { createSettings } from "./settings-admin";
 import { sessionSharedDirs } from "./shared-dirs";
 import { skillDirs } from "./skills-dirs";
 import { type RuntimeParts, startApp } from "./start-app";
@@ -164,7 +164,14 @@ export async function startEngine(
       surface,
       files,
       purge: () => purgeTrash(agentHome),
-      settings: unwiredSettings,
+      settings: createSettings({
+        config: app.config,
+        agentHome,
+        memory: app.memory,
+        capChars: app.config.limits().memoryPromptChars,
+        env,
+        pathEnv: env.PATH ?? "",
+      }),
       limits: () => app.config.limits(),
     },
   }).catch(async (err) => {

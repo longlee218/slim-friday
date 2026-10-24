@@ -10,3 +10,6 @@ export const RULES_COMPACTED = "\u0000compacted";
 
 /** What a session is told when every rule it was shown is now off. */
 export const NO_RULES_NOTE = "(none)";
+
+/** What a session is told when the owner emptied both SOUL.md and USER.md. */
+export const NO_OWNER_NOTE = "(none)";

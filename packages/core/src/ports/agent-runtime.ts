@@ -23,6 +23,8 @@ export interface InboundTurn {
   interrupted?: boolean;
   /** The group's instructions, working dirs and project rules; set on a group turn only when they changed since the bot last saw them. */
   groupContext?: string;
+  /** The owner's SOUL and USER text; set when it changed since the session last saw it ("(none)" when both are empty). */
+  ownerFiles?: string;
   /** The bot's on rules; set when they changed since the session last saw them ("(none)" when all are off). */
   botRules?: string;
   /** The group's on rules; set on a group turn when they changed since the session last saw them. */

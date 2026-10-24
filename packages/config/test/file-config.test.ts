@@ -160,3 +160,23 @@ test("summaries, tool names, mcp names and name checks come from the current sna
   expect(config.nameTaken("ANN", "bob")).toBe(true);
   expect(config.nameTaken("Ann", "ann")).toBe(false);
 });
+
+test("a USER.md or SOUL.md change alone restarts no bot but reaches the snapshot", async () => {
+  const dirs = mkdtempSync(join(tmpdir(), "owner-diff-"));
+  const defaultsDir = join(dirs, "defaults");
+  const userDir = join(dirs, "user");
+  mkdirSync(join(defaultsDir, "bots"), { recursive: true });
+  mkdirSync(userDir, { recursive: true });
+  writeFileSync(join(defaultsDir, "bots", "a.md"), "---\nname: A\ntitle: T\nmodel: m\n---\nHi.\n");
+  const { config } = FileConfig.load({ defaultsDir, userDir });
+  writeFileSync(join(userDir, "USER.md"), "I live in Hue.");
+  expect(config.reload().changedBots).toEqual([]);
+  await expect(config.bots.get("a")).resolves.toMatchObject({
+    ownerPreface: "## The owner\nI live in Hue.",
+  });
+  writeFileSync(
+    join(defaultsDir, "bots", "a.md"),
+    "---\nname: A\ntitle: T\nmodel: m\n---\nHello.\n",
+  );
+  expect(config.reload().changedBots).toEqual(["a"]);
+});
