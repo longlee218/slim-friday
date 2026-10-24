@@ -1,7 +1,7 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { sdkEnv } from "../floor/sdk-env";
-import { NOTE_CALL_TIMEOUT_MS, timeoutController } from "./call-timeout";
 import type { QueryFn } from "./build-options";
+import { NOTE_CALL_TIMEOUT_MS, timeoutController } from "./call-timeout";
 
 /** Longest summary text sent to the extraction call. */
 const MAX_INPUT = 20000;
