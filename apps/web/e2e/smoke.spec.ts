@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { signInFirstTime } from "./helpers";
 
-test("sign in with a passkey, chat, upload, answer an approval, run a ticket, open activity", async ({
+test("sign in with a passkey, chat, upload, answer an approval, run a ticket, open activity, change settings", async ({
   page,
   context,
 }) => {
@@ -43,4 +43,28 @@ test("sign in with a passkey, chat, upload, answer an approval, run a ticket, op
   // Activity: the sessions table is there.
   await page.goto("/ops");
   await expect(page.getByRole("heading", { name: "Sessions" })).toBeVisible();
+
+  // Settings: a new bot appears in the sidebar under Bots.
+  await page.goto("/settings/bot/new");
+  await page.getByLabel("Name", { exact: true }).fill("Scout");
+  await page.getByLabel("Id", { exact: true }).fill("scout");
+  await page.getByLabel("Title").fill("Researcher");
+  await page.getByRole("combobox", { name: "Model" }).click();
+  await page.getByRole("option", { name: "sonnet" }).click();
+  await page.getByLabel("Instructions").fill("Find things out and report briefly.");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page).toHaveURL(/\/settings\/bot\/scout/);
+  await page.goto("/");
+  await expect(page.locator(".sidebar, nav, aside").getByText("Scout").first()).toBeVisible();
+
+  // Settings: the owner file saves, and the account page lists this device's passkey.
+  await page.goto("/settings/owner/user");
+  await page
+    .getByRole("textbox", { name: "USER.md text" })
+    .fill("# About me\n\nI prefer short answers.");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("The bot uses it from its next turn")).toBeVisible();
+  await page.goto("/settings/account");
+  await expect(page.getByRole("button", { name: "Add passkey" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Remove" })).toHaveCount(1);
 });

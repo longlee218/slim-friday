@@ -1,14 +1,14 @@
 import { Navigate, type RouteObject, useParams } from "react-router";
 import { useDirectory } from "../../api/directory";
 import { useIsPhone } from "../../app/use-is-phone";
+import { AccountPanel } from "./account-panel";
 import { BotNewPage, BotPage } from "./bot-page";
 import { GroupNewPage, GroupPage } from "./group-page";
 import { McpDetail } from "./mcp/mcp-detail";
 import { McpList } from "./mcp/mcp-list";
+import { OwnerFileEditor } from "./owner-file-editor";
 import { PhoneBotsList, PhoneGroupsList, PhoneSettingsRoot } from "./phone-settings-lists";
 import { SettingsLayout } from "./settings-layout";
-import { SettingsPage } from "./settings-page";
-import { SettingsPlaceholder } from "./settings-placeholder";
 import { SkillDetail } from "./skills/skill-detail";
 import { SkillList } from "./skills/skill-list";
 
@@ -26,12 +26,8 @@ function SettingsIndex() {
   );
 }
 
-/** A page whose body a later task builds. */
-const later = (title: string) => (
-  <SettingsPage title={title}>
-    <SettingsPlaceholder title={title} />
-  </SettingsPage>
-);
+/** `/settings/owner/:file`: the USER.md (`user`) or SOUL.md (`soul`) editor. */
+const OwnerPage = () => <OwnerFileEditor file={useParams().file === "soul" ? "soul" : "user"} />;
 
 /** `/settings/mcp/:name?`: the server list, or one server. */
 const McpPage = () => (useParams().name ? <McpDetail /> : <McpList />);
@@ -39,7 +35,7 @@ const McpPage = () => (useParams().name ? <McpDetail /> : <McpList />);
 /** `/settings/skills/:name?`: the skill list, or one skill. */
 const SkillsPage = () => (useParams().name ? <SkillDetail /> : <SkillList />);
 
-/** The `/settings/*` routes: bot and group forms now; owner files and account later. */
+/** The `/settings/*` routes: bots, groups, connections, owner files and account. */
 export const settingsRoutes: RouteObject[] = [
   {
     path: "/settings",
@@ -54,8 +50,8 @@ export const settingsRoutes: RouteObject[] = [
       { path: "group/:id", element: <GroupPage /> },
       { path: "mcp/:name?", element: <McpPage /> },
       { path: "skills/:name?", element: <SkillsPage /> },
-      { path: "owner/:file", element: later("About you") },
-      { path: "account", element: later("Account") },
+      { path: "owner/:file", element: <OwnerPage /> },
+      { path: "account", element: <AccountPanel /> },
     ],
   },
 ];

@@ -9,12 +9,13 @@ const mocks = vi.hoisted(() => ({
   passkey: vi.fn(),
   magicLink: vi.fn(),
   addPasskey: vi.fn(),
+  listPasskeys: vi.fn(),
 }));
 vi.mock("../../src/api/auth-client", () => ({
   authClient: {
     getSession: mocks.getSession,
     signIn: { passkey: mocks.passkey, magicLink: mocks.magicLink },
-    passkey: { addPasskey: mocks.addPasskey },
+    passkey: { addPasskey: mocks.addPasskey, listUserPasskeys: mocks.listPasskeys },
   },
 }));
 
@@ -117,14 +118,22 @@ test("/settings/skills is the skill list, not a placeholder", async () => {
   expect(screen.queryByText("Skills & plugins is not built yet.")).toBeNull();
 });
 
-test("every contract path is routed (placeholder pages)", async () => {
+test("/settings/account is the account page, not a placeholder", async () => {
+  mocks.getSession.mockResolvedValue({ data: { user: { id: "u", email: "owner@example.com" } } });
+  mocks.listPasskeys.mockResolvedValue({ data: [] });
+  const router = createMemoryRouter(appRoutes, { initialEntries: ["/settings/account"] });
+  renderApp(router);
+  expect(await screen.findByRole("button", { name: "Add passkey" })).toBeTruthy();
+  expect(screen.queryByText("Account is not built yet.")).toBeNull();
+});
+
+test("/settings/owner/user is the file editor, not a placeholder", async () => {
   mocks.getSession.mockResolvedValue({ data: { user: { id: "u" } } });
-  for (const [path, title] of [["/settings/account", "Account"]]) {
-    const router = createMemoryRouter(appRoutes, { initialEntries: [path] });
-    const { unmount } = renderApp(router);
-    expect(await screen.findByText(`${title} is not built yet.`)).toBeTruthy();
-    unmount();
-  }
+  const router = createMemoryRouter(appRoutes, { initialEntries: ["/settings/owner/user"] });
+  renderApp(router);
+  // The file is not seeded, so the editor shows its loading state.
+  expect(await screen.findByText(/Loading|Could not load the file/)).toBeTruthy();
+  expect(screen.queryByText("About you is not built yet.")).toBeNull();
 });
 
 test("unauthorized rpc sends the owner to /login", async () => {

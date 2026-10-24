@@ -94,3 +94,9 @@
 .conn.ok svg { color: var(--green); } .conn.warn svg { color: var(--amber); } .conn.bad svg { color: var(--red); }
 .skill-body { padding: 4px 16px 12px; }
 .skill-body .md h3 { font-size: 13px; margin: 12px 0 4px; }
+.of-edit { width: 100%; min-height: 420px; font: 13px/1.6 var(--mono); padding: 14px 16px; resize: vertical; }
+.ios .of-edit { min-height: 360px; font-size: 14px; }
+.of-preview { padding: 6px 20px 14px; min-height: 420px; }
+.of-foot { display: flex; align-items: center; gap: 6px; margin: 8px 2px 18px; font-size: 12px; color: var(--label-2); }
+.of-foot .grow { flex: 1; }
+.of-foot .num.err { color: var(--red); }
