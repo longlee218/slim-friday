@@ -19,7 +19,9 @@ const botHeader = z.strictObject({
     .string()
     .min(1)
     .max(32)
-    .regex(/^[A-Za-z][A-Za-z0-9_-]*$/),
+    .regex(/^[A-Za-z][A-Za-z0-9_-]*$/)
+    // Discord refuses webhook usernames that contain these words.
+    .refine((n) => !/discord|clyde/i.test(n), "name may not contain discord or clyde"),
   title: z.string().min(1),
   model: z.string().min(1),
   tools: z.array(z.string().min(1)).default([]),

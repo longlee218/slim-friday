@@ -46,7 +46,9 @@ export class ApprovalCards {
         : []),
       { id: `appr:${this.nonce}:${n}:deny`, label: "Deny", style: "danger" },
     ];
-    const text = `**${card.botName}** wants to run \`${card.summary}\``;
+    // The summary comes from the model: flatten backticks and line breaks so it cannot fake the card or its outcome.
+    const summary = card.summary.replace(/[`\r\n]+/g, " ").slice(0, 300);
+    const text = `**${card.botName}** wants to run \`${summary}\``;
     const messageId = await this.port.sendButtons(channelId, text, buttons);
     return new Promise((settle) => {
       // The gate has denied by then; close the card so a late click cannot show a false answer.

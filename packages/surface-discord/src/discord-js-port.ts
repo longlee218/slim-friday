@@ -1,11 +1,13 @@
 import {
   ActionRowBuilder,
+  ApplicationCommandOptionType,
   ButtonBuilder,
   ButtonStyle,
   ChannelType,
   Client,
   Events,
   GatewayIntentBits,
+  MessageFlags,
   type TextChannel,
   type Webhook,
 } from "discord.js";
@@ -22,6 +24,9 @@ import { privateOverwrites } from "./private-overwrites";
 /** Name of the webhook the app creates in each channel. */
 const WEBHOOK_NAME = "Friday";
 
+/** Discord error code: the webhook no longer exists. */
+const UNKNOWN_WEBHOOK = 10015;
+
 /** Discord button styles by our style names. */
 const STYLES = {
   primary: ButtonStyle.Primary,
@@ -37,6 +42,8 @@ export async function connectDiscord(opts: {
   token: string;
   guildId: string;
   ownerId: string;
+  /** Receives client errors (without a listener a discord.js error event would crash the process). */
+  onError?: (err: Error) => void;
 }): Promise<ConnectedDiscord> {
   const client = new Client({
     intents: [
@@ -47,6 +54,7 @@ export async function connectDiscord(opts: {
     // Bot text may contain @everyone or mentions; never ping anyone.
     allowedMentions: { parse: [] },
   });
+  client.on(Events.Error, (err) => opts.onError?.(err));
   const ready = new Promise<void>((resolve) => client.once(Events.ClientReady, () => resolve()));
   await client.login(opts.token);
   await ready;
@@ -55,7 +63,14 @@ export async function connectDiscord(opts: {
     {
       name: "stop",
       description: "Stop a bot (this channel's bot when none is named)",
-      options: [{ type: 3, name: "bot", description: "Bot name", required: false }],
+      options: [
+        {
+          type: ApplicationCommandOptionType.String,
+          name: "bot",
+          description: "Bot name",
+          required: false,
+        },
+      ],
     },
     { name: "status", description: "Show what the bots in this channel are doing" },
   ]);
@@ -68,17 +83,22 @@ export async function connectDiscord(opts: {
     return ch;
   };
 
-  // One webhook per channel, found or created once.
-  const hooks = new Map<string, Webhook>();
-  const webhookFor = async (channelId: string): Promise<Webhook> => {
-    const cached = hooks.get(channelId);
-    if (cached) return cached;
-    const ch = await textChannel(channelId);
-    const mine = (await ch.fetchWebhooks()).find(
-      (w) => w.name === WEBHOOK_NAME && w.owner?.id === client.user?.id,
-    );
-    const hook = mine ?? (await ch.createWebhook({ name: WEBHOOK_NAME }));
-    hooks.set(channelId, hook);
+  // One webhook per channel, found or created once (the promise is cached, so two first posts share it).
+  const hooks = new Map<string, Promise<Webhook>>();
+  const webhookFor = (channelId: string): Promise<Webhook> => {
+    let hook = hooks.get(channelId);
+    if (!hook) {
+      hook = (async () => {
+        const ch = await textChannel(channelId);
+        const mine = (await ch.fetchWebhooks()).find(
+          (w) => w.name === WEBHOOK_NAME && w.owner?.id === client.user?.id,
+        );
+        return mine ?? (await ch.createWebhook({ name: WEBHOOK_NAME }));
+      })();
+      hooks.set(channelId, hook);
+      // A failed lookup is not kept.
+      hook.catch(() => hooks.delete(channelId));
+    }
     return hook;
   };
 
@@ -118,7 +138,7 @@ export async function connectDiscord(opts: {
           name: i.commandName,
           botName: i.options.getString("bot") ?? undefined,
           reply: async (text) => {
-            await i.reply({ content: text, ephemeral: true });
+            await i.reply({ content: text, flags: MessageFlags.Ephemeral });
           },
         });
       });
@@ -127,7 +147,14 @@ export async function connectDiscord(opts: {
       await (await textChannel(channelId)).send(text);
     },
     async sendAs(channelId, username, text) {
-      await (await webhookFor(channelId)).send({ content: text, username });
+      try {
+        await (await webhookFor(channelId)).send({ content: text, username });
+      } catch (err) {
+        // The owner deleted the webhook: forget it and make a new one, once.
+        if ((err as { code?: number }).code !== UNKNOWN_WEBHOOK) throw err;
+        hooks.delete(channelId);
+        await (await webhookFor(channelId)).send({ content: text, username });
+      }
     },
     async typing(channelId) {
       await (await textChannel(channelId)).sendTyping();

@@ -122,3 +122,12 @@ test("a stale button from before a restart cannot answer a new card", async () =
   await fresh.port.emitClick("ch1", staleId);
   expect(await settled(p)).toBe("pending");
 });
+
+test("a summary cannot forge the card: backticks and line breaks are flattened", async () => {
+  const { port, surface } = setup();
+  void surface.askApproval("ch1", card({ summary: "ls`\n→ allowed once `x" }));
+  await Bun.sleep(5);
+  const text = port.buttons[0]?.text ?? "";
+  expect(text.split("\n")).toHaveLength(1);
+  expect(text.match(/`/g)).toHaveLength(2);
+});

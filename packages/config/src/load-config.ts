@@ -70,8 +70,11 @@ export function loadConfig(
   }
   const groups = new Map<GroupId, Group>();
   for (const [id, { group, file }] of groupEntries) {
+    // The bot that writes config files must not sit in a group where other bots (and the web text they read) can wake it.
+    const reserved = group.members.find((m) => RESERVED_BOT_IDS.includes(m));
     const missing = group.members.find((m) => !bots.has(m));
-    if (missing) problems.push({ file, message: `member "${missing}" is not a loaded bot` });
+    if (reserved) problems.push({ file, message: `member "${reserved}" cannot be in a group` });
+    else if (missing) problems.push({ file, message: `member "${missing}" is not a loaded bot` });
     else groups.set(id, group);
   }
 

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, realpathSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Bot, BotRuntimeSpec, RuntimeToolCall, ToolDecision } from "@friday/core";
@@ -179,4 +179,12 @@ test("extra dirs: the granted bot reaches them, the rest of agentHome and others
 test("a workspace inside the agent home is refused", () => {
   const inside = join(home, "data");
   expect(() => build(spec(bot({ workspaces: [inside] })).s)).toThrow("agent home");
+});
+
+test("a workspace that reaches the agent home by `..` or a symlink is refused", () => {
+  mkdirSync(join(home, "data"), { recursive: true });
+  const link = join(base, "link-to-home");
+  symlinkSync(home, link);
+  for (const w of [join(base, "x", "..", "home", "data"), join(link, "data"), link])
+    expect(() => build(spec(bot({ workspaces: [w] })).s)).toThrow("agent home");
 });

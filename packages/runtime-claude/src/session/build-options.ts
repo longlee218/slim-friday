@@ -1,5 +1,6 @@
 import type { McpServerConfig, Options, query } from "@anthropic-ai/claude-agent-sdk";
 import type { Bot, BotRuntimeSpec } from "@friday/core";
+import { isInside, realOrSame } from "../floor/paths";
 import { sdkEnv } from "../floor/sdk-env";
 import { workerSandbox } from "../floor/worker-sandbox";
 import { floorCheck } from "./floor-check";
@@ -53,8 +54,9 @@ export function buildOptions(input: BuildOptionsInput): Options {
   const { bot } = spec;
   const cwd = bot.workspaces[0] ?? scratchDir;
   // A workspace inside the agent home would hand the bot's shell the engine db or the config.
+  const realHome = realOrSame(config.agentHome);
   for (const w of bot.workspaces)
-    if (w === config.agentHome || w.startsWith(`${config.agentHome}/`))
+    if (isInside(realHome, realOrSame(w)))
       throw new Error(`workspace ${w} is inside the agent home`);
   const extra = config.extraDirsFor?.(bot) ?? { write: [], read: [] };
   const writePaths = [...bot.workspaces, ...extra.write];

@@ -31,7 +31,12 @@ export async function startEngine(
   const ownerId = need("OWNER_DISCORD_ID", config.ownerDiscordId);
 
   const configDir = join(agentHome, "config");
-  const port = await connect({ token, guildId, ownerId });
+  const port = await connect({
+    token,
+    guildId,
+    ownerId,
+    onError: (err) => log.error({ error: err.message }, "discord.error"),
+  });
   try {
     const runtime = new ClaudeRuntime({
       oauthToken: config.oauthToken,

@@ -49,3 +49,38 @@ test("a user bot file with the reserved id friday is reported and ignored", () =
   expect(snapshot.bots.get("friday")?.tools).toEqual(["Read", "Glob", "Write", "Edit"]);
   expect(problems.map((p) => p.message).join()).toContain("reserved");
 });
+
+test("Friday asks before it writes: shipped autonomy is careful", () => {
+  const userDir = mkdtempSync(join(tmpdir(), "cfg-"));
+  const { snapshot } = loadConfig({ defaultsDir: DEFAULTS_DIR, userDir });
+  expect(snapshot.bots.get("friday")?.autonomy).toBe("careful");
+});
+
+test("a group that lists the Friday bot as a member is refused", () => {
+  const userDir = mkdtempSync(join(tmpdir(), "cfg-"));
+  mkdirSync(join(userDir, "bots"));
+  mkdirSync(join(userDir, "groups"));
+  writeFileSync(
+    join(userDir, "bots", "ann.md"),
+    "---\nname: Ann\ntitle: x\nmodel: sonnet\n---\nhi\n",
+  );
+  writeFileSync(
+    join(userDir, "groups", "g.yaml"),
+    "name: G\nmembers: [ann, friday]\nentryBot: ann\n",
+  );
+  const { snapshot, problems } = loadConfig({ defaultsDir: DEFAULTS_DIR, userDir });
+  expect(snapshot.groups.has("g")).toBe(false);
+  expect(problems.map((p) => p.message).join()).toContain("friday");
+});
+
+const header = (name: string, extra = "") =>
+  `---\nname: ${name}\ntitle: T\nmodel: sonnet\n${extra}---\nbody\n`;
+
+test("bot names Discord refuses for webhooks are refused; absolute workspaces are normalised", async () => {
+  const { parseBotFile } = await import("../src/schemas/bot-file");
+  expect(() => parseBotFile("a", header("Discord"))).toThrow();
+  expect(() => parseBotFile("a", header("MyClydeBot"))).toThrow();
+  expect(parseBotFile("a", header("Ann", "workspaces: [/x/y/../z]\n")).workspaces).toEqual([
+    "/x/z",
+  ]);
+});

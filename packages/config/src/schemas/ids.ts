@@ -1,5 +1,5 @@
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { z } from "zod";
 
 /** A bot, group or subagent id: also the file stem, so it is safe as a file or dir name. */
@@ -17,4 +17,5 @@ export function assertId(id: string): void {
 export const pathSchema = z
   .string()
   .refine((p) => p.startsWith("/") || p.startsWith("~/"), "path must be absolute or start with ~/")
-  .transform((p) => (p.startsWith("~/") ? join(homedir(), p.slice(2)) : p));
+  // Normalised (`..` and `.` resolved) so later prefix checks see the real shape.
+  .transform((p) => resolve(p.startsWith("~/") ? join(homedir(), p.slice(2)) : p));
