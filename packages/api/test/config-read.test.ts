@@ -31,3 +31,9 @@ test("config.bots.list refuses without a session", async () => {
   const anon = createRouterClient(appRouter, { context: { deps: h.deps } as never });
   await expect(anon.config.bots.list()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
 });
+
+test("config.groups.list refuses without a session", async () => {
+  const h = engineHarness();
+  const anon = createRouterClient(appRouter, { context: { deps: h.deps } as never });
+  await expect(anon.config.groups.list()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+});
