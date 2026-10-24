@@ -2,10 +2,11 @@ import type { Author, Store, WakeRow } from "@friday/core";
 import { and, asc, eq, gte, inArray, lt, notInArray, or, sql } from "drizzle-orm";
 import type { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import { wakes } from "../schema/engine-tables";
+import { runClaim } from "./run-claim";
 
 type Row = typeof wakes.$inferSelect;
 
-/** Statuses of a wake still to be delivered or being delivered. */
+/** Statuses of a wake still to be delivered or being delivered (`leased` and `waiting_input` are not: `open` is the old restart recovery). */
 const OPEN = ["queued", "running"];
 
 const toAuthor = (r: Row): Author =>
@@ -14,7 +15,7 @@ const toAuthor = (r: Row): Author =>
     : { kind: r.senderKind === "system" ? "system" : "user" };
 
 /** Table row to domain row; empty columns become absent fields. */
-function fromRow(r: Row): WakeRow {
+export function fromRow(r: Row): WakeRow {
   return {
     id: r.id,
     chainId: r.chainId,
@@ -36,11 +37,26 @@ function fromRow(r: Row): WakeRow {
     ...(r.startedAt != null && { startedAt: r.startedAt }),
     ...(r.firstTextAt != null && { firstTextAt: r.firstTextAt }),
     ...(r.endedAt != null && { endedAt: r.endedAt }),
+    scopeKey: r.scopeKey,
+    priority: r.priority as WakeRow["priority"],
+    ...(r.leaseOwner && { leaseOwner: r.leaseOwner }),
+    leaseFence: r.leaseFence,
+    ...(r.leaseExpiresAt != null && { leaseExpiresAt: r.leaseExpiresAt }),
+    ...(r.wakeAt != null && { wakeAt: r.wakeAt }),
+    ...(r.cardId && { cardId: r.cardId }),
+    ...(r.tainted != null && { tainted: r.tainted }),
+    ...(r.resultText != null && { resultText: r.resultText }),
+    ...(r.error != null && { error: r.error }),
+    ...(r.outcomeReturnedAt != null && { outcomeReturnedAt: r.outcomeReturnedAt }),
+    ...(r.dedupeKey && { dedupeKey: r.dedupeKey }),
+    cuts: r.cuts,
+    transientRetries: r.transientRetries,
+    setupFailures: r.setupFailures,
   };
 }
 
 /** Domain fields to table columns (only the keys present, so a patch changes only what it names). */
-function toColumns(w: Partial<WakeRow>): Partial<typeof wakes.$inferInsert> {
+export function toColumns(w: Partial<WakeRow>): Partial<typeof wakes.$inferInsert> {
   const { sender, attachments, parentWakeId, blockReason, handoff, ...rest } = w;
   return {
     ...rest,
@@ -80,6 +96,26 @@ export function wakeRepo(db: BunSQLiteDatabase): Store["wakes"] {
         .all()
         .map(fromRow);
     },
+    async insertDeduped(w) {
+      // The unique index is the arbiter, so a racing second insert cannot slip through.
+      const added = db
+        .insert(wakes)
+        .values(toColumns(w) as typeof wakes.$inferInsert)
+        .onConflictDoNothing()
+        .returning({ id: wakes.id })
+        .all();
+      if (added.length) return { inserted: true as const };
+      const existing = db
+        .select()
+        .from(wakes)
+        .where(
+          and(eq(wakes.conversationId, w.conversationId), eq(wakes.dedupeKey, w.dedupeKey ?? "")),
+        )
+        .get();
+      if (!existing) throw new Error(`wake ${w.id} conflicts but no row has its dedupe key`);
+      return { inserted: false as const, existing: fromRow(existing) };
+    },
+    ...runClaim(db),
     async botSentSince(conversationId, since) {
       return db
         .select()

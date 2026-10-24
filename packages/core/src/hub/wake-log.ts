@@ -21,6 +21,15 @@ function base(w: WakeRow) {
  * The life of a wake in the store, with one log line per step: queued, started, done, blocked,
  * interrupted, dropped. Timings are measured from the time the wake was created.
  */
+/** Run fields a new wake may leave out. */
+type RunDefaults =
+  | "scopeKey"
+  | "priority"
+  | "leaseFence"
+  | "cuts"
+  | "transientRetries"
+  | "setupFailures";
+
 export class WakeLog {
   constructor(
     private store: Store,
@@ -31,10 +40,18 @@ export class WakeLog {
 
   /** Store a new queued wake. A user wake (no `chainId`) starts its own chain. */
   async create(
-    w: Omit<WakeRow, "id" | "status" | "attempts" | "createdAt" | "chainId"> & { chainId?: string },
+    w: Omit<WakeRow, "id" | "status" | "attempts" | "createdAt" | "chainId" | RunDefaults> &
+      Partial<Pick<WakeRow, RunDefaults>> & { chainId?: string },
   ): Promise<WakeRow> {
     const id = this.newId();
     const row: WakeRow = {
+      // Run fields start as a plain interactive run in the target bot's own scope.
+      scopeKey: w.targetBot,
+      priority: "interactive",
+      leaseFence: 0,
+      cuts: 0,
+      transientRetries: 0,
+      setupFailures: 0,
       ...w,
       id,
       chainId: w.chainId ?? id,

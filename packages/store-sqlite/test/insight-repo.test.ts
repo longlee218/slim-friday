@@ -68,6 +68,12 @@ async function seeded() {
     status,
     attempts: 1,
     createdAt: 10 * DAY,
+    scopeKey: "s",
+    priority: "interactive",
+    leaseFence: 0,
+    cuts: 0,
+    transientRetries: 0,
+    setupFailures: 0,
   });
   await s.wakes.insert(wake("w1", "expired"));
   await s.wakes.insert(wake("w2", "done"));

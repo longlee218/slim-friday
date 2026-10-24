@@ -4,7 +4,7 @@ import type { Conversation, ConversationId } from "../domain/conversation";
 import type { Grant } from "../domain/grant";
 import type { Group, GroupId } from "../domain/group";
 import type { IndexedMessage, StoredMessage } from "../domain/message";
-import type { WakeRow } from "../domain/wake";
+import type { WakeRow, WakeStatus } from "../domain/wake";
 import type { Ticket, TicketComment, TicketStatus } from "../tickets/ticket";
 import type { ApprovalAnswer } from "./surface";
 
@@ -166,5 +166,44 @@ export interface Store {
     botSentSince(conversationId: ConversationId, since: number): Promise<WakeRow[]>;
     /** Delete rows that ended before `at` (any status but queued and running); returns the count. */
     deleteFinishedBefore(at: number): Promise<number>;
+    /** Insert unless a row with the same conversation and `dedupeKey` exists; then return that row. */
+    insertDeduped(w: WakeRow): Promise<{ inserted: true } | { inserted: false; existing: WakeRow }>;
+    /**
+     * In one transaction lease the next claimable run (queued and due with a free scope, or a lease that
+     * expired or belongs to another boot): interactive first, then oldest. Raises the fence by one.
+     */
+    claimNext(o: {
+      owner: string;
+      bootId: string;
+      now: number;
+      leaseMs: number;
+    }): Promise<WakeRow | undefined>;
+    /** Apply `patch` only when the row has this fence and one of the `from` statuses; true when it did. */
+    transition(
+      id: string,
+      fence: number,
+      from: WakeStatus[],
+      patch: Partial<WakeRow>,
+    ): Promise<boolean>;
+    /** Extend the lease to `until` when owner and fence still match; true when it did. */
+    renew(id: string, owner: string, fence: number, until: number): Promise<boolean>;
+    /** Queued, leased, running and waiting_input rows of a scope, oldest first. */
+    activeInScope(scopeKey: string): Promise<WakeRow[]>;
+  };
+  /** Tries of a run. */
+  attempts: {
+    start(a: {
+      id: string;
+      wakeId: string;
+      fence: number;
+      owner: string;
+      startedAt: number;
+    }): Promise<void>;
+    finish(
+      id: string,
+      status: "done" | "failed" | "interrupted" | "parked" | "setup_failed",
+      at: number,
+      error?: string,
+    ): Promise<void>;
   };
 }

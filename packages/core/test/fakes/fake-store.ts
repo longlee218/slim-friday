@@ -15,6 +15,7 @@ import type {
   TicketComment,
   UploadRow,
   WakeRow,
+  WakeStatus,
 } from "../../src";
 
 /** An in-memory Store; tests seed `bots`, `groups` and `convs` directly. */
@@ -183,6 +184,92 @@ export class FakeStore implements Store {
           n++;
         }
       return n;
+    },
+    insertDeduped: async (w: WakeRow) => {
+      const existing =
+        w.dedupeKey == null
+          ? undefined
+          : [...this.wakeMap.values()].find(
+              (x) => x.conversationId === w.conversationId && x.dedupeKey === w.dedupeKey,
+            );
+      if (existing) return { inserted: false as const, existing: { ...existing } };
+      this.wakeMap.set(w.id, { ...w });
+      return { inserted: true as const };
+    },
+    // Same rules as the db claim, single process.
+    claimNext: async (o: { owner: string; bootId: string; now: number; leaseMs: number }) => {
+      const all = [...this.wakeMap.values()];
+      const held = (w: WakeRow) => w.status === "leased" || w.status === "running";
+      const ok = (w: WakeRow) =>
+        w.status === "queued"
+          ? (w.wakeAt == null || w.wakeAt <= o.now) &&
+            !all.some((x) => x.scopeKey === w.scopeKey && held(x))
+          : held(w) &&
+            ((w.leaseExpiresAt ?? 0) <= o.now || !w.leaseOwner?.startsWith(`${o.bootId}:`));
+      const rank = (w: WakeRow) => (w.priority === "interactive" ? 0 : 1);
+      const row = all
+        .filter(ok)
+        .sort(
+          (a, b) =>
+            rank(a) - rank(b) ||
+            a.createdAt - b.createdAt ||
+            (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+        )[0];
+      if (!row) return undefined;
+      Object.assign(row, {
+        status: "leased",
+        leaseOwner: o.owner,
+        leaseFence: row.leaseFence + 1,
+        leaseExpiresAt: o.now + o.leaseMs,
+      });
+      return { ...row };
+    },
+    transition: async (id: string, fence: number, from: WakeStatus[], patch: Partial<WakeRow>) => {
+      const w = this.wakeMap.get(id);
+      if (!w || w.leaseFence !== fence || !from.includes(w.status)) return false;
+      Object.assign(w, patch);
+      return true;
+    },
+    renew: async (id: string, owner: string, fence: number, until: number) => {
+      const w = this.wakeMap.get(id);
+      if (!w || w.leaseOwner !== owner || w.leaseFence !== fence) return false;
+      if (w.status !== "leased" && w.status !== "running") return false;
+      w.leaseExpiresAt = until;
+      return true;
+    },
+    activeInScope: async (scopeKey: string) =>
+      [...this.wakeMap.values()]
+        .filter(
+          (w) =>
+            w.scopeKey === scopeKey &&
+            ["queued", "leased", "running", "waiting_input"].includes(w.status),
+        )
+        .sort((a, b) => a.createdAt - b.createdAt)
+        .map((w) => ({ ...w })),
+  };
+  /** Attempts by id, for assertions. */
+  attemptMap = new Map<string, Record<string, unknown>>();
+  attempts = {
+    start: async (a: {
+      id: string;
+      wakeId: string;
+      fence: number;
+      owner: string;
+      startedAt: number;
+    }) => {
+      this.attemptMap.set(a.id, { ...a, status: "running" });
+    },
+    finish: async (
+      id: string,
+      status: "done" | "failed" | "interrupted" | "parked" | "setup_failed",
+      at: number,
+      error?: string,
+    ) => {
+      Object.assign(this.attemptMap.get(id) ?? {}, {
+        status,
+        endedAt: at,
+        ...(error !== undefined && { error }),
+      });
     },
   };
   ticketMap = new Map<string, Ticket>();

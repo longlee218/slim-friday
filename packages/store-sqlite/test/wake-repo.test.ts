@@ -15,6 +15,12 @@ const wake = (id: string, over: Partial<WakeRow> = {}): WakeRow => ({
   status: "queued",
   attempts: 1,
   createdAt: 1,
+  scopeKey: "s",
+  priority: "interactive",
+  leaseFence: 0,
+  cuts: 0,
+  transientRetries: 0,
+  setupFailures: 0,
   ...over,
 });
 

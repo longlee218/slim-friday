@@ -1,6 +1,7 @@
 import type { Conversation, InsightStore, Store } from "@friday/core";
 import { drizzle } from "drizzle-orm/bun-sqlite";
 import { openEngineDb } from "./open-engine-db";
+import { attemptRepo } from "./repos/attempt-repo";
 import { auditRepo } from "./repos/audit-repo";
 import { conversationRepo } from "./repos/conversation-repo";
 import { fileRepo } from "./repos/file-repo";
@@ -38,6 +39,7 @@ export function openEngineStore(file: string): EngineStore {
     spend: spendRepo(db),
     audit: auditRepo(db),
     wakes: wakeRepo(db),
+    attempts: attemptRepo(db),
     tickets: ticketRepo(db),
     insight: insightRepo(db),
     close: () => client.close(),

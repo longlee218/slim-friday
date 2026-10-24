@@ -1,4 +1,12 @@
-import { index, integer, primaryKey, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import {
+  index,
+  integer,
+  primaryKey,
+  real,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 
 /** A message stream: a one-to-one chat with a bot or a group chat. */
 export const conversations = sqliteTable("conversations", {
@@ -110,11 +118,52 @@ export const wakes = sqliteTable(
     startedAt: integer("started_at"),
     firstTextAt: integer("first_text_at"),
     endedAt: integer("ended_at"),
+    /** Runs with the same scope key never run in parallel (a bot session scope). */
+    scopeKey: text("scope_key").notNull().default(""),
+    /** `interactive` runs are claimed before `background` ones. */
+    priority: text("priority").notNull().default("interactive"),
+    /** `<bootId>:<workerId>` of the worker holding the lease. */
+    leaseOwner: text("lease_owner"),
+    /** Raised by one at every claim; a stale holder's writes are refused. */
+    leaseFence: integer("lease_fence").notNull().default(0),
+    leaseExpiresAt: integer("lease_expires_at"),
+    /** Not claimable before this time. */
+    wakeAt: integer("wake_at"),
+    cardId: text("card_id"),
+    tainted: integer("tainted", { mode: "boolean" }),
+    resultText: text("result_text"),
+    error: text("error"),
+    outcomeReturnedAt: integer("outcome_returned_at"),
+    /** Unique per conversation when set: a repeated delivery finds the first row. */
+    dedupeKey: text("dedupe_key"),
+    cuts: integer("cuts").notNull().default(0),
+    transientRetries: integer("transient_retries").notNull().default(0),
+    setupFailures: integer("setup_failures").notNull().default(0),
   },
   (t) => [
     index("wakes_status_idx").on(t.status, t.createdAt),
     index("wakes_conversation_idx").on(t.conversationId, t.createdAt),
+    index("wakes_claim_idx").on(t.status, t.priority, t.createdAt),
+    index("wakes_scope_idx").on(t.scopeKey, t.status),
+    uniqueIndex("wakes_dedupe_idx").on(t.conversationId, t.dedupeKey),
   ],
+);
+
+/** One try of a run by one worker under one fence. */
+export const runAttempts = sqliteTable(
+  "run_attempts",
+  {
+    id: text("id").primaryKey(),
+    wakeId: text("wake_id").notNull(),
+    fence: integer("fence").notNull(),
+    owner: text("owner").notNull(),
+    /** `running` until finished, then done, failed, interrupted, parked or setup_failed. */
+    status: text("status").notNull(),
+    error: text("error"),
+    startedAt: integer("started_at").notNull(),
+    endedAt: integer("ended_at"),
+  },
+  (t) => [index("run_attempts_wake_idx").on(t.wakeId)],
 );
 
 /** Tickets of the shared board. */

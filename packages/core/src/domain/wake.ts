@@ -10,7 +10,11 @@ export type WakeStatus =
   | "blocked"
   | "interrupted"
   | "expired"
-  | "dropped";
+  | "dropped"
+  | "leased"
+  | "waiting_input"
+  | "failed"
+  | "cancelled";
 
 /** Why a cap stopped a wake. */
 export type BlockReason = "hops" | "rate" | "repeat" | "spend";
@@ -49,4 +53,25 @@ export interface WakeRow {
   startedAt?: number;
   firstTextAt?: number;
   endedAt?: number;
+  /** Runs sharing a scope key never run in parallel. */
+  scopeKey: string;
+  /** `interactive` runs are claimed before `background` ones. */
+  priority: "interactive" | "background";
+  /** `<bootId>:<workerId>` of the worker holding the lease. */
+  leaseOwner?: string;
+  /** Raised by one at every claim; a stale holder's writes are refused. */
+  leaseFence: number;
+  leaseExpiresAt?: number;
+  /** Not claimable before this time. */
+  wakeAt?: number;
+  cardId?: string;
+  tainted?: boolean;
+  resultText?: string;
+  error?: string;
+  outcomeReturnedAt?: number;
+  /** Unique per conversation when set. */
+  dedupeKey?: string;
+  cuts: number;
+  transientRetries: number;
+  setupFailures: number;
 }
