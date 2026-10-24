@@ -60,6 +60,10 @@ export interface PoolEntry {
   stopping: boolean;
   /** Group memory text last sent to this session, by group; a new session starts empty. */
   groupMemorySent: Map<string, string>;
+  /** Epoch milliseconds the session was opened or resumed. */
+  openedAt: number;
+  /** Conversations this session answered (reported when it closes for being quiet). */
+  conversations: Set<ConversationId>;
 }
 
 /** Open sessions, one per bot. Opens a new session or resumes the stored one. */
@@ -155,6 +159,8 @@ export class SessionPool {
       queue: [],
       stopping: false,
       groupMemorySent: new Map(),
+      openedAt: this.clock.now(),
+      conversations: new Set(),
     };
     ref.entry = entry;
     this.entries.set(bot.id, entry);

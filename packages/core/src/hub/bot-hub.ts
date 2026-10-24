@@ -18,6 +18,7 @@ import { type Ticket, ticketRef } from "../tickets/ticket";
 import { TicketBoard } from "../tickets/ticket-board";
 import { dayOf, pumpEvents } from "./event-pump";
 import { changedGroupMemory } from "./group-memory";
+import { type IdleCloseHook, reportIdleClose } from "./idle-close";
 import { type PoolEntry, type QueuedWake, SessionPool } from "./session-pool";
 import {
   AUTO_BLOCK_COMMENT,
@@ -67,6 +68,8 @@ export interface BotHubDeps {
   memory?: Memory;
   /** Where wake events and failures are reported; without it nothing is logged. */
   log?: Log;
+  /** Told (not awaited) about each session `sweepIdle` closes; never about `stop()` or a crash. */
+  onIdleClose?: IdleCloseHook;
 }
 
 /**
@@ -164,8 +167,10 @@ export class BotHub implements BotMessenger {
   async sweepIdle(): Promise<void> {
     const now = this.deps.clock.now();
     for (const e of this.pool.list())
-      if (!e.busy && e.tasks.size === 0 && now - e.lastActive >= this.limits.idleCloseMs)
+      if (!e.busy && e.tasks.size === 0 && now - e.lastActive >= this.limits.idleCloseMs) {
+        reportIdleClose(this.deps.onIdleClose, e, this.deps.log);
         await this.stop(e.bot.id);
+      }
   }
 
   /** Bots a user message in `conv` wakes. */
@@ -329,6 +334,7 @@ export class BotHub implements BotMessenger {
     const { store, surface, clock } = this.deps;
     // Claim the bot before the first await: a wake that arrives meanwhile sees it busy and waits.
     entry.current = { conversationId: q.conversationId, hop: q.hop };
+    entry.conversations.add(q.conversationId);
     entry.currentWakeId = q.wakeId;
     entry.currentTicket = q.ticketId ? { id: q.ticketId, rewake: q.rewake === true } : undefined;
     entry.turnTexts = [];
