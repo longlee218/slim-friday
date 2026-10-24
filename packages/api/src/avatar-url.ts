@@ -1,6 +1,7 @@
 import type { AvatarTarget, FileStore, UploadRow } from "@friday/core";
 import type { ApiDeps } from "./app";
 import { encodeKey } from "./encode-key";
+import { SHIPPED_PRESETS } from "./shipped-avatars";
 
 const HOUR_MS = 3_600_000;
 
@@ -13,7 +14,7 @@ export function uploadIdOf(avatar: string | undefined): string | undefined {
 }
 
 /**
- * Builds the avatar URL function. A preset is the web bundle's `/avatars/<name>.webp`. An upload
+ * Builds the avatar URL function. A shipped preset is the web bundle's `/avatars/<name>.webp`. An upload
  * (needs its object `key`) is `${cdnUrl}/<key>` when the owner's CDN is set; otherwise a presigned
  * GET cached per key until the hour ends, so the URL stays the same all hour (the browser caches
  * the image) and the link is still valid for one more hour after that.
@@ -26,7 +27,9 @@ export function createAvatarUrls(
   const cache = new Map<string, { hourEnd: number; url: string }>();
   return (avatar, key) => {
     if (avatar === undefined) return undefined;
-    if (!avatar.startsWith("upload:")) return `/avatars/${avatar}.webp`;
+    // An owner-made preset has no image in the web bundle: no URL, the UI shows initials.
+    if (!avatar.startsWith("upload:"))
+      return SHIPPED_PRESETS.includes(avatar) ? `/avatars/${avatar}.webp` : undefined;
     if (key === undefined) return undefined;
     if (cdnUrl) return `${cdnUrl}/${encodeKey(key)}`;
     const t = now();

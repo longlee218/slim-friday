@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { AdminError } from "@friday/core";
 import { createRouterClient, ORPCError } from "@orpc/server";
 import { appRouter } from "../src/index";
+import { toMcpDto } from "../src/routers/config/to-dto";
 import { engineHarness } from "./helpers/engine-deps";
 
 const botInput = {
@@ -141,4 +142,25 @@ test("mcp.calls reads the audit by exact prefix and drops it from the tool", asy
   expect(await h.client.config.mcp.calls({ server: "a", limit: 10 })).toEqual([
     { at: 1, botId: "ann", tool: "read", outcome: "allow" },
   ]);
+});
+
+test("toMcpDto redacts every env and header value that is not a reference", () => {
+  const dto = toMcpDto({
+    name: "a",
+    shipped: false,
+    usedBy: [],
+    server: {
+      type: "http",
+      url: "https://x.example/mcp",
+      headers: { Authorization: "Bearer sk-x", Ok: "$" + "{TOKEN}" },
+    },
+  });
+  expect(dto).toMatchObject({ headers: { Authorization: "••••", Ok: "$" + "{TOKEN}" } });
+  const local = toMcpDto({
+    name: "b",
+    shipped: false,
+    usedBy: [],
+    server: { type: "stdio", command: "npx", env: { K: "plain" } },
+  });
+  expect(local).toMatchObject({ env: { K: "••••" } });
 });

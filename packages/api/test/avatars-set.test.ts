@@ -13,6 +13,16 @@ test("avatars.list gives presets with the web bundle url", async () => {
   ]);
 });
 
+test("an owner-made preset is not listed and has no url", async () => {
+  ctx.h.settings.config.presetNames = ["designer", "mine"];
+  expect(await ctx.h.client.config.avatars.list()).toEqual([
+    { name: "designer", url: "/avatars/designer.webp" },
+  ]);
+  const out = await ctx.h.client.config.bots.setAvatar({ id: "dev", preset: "mine" });
+  expect(out).toMatchObject({ avatar: "mine" });
+  expect(out.avatarUrl).toBeUndefined();
+});
+
 test("a preset is saved by name and shows as a local url", async () => {
   const out = await ctx.h.client.config.bots.setAvatar({ id: "dev", preset: "designer" });
   expect(ctx.h.settings.config.lastAvatar).toBe("designer");

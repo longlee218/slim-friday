@@ -43,6 +43,12 @@ test("diffBots lists removed and changed bots, not added or unchanged", () => {
   expect(diffBots(prev, next)).toEqual(["a", "b"]);
 });
 
+test("diffBots ignores an avatar-only change", () => {
+  const prev = new Map([["a", bot({ id: "a", avatar: "fox" })]]);
+  const next = new Map([["a", bot({ id: "a", avatar: "owl" })]]);
+  expect(diffBots(prev, next)).toEqual([]);
+});
+
 test("load serves bots, groups, catalog, settings and limits from the snapshot", async () => {
   const dir = newDir();
   put(dir, "a", botText("A"));

@@ -6,6 +6,7 @@ import { logApiEvent } from "../../api-log";
 import type { ApiDeps } from "../../app";
 import { isOwnAvatarRow, uploadIdOf } from "../../avatar-url";
 import { authed } from "../../rpc/implementer";
+import { SHIPPED_PRESETS } from "../../shipped-avatars";
 import { adminCall } from "./admin-error";
 import { checkAvatarUpload, copyAvatarUpload, discardCopy } from "./avatar-upload-check";
 
@@ -85,8 +86,12 @@ export async function applyAvatar(deps: ApiDeps, t: AvatarTarget, c: AvatarChoic
 
 /** Avatar presets and upload tickets. */
 export const avatarsRouter = {
+  // Only the shipped presets: the web bundle has no image for an owner-made one.
   list: authed.config.avatars.list.handler(({ context }) =>
-    context.deps.settings.config.presets().map((name) => ({ name, url: `/avatars/${name}.webp` })),
+    context.deps.settings.config
+      .presets()
+      .filter((name) => SHIPPED_PRESETS.includes(name))
+      .map((name) => ({ name, url: `/avatars/${name}.webp` })),
   ),
   create: authed.config.avatars.create.handler(async ({ input, context }) => {
     const { deps } = context;

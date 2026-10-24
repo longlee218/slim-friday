@@ -44,8 +44,8 @@ test("with a CDN the url is the CDN url and nothing is presigned", () => {
 
 test("a preset stays local even with a CDN", () => {
   const { files } = counting();
-  expect(createAvatarUrls(files, () => t(10, 5), "https://cdn.example.com")("x")).toBe(
-    "/avatars/x.webp",
+  expect(createAvatarUrls(files, () => t(10, 5), "https://cdn.example.com")("lead")).toBe(
+    "/avatars/lead.webp",
   );
 });
 

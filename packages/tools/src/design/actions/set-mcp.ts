@@ -15,6 +15,15 @@ const ENV_REF = /^\$\{[A-Za-z_][A-Za-z0-9_]*\}$/;
 /** The server as given (the `set_mcp` input shape; the settings admin passes the same fields). */
 export type McpServerArg = NonNullable<DesignArgs["server"]>;
 
+/** A required server field: the message names it as `server.<field>` (BotDesign's text), the refusal as the form key. */
+function required(value: string | undefined, field: string): string {
+  try {
+    return need(value, field);
+  } catch {
+    throw new Refused(`server.${field} is required.`, field);
+  }
+}
+
 /**
  * The checks of one server: name shape, reserved names, secrets only as `${NAME}` references. Returns the entry as it is
  * written to `mcp.yaml`. Throws `Refused`.
@@ -24,32 +33,49 @@ export function checkMcpEntry(
   name: string,
   s: McpServerArg,
 ): Record<string, unknown> {
-  if (!NAME_RE.test(name)) throw new Refused("a server name is lowercase letters, digits and `-`.");
-  if (RESERVED.includes(name)) throw new Refused(`"${name}" is a name the app keeps.`);
+  if (!NAME_RE.test(name))
+    throw new Refused("a server name is lowercase letters, digits and `-`.", "name");
+  if (RESERVED.includes(name)) throw new Refused(`"${name}" is a name the app keeps.`, "name");
   // Env and header values hold secrets: only a reference to a name the engine does not keep for itself is allowed there.
   // Nowhere else may a reference stand: a command, argument or URL built from the engine's env could leak it.
-  for (const v of [...Object.values(s.env ?? {}), ...Object.values(s.headers ?? {})]) {
-    if (!ENV_REF.test(v))
-      throw new Refused(
-        `env and header values must be a ${ENV_REF_EXAMPLE} reference, never the value.`,
-      );
-    if (ctx.envDenied(v.slice(2, -1)))
-      throw new Refused(`${v} is one of the engine's own secrets and cannot be given to a server.`);
+  // The field keys are the web form's (`env`, `headers`, `args`, `url`, `command`).
+  for (const [field, map] of [
+    ["env", s.env],
+    ["headers", s.headers],
+  ] as const) {
+    for (const v of Object.values(map ?? {})) {
+      if (!ENV_REF.test(v))
+        throw new Refused(
+          `env and header values must be a ${ENV_REF_EXAMPLE} reference, never the value.`,
+          field,
+        );
+      if (ctx.envDenied(v.slice(2, -1)))
+        throw new Refused(
+          `${v} is one of the engine's own secrets and cannot be given to a server.`,
+          field,
+        );
+    }
   }
-  for (const v of [...(s.args ?? []), s.url ?? "", s.command ?? ""]) {
-    if (v.includes("${"))
-      throw new Refused("a reference is allowed only in env and header values.");
-    if (redactText(v) !== v)
-      throw new Refused("an argument looks like a secret: pass it as an env reference.");
+  for (const [field, list] of [
+    ["args", s.args ?? []],
+    ["url", [s.url ?? ""]],
+    ["command", [s.command ?? ""]],
+  ] as const) {
+    for (const v of list) {
+      if (v.includes("${"))
+        throw new Refused("a reference is allowed only in env and header values.", field);
+      if (redactText(v) !== v)
+        throw new Refused("an argument looks like a secret: pass it as an env reference.", field);
+    }
   }
   return s.type === "stdio"
     ? {
         type: "stdio",
-        command: need(s.command, "server.command"),
+        command: required(s.command, "command"),
         ...(s.args && { args: s.args }),
         ...(s.env && { env: s.env }),
       }
-    : { type: "http", url: need(s.url, "server.url"), ...(s.headers && { headers: s.headers }) };
+    : { type: "http", url: required(s.url, "url"), ...(s.headers && { headers: s.headers }) };
 }
 
 /** The owner's `mcp.yaml` servers (empty when there is no file). */

@@ -86,3 +86,19 @@ test("a literal secret in a header is refused by the server and shown by the fie
   await userEvent.click(add());
   expect(await screen.findByText("use a ${NAME} reference")).toBeTruthy();
 });
+
+test("a refused env value is shown under the env rows", async () => {
+  api.test.mockResolvedValue({ state: "connected", tools: [] });
+  api.save.mockRejectedValue({
+    code: "BAD_REQUEST",
+    message: "env needs a reference",
+    data: { field: "env" },
+  });
+  setup();
+  await userEvent.type(screen.getByLabelText("Name"), "sentry");
+  await userEvent.type(screen.getByLabelText("Command"), "npx");
+  await userEvent.click(testBtn());
+  await waitFor(() => expect(add().disabled).toBe(false));
+  await userEvent.click(add());
+  expect(await screen.findByText("env needs a reference")).toBeTruthy();
+});

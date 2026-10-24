@@ -37,9 +37,34 @@ export function toGroupDto(g: GroupEntry, avatarUrl?: string): GroupDto {
   };
 }
 
-/** An MCP server as listed: the spec fields inline next to name, origin and users. */
+/** An env reference as the only allowed secret form in an MCP env or header value. */
+const ENV_REF = /^\$\{[A-Za-z_][A-Za-z0-9_]*\}$/;
+const REDACTED = "••••";
+
+/** A map of env or header values with every value that is not exactly a reference replaced. */
+function redactMap(m: Record<string, string> | undefined): Record<string, string> | undefined {
+  return (
+    m && Object.fromEntries(Object.entries(m).map(([k, v]) => [k, ENV_REF.test(v) ? v : REDACTED]))
+  );
+}
+
+/**
+ * An MCP server as listed: the spec fields inline next to name, origin and users. A literal env or
+ * header value (a hand-edited `mcp.yaml`) is never sent to the browser; saving the redacted text back
+ * is refused by the server's reference check.
+ */
 export function toMcpDto(e: McpEntry): McpServerDto {
-  return { ...e.server, name: e.name, shipped: e.shipped, usedBy: e.usedBy } as McpServerDto;
+  const s = e.server as { env?: Record<string, string>; headers?: Record<string, string> };
+  const env = redactMap(s.env);
+  const headers = redactMap(s.headers);
+  return {
+    ...e.server,
+    ...(env && { env }),
+    ...(headers && { headers }),
+    name: e.name,
+    shipped: e.shipped,
+    usedBy: e.usedBy,
+  } as McpServerDto;
 }
 
 /** A skill as listed; the install time becomes epoch ms. */
