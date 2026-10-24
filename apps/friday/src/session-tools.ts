@@ -154,7 +154,10 @@ export function toolContext(
       return id ? store.conversations.get(id) : undefined;
     },
     group: (id) => store.groups.get(id),
-    direct: () => store.conversations.direct(spec.bot.id),
+    // A group session never reaches the owner's direct chat (MessageSearch).
+    ...(spec.groupId
+      ? { groupId: spec.groupId }
+      : { direct: () => store.conversations.direct(spec.bot.id) }),
   };
 }
 

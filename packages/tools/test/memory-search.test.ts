@@ -127,3 +127,17 @@ test("MemorySearch returns no match (not an error) for a query of only punctuati
   expect(r.isError).toBeUndefined();
   expect(r.content[0]?.text).toBe("no match");
 });
+
+test("in a group session a bot-scope search shows only preference and lesson notes", async () => {
+  const s = setup();
+  await s.mem.save(bot, "owner wants docker answers short", "preference");
+  await s.mem.save(bot, "private docker registry password is in vault");
+  appendJournal(s.root, bot, "Flush", ["docker journal line"], new Date("2026-10-20T09:00:00"));
+  s.indexer.reconcileAll();
+  const groupCtx: ToolSessionContext = { ...ctx, groupId: "team" };
+  const text = (await run(createMemorySearchTool(s.recall, groupCtx, s.mem), { query: "docker" }))
+    .content[0]?.text;
+  expect(text).toContain("owner wants docker answers short");
+  expect(text).not.toContain("registry");
+  expect(text).not.toContain("journal line");
+});

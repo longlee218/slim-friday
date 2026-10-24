@@ -33,7 +33,7 @@ const authorName = (a: Author): string => (a.kind === "bot" ? a.botId : a.kind);
 const lineOf = (h: MessageHit): string =>
   `[${stamp(h.at)} ${authorName(h.author)}] ${h.text.replace(/\s+/g, " ").slice(0, TEXT_CHARS)}`;
 
-/** `MessageSearch` for one session (read only): only the current conversation and the bot's direct chat. */
+/** `MessageSearch` for one session (read only): only the current conversation and the bot's direct chat (`ctx.direct`, absent in a group session). */
 export function createMessageSearchTool(deps: MessageSearchDeps, ctx: ToolSessionContext) {
   return tool(
     MESSAGE_SEARCH_TOOL,

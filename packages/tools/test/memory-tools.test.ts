@@ -7,6 +7,7 @@ import { FileMemory } from "../src/memory/file-memory";
 import type { ToolSessionContext } from "../src/memory/memory-owner";
 import { createMemoryEditTool } from "../src/memory/tools/MemoryEditTool/memory-edit-tool";
 import { createMemorySaveTool } from "../src/memory/tools/MemorySaveTool/memory-save-tool";
+import { MEMORY_SAVE_DESCRIPTION } from "../src/memory/tools/MemorySaveTool/prompt";
 
 const team: Group = {
   id: "team",
@@ -133,4 +134,23 @@ test("no tool-name literal outside a constants.ts", () => {
     for (const n of names) if (body.includes(`"${n}"`)) bad.push(`${rel}: ${n}`);
   }
   expect(bad).toEqual([]);
+});
+
+test("MemoryEdit in a group session lists and edits only preference and lesson notes", async () => {
+  const { mem } = setup();
+  await mem.save({ kind: "bot", botId: "ann" }, "owner wants short answers", "preference");
+  await mem.save({ kind: "bot", botId: "ann" }, "owner's bank is in Hanoi");
+  const groupCtx: ToolSessionContext = { ...ctx("g1"), groupId: "team" };
+  const edit = createMemoryEditTool(mem, groupCtx);
+  const list = text(await call(edit, {}));
+  expect(list).toContain("short answers");
+  expect(list).not.toContain("bank");
+  const factId = mem.listBullets({ kind: "bot", botId: "ann" }).find((b) => b.kind === "fact")?.id;
+  expect(text(await call(edit, { id: factId, delete: true }))).toBe("not_found");
+});
+
+test("MemorySave tells which scope fits which note", () => {
+  expect(MEMORY_SAVE_DESCRIPTION).toContain(
+    "knowledge about the group's project or way of working goes to group; facts about the owner go to bot",
+  );
 });

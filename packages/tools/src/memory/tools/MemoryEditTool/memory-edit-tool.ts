@@ -2,7 +2,7 @@ import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { textResult } from "../../../tool-result";
 import { type FileMemory, MemoryError, memoryErrorText } from "../../file-memory";
-import { resolveOwner, type ToolSessionContext } from "../../memory-owner";
+import { resolveOwner, type ToolSessionContext, visibleNotes } from "../../memory-owner";
 import { MEMORY_SAVE_MAX_CHARS } from "../MemorySaveTool/constants";
 import { MEMORY_EDIT_TOOL } from "./constants";
 import { MEMORY_EDIT_DESCRIPTION } from "./prompt";
@@ -25,7 +25,7 @@ export function createMemoryEditTool(memory: FileMemory, ctx: ToolSessionContext
       const owner = await resolveOwner(scope ?? "bot", ctx);
       if (typeof owner === "string") return textResult(owner, true);
       if (!id) {
-        const notes = memory.listBullets(owner);
+        const notes = visibleNotes(memory, owner, ctx);
         return textResult(
           notes.length
             ? notes.map((n) => `[${n.id}] (${n.kind}) ${n.text}`).join("\n")
@@ -33,6 +33,9 @@ export function createMemoryEditTool(memory: FileMemory, ctx: ToolSessionContext
         );
       }
       if (!remove && text === undefined) return textResult("give text or delete: true", true);
+      // A note hidden from this session (a private note in a group session) cannot be changed from it either.
+      if (!visibleNotes(memory, owner, ctx).some((n) => n.id === id))
+        return textResult("not_found", true);
       try {
         await memory.edit(owner, id, remove ? null : (text ?? ""));
         return textResult(remove ? "deleted" : "replaced");

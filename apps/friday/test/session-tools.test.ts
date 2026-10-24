@@ -135,3 +135,12 @@ test("the chat server's scratch dir is the session's: <botId> direct, <botId>_<g
     sessionScratchDir("/h", { ...specOf(editor), groupId: "reelme", sessionKey: "editor@reelme" }),
   ).toBe(join("/h", "scratch", "editor_reelme"));
 });
+
+test("a group session's tool context names its group and has no direct chat", () => {
+  const group = toolContext({ ...specOf(bot([]), "gc"), groupId: "team" }, store);
+  expect(group.groupId).toBe("team");
+  expect(group.direct).toBeUndefined();
+  const direct = toolContext(specOf(bot([])), store);
+  expect(direct.groupId).toBeUndefined();
+  expect(direct.direct).toBeDefined();
+});

@@ -23,7 +23,7 @@ export function memoryServer(
     tools: [
       createMemorySaveTool(memory, ctx),
       createMemoryEditTool(memory, ctx),
-      createMemorySearchTool(recall, ctx),
+      createMemorySearchTool(recall, ctx, memory),
       ...(messages ? [createMessageSearchTool(messages, ctx)] : []),
     ],
   });

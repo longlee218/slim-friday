@@ -127,3 +127,14 @@ test("input: query 2..200 chars", () => {
   expect(t.inputSchema.query.safeParse("x".repeat(201)).success).toBe(false);
   expect(t.inputSchema.query.safeParse("docker").success).toBe(true);
 });
+
+test("MessageSearch in a group session searches only the group conversation", async () => {
+  const index = new FakeMessageIndex();
+  index.addMessages([msg(1, "dm-ann", "docker in dm"), msg(3, "g1", "docker in group")]);
+  const groupCtx: ToolSessionContext = { ...ctx("g1"), groupId: "team", direct: undefined };
+  const r = await run(createMessageSearchTool({ index, catchUp: async () => 0 }, groupCtx), {
+    query: "docker",
+  });
+  expect(r.content[0]?.text).toContain("docker in group");
+  expect(r.content[0]?.text).not.toContain("docker in dm");
+});
