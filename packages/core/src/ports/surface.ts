@@ -1,11 +1,13 @@
 import type { BotId } from "../domain/bot";
 import type { ConversationId } from "../domain/conversation";
-import type { Author } from "../domain/message";
+import type { Attachment, Author } from "../domain/message";
 
 /** A message from the user, as the surface delivers it. */
 export interface InboundMessage {
   conversationId: ConversationId;
   text: string;
+  /** Files the user attached, already saved. */
+  attachments?: Attachment[];
 }
 
 export interface OutboundMessage {

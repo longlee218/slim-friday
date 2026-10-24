@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import type {
   Activity,
   ApprovalAnswer,
@@ -10,7 +11,8 @@ import type {
 } from "@friday/core";
 import { ApprovalCards } from "./approval-cards";
 import { type CommandHandler, registerCommands } from "./commands";
-import type { ChannelTarget, DiscordPort } from "./discord-port";
+import type { ChannelTarget, DiscordPort, IncomingMessage } from "./discord-port";
+import { downloadAttachments, type FetchFn } from "./download-attachments";
 import { splitText } from "./split-text";
 
 /**
@@ -26,6 +28,8 @@ export class DiscordSurface implements Surface {
     protected readonly port: DiscordPort,
     /** Display name of a bot id (an unknown id is shown as is). */
     private readonly botName: (id: BotId) => string | undefined,
+    /** Where the owner's files are saved (`<inboxDir>/<channel>/<epoch>/`); without it files are ignored. */
+    private readonly files?: { inboxDir: string; now: () => number; fetchFn?: FetchFn },
   ) {
     this.cards = new ApprovalCards(port);
   }
@@ -40,12 +44,40 @@ export class DiscordSurface implements Surface {
     this.channels.delete(channelId);
   }
 
-  /** The owner's non-empty messages in mapped channels; bots, webhooks and everyone else are ignored. */
+  /**
+   * The owner's messages in mapped channels with text or files; bots, webhooks and everyone else are ignored
+   * (and their files are never downloaded). Files are saved first; a refused one is named in a system reply.
+   */
   onMessage(handler: (m: InboundMessage) => void): void {
     this.port.onMessage((m) => {
       if (m.authorId !== this.port.ownerId || m.fromBotOrWebhook) return;
-      if (!this.channels.has(m.channelId) || !m.text.trim()) return;
-      handler({ conversationId: m.channelId, text: m.text });
+      if (!this.channels.has(m.channelId)) return;
+      const hasFiles = !!this.files && !!m.attachments?.length;
+      if (!m.text.trim() && !hasFiles) return;
+      if (!hasFiles) return handler({ conversationId: m.channelId, text: m.text });
+      this.deliverWithFiles(m, handler).catch(() => {});
+    });
+  }
+
+  /** Download the files of `m`, then hand the message over with the saved ones. */
+  private async deliverWithFiles(
+    m: IncomingMessage,
+    handler: (m: InboundMessage) => void,
+  ): Promise<void> {
+    const dir = join(this.files?.inboxDir ?? "", m.channelId, String(this.files?.now()));
+    const { saved, refused } = await downloadAttachments(
+      m.attachments ?? [],
+      dir,
+      this.files?.fetchFn,
+    );
+    if (refused.length)
+      await this.port.send(m.channelId, `Files not taken: ${refused.join("; ")}`).catch(() => {});
+    const text = m.text.trim() || (saved.length ? `(sent ${saved.length} file(s))` : "");
+    if (!text) return;
+    handler({
+      conversationId: m.channelId,
+      text: m.text.trim() ? m.text : text,
+      ...(saved.length && { attachments: saved }),
     });
   }
 

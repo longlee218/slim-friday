@@ -1,6 +1,6 @@
 import type { Bot } from "../domain/bot";
 import type { ConversationId } from "../domain/conversation";
-import type { Author, StoredMessage } from "../domain/message";
+import type { Attachment, Author, StoredMessage } from "../domain/message";
 import type { RuntimeToolCall } from "../domain/tool";
 
 /** One message pushed into a bot session. */
@@ -14,6 +14,8 @@ export interface InboundTurn {
   context: StoredMessage[];
   /** The group's memory; set on a group turn only when it changed since the bot last saw it. */
   groupMemory?: string;
+  /** Files the user attached to this message; only the turn that answers that message carries them, never a hand-off. */
+  attachments?: Attachment[];
 }
 
 /** What a session reports; generic words only. */

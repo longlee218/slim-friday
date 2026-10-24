@@ -1,6 +1,6 @@
 import type { Bot, BotId } from "../domain/bot";
 import type { ConversationId } from "../domain/conversation";
-import type { Author } from "../domain/message";
+import type { Attachment, Author } from "../domain/message";
 import type { PermissionGate } from "../permission/permission-gate";
 import type { AgentRuntime, BotRuntimeSpec, BotSession } from "../ports/agent-runtime";
 import type { Clock } from "../ports/clock";
@@ -20,6 +20,7 @@ export interface QueuedWake {
   sender: Author;
   text: string;
   hop: number;
+  attachments?: Attachment[];
 }
 
 /** One open session and what the hub knows about its current work. */

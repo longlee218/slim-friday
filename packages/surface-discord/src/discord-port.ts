@@ -1,4 +1,5 @@
 import type { BotId, GroupId } from "@friday/core";
+import type { IncomingAttachment } from "./download-attachments";
 
 /** What a Discord channel stands for. */
 export type ChannelTarget = { kind: "bot"; botId: BotId } | { kind: "group"; groupId: GroupId };
@@ -10,6 +11,8 @@ export interface IncomingMessage {
   /** Written by a bot account or a webhook (including this app's own posts). */
   fromBotOrWebhook: boolean;
   text: string;
+  /** Files on the message (not downloaded yet). */
+  attachments?: IncomingAttachment[];
 }
 
 /** A button click. */

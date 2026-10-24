@@ -4,5 +4,6 @@ export * from "./commands";
 export * from "./discord-js-port";
 export * from "./discord-port";
 export * from "./discord-surface";
+export * from "./download-attachments";
 export * from "./split-text";
 export * from "./sync-channels";

@@ -113,6 +113,12 @@ export async function connectDiscord(opts: {
           authorId: msg.author.id,
           fromBotOrWebhook: msg.author.bot || msg.webhookId !== null,
           text: msg.content,
+          attachments: [...msg.attachments.values()].map((a) => ({
+            url: a.url,
+            name: a.name,
+            size: a.size,
+            ...(a.contentType && { contentType: a.contentType }),
+          })),
         });
       });
     },

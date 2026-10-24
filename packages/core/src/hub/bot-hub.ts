@@ -1,7 +1,7 @@
 import { CORE_DEFAULTS, type CoreLimits } from "../config-defaults";
 import type { Bot, BotId } from "../domain/bot";
 import type { Conversation, ConversationId } from "../domain/conversation";
-import type { Author } from "../domain/message";
+import type { Attachment, Author } from "../domain/message";
 import type { PermissionGate } from "../permission/permission-gate";
 import type { AgentRuntime } from "../ports/agent-runtime";
 import type { Clock } from "../ports/clock";
@@ -80,7 +80,7 @@ export class BotHub {
       at: clock.now(),
     });
     for (const target of await this.targets(conv, m.text))
-      await this.wake(target, conv.id, user, m.text, 0);
+      await this.wake(target, conv.id, user, m.text, 0, m.attachments);
   }
 
   /** Stop one bot's session and its background tasks. */
@@ -135,6 +135,7 @@ export class BotHub {
     sender: Author,
     text: string,
     hop: number,
+    attachments?: Attachment[],
   ): Promise<void> {
     const { store, clock } = this.deps;
     const bot = await store.bots.get(botId);
@@ -153,8 +154,15 @@ export class BotHub {
     }
     this.guard.record(w);
     // One turn at a time per bot: a message that arrives mid-turn waits, so each answer goes where it was asked.
-    if (entry.busy) entry.queue.push({ conversationId, sender, text, hop });
-    else await this.dispatch(entry, { conversationId, sender, text, hop });
+    const wake: QueuedWake = {
+      conversationId,
+      sender,
+      text,
+      hop,
+      ...(attachments && { attachments }),
+    };
+    if (entry.busy) entry.queue.push(wake);
+    else await this.dispatch(entry, wake);
   }
 
   /** Send one message into the bot's session. */
@@ -176,6 +184,7 @@ export class BotHub {
       text: q.text,
       hop: q.hop,
       context,
+      ...(q.attachments && { attachments: q.attachments }),
       ...(groupMemory !== undefined && { groupMemory }),
     });
   }

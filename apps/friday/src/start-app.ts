@@ -85,7 +85,10 @@ export async function startApp(deps: AppDeps) {
 
   /** Display names for the surface, refreshed by every sync. */
   const names = new Map<string, string>();
-  const surface = new DiscordSurface(port, (id) => names.get(id));
+  const surface = new DiscordSurface(port, (id) => names.get(id), {
+    inboxDir: join(agentHome, "inbox"),
+    now: () => clock.now(),
+  });
   const gate = new PermissionGate({
     store,
     surface,
