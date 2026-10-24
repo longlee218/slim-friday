@@ -1,0 +1,70 @@
+import { expect, test } from "bun:test";
+import type { MemoryOwner } from "@friday/core";
+import { recallSourceContract } from "../../tools/test/recall-source-contract";
+import { HONCHO_OBSERVED_PEER, honchoSource } from "../src/honcho-source";
+import { fakeHoncho } from "./fake-honcho";
+
+const ann: MemoryOwner = { kind: "bot", botId: "ann" };
+const q = (owner: MemoryOwner, text: string) => ({
+  owner,
+  text,
+  limit: 5,
+  signal: new AbortController().signal,
+});
+
+recallSourceContract("honcho", async () => {
+  const h = fakeHoncho();
+  const source = honchoSource({ baseUrl: "http://localhost:8000", fetch: h.fetch });
+  return {
+    source,
+    seed: (owner, text) => source.write?.(owner, { text, kind: "fact" }) ?? Promise.resolve(),
+  };
+});
+
+test("filters always come from the query owner; peers are bot-<id> / group-<id> and friday-owner", async () => {
+  const h = fakeHoncho();
+  const s = honchoSource(
+    { baseUrl: "http://localhost:8000", fetch: h.fetch },
+    { workspace: "home" },
+  );
+  await s.search(q(ann, "docker"));
+  await s.search(q({ kind: "group", groupId: "team" }, "docker"));
+  expect(h.queries.map((x) => x.filters)).toEqual([
+    { observer_id: "bot-ann", observed_id: HONCHO_OBSERVED_PEER },
+    { observer_id: "group-team", observed_id: HONCHO_OBSERVED_PEER },
+  ]);
+  expect([...h.peers].sort()).toEqual(["bot-ann", "friday-owner", "group-team"]);
+});
+
+test("a failed ensure throws and is retried on the next call", async () => {
+  const h = fakeHoncho();
+  const s = honchoSource({ baseUrl: "http://localhost:8000", fetch: h.fetch });
+  h.failNextPeers(1);
+  await expect(s.search(q(ann, "docker"))).rejects.toThrow();
+  expect(await s.search(q(ann, "docker"))).toEqual([]);
+  expect(h.peers.has("bot-ann")).toBe(true);
+});
+
+test("hits carry source and where honcho, the conclusion id as ref, best first", async () => {
+  const h = fakeHoncho();
+  const s = honchoSource({ baseUrl: "http://localhost:8000", fetch: h.fetch });
+  await s.write?.(ann, { text: "deploy uses docker compose", kind: "fact" });
+  await s.write?.(ann, { text: "docker", kind: "fact" });
+  const hits = await s.search(q(ann, "docker compose"));
+  expect(hits[0]).toMatchObject({
+    source: "honcho",
+    where: "honcho",
+    ref: "c1",
+    text: "deploy uses docker compose",
+  });
+  expect(hits[0]?.score).toBeGreaterThan(hits[1]?.score ?? 1);
+});
+
+test("forget removes every verbatim copy and leaves near matches", async () => {
+  const h = fakeHoncho();
+  const s = honchoSource({ baseUrl: "http://localhost:8000", fetch: h.fetch });
+  for (const text of ["uses bun", "uses bun", "uses bun daily"])
+    await s.write?.(ann, { text, kind: "fact" });
+  await s.forget?.(ann, "uses bun");
+  expect(h.conclusions.map((c) => c.content)).toEqual(["uses bun daily"]);
+});
