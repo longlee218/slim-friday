@@ -32,6 +32,10 @@
         "pino-roll": "^4.0.0",
         "zod": "^4.6.5",
       },
+      "devDependencies": {
+        "@friday/contracts": "workspace:*",
+        "@orpc/server": "1.16.1",
+      },
     },
     "packages/api": {
       "name": "@friday/api",
