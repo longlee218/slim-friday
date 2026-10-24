@@ -15,6 +15,9 @@ const envSchema = z.object({
   AGENT_HOME: z.string().min(1),
   LOG_LEVEL: z.enum(["trace", "debug", "info", "warn", "error", "fatal", "silent"]).default("info"),
   DISCORD_TOKEN: secret,
+  /** Optional Axiom log shipping (metadata only); both must be set. Read by the logger bootstrap. */
+  AXIOM_TOKEN: secret,
+  AXIOM_DATASET: z.string().min(1).optional(),
   OWNER_DISCORD_ID: z.string().min(1).optional(),
   /** Guild snowflake; empty or the placeholder counts as unset, anything else must be 17-20 digits. */
   DISCORD_GUILD_ID: z

@@ -174,11 +174,10 @@ export class BotHub implements BotMessenger {
     hop: number,
     opts: WakeOpts = {},
   ): Promise<WakeOutcome> {
-    const { store, clock } = this.deps;
+    const { store } = this.deps;
     const bot = await store.bots.get(botId);
     const conv = await store.conversations.get(conversationId);
     if (!bot || !conv) return { ok: false, reason: "gone" };
-    const intent = opts.intent ?? "request";
     // The wake is stored first, so a blocked one is on record with its reason.
     const row = await this.wakeLog.create({
       conversationId,

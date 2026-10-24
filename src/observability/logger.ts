@@ -1,9 +1,9 @@
-import { AsyncLocalStorage } from "node:async_hooks";
 import { clip, errText, redactText } from "@friday/tools";
 import pino, { type DestinationStream, type Logger } from "pino";
 import pretty, { type PrettyOptions } from "pino-pretty";
 import { ensureParentDir, homePaths } from "../config/home-paths";
 import { readProcessEnv } from "../config/process-env";
+import { axiomStreamFrom } from "./axiom-stream";
 import { CONSOLE_IGNORE, consoleMessage } from "./console-format";
 import { rollingFile } from "./log-files";
 
@@ -22,6 +22,8 @@ const REDACT_PATHS = [
   "apiKey",
   "ANTHROPIC_AUTH_TOKEN",
   "*.ANTHROPIC_AUTH_TOKEN",
+  "AXIOM_TOKEN",
+  "*.AXIOM_TOKEN",
 ];
 
 /** Sync file destination (no worker transport: avoids Bun worker risk). */
@@ -29,53 +31,11 @@ export function fileDestination(file: string) {
   return pino.destination({ dest: ensureParentDir(file), sync: true, mode: 0o600 });
 }
 
-/** Correlation fields of the task the current code runs in; merged into every log line. */
-export interface LogContext {
-  /** One id per handled message (minted in `turnLogContext`); ties every line of the message together. */
-  traceId?: string;
-  taskId?: string;
-  threadId?: string;
-  /** Routing key of the task: parent channel of the thread (or the channel of a new conversation). */
-  channelId?: string;
-  /** Workspace the task runs in (one log for all workspaces; this field tells them apart). */
-  workspace?: string;
-  /** Location of the task ("*" = not chosen yet). */
-  location?: string;
-  /** Role name (e.g. "chief-of-staff", "developer"). */
-  mode?: string;
-  /** Session key of the run (`teammate:discord:<thread>` or `task:<taskId>:<role>`). */
-  sessionKey?: string;
-}
-
-/** Holds the mutable context object of the current async call tree (follows awaits, timers, callbacks). */
-const contextStore = new AsyncLocalStorage<LogContext>();
-
-/** Run `fn` with `ctx` merged over the parent context; everything it awaits or schedules inherits it. */
-export function runWithLogContext<T>(ctx: LogContext, fn: () => T): T {
-  return contextStore.run({ ...contextStore.getStore(), ...ctx }, fn);
-}
-
-/** Add or change fields of the current context (e.g. location once chosen). No-op outside a context. */
-export function setLogContext(fields: LogContext): void {
-  const ctx = contextStore.getStore();
-  if (ctx) Object.assign(ctx, fields);
-}
-
-/** Copy of the current context ({} outside one). */
-export function getLogContext(): LogContext {
-  return { ...contextStore.getStore() };
-}
-
 /**
- * Build a pino logger writing to a stream with standard redaction. The mixin adds the current log
- * context to every line; pino lets the fields of the call win over the mixin's, and the copy keeps
- * pino from writing those back into the shared context object.
+ * Build a pino logger writing to a stream with standard redaction.
  */
 export function createLogger(stream: DestinationStream, level = "info"): Logger {
-  return pino(
-    { level, redact: { paths: REDACT_PATHS, censor: "[REDACTED]" }, mixin: getLogContext },
-    stream,
-  );
+  return pino({ level, redact: { paths: REDACT_PATHS, censor: "[REDACTED]" } }, stream);
 }
 
 /** Test hook: receivers of every line the shared logger writes under `bun test` (else it drops them). */
@@ -101,6 +61,12 @@ export function consolePrettyOptions(): PrettyOptions {
   };
 }
 
+/** Axiom stream when AXIOM_TOKEN and AXIOM_DATASET are set (events only, allow-listed fields). */
+const axiom = axiomStreamFrom(readProcessEnv().AXIOM_TOKEN?.trim(), readProcessEnv().AXIOM_DATASET);
+
+/** Send buffered events to Axiom; call at shutdown. No-op when Axiom is off. */
+export const flushAxiom = (): Promise<void> => axiom?.flush() ?? Promise.resolve();
+
 /** Pick the destination: rolled files under AGENT_HOME (+ pretty stdout in dev); stdout JSON otherwise. */
 async function buildSharedLogger(): Promise<Logger> {
   const level = readProcessEnv().LOG_LEVEL ?? "info";
@@ -121,10 +87,12 @@ async function buildSharedLogger(): Promise<Logger> {
   const file = rollingFile(homePaths(home).appLog());
   // Open the main file before the first line so early/fatal lines are written synchronously.
   await file.ready();
-  if (!toTerminal) return createLogger(file, level);
+  /** The file, plus Axiom when on. */
+  const streams = [{ stream: file }, ...(axiom ? [{ stream: axiom }] : [])];
+  if (!toTerminal) return createLogger(pino.multistream(streams), level);
   // One short line per event (see console-format.ts); the file keeps every field.
   const stdout = pretty(consolePrettyOptions());
-  return createLogger(pino.multistream([{ stream: file }, { stream: stdout }]), level);
+  return createLogger(pino.multistream([...streams, { stream: stdout }]), level);
 }
 
 /** The one shared logger. Use `logger.child({ module })`; task fields come from the log context. */
@@ -149,7 +117,6 @@ export function excerpt(text: string, max = EXCERPT_MAX): string {
 
 /**
  * Log one lifecycle event: a stable `event` field (also the message) plus correlation/detail fields.
- * taskId/threadId/location/mode come from the log context (see `runWithLogContext`), not from the caller.
  * Callers pass free text through `excerpt()` and errors through `errText()`.
  */
 export function logEvent(
