@@ -69,3 +69,5 @@ svg.lucide { width: 16px; height: 16px; stroke-width: 1.75; flex: none; }
 textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height: 1.5; }
 .field.err { border-color: var(--red); box-shadow: 0 0 0 3px var(--red-fill); }
 .spin { animation: spin 1s linear infinite; }
+.status { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; }
+.status .sdot { width: 7px; height: 7px; }

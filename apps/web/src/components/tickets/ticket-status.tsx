@@ -19,7 +19,7 @@ const PRIORITY: Record<TicketPriority, { tone: "red" | "amber" | "blue" | "gray"
   {
     urgent: { tone: "red", name: "Urgent" },
     high: { tone: "amber", name: "High" },
-    normal: { tone: "blue", name: "Medium" },
+    normal: { tone: "blue", name: "Normal" },
     low: { tone: "gray", name: "Low" },
   };
 
