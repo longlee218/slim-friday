@@ -21,7 +21,7 @@ const load = (dir: string, defaultsDir = DEFAULTS_DIR) => loadConfig({ defaultsD
 test("an empty user dir gives the shipped defaults and no problems", () => {
   const { snapshot, problems } = load(userDir());
   expect(problems).toEqual([]);
-  expect(snapshot.bots.size).toBe(0);
+  expect([...snapshot.bots.keys()]).toEqual(["friday"]);
   expect(snapshot.tools).toHaveLength(11);
   expect(snapshot.settings.level).toBe("balanced");
   expect(snapshot.limits).toEqual(CORE_DEFAULTS);
@@ -54,7 +54,7 @@ test("bad files are skipped and each one is listed with its path", () => {
     "groups/g.yaml": "name: G\nmembers: [good, ghost]\nentryBot: good\n",
   });
   const { snapshot, problems } = load(user);
-  expect([...snapshot.bots.keys()]).toEqual(["good"]);
+  expect([...snapshot.bots.keys()]).toEqual(["friday", "good"]);
   expect(snapshot.groups.size).toBe(0);
   expect(problems.map((p) => p.file).sort()).toEqual(
     ["bots/badyaml.md", "bots/extra.md", "bots/zdup.md", "groups/g.yaml"]

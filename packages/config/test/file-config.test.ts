@@ -49,7 +49,7 @@ test("load serves bots, groups, catalog, settings and limits from the snapshot",
   const { config, problems } = make(dir);
   expect(problems).toEqual([]);
   expect((await config.bots.get("a"))?.name).toBe("A");
-  expect(await config.bots.list()).toHaveLength(1);
+  expect(await config.bots.list()).toHaveLength(2); // A and the shipped Friday bot
   expect(await config.groups.get("g")).toBeUndefined();
   expect(await config.catalog.list()).toHaveLength(11);
   expect(config.settings().level).toBe("balanced");
@@ -66,7 +66,7 @@ test("reload reports changed bots and replaces the snapshot without mutating old
   const r = config.reload();
   expect(r.changedBots).toEqual(["a"]);
   expect((await config.bots.get("a"))?.instructions).toBe("new instructions");
-  expect(before).toHaveLength(1);
+  expect(before).toHaveLength(2);
   expect(before[0]?.instructions).toBe("Be brief.");
   rmSync(join(dir, "bots", "a.md"));
   expect(config.reload().changedBots).toEqual(["a"]);
@@ -94,7 +94,7 @@ test("watch calls onReload once for a burst of writes, then stops", async () => 
   for (let i = 0; i < 120 && seen.length === 0; i++) await Bun.sleep(25);
   expect(seen.length).toBeGreaterThanOrEqual(1);
   expect(seen.length).toBeLessThanOrEqual(2);
-  expect((await config.bots.list()).map((b) => b.id)).toEqual(["a", "b", "c"]);
+  expect((await config.bots.list()).map((b) => b.id)).toEqual(["a", "b", "c", "friday"]);
   stop();
   const n = seen.length;
   put(dir, "d", botText("D"));
