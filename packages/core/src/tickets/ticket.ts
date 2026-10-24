@@ -31,3 +31,15 @@ export interface TicketComment {
   body: string;
   createdAt: number;
 }
+
+/** Prefix of every ticket ref (`FRI-3`). */
+export const TICKET_PREFIX = "FRI";
+
+/** `FRI-<n>` for a ticket number. */
+export const ticketRef = (n: number): string => `${TICKET_PREFIX}-${n}`;
+
+/** The number in a ref like `fri-3` (any case); undefined for another prefix or a malformed ref. */
+export function parseTicketRef(s: string): number | undefined {
+  const m = new RegExp(`^${TICKET_PREFIX}-([1-9]\\d*)$`, "i").exec(s.trim());
+  return m ? Number(m[1]) : undefined;
+}

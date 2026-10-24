@@ -27,3 +27,5 @@ export * from "./routing/chain-guard";
 export * from "./routing/parse-mentions";
 export * from "./routing/route-message";
 export * from "./tickets/ticket";
+export * from "./tickets/ticket-board";
+export * from "./tickets/ticket-context";

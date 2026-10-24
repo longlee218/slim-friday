@@ -120,8 +120,15 @@ export class FakeStore implements Store {
       this.ticketMap.set(ticket.id, ticket);
       return { ...ticket };
     },
-    get: async (id: string) => this.ticketMap.get(id),
-    getByNumber: async (n: number) => [...this.ticketMap.values()].find((t) => t.number === n),
+    // Copies, like a db read: a caller holding a ticket does not see later updates.
+    get: async (id: string) => {
+      const t = this.ticketMap.get(id);
+      return t && { ...t };
+    },
+    getByNumber: async (n: number) => {
+      const t = [...this.ticketMap.values()].find((x) => x.number === n);
+      return t && { ...t };
+    },
     list: async (f: {
       status?: Ticket["status"];
       excludeClosed?: boolean;
@@ -153,7 +160,7 @@ export class FakeStore implements Store {
       Object.assign(t, patch, { updatedAt: now });
       if (t.status === "done" || t.status === "closed") t.completedAt = t.completedAt ?? now;
       else t.completedAt = undefined;
-      return t;
+      return { ...t };
     },
     addComment: async (c: Omit<TicketComment, "id">) => {
       const comment = { id: `c${++this.nextId}`, ...c };
