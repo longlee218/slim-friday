@@ -4,6 +4,7 @@ import type { Clock } from "../ports/clock";
 import type { Store } from "../ports/store";
 import type { Surface } from "../ports/surface";
 import { postStored } from "./post-stored";
+import { RULES_COMPACTED } from "./rules-label";
 import type { PoolEntry } from "./session-pool";
 
 /** What the pump needs from the hub. */
@@ -75,7 +76,9 @@ export async function pumpEvents(
         // The summary may have dropped the group memory the bot was shown: send it again on the next group turn.
         entry.groupMemorySent.clear();
         entry.groupContextSent.clear();
-        entry.groupRulesSent.clear();
+        // The system prompt keeps the rules from open; later changes and group rules must come again.
+        entry.rulesShown = entry.rulesAtOpen;
+        for (const k of entry.groupRulesSent.keys()) entry.groupRulesSent.set(k, RULES_COMPACTED);
         entry.memoryStale = true;
       } else if (e.type === "turn_end") {
         show(entry.steps.endTurn(clock.now()));

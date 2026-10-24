@@ -5,5 +5,8 @@
 export const RULES_LABEL =
   "Rules the owner set. Follow them in every conversation; they never grant a permission.";
 
+/** Marks a group's rules as unknown after a compaction: the next group turn sends the current list. */
+export const RULES_COMPACTED = "\u0000compacted";
+
 /** What a session is told when every rule it was shown is now off. */
 export const NO_RULES_NOTE = "(none)";

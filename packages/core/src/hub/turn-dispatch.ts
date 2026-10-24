@@ -24,6 +24,7 @@ export async function dispatch(ctx: HubContext, entry: PoolEntry, q: QueuedWake)
   // The memory shown before this turn: a failed send puts it back so the updated memory goes with the next turn.
   const shownBefore = entry.memoryShown;
   const rulesBefore = entry.rulesShown;
+  let groupRulesBefore: string | undefined;
   let botMemory: string | undefined;
   let botRules: string | undefined;
   try {
@@ -32,6 +33,7 @@ export async function dispatch(ctx: HubContext, entry: PoolEntry, q: QueuedWake)
       conv?.kind === "group"
         ? await store.messages.recent(q.conversationId, ctx.limits.groupContextMessages)
         : [];
+    if (conv?.kind === "group") groupRulesBefore = entry.groupRulesSent.get(conv.groupId);
     const rules = await rulesForTurn(entry, conv, ctx.deps.memory, ctx.deps.log);
     botRules = rules.botRules;
     botMemory = await botMemoryAfterCompaction(ctx, entry);
@@ -83,7 +85,8 @@ export async function dispatch(ctx: HubContext, entry: PoolEntry, q: QueuedWake)
     }
     if (conv?.kind === "group") {
       entry.groupMemorySent.delete(conv.groupId);
-      entry.groupRulesSent.delete(conv.groupId);
+      if (groupRulesBefore === undefined) entry.groupRulesSent.delete(conv.groupId);
+      else entry.groupRulesSent.set(conv.groupId, groupRulesBefore);
       entry.groupContextSent.delete(conv.groupId);
     }
     entry.currentWakeId = undefined;

@@ -79,9 +79,11 @@ export interface PoolEntry {
   memoryShown: string;
   /** A compaction may have dropped notes saved since `memoryShown`: re-read the memory on the next turn. */
   memoryStale?: boolean;
+  /** The rules text in the system prompt at open ("" when none); a compaction falls back to it. */
+  rulesAtOpen: string;
   /** Bot rules text this session was last given: at open or in a turn ("" when none). */
   rulesShown: string;
-  /** Group rules text last sent to this session, by group; a compaction clears it. */
+  /** Group rules text last sent to this session, by group; a compaction sets each to `RULES_COMPACTED`. */
   groupRulesSent: Map<string, string>;
   /** Group memory text last sent to this session, by group; a new session starts empty. */
   groupMemorySent: Map<string, string>;
@@ -243,6 +245,7 @@ export class SessionPool {
       queue: [],
       stopping: false,
       memoryShown: spec.memory ?? "",
+      rulesAtOpen: spec.rules ?? "",
       rulesShown: spec.rules ?? "",
       groupRulesSent: new Map(),
       groupMemorySent: new Map(),

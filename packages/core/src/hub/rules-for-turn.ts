@@ -13,7 +13,16 @@ export async function readRulesText(
   owner: MemoryOwner,
   log?: Log,
 ): Promise<string> {
-  if (!memory?.readRules) return "";
+  return (await tryReadRules(memory, owner, log)) ?? "";
+}
+
+/** The owner's on rules; undefined when the adapter has none or the read failed (logged). */
+async function tryReadRules(
+  memory: Memory | undefined,
+  owner: MemoryOwner,
+  log?: Log,
+): Promise<string | undefined> {
+  if (!memory?.readRules) return undefined;
   try {
     return await memory.readRules(owner);
   } catch (err) {
@@ -21,7 +30,7 @@ export async function readRulesText(
       { owner, err: err instanceof Error ? err.message : String(err) },
       "rules.read_failed",
     );
-    return "";
+    return undefined;
   }
 }
 
@@ -39,17 +48,7 @@ export async function rulesForTurn(
 ): Promise<{ botRules?: string; groupRules?: string }> {
   const out: { botRules?: string; groupRules?: string } = {};
   if (!memory?.readRules) return out;
-  const read = async (owner: MemoryOwner): Promise<string | undefined> => {
-    try {
-      return await memory.readRules?.(owner);
-    } catch (err) {
-      log?.warn(
-        { owner, err: err instanceof Error ? err.message : String(err) },
-        "rules.read_failed",
-      );
-      return undefined;
-    }
-  };
+  const read = (owner: MemoryOwner) => tryReadRules(memory, owner, log);
   const bot = await read({ kind: "bot", botId: entry.bot.id });
   if (bot !== undefined && bot !== entry.rulesShown) {
     entry.rulesShown = bot;
