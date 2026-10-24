@@ -15,7 +15,10 @@ export async function catchUpMessages(
   for (;;) {
     const rows = await source.after(index.lastMessageId(), BATCH);
     if (!rows.length) return added;
+    const before = index.lastMessageId();
     index.addMessages(rows);
     added += rows.length;
+    // An index that does not advance would read the same rows forever (a broken or failing store): stop.
+    if (index.lastMessageId() <= before) return added;
   }
 }

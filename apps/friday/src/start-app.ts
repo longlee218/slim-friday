@@ -263,7 +263,7 @@ export async function startApp(deps: AppDeps) {
           conversationId: c.id,
           author: c.kind === "direct" ? { kind: "bot", botId: c.botId } : { kind: "system" },
           text,
-          at: Date.now(),
+          at: clock.now(),
         },
       ).catch((err) => log.error({ error: why(err) }, "channels.hello"));
     }

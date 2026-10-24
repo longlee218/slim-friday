@@ -79,13 +79,14 @@ test("SendToBot and HandOff are stored and posted as relays", async () => {
   expect(store.msgs[(relays[0]?.id ?? 0) - 1]).toMatchObject({ kind: "relay" });
 });
 
-test("a post that fails keeps the stored row", async () => {
-  const { surface, store } = makeHub();
+test("a bot text whose post fails is still stored", async () => {
+  const { surface, store, runtime } = makeHub();
+  await surface.deliver({ conversationId: "dc", text: "hi" });
+  await flush();
   surface.post = async () => {
     throw new Error("down");
   };
-  await surface.deliver({ conversationId: "dc", text: "hi" });
+  runtime.nth(0).emit({ type: "text", text: "reply" });
   await flush();
-  // the user message is kept even when later posts fail
-  expect(store.msgs[0]).toMatchObject({ text: "hi" });
+  expect(store.msgs.some((m) => m.text === "reply" && m.author.kind === "bot")).toBe(true);
 });

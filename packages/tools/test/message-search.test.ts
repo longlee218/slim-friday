@@ -138,3 +138,13 @@ test("MessageSearch in a group session searches only the group conversation", as
   expect(r.content[0]?.text).toContain("docker in group");
   expect(r.content[0]?.text).not.toContain("docker in dm");
 });
+
+test("catch-up stops when the index does not advance (no endless loop)", async () => {
+  const rows = [msg(1, "g1", "one")];
+  const source = { after: async () => rows };
+  const stuck = {
+    lastMessageId: () => 0,
+    addMessages() {},
+  } as unknown as Parameters<typeof catchUpMessages>[1];
+  expect(await catchUpMessages(source, stuck)).toBe(1);
+});
