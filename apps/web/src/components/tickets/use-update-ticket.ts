@@ -20,10 +20,14 @@ export interface UpdateInput {
   blockedReason?: string;
 }
 
+/** The cached detail copy of a ticket (`tickets.get`), with its full description. */
+const cachedGet = (qc: QueryClient, ref: string): TicketDto | undefined =>
+  qc.getQueryData<{ ticket: TicketDto }>(orpc.tickets.get.queryKey({ input: { ref } }))?.ticket;
+
 /** The cached copy of a ticket: the detail query first, else the board list. */
 function cachedTicket(qc: QueryClient, ref: string): TicketDto | undefined {
-  const get = qc.getQueryData<{ ticket: TicketDto }>(orpc.tickets.get.queryKey({ input: { ref } }));
-  if (get) return get.ticket;
+  const get = cachedGet(qc, ref);
+  if (get) return get;
   const list = qc.getQueryData<InfiniteData<{ items: TicketDto[] }>>(ticketListOptions.queryKey);
   return list?.pages.flatMap((p) => p.items).find((t) => t.ref === ref);
 }
@@ -53,7 +57,7 @@ const basedOn = new WeakMap<UpdateInput, number>();
  */
 export function useUpdateTicket(ref: string) {
   const qc = useQueryClient();
-  return useMutation<TicketDto, Error, UpdateInput, { snapshot?: TicketDto }>({
+  return useMutation<TicketDto, Error, UpdateInput, { snapshot?: TicketDto; fromList: boolean }>({
     scope: { id: `ticket:${ref}` },
     mutationFn: (input) => {
       // Newest known version: the cache after the previous edit saved, else what this call saw.
@@ -66,15 +70,20 @@ export function useUpdateTicket(ref: string) {
     },
     onMutate: (input) => {
       // Read before patching: a close drops the ticket from the list.
+      const fromList = cachedGet(qc, input.ref) === undefined;
       const snapshot = cachedTicket(qc, input.ref);
       if (snapshot) {
         basedOn.set(input, snapshot.updatedAt);
         patchTicket(qc, optimistic(snapshot, input));
       }
-      return { snapshot };
+      return { snapshot, fromList };
     },
     onError: (error, input, ctx) => {
-      if (ctx?.snapshot) patchTicket(qc, ctx.snapshot);
+      if (ctx?.snapshot) {
+        // A list snapshot holds a shortened description: keep the full one a get loaded meanwhile.
+        const full = ctx.fromList ? cachedGet(qc, input.ref)?.description : undefined;
+        patchTicket(qc, full === undefined ? ctx.snapshot : { ...ctx.snapshot, description: full });
+      }
       if ((error as { code?: string }).code === "CONFLICT") {
         toast("Changed elsewhere. Showing the latest.");
         void qc.invalidateQueries({

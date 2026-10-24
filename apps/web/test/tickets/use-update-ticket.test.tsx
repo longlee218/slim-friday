@@ -79,3 +79,23 @@ test("two quick edits run in order and the second uses the version the first sav
   expect(update.mock.calls[1]![0].expectedUpdatedAt).toBe(50);
   expect(toast).not.toHaveBeenCalled();
 });
+
+test("a rollback from a list snapshot keeps the full description a get loaded meanwhile", async () => {
+  qc.setQueryData<InfiniteData<Page, string | undefined>>(ticketListOptions.queryKey, {
+    pages: [{ items: [ticket(1, { updatedAt: 42, description: "short…" })] }],
+    pageParams: [undefined],
+  });
+  let reject!: (e: unknown) => void;
+  update.mockReturnValue(new Promise((_, r) => (reject = r)));
+  const { result } = renderHook(() => useUpdateTicket("FRI-1"), { wrapper });
+  act(() => result.current.mutate({ ref: "FRI-1", status: "doing" }));
+  await waitFor(() => expect(update).toHaveBeenCalled());
+  const getKey = orpc.tickets.get.queryKey({ input: { ref: "FRI-1" } });
+  const full = ticket(1, { updatedAt: 42, description: "the full text" });
+  qc.setQueryData(getKey, { ticket: full, timeline: [], related: [] });
+  await act(async () => reject(new Error("network")));
+  await waitFor(() => expect(toast).toHaveBeenCalled());
+  const get = qc.getQueryData<{ ticket: TicketDto }>(getKey)!;
+  expect(get.ticket.description).toBe("the full text");
+  expect(get.ticket.status).toBe("todo");
+});
