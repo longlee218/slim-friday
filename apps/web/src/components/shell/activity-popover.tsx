@@ -1,15 +1,12 @@
 import type { ApprovalCardDto, BotStatusDto } from "@friday/contracts";
-import { useQueryClient } from "@tanstack/react-query";
 import { CircleStop, MessageCircle } from "lucide-react";
-import { toast } from "sonner";
-import { client } from "../../api/client";
-import { refetchStatus } from "../../events/apply-effects";
 import { formatCost, formatDuration } from "../../lib/format";
 import { countdown, useNow } from "../chat/countdown";
 import { Avatar } from "../ui/avatar";
 import { IconButton } from "../ui/button";
 import { Pill } from "../ui/pill";
 import { useAppNavigate } from "./use-app-navigate";
+import { useStopRun } from "./use-stop-run";
 
 export interface ActivityPopoverProps {
   status: BotStatusDto[];
@@ -25,7 +22,7 @@ export interface ActivityPopoverProps {
  */
 export function ActivityPopover({ status, approvals, avatarOf, onClose }: ActivityPopoverProps) {
   const go = useAppNavigate();
-  const qc = useQueryClient();
+  const stop = useStopRun();
   const now = useNow();
   const working = status.filter((s) => s.working);
 
@@ -33,17 +30,6 @@ export function ActivityPopover({ status, approvals, avatarOf, onClose }: Activi
     onClose();
     go(to);
   };
-  const stop = async (b: BotStatusDto) => {
-    try {
-      await client.control.stop({ botId: b.botId });
-      toast("Stopped. Background tasks were cancelled.");
-      // The engine pushes a status event too; this just closes the gap if it is late.
-      refetchStatus(qc);
-    } catch {
-      toast("Could not stop. Try again.");
-    }
-  };
-
   return (
     <>
       <div className="pop-h">
@@ -70,7 +56,7 @@ export function ActivityPopover({ status, approvals, avatarOf, onClose }: Activi
           <IconButton label="Open chat" onClick={() => open(`/c/bot:${b.botId}`)}>
             <MessageCircle size={16} strokeWidth={1.75} />
           </IconButton>
-          <IconButton label={`Stop ${b.name}`} onClick={() => void stop(b)}>
+          <IconButton label={`Stop ${b.name}`} onClick={() => void stop({ botId: b.botId })}>
             <CircleStop size={16} strokeWidth={1.75} />
           </IconButton>
         </div>

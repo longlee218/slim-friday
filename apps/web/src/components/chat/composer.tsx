@@ -26,6 +26,8 @@ export interface ReplyTarget {
 /** What a parent (the transcript drop zone) can call. */
 export interface ComposerHandle {
   addFiles(files: File[]): void;
+  /** Puts the caret in the textarea (after a suggestion fills the draft). */
+  focus(): void;
 }
 
 export interface ComposerProps {
@@ -62,7 +64,7 @@ export function Composer(props: ComposerProps) {
     const error = files.length ? add(files) : null;
     if (error) toast(error);
   };
-  useImperativeHandle(props.handleRef, () => ({ addFiles }));
+  useImperativeHandle(props.handleRef, () => ({ addFiles, focus: () => input.current?.focus() }));
 
   useAutosize(input, draft, phone);
 

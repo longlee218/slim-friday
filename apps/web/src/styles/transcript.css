@@ -1,0 +1,19 @@
+/* Transcript, empty conversation, suggestions and phone swipe: prototype app.css .transcript, .empty*, .suggest, swipe-to-reply. */
+.transcript { position: relative; max-width: 800px; margin: 0 auto; padding: 22px 28px 12px; }
+.loading-older { position: absolute; top: 4px; left: 0; right: 0; text-align: center; font-size: 11.5px; color: var(--label-3); }
+.chat-banner { position: absolute; z-index: 4; top: 52px; left: 0; right: 0; }
+.empty { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 80px 20px; color: var(--label-2); gap: 6px; }
+.empty .av { width: 84px; height: 84px; margin-bottom: 10px; }
+.empty .stack .av { width: 44px; height: 44px; margin-bottom: 0; }
+.empty h3 { margin: 0; color: var(--label); font: 650 17px var(--font-display); }
+.empty p { margin: 0 0 12px; max-width: 360px; }
+.suggest { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.suggest button { border: 0; background: var(--fill); padding: 7px 12px; border-radius: 16px; font-size: 13px; }
+.suggest button:hover { background: var(--fill-strong); }
+
+/* Phone swipe-to-reply: the bubble slides right and a reply arrow grows in behind it. */
+.ios .msg[data-mi] { --sw: 0; touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.ios .msg[data-mi]::before { content: ""; position: absolute; left: -30px; top: 8px; width: 26px; height: 26px; border-radius: 50%; opacity: var(--sw); transform: scale(calc(.5 + var(--sw) * .5)); background: var(--fill) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237d8597' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='9 17 4 12 9 7'/%3E%3Cpath d='M20 18v-2a4 4 0 0 0-4-4H4'/%3E%3C/svg%3E") center / 14px no-repeat; }
+.ios .msg.swipe-ok::before { background-color: var(--tint); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='9 17 4 12 9 7'/%3E%3Cpath d='M20 18v-2a4 4 0 0 0-4-4H4'/%3E%3C/svg%3E"); }
+.ios .msg.holding .body { transition: transform 450ms var(--ease); transform: scale(.98); }
+.msg-peek { font-size: 14px !important; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }

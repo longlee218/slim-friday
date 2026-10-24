@@ -23,7 +23,8 @@ export function BotMessage({ message, phone, onReply, fresh }: BotMessageProps) 
   const images = message.files.filter((f) => f.kind === "image");
   const others = message.files.filter((f) => f.kind !== "image");
   return (
-    <div className={fresh ? "msg new" : "msg"}>
+    // `data-mi` (phone only) marks the message for swipe-to-reply and press-and-hold.
+    <div className={fresh ? "msg new" : "msg"} data-mi={phone ? message.id : undefined}>
       <Avatar src={bot.src} name={bot.name} size={phone ? 28 : 30} />
       <div className="body">
         <div className="who">
