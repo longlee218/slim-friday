@@ -10,7 +10,7 @@ const client = createRouterClient(appRouter, {
 });
 
 /** Subtrees with a real handler (plan 2 adds its own as it goes). */
-const implemented = ["conversations.", "chat."];
+const implemented = ["conversations.", "chat.", "approvals.", "questions.", "control.", "events."];
 const expected = listProcedurePaths(contract)
   .filter((p) => !implemented.some((i) => p.startsWith(i)))
   .sort();
@@ -18,11 +18,11 @@ const expected = listProcedurePaths(contract)
 test("every procedure but the implemented ones is still a stub", () =>
   expect(stubbedProcedures()).toEqual(expected));
 
-test("49 stubs left (55 procedures, 3 conversations and 3 chat are real)", () =>
-  expect(stubbedProcedures()).toHaveLength(49));
+test("41 stubs left (55 procedures; conversations, chat, cards, control and events are real)", () =>
+  expect(stubbedProcedures()).toHaveLength(41));
 
 test("a stub throws the typed NOT_IMPLEMENTED error", async () => {
-  await expect(client.control.purge()).rejects.toMatchObject({
+  await expect(client.ops.sessions()).rejects.toMatchObject({
     code: "NOT_IMPLEMENTED",
     status: 501,
   });
@@ -38,5 +38,5 @@ test("input is validated before the stub", async () =>
 
 test("no session in context -> UNAUTHORIZED", async () =>
   await expect(
-    createRouterClient(appRouter, { context: { deps } as never }).control.purge(),
+    createRouterClient(appRouter, { context: { deps } as never }).ops.sessions(),
   ).rejects.toMatchObject({ code: "UNAUTHORIZED" }));

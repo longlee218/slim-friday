@@ -41,6 +41,8 @@ export type EngineDeps = Pick<ApiDeps, "hub" | "store" | "surface" | "files" | "
 export function createApiApp(deps: ApiDeps): Hono {
   const app = new Hono<{ Variables: { session: OwnerSession } }>();
   const rpcHandler = new RPCHandler(appRouter, {
+    // A comment line every 25 s keeps the SSE stream open through proxies.
+    eventIteratorKeepAliveInterval: 25_000,
     // An unknown error (not an ORPCError) is logged here; the client only sees INTERNAL_SERVER_ERROR.
     clientInterceptors: [
       onError((err) => {
@@ -70,6 +72,14 @@ export function createApiApp(deps: ApiDeps): Hono {
   });
   app.on(["GET", "POST"], "/api/auth/*", (c) => deps.auth.handler(c.req.raw));
   // RPC is POST only: HEAD and GET must never reach the handler (RPCHandler treats HEAD like POST).
+  // Event streams must not be cached, transformed or buffered by a proxy.
+  app.use("/rpc/*", async (c, next) => {
+    await next();
+    if (c.res.headers.get("content-type")?.includes("text/event-stream")) {
+      c.res.headers.set("Cache-Control", "no-cache, no-transform");
+      c.res.headers.set("X-Accel-Buffering", "no");
+    }
+  });
   app.post("/rpc/*", ownerSession(deps), async (c) => {
     const { matched, response } = await rpcHandler.handle(c.req.raw, {
       prefix: "/rpc",

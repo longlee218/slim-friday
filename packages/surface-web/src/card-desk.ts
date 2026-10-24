@@ -20,12 +20,16 @@ export type AnswerResult = "ok" | "conflict" | "not_found";
 /** An open approval: its card, how to close it and how to stop its timer. */
 interface OpenApproval {
   dto: ApprovalCardDto;
+  /** Epoch ms the card was shown. */
+  openedAt: number;
   settle: (a: ApprovalAnswer) => void;
 }
 
 /** An open question: its card, the original options and how to close it. */
 interface OpenQuestion {
   dto: QuestionCardDto;
+  /** Epoch ms the card was shown. */
+  openedAt: number;
   settle: (a: QuestionAnswer | null) => void;
 }
 
@@ -75,6 +79,7 @@ export class CardDesk {
       };
       this.approvals.set(cardId, {
         dto,
+        openedAt: this.clock.now(),
         settle: (a) => {
           stop();
           resolve(a);
@@ -102,6 +107,7 @@ export class CardDesk {
       };
       this.questions.set(cardId, {
         dto,
+        openedAt: this.clock.now(),
         settle: (a) => {
           stop();
           resolve(a);
@@ -125,6 +131,11 @@ export class CardDesk {
     if (!validAnswer(open.dto, answer)) return "bad_answer";
     this.closeQuestion(cardId, answer);
     return "ok";
+  }
+
+  /** When an open card (either kind) was shown; undefined once closed or unknown. */
+  openedAt(cardId: string): number | undefined {
+    return (this.approvals.get(cardId) ?? this.questions.get(cardId))?.openedAt;
   }
 
   /** Approval cards still open. */

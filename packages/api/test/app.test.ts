@@ -61,7 +61,7 @@ async function login(t: Fresh, app = t.app) {
 }
 
 const purge = (app: Fresh["app"], headers: Record<string, string>) =>
-  app.request(`${API}/rpc/control/purge`, {
+  app.request(`${API}/rpc/ops/sessions`, {
     method: "POST",
     headers: { "content-type": "application/json", ...headers },
     body: "{}",
@@ -198,7 +198,7 @@ test("a throwing getSession is 401 and logs session_error", async () => {
   expect(res.status).toBe(401);
   expect(t.logs).toContainEqual({
     event: "auth.failed",
-    route: "/rpc/control/purge",
+    route: "/rpc/ops/sessions",
     status: 401,
     reason: "session_error",
   });

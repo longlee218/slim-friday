@@ -68,6 +68,8 @@ export interface BotStatus {
   sessionId: string;
   busy: boolean;
   tasks: { taskId: string; description: string }[];
+  /** Epoch ms the session was opened or resumed. */
+  openedAt: number;
 }
 
 export interface BotHubDeps {
@@ -216,6 +218,7 @@ export class BotHub implements BotMessenger {
       ...(e.groupId && { groupId: e.groupId }),
       sessionId: e.session.id,
       busy: e.busy,
+      openedAt: e.openedAt,
       tasks: [...e.tasks].map(([taskId, t]) => ({ taskId, description: t.description })),
     }));
   }

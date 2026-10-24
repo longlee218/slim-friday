@@ -45,7 +45,15 @@ export function engineHarness() {
   });
   const hub = new BotHub({ runtime: new FakeRuntime(), surface, store, clock, gate });
   hub.start();
-  const deps = { hub, store, surface, files, purge: () => 0, now: clock.now } as unknown as ApiDeps;
+  const deps = {
+    hub,
+    store,
+    surface,
+    files,
+    purge: () => 0,
+    now: () => clock.now(),
+    log: { info() {}, warn() {}, error() {} },
+  } as unknown as ApiDeps;
   const client = createRouterClient(appRouter, {
     context: { session: { user: { email: "owner@example.com" } } as never, deps },
   });

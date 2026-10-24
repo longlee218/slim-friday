@@ -1,5 +1,8 @@
+import { approvalsRouter, questionsRouter } from "../routers/cards-router";
 import { chatRouter } from "../routers/chat-router";
+import { controlRouter } from "../routers/control-router";
 import { conversationsRouter } from "../routers/conversations-router";
+import { eventsRouter } from "../routers/events-router";
 import { authed } from "./implementer";
 import { type LooseNode, stubHandlers, stubRouter } from "./stub-router";
 
@@ -8,6 +11,10 @@ export const appRouter = authed.router({
   ...stubRouter(),
   conversations: conversationsRouter,
   chat: chatRouter,
+  approvals: approvalsRouter,
+  questions: questionsRouter,
+  control: controlRouter,
+  events: eventsRouter,
 });
 
 /** Sorted dot paths whose handler is still a stub. */
