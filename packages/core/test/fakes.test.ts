@@ -50,3 +50,31 @@ test("FakeFileStore failNext(read) rejects once, readHead keeps its own flag", a
   await expect(files.read("k")).rejects.toThrow();
   expect((await files.read("k")).length).toBe(3);
 });
+
+test("fake store: unread, reads never go back, and deleteLegacy", async () => {
+  const s = new FakeStore();
+  const add = (c: string, kind: "user" | "system") =>
+    s.messages.append({ conversationId: c, author: { kind }, text: "t", at: 1 });
+  await add("bot:a", "user");
+  await add("bot:a", "system");
+  await add("old1", "system");
+  expect(
+    await s.messages.append({
+      conversationId: "bot:a",
+      author: { kind: "user" },
+      text: "t",
+      at: 1,
+    }),
+  ).toBe(4);
+  expect(await s.reads.unread("bot:a")).toBe(1);
+  await s.reads.set("bot:a", 2);
+  await s.reads.set("bot:a", 1);
+  expect(await s.reads.get("bot:a")).toBe(2);
+  expect(await s.reads.unread("bot:a")).toBe(0);
+  s.convMap.set("old1", { id: "old1", kind: "direct", botId: "a" });
+  s.convMap.set("bot:a", { id: "bot:a", kind: "direct", botId: "a" });
+  expect(await s.conversations.deleteLegacy()).toBe(1);
+  expect((await s.conversations.list()).map((c) => c.id)).toEqual(["bot:a"]);
+  expect((await s.messages.page("bot:a", { limit: 10 })).map((m) => m.id)).toEqual([4, 2, 1]);
+  expect(await s.messages.get(3)).toBeUndefined();
+});

@@ -1,21 +1,48 @@
-import type { Author, Store } from "@friday/core";
-import { asc, desc, eq, gt } from "drizzle-orm";
+import type { Author, IndexedMessage, Store, StoredMessage } from "@friday/core";
+import { and, asc, desc, eq, gt, lt } from "drizzle-orm";
 import type { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import { messages } from "../schema/engine-tables";
+
+type Row = typeof messages.$inferSelect;
 
 /** Messages of every conversation. */
 export function messageRepo(db: BunSQLiteDatabase): Store["messages"] {
   return {
     async append(m) {
-      db.insert(messages)
+      const row = db
+        .insert(messages)
         .values({
           conversationId: m.conversationId,
           authorKind: m.author.kind,
           authorBotId: m.author.kind === "bot" ? m.author.botId : null,
           text: m.text,
           at: m.at,
+          kind: m.kind ?? "text",
+          replyTo: m.replyTo ?? null,
+          files: m.files ? JSON.stringify(m.files) : null,
+          run: m.run ? JSON.stringify(m.run) : null,
+          relay: m.relay ? JSON.stringify(m.relay) : null,
         })
-        .run();
+        .returning({ id: messages.id })
+        .get();
+      return row.id;
+    },
+    async get(id) {
+      const r = db.select().from(messages).where(eq(messages.id, id)).get();
+      return r && toIndexed(r);
+    },
+    async page(c, f) {
+      const where = f.before
+        ? and(eq(messages.conversationId, c), lt(messages.id, f.before))
+        : eq(messages.conversationId, c);
+      return db
+        .select()
+        .from(messages)
+        .where(where)
+        .orderBy(desc(messages.id))
+        .limit(f.limit)
+        .all()
+        .map(toIndexed);
     },
     async recent(c, limit) {
       const rows = db
@@ -26,12 +53,7 @@ export function messageRepo(db: BunSQLiteDatabase): Store["messages"] {
         .limit(limit)
         .all();
       // Newest first from the query; the port wants the last N oldest first.
-      return rows.reverse().map((r) => ({
-        conversationId: r.conversationId,
-        author: authorOf(r),
-        text: r.text,
-        at: r.at,
-      }));
+      return rows.reverse().map(toStored);
     },
     async after(afterId, limit) {
       return db
@@ -41,14 +63,28 @@ export function messageRepo(db: BunSQLiteDatabase): Store["messages"] {
         .orderBy(asc(messages.id))
         .limit(limit)
         .all()
-        .map((r) => ({
-          id: r.id,
-          conversationId: r.conversationId,
-          author: authorOf(r),
-          text: r.text,
-          at: r.at,
-        }));
+        .map(toIndexed);
     },
+  };
+}
+
+/** A row with its id; `kind` is always set here (`recent` keeps the plain shape of older callers). */
+function toIndexed(r: Row): IndexedMessage {
+  return { id: r.id, ...toStored(r), kind: r.kind as StoredMessage["kind"] };
+}
+
+/** A row as a stored message; optional fields are left out when empty. */
+function toStored(r: Row): StoredMessage {
+  return {
+    conversationId: r.conversationId,
+    author: authorOf(r),
+    text: r.text,
+    at: r.at,
+    ...(r.kind !== "text" && { kind: r.kind as StoredMessage["kind"] }),
+    ...(r.replyTo !== null && { replyTo: r.replyTo }),
+    ...(r.files && { files: JSON.parse(r.files) }),
+    ...(r.run && { run: JSON.parse(r.run) }),
+    ...(r.relay && { relay: JSON.parse(r.relay) }),
   };
 }
 

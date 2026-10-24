@@ -21,6 +21,16 @@ export const messages = sqliteTable(
     text: text("text").notNull(),
     /** Epoch milliseconds. */
     at: integer("at").notNull(),
+    /** `text`, `file` or `relay`. */
+    kind: text("kind").notNull().default("text"),
+    /** Id of the message this one replies to. */
+    replyTo: integer("reply_to"),
+    /** JSON `FileRef[]`. */
+    files: text("files"),
+    /** JSON `RunStep[]`. */
+    run: text("run"),
+    /** JSON `RelayInfo`. */
+    relay: text("relay"),
   },
   (t) => [index("messages_conversation_idx").on(t.conversationId, t.id)],
 );
@@ -124,6 +134,10 @@ export const tickets = sqliteTable(
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
     completedAt: integer("completed_at"),
+    /** The conversation the ticket was raised in. */
+    conversationId: text("conversation_id"),
+    /** Why the ticket is `blocked`. */
+    blockedReason: text("blocked_reason"),
   },
   (t) => [index("tickets_created_idx").on(t.createdAt, t.id)],
 );
@@ -147,3 +161,70 @@ export const ticketCounter = sqliteTable("ticket_counter", {
   id: integer("id").primaryKey(),
   last: integer("last").notNull(),
 });
+
+/** Files (R2 objects) carried by messages. */
+export const files = sqliteTable("files", {
+  id: text("id").primaryKey(),
+  /** Object key in the file store. */
+  key: text("key").notNull(),
+  conversationId: text("conversation_id").notNull(),
+  name: text("name").notNull(),
+  mimeType: text("mime_type").notNull(),
+  size: integer("size").notNull(),
+  /** Pixel size, images only. */
+  width: integer("width"),
+  height: integer("height"),
+  /** `upload` or `bot`. */
+  source: text("source").notNull(),
+  /** Epoch milliseconds. */
+  at: integer("at").notNull(),
+});
+
+/** Uploads waiting to be used by a message or an avatar. */
+export const uploads = sqliteTable(
+  "uploads",
+  {
+    id: text("id").primaryKey(),
+    /** Object key in the file store. */
+    key: text("key").notNull(),
+    /** Null for avatars. */
+    conversationId: text("conversation_id"),
+    /** `chat` or `avatar`. */
+    purpose: text("purpose").notNull(),
+    name: text("name").notNull(),
+    mimeType: text("mime_type").notNull(),
+    size: integer("size").notNull(),
+    /** `pending` or `used`. */
+    state: text("state").notNull(),
+    /** The message that used it. */
+    messageId: integer("message_id"),
+    /** Epoch milliseconds. */
+    at: integer("at").notNull(),
+  },
+  (t) => [index("uploads_state_idx").on(t.state, t.at)],
+);
+
+/** The last message the owner has read, per conversation. */
+export const conversationReads = sqliteTable("conversation_reads", {
+  conversationId: text("conversation_id").primaryKey(),
+  messageId: integer("message_id").notNull(),
+});
+
+/** History of ticket changes (written by the ticket board in a later plan). */
+export const ticketEvents = sqliteTable(
+  "ticket_events",
+  {
+    id: text("id").primaryKey(),
+    ticketId: text("ticket_id").notNull(),
+    /** `created`, `status`, `assignee`, `priority` or `handoff`. */
+    kind: text("kind").notNull(),
+    fromValue: text("from_value"),
+    toValue: text("to_value"),
+    /** `user`, `bot` or `system`. */
+    actorKind: text("actor_kind").notNull(),
+    actorBotId: text("actor_bot_id"),
+    /** Epoch milliseconds. */
+    at: integer("at").notNull(),
+  },
+  (t) => [index("ticket_events_ticket_idx").on(t.ticketId, t.at)],
+);

@@ -4,13 +4,16 @@ import type {
   BotId,
   Conversation,
   ConversationId,
+  FileRow,
   Grant,
   Group,
   GroupId,
+  IndexedMessage,
   Store,
   StoredMessage,
   Ticket,
   TicketComment,
+  UploadRow,
   WakeRow,
 } from "../../src";
 
@@ -34,18 +37,70 @@ export class FakeStore implements Store {
     get: async (id: ConversationId) => this.convMap.get(id),
     direct: async (botId: BotId) =>
       [...this.convMap.values()].find((c) => c.kind === "direct" && c.botId === botId),
-  };
-  messages = {
-    append: async (m: StoredMessage) => {
-      this.msgs.push(m);
+    list: async () => [...this.convMap.values()],
+    deleteLegacy: async () => {
+      const old = [...this.convMap.keys()].filter((id) => !/^(bot|group):/.test(id));
+      for (const id of old) this.convMap.delete(id);
+      // Messages keep their position (ids are indexes), so blank the old ones out.
+      this.msgs = this.msgs.map((m) => (old.includes(m.conversationId) ? undefined : m)) as never;
+      return old.length;
     },
+  };
+  /** Message ids are positions (1-based) in `msgs`; a deleted one leaves a hole. */
+  private live(): IndexedMessage[] {
+    return this.msgs.flatMap((m, i) => (m ? [{ ...m, id: i + 1 }] : []));
+  }
+  messages = {
+    append: async (m: StoredMessage) => this.msgs.push(m),
+    get: async (id: number) => this.live().find((m) => m.id === id),
+    page: async (c: ConversationId, f: { before?: number; limit: number }) =>
+      this.live()
+        .filter((m) => m.conversationId === c && (f.before === undefined || m.id < f.before))
+        .reverse()
+        .slice(0, f.limit),
     recent: async (c: ConversationId, limit: number) =>
-      this.msgs.filter((m) => m.conversationId === c).slice(-limit),
+      this.msgs.filter((m) => m?.conversationId === c).slice(-limit),
     after: async (afterId: number, limit: number) =>
-      this.msgs
-        .map((m, i) => ({ ...m, id: i + 1 }))
+      this.live()
         .filter((m) => m.id > afterId)
         .slice(0, limit),
+  };
+  fileMap = new Map<string, FileRow>();
+  files = {
+    insert: async (f: FileRow) => {
+      this.fileMap.set(f.id, { ...f });
+    },
+    get: async (id: string) => this.fileMap.get(id),
+  };
+  uploadMap = new Map<string, UploadRow>();
+  uploads = {
+    insert: async (u: UploadRow) => {
+      this.uploadMap.set(u.id, { ...u });
+    },
+    get: async (id: string) => this.uploadMap.get(id),
+    markUsed: async (id: string, messageId: number | null) => {
+      const u = this.uploadMap.get(id);
+      if (u) Object.assign(u, { state: "used", messageId: messageId ?? undefined });
+    },
+    pendingBefore: async (at: number) =>
+      [...this.uploadMap.values()]
+        .filter((u) => u.state === "pending" && u.at < at)
+        .sort((a, b) => a.at - b.at),
+    delete: async (id: string) => {
+      this.uploadMap.delete(id);
+    },
+  };
+  readMap = new Map<ConversationId, number>();
+  reads = {
+    get: async (c: ConversationId) => this.readMap.get(c) ?? 0,
+    set: async (c: ConversationId, messageId: number) => {
+      this.readMap.set(c, Math.max(this.readMap.get(c) ?? 0, messageId));
+    },
+    unread: async (c: ConversationId) =>
+      this.live().filter(
+        (m) =>
+          m.conversationId === c && m.id > (this.readMap.get(c) ?? 0) && m.author.kind !== "user",
+      ).length,
   };
   grants = {
     list: async (botId: BotId) =>

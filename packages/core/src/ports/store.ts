@@ -18,6 +18,42 @@ export interface AuditEntry {
   reason: string;
 }
 
+/** A stored file (an R2 object) that a message can carry. */
+export interface FileRow {
+  id: string;
+  /** Object key in the file store. */
+  key: string;
+  conversationId: ConversationId;
+  name: string;
+  mimeType: string;
+  size: number;
+  /** Pixel size, set for images only. */
+  width?: number;
+  height?: number;
+  /** Who made it: the owner's upload or a bot (`PostFile`). */
+  source: "upload" | "bot";
+  /** Epoch milliseconds. */
+  at: number;
+}
+
+/** A file the owner uploaded (or an avatar) that is waiting to be used. */
+export interface UploadRow {
+  id: string;
+  /** Object key in the file store. */
+  key: string;
+  /** Null for avatars. */
+  conversationId: ConversationId | null;
+  purpose: "chat" | "avatar";
+  name: string;
+  mimeType: string;
+  size: number;
+  state: "pending" | "used";
+  /** The message that used it, once used. */
+  messageId?: number;
+  /** Epoch milliseconds. */
+  at: number;
+}
+
 /** Everything the engine persists. */
 export interface Store {
   bots: { get(id: BotId): Promise<Bot | undefined>; list(): Promise<Bot[]> };
@@ -26,6 +62,10 @@ export interface Store {
     get(id: ConversationId): Promise<Conversation | undefined>;
     /** The one-to-one conversation of a bot. */
     direct(botId: BotId): Promise<Conversation | undefined>;
+    /** Every conversation. */
+    list(): Promise<Conversation[]>;
+    /** Deletes every conversation whose id is not `bot:*` or `group:*` and its messages; returns the conversation count. */
+    deleteLegacy(): Promise<number>;
   };
   /** The shared ticket board. */
   tickets: {
@@ -55,11 +95,33 @@ export interface Store {
     comments(ticketId: string): Promise<TicketComment[]>;
   };
   messages: {
-    append(m: StoredMessage): Promise<void>;
+    /** Returns the id of the new message (ids grow with time). */
+    append(m: StoredMessage): Promise<number>;
+    get(id: number): Promise<IndexedMessage | undefined>;
+    /** Newest first. `before` is the id of the oldest message of the previous page. */
+    page(c: ConversationId, f: { before?: number; limit: number }): Promise<IndexedMessage[]>;
     /** The last `limit` messages, oldest first. */
     recent(c: ConversationId, limit: number): Promise<StoredMessage[]>;
     /** Messages with an id above `afterId`, oldest first, at most `limit` (feeds the message index). */
     after(afterId: number, limit: number): Promise<IndexedMessage[]>;
+  };
+  files: { insert(f: FileRow): Promise<void>; get(id: string): Promise<FileRow | undefined> };
+  uploads: {
+    insert(u: UploadRow): Promise<void>;
+    get(id: string): Promise<UploadRow | undefined>;
+    markUsed(id: string, messageId: number | null): Promise<void>;
+    /** Pending uploads created before `at`, oldest first. */
+    pendingBefore(at: number): Promise<UploadRow[]>;
+    delete(id: string): Promise<void>;
+  };
+  /** How far the owner has read each conversation. */
+  reads: {
+    /** The last read message id; 0 when never read. */
+    get(c: ConversationId): Promise<number>;
+    /** Keeps the larger of the old and new position. */
+    set(c: ConversationId, messageId: number): Promise<void>;
+    /** Messages of `c` above the read position whose author is not the owner. */
+    unread(c: ConversationId): Promise<number>;
   };
   grants: {
     /** The bot's grants plus the grants for every bot ("*"). */

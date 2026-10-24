@@ -3,11 +3,14 @@ import { drizzle } from "drizzle-orm/bun-sqlite";
 import { openEngineDb } from "./open-engine-db";
 import { auditRepo } from "./repos/audit-repo";
 import { conversationRepo } from "./repos/conversation-repo";
+import { fileRepo } from "./repos/file-repo";
 import { grantRepo } from "./repos/grant-repo";
 import { messageRepo } from "./repos/message-repo";
+import { readRepo } from "./repos/read-repo";
 import { sessionRepo } from "./repos/session-repo";
 import { spendRepo } from "./repos/spend-repo";
 import { ticketRepo } from "./repos/ticket-repo";
+import { uploadRepo } from "./repos/upload-repo";
 import { wakeRepo } from "./repos/wake-repo";
 
 /** The parts of the core `Store` kept in the db (bots and groups live in files, see `@friday/config`). */
@@ -24,6 +27,9 @@ export function openEngineStore(file: string): EngineStore {
   return {
     conversations: conversationRepo(db),
     messages: messageRepo(db),
+    files: fileRepo(db),
+    uploads: uploadRepo(db),
+    reads: readRepo(db),
     grants: grantRepo(db),
     sessions: sessionRepo(db),
     spend: spendRepo(db),
