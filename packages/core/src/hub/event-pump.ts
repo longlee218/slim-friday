@@ -1,4 +1,5 @@
 import type { Author } from "../domain/message";
+import type { RunStep } from "../domain/run";
 import type { Clock } from "../ports/clock";
 import type { Store } from "../ports/store";
 import type { Surface } from "../ports/surface";
@@ -32,16 +33,28 @@ export async function pumpEvents(
   try {
     for await (const e of entry.session.events) {
       entry.lastActive = clock.now();
-      if (e.type === "text") {
-        const conversationId = entry.current.conversationId;
+      const conversationId = entry.current.conversationId;
+      /** Shows a step in the run line of the current conversation. */
+      const show = (step?: RunStep) => step && surface.showRun(conversationId, entry.bot.id, step);
+      if (e.type === "thinking") {
+        show(entry.steps.onThinking(clock.now()));
+      } else if (e.type === "tool_call") {
+        for (const s of entry.steps.onToolCall(e, clock.now())) show(s);
+      } else if (e.type === "tool_result") {
+        show(entry.steps.onToolResult(e, clock.now()));
+      } else if (e.type === "text") {
+        show(entry.steps.closeThinking(clock.now()));
+        const run = entry.steps.take(clock.now());
         await postStored(deps, {
           conversationId,
           author: botAuthor,
           text: e.text,
           at: clock.now(),
+          ...(run.length > 0 && { run }),
         });
         await hooks.onBotText(entry, e.text);
       } else if (e.type === "task_started") {
+        show(entry.steps.onTask(e, clock.now()));
         entry.tasks.set(e.taskId, {
           description: e.description,
           conversationId: entry.current.conversationId,
@@ -53,6 +66,7 @@ export async function pumpEvents(
           label: e.description,
         });
       } else if (e.type === "task_done") {
+        show(entry.steps.onTask(e, clock.now()));
         const task = entry.tasks.get(e.taskId);
         entry.tasks.delete(e.taskId);
         // The result is the bot's next turn; it speaks where the task began.
@@ -63,6 +77,7 @@ export async function pumpEvents(
         entry.groupContextSent.clear();
         entry.memoryStale = true;
       } else if (e.type === "turn_end") {
+        show(entry.steps.endTurn(clock.now()));
         entry.busy = false;
         await store.spend.add(entry.bot.id, dayOf(clock.now()), e.costUsd);
         await hooks.onTurnEnd(entry);

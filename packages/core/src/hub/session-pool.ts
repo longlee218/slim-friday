@@ -11,6 +11,7 @@ import type { Memory } from "../ports/memory";
 import { GROUP_SESSION_KINDS } from "../ports/memory";
 import type { Store } from "../ports/store";
 import { promptMemory } from "./group-memory";
+import { RunTracker } from "./run-steps";
 import type { SessionScope } from "./session-scope";
 
 /** A background task a bot started, remembered with the conversation that started it. */
@@ -62,6 +63,8 @@ export interface PoolEntry {
   /** The conversation (and chain depth) the bot is answering now. */
   current: { conversationId: ConversationId; hop: number };
   tasks: Map<string, TaskInfo>;
+  /** Run steps (thinking, tools, subagents) of the current turn. */
+  steps: RunTracker;
   /** Messages that arrived while the bot was busy; one turn at a time keeps each answer with its question. */
   queue: QueuedWake[];
   /** The event pump is running for this session. */
@@ -202,6 +205,7 @@ export class SessionPool {
       busy: false,
       current: { conversationId: "", hop: 0 },
       tasks: new Map(),
+      steps: new RunTracker(),
       turnTexts: [],
       sentResults: new Set(),
       queue: [],
