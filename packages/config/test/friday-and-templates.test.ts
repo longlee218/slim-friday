@@ -13,10 +13,10 @@ test("the shipped defaults include the Friday bot with every tool of the catalog
   expect(problems).toEqual([]);
   const f = snapshot.bots.get("friday");
   expect(f?.name).toBe("Friday");
-  // Memory and chat tools come with every bot; all the others must be named.
+  // Memory and chat tools come with every bot and MCP servers are opt-in; every SDK and effect tool must be named.
   const named = snapshot.tools
     .map((t) => t.name)
-    .filter((n) => !n.startsWith("mcp__memory__") && !n.startsWith("mcp__chat__"));
+    .filter((n) => !/^mcp__(memory|chat|playwright)__/.test(n));
   expect(named.filter((n) => !f?.tools.includes(n))).toEqual([]);
   expect(f?.workspaces).toEqual([]);
   expect(f?.instructions).toContain("<config dir>");

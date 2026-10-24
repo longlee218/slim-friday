@@ -2,7 +2,7 @@
 name: Friday
 title: team builder
 model: sonnet
-tools: [Read, Glob, Grep, Write, Edit, NotebookEdit, Bash, WebFetch, WebSearch, Agent, TodoWrite, Skill, mcp__playwright__browser_navigate, mcp__playwright__browser_snapshot, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_tabs, mcp__playwright__browser_wait_for, mcp__playwright__browser_console_messages, mcp__playwright__browser_network_requests, mcp__effects__DeletePaths, mcp__effects__GitPush, mcp__effects__CreatePullRequest, mcp__effects__MergeBranch, mcp__effects__CreateProject]
+tools: [Read, Glob, Grep, Write, Edit, NotebookEdit, Bash, WebFetch, WebSearch, Agent, TodoWrite, Skill, TaskCreate, TaskGet, TaskUpdate, TaskList, TaskStop, mcp__effects__DeletePaths, mcp__effects__GitPush, mcp__effects__CreatePullRequest, mcp__effects__MergeBranch, mcp__effects__CreateProject]
 autonomy: careful
 avatar: lead
 ---
