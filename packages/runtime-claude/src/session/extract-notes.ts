@@ -29,8 +29,8 @@ function parseNotes(text: string): string[] {
 }
 
 /**
- * Notes worth keeping from a compaction summary: one tool-less, one-turn model call. Never throws; any failure or
- * an answer that is not a JSON array gives [].
+ * Notes worth keeping from a compaction summary or a transcript: one tool-less, one-turn model call. An answer that
+ * is not a JSON array gives []; a failed, aborted (time limit) or unanswered call rejects, so the caller logs it.
  */
 export async function extractNotes(
   summary: string,
@@ -48,29 +48,24 @@ export async function extractNotes(
     today?: string;
   },
 ): Promise<string[]> {
-  try {
-    const run = (opts.queryFn ?? query)({
-      prompt: extractUserPrompt(summary.slice(0, MAX_INPUT), opts.source ?? "summary", opts.today),
-      options: {
-        model: opts.model,
-        systemPrompt: EXTRACT_SYSTEM_PROMPT,
-        tools: [],
-        maxTurns: 1,
-        settingSources: [],
-        abortController: timeoutController(opts.timeoutMs ?? NOTE_CALL_TIMEOUT_MS),
-        env: sdkEnv(
-          { hasRealAuth: !!opts.oauthToken, oauthToken: opts.oauthToken },
-          opts.env ?? {},
-          {
-            oneShot: true,
-          },
-        ),
-      },
-    });
-    for await (const m of run)
-      if (m.type === "result") return m.subtype === "success" ? parseNotes(m.result) : [];
-    return [];
-  } catch {
-    return [];
+  const run = (opts.queryFn ?? query)({
+    prompt: extractUserPrompt(summary.slice(0, MAX_INPUT), opts.source ?? "summary", opts.today),
+    options: {
+      model: opts.model,
+      systemPrompt: EXTRACT_SYSTEM_PROMPT,
+      tools: [],
+      maxTurns: 1,
+      settingSources: [],
+      abortController: timeoutController(opts.timeoutMs ?? NOTE_CALL_TIMEOUT_MS),
+      env: sdkEnv({ hasRealAuth: !!opts.oauthToken, oauthToken: opts.oauthToken }, opts.env ?? {}, {
+        oneShot: true,
+      }),
+    },
+  });
+  for await (const m of run) {
+    if (m.type !== "result") continue;
+    if (m.subtype !== "success") throw new Error(`note extraction failed: ${m.subtype}`);
+    return parseNotes(m.result);
   }
+  throw new Error("note extraction ended without a result");
 }

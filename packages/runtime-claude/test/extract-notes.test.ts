@@ -29,11 +29,8 @@ test("extractNotes finds the array inside a fenced answer and caps the input", a
   expect(String(seen.prompt)).toContain(`<summary>\n${"x".repeat(20000)}\n</summary>`);
 });
 
-test("extractNotes returns [] on prose or an error", async () => {
+test("extractNotes returns [] on prose", async () => {
   expect(await extractNotes("s", { model: "m", queryFn: fake("nothing here").queryFn })).toEqual(
-    [],
-  );
-  expect(await extractNotes("s", { model: "m", queryFn: fake(new Error("down")).queryFn })).toEqual(
     [],
   );
 });
@@ -72,7 +69,7 @@ test("extractNotes gives up a call that never answers once its time limit passes
       aborted = true;
       throw new Error("aborted");
     })()) as unknown as QueryFn;
-  expect(await extractNotes("summary", { model: "m", queryFn, timeoutMs: 10 })).toEqual([]);
+  await expect(extractNotes("summary", { model: "m", queryFn, timeoutMs: 10 })).rejects.toThrow();
   expect(aborted).toBe(true);
 });
 
@@ -106,4 +103,17 @@ test("the extraction prompt treats input as data and states dates and the note l
   expect(EXTRACT_SYSTEM_PROMPT).toContain("YYYY-MM-DD");
   expect(EXTRACT_SYSTEM_PROMPT).toContain("under 200 characters");
   expect(EXTRACT_SYSTEM_PROMPT).toContain("<transcript>");
+});
+
+test("a failed or unanswered call rejects, so the flush logs it; an empty answer is []", async () => {
+  await expect(
+    extractNotes("s", { model: "m", queryFn: fake(new Error("down")).queryFn }),
+  ).rejects.toThrow();
+  const never = ((args: { options: { abortController?: AbortController } }) =>
+    (async function* () {
+      await new Promise((r) => args.options.abortController?.signal.addEventListener("abort", r));
+      throw new Error("aborted");
+    })()) as unknown as QueryFn;
+  await expect(extractNotes("s", { model: "m", queryFn: never, timeoutMs: 10 })).rejects.toThrow();
+  expect(await extractNotes("s", { model: "m", queryFn: fake("[]").queryFn })).toEqual([]);
 });
