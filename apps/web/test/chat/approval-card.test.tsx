@@ -6,7 +6,7 @@ import { orpc } from "../../src/api/client";
 import { ApprovalCard } from "../../src/components/chat/approval-card";
 import { ApprovalReceipt } from "../../src/components/chat/approval-receipt";
 import { ApprovalRow } from "../../src/components/chat/approval-row";
-import { approvalTitle, scopeLine } from "../../src/components/chat/approval-text";
+import { approvalTitle, scopeLine, toolLabel } from "../../src/components/chat/approval-text";
 import { countdown } from "../../src/components/chat/countdown";
 import type { Receipt } from "../../src/events/client-keys";
 import { receiptsKey } from "../../src/events/client-keys";
@@ -156,6 +156,21 @@ test("phone receipt", () => {
   expect(screen.getByText("feat/x")).toBeTruthy();
   view(<ApprovalReceipt receipt={r("once")} />);
   expect(screen.getByText("Allowed: GitPush")).toBeTruthy();
+});
+
+test("MCP tool ids show as their short name in titles, rows and receipts", () => {
+  expect(toolLabel("mcp__effects__GitPush")).toBe("GitPush");
+  expect(toolLabel("mcp__my_server__Do__It")).toBe("Do__It");
+  expect(toolLabel("Bash")).toBe("Bash");
+  const mcp = apprCard({ tool: "mcp__effects__GitPush" });
+  expect(approvalTitle(mcp)).toBe("Dev wants to use GitPush");
+  view(<ApprovalRow card={mcp} />, cardClient(mcp));
+  expect(screen.getByText(/^GitPush · Auto-denies in/)).toBeTruthy();
+  view(<ApprovalReceipt receipt={r("deny", "mcp__effects__MergeBranch")} />);
+  expect(screen.getByText("Denied: MergeBranch")).toBeTruthy();
+  view(<ApprovalCard card={mcp} receipt={r("once", "mcp__effects__GitPush")} />);
+  expect(screen.getByText(/You allowed once:/).textContent).toContain("GitPush");
+  expect(screen.getByText(/You allowed once:/).textContent).not.toContain("mcp__");
 });
 
 test("phone row: Review opens the sheet; Allow once answers and folds to the receipt", async () => {

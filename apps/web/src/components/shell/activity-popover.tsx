@@ -1,6 +1,7 @@
 import type { ApprovalCardDto, BotStatusDto } from "@friday/contracts";
 import { CircleStop, MessageCircle } from "lucide-react";
 import { formatCost, formatDuration } from "../../lib/format";
+import { toolLabel } from "../chat/approval-text";
 import { countdown, useNow } from "../chat/countdown";
 import { Avatar } from "../ui/avatar";
 import { IconButton } from "../ui/button";
@@ -86,7 +87,9 @@ export function ActivityPopover({ status, approvals, avatarOf, onClose }: Activi
               >
                 <Avatar src={avatarOf(a.botId)} name={a.botName} size={28} />
                 <div className="grow">
-                  <div className="t1">{first ? `${a.tool} · ${first}` : a.tool}</div>
+                  <div className="t1">
+                    {first ? `${toolLabel(a.tool)} · ${first}` : toolLabel(a.tool)}
+                  </div>
                   <div className="t2">
                     {a.botName}
                     {a.expiresAt !== undefined && ` · ${countdown(a.expiresAt, now)}`}

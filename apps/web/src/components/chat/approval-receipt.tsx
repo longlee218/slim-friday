@@ -1,6 +1,6 @@
 import { CircleCheck, CircleDashed, CircleX } from "lucide-react";
 import type { Receipt } from "../../events/client-keys";
-import { scopeLine } from "./approval-text";
+import { scopeLine, toolLabel } from "./approval-text";
 
 /** Phone receipt: a hairline line, "Allowed: GitPush" or "Denied: MergeBranch", the scope under it. */
 export function ApprovalReceipt({ receipt }: { receipt: Receipt }) {
@@ -16,7 +16,7 @@ export function ApprovalReceipt({ receipt }: { receipt: Receipt }) {
         <b>
           {answer === "elsewhere"
             ? "Answered on another device"
-            : `${deny ? "Denied" : "Allowed"}: ${card.tool}`}
+            : `${deny ? "Denied" : "Allowed"}: ${toolLabel(card.tool)}`}
         </b>
         <span>{scopeLine(card.scope)}</span>
       </div>
