@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { Ticket } from "../src";
+import { CONTINUATION_PROMPT } from "../src/runs/run-steering";
 import { flush, makeHub } from "./bot-hub-harness";
 
 const WAKE = (n: number) =>
@@ -125,11 +126,18 @@ describe("ticket wakes and the busy flag", () => {
     const t = await assigned(h);
     h.surface.deliver({ conversationId: "dc", text: "hello editor" });
     await flush();
-    // The owner's message to the busy run of the same conversation is steering (Task 9 delivers it).
+    // The owner's message to the busy ticket run is held (a ticket run takes no steering into its turn).
     expect([...h.store.steerMap.values()].map((r) => r.text)).toEqual(["hello editor"]);
     h.runtime.nth(0).emit({ type: "turn_end", costUsd: 0 });
     await flush();
-    expect(h.runtime.turns().map((s) => s.text)).toEqual([WAKE(t.number), REWAKE(t.number)]);
+    // The finish hands the held message to a continuation run, which goes before the re-wake.
+    expect(h.runtime.turns().map((s) => s.text)).toEqual([
+      WAKE(t.number),
+      `${CONTINUATION_PROMPT}\n\nNew message from the owner while you work:\nhello editor`,
+    ]);
+    h.runtime.last().emit({ type: "turn_end", costUsd: 0 });
+    await flush();
+    expect(h.runtime.turns().at(-1)?.text).toBe(REWAKE(t.number));
     h.runtime.last().emit({ type: "turn_end", costUsd: 0 });
     await flush();
     const running = [...h.store.wakeMap.values()].filter((w) => w.status === "running");
@@ -144,12 +152,12 @@ describe("ticket wakes and the busy flag", () => {
     h.surface.deliver({ conversationId: "dc", text: "later" });
     await flush();
     expect(h.runtime.turns()).toHaveLength(2);
-    // Steering into the busy re-wake run (Task 9 delivers it), not a run of its own.
+    // Held while the re-wake run works (a ticket run takes no steering), not a run of its own.
     expect([...h.store.steerMap.values()].map((r) => r.text)).toEqual(["later"]);
     h.runtime.last().emit({ type: "turn_end", costUsd: 0 });
     await flush();
     expect((await h.store.tickets.get(t.id))?.status).toBe("blocked");
-    expect(h.runtime.turns().at(-1)?.text).toBe(REWAKE(t.number));
+    expect(h.runtime.turns().at(-1)?.text).toContain(CONTINUATION_PROMPT);
   });
 
   test("a failed wake does not fail the ticket write", async () => {

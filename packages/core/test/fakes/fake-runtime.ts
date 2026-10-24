@@ -4,11 +4,14 @@ import type {
   BotSession,
   InboundTurn,
   RuntimeEvent,
+  SteerInput,
 } from "../../src";
 
 /** A session the test drives with `emit`, `end` and `fail`. */
 export class FakeSession implements BotSession {
   sent: InboundTurn[] = [];
+  /** Every steering push, in order. */
+  steered: SteerInput[] = [];
   stopped = false;
   private queue: RuntimeEvent[] = [];
   private waiter: ((r: IteratorResult<RuntimeEvent>) => void) | undefined;
@@ -27,6 +30,9 @@ export class FakeSession implements BotSession {
   send(turn: InboundTurn): void {
     this.sent.push(turn);
     this.onSend?.(this, turn);
+  }
+  steer(input: SteerInput): void {
+    this.steered.push(input);
   }
   emit(e: RuntimeEvent): void {
     if (this.waiter) {

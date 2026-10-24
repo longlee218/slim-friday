@@ -3,6 +3,7 @@ import { returnOutcome } from "../hub/bot-messaging";
 import type { HubContext } from "../hub/hub-context";
 import { type SessionScope, sessionScope } from "../hub/session-scope";
 import { checkUnfinished } from "../hub/ticket-wakes";
+import { settleCutSteering } from "./run-continuation";
 import { abortRun, newRunExec, type RunExec, untilStop } from "./run-exec";
 import { countCut, handleRunError } from "./run-failure";
 import { finishRun } from "./run-finish";
@@ -10,6 +11,7 @@ import type { RunLease } from "./run-lease";
 import { type PumpEnd, pumpRun } from "./run-pump";
 import { openRunSession } from "./run-session";
 import { persistEffort, runSpec } from "./run-spec";
+import { answeredUpTo, claimSteering, withSteering } from "./run-steering";
 import { buildRunTurn } from "./run-turn";
 import { StreamWatchdog } from "./run-watchdog";
 
@@ -27,6 +29,8 @@ export async function executeRun(ctx: HubContext, row: WakeRow, lease: RunLease)
   if (!scope) return dropRun(ctx, row, fence);
   const claimed = await countCut(ctx, row, fence, scope.bot);
   if (!claimed) return;
+  // A run reclaimed after a cut: rows its earlier attempt answered go, the others are offered again.
+  if (claimed.claimedFrom === "running") await settleCutSteering(ctx, claimed);
   // Spec "Taint flag": not started by the owner, resumes a cut or parked run, or a second attempt.
   const tainted =
     claimed.sender.kind !== "user" || claimed.cuts > 0 || claimed.cardId !== undefined || fence > 1;
@@ -94,7 +98,11 @@ async function runSession(
       buildRunTurn(ctx, exec.row, { cut: exec.row.cuts > 0, shown: opened.memory }),
     );
     if (turn === undefined || exec.stop) return { kind: "stopped" };
-    exec.session.send(turn);
+    // Steering rows bound since the claim travel with the first turn (a conversational run only); rows that
+    // come later are pushed into the open turn (`deliverSteering`).
+    const rows = await untilStop(exec, claimSteering(ctx, exec.row, ctx.deps.clock.now()));
+    if (rows === undefined || exec.stop) return { kind: "stopped" };
+    exec.session.send(withSteering(turn, rows));
     return await pumpRun(ctx, exec, dog);
   } catch (err) {
     return exec.stop ? { kind: "stopped" } : { kind: "error", err };
@@ -119,7 +127,12 @@ async function settle(ctx: HubContext, exec: RunExec, end: PumpEnd): Promise<voi
     return handleRunError(ctx, row, fence, err, bot);
   }
   const resultText = exec.turnTexts.at(-1);
-  const done = { status: "done" as const, ...(resultText !== undefined && { resultText }) };
+  const upTo = answeredUpTo(exec);
+  const done = {
+    status: "done" as const,
+    ...(resultText !== undefined && { resultText }),
+    ...(upTo !== undefined && { answeredUpTo: upTo }),
+  };
   if (!(await finishRun(ctx, row, fence, done))) return;
   await returnOutcome(ctx, exec);
   await checkUnfinished(ctx, exec);

@@ -88,3 +88,24 @@ test("a turn without files stays a plain string", async () => {
   await Bun.sleep(20);
   expect(typeof fq.sentContent()[0]).toBe("string");
 });
+
+test("steer pushes the framed text and files into the input queue, nothing after stop", async () => {
+  const fq = fakeQuery();
+  const rt = new ClaudeRuntime({
+    agentHome: join(root, "home"),
+    scratchRoot: join(root, "runs-steer"),
+    queryFn: fq.queryFn,
+    sessionExists: async () => true,
+  });
+  const s = await rt.open(spec);
+  s.steer({ text: "New message from the owner while you work:\nstop that" });
+  s.steer({ text: "look", attachments: [saved("1-s.png", "image/png", 10)] });
+  await Bun.sleep(20);
+  const [plain, withImage] = fq.sentContent() as [string, Block[]];
+  expect(plain).toBe("New message from the owner while you work:\nstop that");
+  expect(withImage.some((b) => b.type === "image")).toBe(true);
+  await s.stop();
+  s.steer({ text: "late" });
+  await Bun.sleep(20);
+  expect(fq.sentContent()).toHaveLength(2);
+});

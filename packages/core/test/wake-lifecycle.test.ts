@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { CONTINUATION_PROMPT } from "../src/runs/run-steering";
 import { flush, makeHub } from "./bot-hub-harness";
 
 test("a user message creates a wake that is running while the turn lasts and done at turn_end", async () => {
@@ -62,7 +63,8 @@ test("a message sent while the bot is busy steers its run instead of starting an
   expect(runtime.nth(0).sent).toHaveLength(1);
   runtime.nth(0).emit({ type: "turn_end", costUsd: 0 });
   await flush();
-  expect(status()).toEqual(["one:done"]);
+  // No tool ran, so the steering row was not pushed into the turn: a continuation run answers it.
+  expect(status()).toEqual(["one:done", `${CONTINUATION_PROMPT}:running`]);
 });
 
 test("a wake stopped by the spend cap is stored as blocked with its reason", async () => {

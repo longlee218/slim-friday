@@ -2,6 +2,7 @@ import type { Bot } from "../domain/bot";
 import type { WakeRow } from "../domain/wake";
 import { type HubContext, tell } from "../hub/hub-context";
 import { errText } from "../hub/hub-types";
+import { settleSteering } from "./run-continuation";
 import { finishRun } from "./run-finish";
 import { backoffMs, classifyFailure } from "./run-rules";
 
@@ -52,6 +53,8 @@ export async function handleRunError(
     };
     if (!(await store.wakes.transition(row.id, fence, ["running"], patch))) return;
     await store.attempts.finish(id, kind === "setup" ? "setup_failed" : "failed", now, why);
+    // The next attempt takes the rows this one claimed (the failed turn may not have answered them).
+    await store.steering.releaseClaimed(row.id);
     return;
   }
   const failed = retry ? { [retry.field]: retry.n } : {};
@@ -90,6 +93,7 @@ export async function countCut(
   if (!(await store.wakes.transition(row.id, fence, ["running"], patch))) return undefined;
   await store.attempts.finish(`${row.id}:${fence}`, "interrupted", now);
   await store.scopes.finished(row.scopeKey, now, Math.max(0, row.createdAt - 1));
+  await settleSteering(ctx, row, "interrupted");
   ctx.deps.log?.warn({ event: "wake.interrupted", wakeId: row.id, cuts }, "wake.interrupted");
   await tell(
     ctx,

@@ -57,6 +57,12 @@ export interface RunExec {
   followUp: boolean;
   /** A task ended while the current turn was open: a follow-up turn may come after its end. */
   taskDoneInTurn: boolean;
+  /** Epoch ms of the last `turn_end`; steering rows claimed up to then were answered. */
+  lastTurnEndAt?: number;
+  /** Earliest claim time of rows claimed after their turn ended (never answered). */
+  unansweredFrom?: number;
+  /** The last steering delivery in flight (deliveries are chained). */
+  delivering?: Promise<void>;
   /** Cancels the follow-up grace timer, while one runs. */
   cancelGrace?: () => void;
   /** Between the claim and the end of the event pump; tools may send and ask only then. */

@@ -4,6 +4,7 @@ import { RunClaimer } from "./run-claimer";
 import { abortRun } from "./run-exec";
 import { executeRun } from "./run-executor";
 import type { InProcessHints } from "./run-hints";
+import { deliverSteering } from "./run-steering";
 
 /** A log that drops every line (the hub may run without one). */
 const SILENT: Log = { info() {}, warn() {}, error() {} };
@@ -39,7 +40,9 @@ export class LocalRunner {
       if (h.kind === "cancel") return this.cancel(h.wakeIds);
       if (h.kind === "configChanged") return;
       if (!this.started) this.start();
-      else this.claimer.onHint();
+      else if (h.kind !== "steer") this.claimer.onHint();
+      // Steering for a run of this process goes into its open turn at once (a queued run claims it at start).
+      if (h.kind === "steer") this.steer(h.wakeId);
     });
   }
 
@@ -55,6 +58,12 @@ export class LocalRunner {
     this.ctx.closing = true;
     for (const exec of this.ctx.runs.values()) abortRun(exec, { kind: "shutdown" });
     await this.claimer.stop();
+  }
+
+  /** Push the rows bound to run `wakeId` into its turn when this process executes it. */
+  private steer(wakeId: string): void {
+    for (const exec of this.ctx.runs.values())
+      if (exec.row.id === wakeId) void deliverSteering(this.ctx, exec, true);
   }
 
   /** Cancelled runs stop at once instead of at the next fence check. */

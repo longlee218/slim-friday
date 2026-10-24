@@ -330,9 +330,18 @@ export class FakeStore implements Store {
       }
       return bound;
     },
-    deleteClaimed: async (wakeId: string) => {
-      for (const r of this.steerRows((r) => r.wakeId === wakeId && r.claimedAt !== undefined))
+    deleteClaimed: async (wakeId: string, upTo?: number) => {
+      for (const r of this.steerRows(
+        (r) =>
+          r.wakeId === wakeId &&
+          r.claimedAt !== undefined &&
+          (upTo === undefined || r.claimedAt <= upTo),
+      ))
         this.steerMap.delete(r.id);
+    },
+    unbind: async (wakeId: string) => {
+      for (const r of this.steerRows((r) => r.wakeId === wakeId && r.claimedAt === undefined))
+        delete r.wakeId;
     },
     releaseClaimed: async (wakeId: string) => {
       for (const r of this.steerRows((r) => r.wakeId === wakeId && r.claimedAt !== undefined))

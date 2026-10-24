@@ -78,12 +78,20 @@ export function turnContent(
   names: Record<string, string>,
   scratchDir: string,
 ): UserContent {
-  const text = formatTurn(turn, names);
-  if (!turn.attachments?.length) return text;
+  return withAttachments(formatTurn(turn, names), turn.attachments, scratchDir);
+}
+
+/** `text` alone, or, with files, content blocks as `turnContent` describes (also used for steering pushes). */
+export function withAttachments(
+  text: string,
+  attachments: Attachment[] | undefined,
+  scratchDir: string,
+): UserContent {
+  if (!attachments?.length) return text;
   const images: UserContent = [];
   const lines: string[] = [];
   let copyDir: string | undefined;
-  for (const a of turn.attachments) {
+  for (const a of attachments) {
     if (INLINE_IMAGES.has(a.mimeType) && a.size <= MAX_INLINE_BYTES) {
       images.push(imageBlock(a));
       lines.push(`- ${a.name} (${a.mimeType}, shown above)`);

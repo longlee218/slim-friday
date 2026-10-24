@@ -31,6 +31,14 @@ export interface InboundTurn {
   quote?: { author: Author; text: string };
 }
 
+/** Owner messages pushed into a turn that is already running (steering). */
+export interface SteerInput {
+  /** The text the bot reads (already framed as new owner messages). */
+  text: string;
+  /** Files sent with those messages; the runtime shows them like the first turn's files. */
+  attachments?: Attachment[];
+}
+
 /** What a session reports; generic words only. */
 export type RuntimeEvent =
   | { type: "text"; text: string }
@@ -82,6 +90,8 @@ export interface BotRuntimeSpec {
 export interface BotSession {
   id: string;
   send(turn: InboundTurn): void;
+  /** Push owner messages into the turn in progress; the model reads them at its next step. Dropped after `stop()`. */
+  steer(input: SteerInput): void;
   events: AsyncIterable<RuntimeEvent>;
   /** Stops the session and any background tasks it started. */
   stop(): Promise<void>;

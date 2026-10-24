@@ -80,3 +80,18 @@ test("add of a stored id changes nothing; bound reads without claiming; remove d
   expect((await s.steering.claim("w1", 5)).map((r) => r.id)).toEqual(["s2"]);
   expect(await s.steering.bound("w1")).toEqual([]);
 });
+
+test("deleteClaimed with upTo keeps later claims; unbind makes unclaimed rows held", async () => {
+  const s = open();
+  await s.steering.add(row("u1", 1, "w1"));
+  await s.steering.claim("w1", 10);
+  await s.steering.add(row("u2", 2, "w1"));
+  await s.steering.claim("w1", 20);
+  await s.steering.add(row("u3", 3, "w1"));
+  await s.steering.deleteClaimed("w1", 10);
+  await s.steering.releaseClaimed("w1");
+  expect((await s.steering.bound("w1")).map((r) => r.id)).toEqual(["u2", "u3"]);
+  await s.steering.unbind("w1");
+  expect((await s.steering.held("a")).map((r) => r.id)).toEqual(["u2", "u3"]);
+  s.close();
+});

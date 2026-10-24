@@ -1,6 +1,6 @@
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import type { BotSession, InboundTurn, RuntimeEvent } from "@friday/core";
-import { turnContent } from "./format-turn";
+import type { BotSession, InboundTurn, RuntimeEvent, SteerInput } from "@friday/core";
+import { turnContent, withAttachments } from "./format-turn";
 import type { InputQueue } from "./input-queue";
 import { mapMessage } from "./map-message";
 
@@ -32,6 +32,15 @@ export class ClaudeSession implements BotSession {
   send(turn: InboundTurn): void {
     if (this.stopped) return;
     this.queue.push(turnContent(turn, this.names, this.scratchDir));
+  }
+
+  /**
+   * Push owner messages into the turn in progress. The SDK reads a message queued while a tool runs at the
+   * next model step of the same turn (spike result: one answer, one `result`). Dropped after `stop()`.
+   */
+  steer(input: SteerInput): void {
+    if (this.stopped) return;
+    this.queue.push(withAttachments(input.text, input.attachments, this.scratchDir));
   }
 
   /** End the input, abort the SDK (its background tasks go with it) and end `events`. */
