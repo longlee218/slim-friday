@@ -15,6 +15,7 @@ export * from "./hub/bot-hub";
 export * from "./hub/idle-close";
 export * from "./hub/memory-label";
 export * from "./hub/post-stored";
+export * from "./hub/rules-label";
 export * from "./hub/session-scope";
 export * from "./permission/classify-tool";
 export * from "./permission/decide";

@@ -12,6 +12,7 @@ import { GROUP_SESSION_KINDS } from "../ports/memory";
 import type { Store } from "../ports/store";
 import type { Surface } from "../ports/surface";
 import { promptMemory } from "./group-memory";
+import { readRulesText } from "./rules-for-turn";
 import { RunTracker } from "./run-steps";
 import type { SessionScope } from "./session-scope";
 
@@ -78,6 +79,10 @@ export interface PoolEntry {
   memoryShown: string;
   /** A compaction may have dropped notes saved since `memoryShown`: re-read the memory on the next turn. */
   memoryStale?: boolean;
+  /** Bot rules text this session was last given: at open or in a turn ("" when none). */
+  rulesShown: string;
+  /** Group rules text last sent to this session, by group; a compaction clears it. */
+  groupRulesSent: Map<string, string>;
   /** Group memory text last sent to this session, by group; a new session starts empty. */
   groupMemorySent: Map<string, string>;
   /** Group context text last sent to this session, by group. */
@@ -205,6 +210,12 @@ export class SessionPool {
       scope.groupId ? GROUP_SESSION_KINDS : undefined,
     );
     if (memory?.trim()) spec.memory = memory;
+    const rules = await readRulesText(
+      this.memory,
+      { kind: "bot", botId: bot.id },
+      this.memoryOpts.log,
+    );
+    if (rules) spec.rules = rules;
     const stored = await this.store.sessions.get(scope.key);
     let session: BotSession | undefined;
     if (stored) {
@@ -232,6 +243,8 @@ export class SessionPool {
       queue: [],
       stopping: false,
       memoryShown: spec.memory ?? "",
+      rulesShown: spec.rules ?? "",
+      groupRulesSent: new Map(),
       groupMemorySent: new Map(),
       groupContextSent: new Map(),
       openedAt: this.clock.now(),

@@ -7,6 +7,7 @@ import {
   INTERRUPTED_NOTE,
   type InboundTurn,
   MEMORY_LABEL,
+  RULES_LABEL,
   type StoredMessage,
 } from "@friday/core";
 import type { UserContent } from "./input-queue";
@@ -52,6 +53,12 @@ export function formatTurn(turn: InboundTurn, names: Record<string, string>): st
     : "";
   const tickets = turn.tickets ? `${turn.tickets}\n\n` : "";
   const groupContext = turn.groupContext ? `Group context:\n${turn.groupContext}\n\n` : "";
+  const botRules = turn.botRules
+    ? `Your rules (updated; they replace the earlier list):\n${turn.botRules}\n\n`
+    : "";
+  const groupRules = turn.groupRules
+    ? `Group rules:\n${RULES_LABEL}\n\n${turn.groupRules}\n\n`
+    : "";
   const botMemory = turn.botMemory
     ? `Your memory (updated):\n${MEMORY_LABEL}\n\n${turn.botMemory}\n\n`
     : "";
@@ -73,7 +80,7 @@ export function formatTurn(turn: InboundTurn, names: Record<string, string>): st
     ? `> Replying to ${nameOf(turn.quote.author, names)}: ${oneLine(turn.quote.text)}\n`
     : "";
   const note = turn.interrupted ? `${INTERRUPTED_NOTE}\n\n` : "";
-  return `${tickets}${groupContext}${botMemory}${memory}${recalled}${block}${note}[conversation ${turn.conversationId}] ${nameOf(turn.from, names)} (hop ${turn.hop}):\n${quote}${body}`;
+  return `${tickets}${groupContext}${botRules}${groupRules}${botMemory}${memory}${recalled}${block}${note}[conversation ${turn.conversationId}] ${nameOf(turn.from, names)} (hop ${turn.hop}):\n${quote}${body}`;
 }
 
 /**

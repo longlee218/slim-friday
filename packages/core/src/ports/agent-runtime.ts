@@ -23,6 +23,10 @@ export interface InboundTurn {
   interrupted?: boolean;
   /** The group's instructions, working dirs and project rules; set on a group turn only when they changed since the bot last saw them. */
   groupContext?: string;
+  /** The bot's on rules; set when they changed since the session last saw them ("(none)" when all are off). */
+  botRules?: string;
+  /** The group's on rules; set on a group turn when they changed since the session last saw them. */
+  groupRules?: string;
   /** The bot's own memory; set only on the first turn after a compaction, when it changed since the bot last saw it. */
   botMemory?: string;
   /** The group's memory; set on a group turn only when it changed since the bot last saw it. */
@@ -74,6 +78,8 @@ export interface BotRuntimeSpec {
   currentConversation?: () => ConversationId | undefined;
   /** Lets the `SetEffort` tool reach the session; the runtime fills it in. */
   effortControl?: EffortControl;
+  /** The owner's on rules for the bot, read when the session opens; the runtime puts them before the memory. */
+  rules?: string;
   /** The bot's own memory, read when the session opens; the runtime adds it to the system prompt. */
   memory?: string;
   /** Asks the owner a question the bot raised; resolves `null` when nobody answers. */

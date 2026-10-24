@@ -12,6 +12,7 @@ import {
   type MemoryKind,
   stripDateSuffix,
 } from "./memory-sections";
+import { readRules, rulesForPrompt } from "./rules-file";
 import { MEMORY_NOTE_MAX_CHARS, sanitizeBullet } from "./sanitize-bullet";
 import { backupFile } from "./stamped-backup";
 
@@ -95,6 +96,11 @@ export class FileMemory implements Memory {
       maxChars,
       kinds?.filter((k): k is MemoryKind => MEMORY_FILE_KINDS.includes(k as MemoryKind)),
     );
+  }
+
+  /** The owner's on rules as prompt lines (see `rulesForPrompt`); "" when none is on. */
+  async readRules(owner: MemoryOwner): Promise<string> {
+    return rulesForPrompt(readRules(this.root, owner));
   }
 
   async save(owner: MemoryOwner, note: string, kind = "fact"): Promise<void> {

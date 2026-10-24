@@ -75,6 +75,7 @@ export async function pumpEvents(
         // The summary may have dropped the group memory the bot was shown: send it again on the next group turn.
         entry.groupMemorySent.clear();
         entry.groupContextSent.clear();
+        entry.groupRulesSent.clear();
         entry.memoryStale = true;
       } else if (e.type === "turn_end") {
         show(entry.steps.endTurn(clock.now()));
