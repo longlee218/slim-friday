@@ -2,6 +2,7 @@ import type { Bot, Conversation, Group, Memory } from "../src";
 import { BotHub } from "../src/hub/bot-hub";
 import { PermissionGate } from "../src/permission/permission-gate";
 import { FakeClock } from "./fakes/fake-clock";
+import { FakeLog } from "./fakes/fake-log";
 import { FakeRuntime } from "./fakes/fake-runtime";
 import { FakeStore } from "./fakes/fake-store";
 import { FakeSurface } from "./fakes/fake-surface";
@@ -30,6 +31,7 @@ export function makeHub(memory?: Memory) {
   const runtime = new FakeRuntime();
   const surface = new FakeSurface();
   const clock = new FakeClock(0);
+  const log = new FakeLog();
   const writer = bot("writer", "Writer");
   const editor = bot("editor", "Editor");
   store.botMap.set("writer", writer);
@@ -45,7 +47,7 @@ export function makeHub(memory?: Memory) {
     catalog: new FakeToolCatalog([]),
     settings: () => ({ level: "balanced" }),
   });
-  const hub = new BotHub({ runtime, surface, store, clock, gate, ...(memory && { memory }) });
+  const hub = new BotHub({ runtime, surface, store, clock, gate, log, ...(memory && { memory }) });
   hub.start();
-  return { store, runtime, surface, clock, gate, hub, writer, editor };
+  return { store, runtime, surface, clock, gate, hub, writer, editor, log };
 }

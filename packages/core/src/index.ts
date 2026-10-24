@@ -16,6 +16,7 @@ export * from "./permission/match-grant";
 export * from "./permission/permission-gate";
 export * from "./ports/agent-runtime";
 export * from "./ports/clock";
+export * from "./ports/log";
 export * from "./ports/memory";
 export * from "./ports/store";
 export * from "./ports/surface";

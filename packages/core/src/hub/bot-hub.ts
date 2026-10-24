@@ -5,6 +5,7 @@ import type { Attachment, Author } from "../domain/message";
 import type { PermissionGate } from "../permission/permission-gate";
 import type { AgentRuntime } from "../ports/agent-runtime";
 import type { Clock } from "../ports/clock";
+import type { Log } from "../ports/log";
 import type { Memory } from "../ports/memory";
 import type { Store } from "../ports/store";
 import type { InboundMessage, Surface } from "../ports/surface";
@@ -13,6 +14,10 @@ import { routeMessage } from "../routing/route-message";
 import { dayOf, pumpEvents } from "./event-pump";
 import { changedGroupMemory } from "./group-memory";
 import { type PoolEntry, type QueuedWake, SessionPool } from "./session-pool";
+import { WakeLog } from "./wake-log";
+
+/** Text of an error value. */
+const errText = (err: unknown): string => (err instanceof Error ? err.message : String(err));
 
 /** What /status shows for one running bot. */
 export interface BotStatus {
@@ -31,6 +36,8 @@ export interface BotHubDeps {
   limits?: CoreLimits;
   /** Bot and group memory; without it no memory reaches the prompt. */
   memory?: Memory;
+  /** Where wake events and failures are reported; without it nothing is logged. */
+  log?: Log;
 }
 
 /**
@@ -41,6 +48,7 @@ export class BotHub {
   private pool: SessionPool;
   private guard: ChainGuard;
   private limits: CoreLimits;
+  private wakeLog: WakeLog;
   /** Caps already announced; cleared when the user writes again in that conversation. */
   private noticed = new Set<string>();
 
@@ -48,6 +56,7 @@ export class BotHub {
     this.limits = deps.limits ?? CORE_DEFAULTS;
     this.pool = new SessionPool(deps.runtime, deps.store, deps.clock, deps.gate, deps.memory);
     this.guard = new ChainGuard(deps.clock, this.limits);
+    this.wakeLog = new WakeLog(deps.store, deps.clock, deps.log);
   }
 
   /** Start listening to the surface. */
@@ -56,14 +65,22 @@ export class BotHub {
       this.handle(m).catch(async (err) => {
         // Never lose a failure: tell the user where it happened.
         const why = err instanceof Error ? err.message : String(err);
-        await this.deps.surface
-          .post(m.conversationId, {
-            author: { kind: "system" },
-            text: `Could not deliver the message: ${why}`,
-          })
-          .catch(() => {});
+        this.deps.log?.error({ error: why, conversationId: m.conversationId }, "hub.handle_failed");
+        await this.tell(m.conversationId, `Could not deliver the message: ${why}`);
       });
     });
+  }
+
+  /** Post a system notice; a notice that cannot be posted is logged, never lost silently. */
+  private async tell(conversationId: ConversationId, text: string): Promise<void> {
+    await this.deps.surface
+      .post(conversationId, { author: { kind: "system" }, text })
+      .catch((err) =>
+        this.deps.log?.error(
+          { error: err instanceof Error ? err.message : String(err), conversationId },
+          "hub.notice_failed",
+        ),
+      );
   }
 
   /** A user message: store it and wake the bots it addresses. */
@@ -141,20 +158,40 @@ export class BotHub {
     const bot = await store.bots.get(botId);
     const conv = await store.conversations.get(conversationId);
     if (!bot || !conv) return;
+    // The wake is stored first, so a blocked one is on record with its reason.
+    const row = await this.wakeLog.create({
+      conversationId,
+      targetBot: botId,
+      sender,
+      intent: "request",
+      hop,
+      text,
+      ...(attachments && { attachments }),
+    });
     const w = { conversationId, sender, target: botId, text, hop };
     const verdict = this.guard.check(w);
-    if (!verdict.ok) return this.notice(conversationId, verdict.reason);
-    if ((await store.spend.total(botId, dayOf(clock.now()))) >= this.limits.maxSpendPerBotPerDayUsd)
+    if (!verdict.ok) {
+      await this.wakeLog.blocked(row, verdict.reason);
+      return this.notice(conversationId, verdict.reason);
+    }
+    if (
+      (await store.spend.total(botId, dayOf(clock.now()))) >= this.limits.maxSpendPerBotPerDayUsd
+    ) {
+      await this.wakeLog.blocked(row, "spend");
       return this.notice(conversationId, "spend");
+    }
 
     const entry = await this.pool.get(bot);
     if (!entry.pumping) {
       entry.pumping = true;
-      this.runPump(entry).catch(() => {});
+      this.runPump(entry).catch((err) =>
+        this.deps.log?.error({ error: errText(err), botId }, "hub.pump_failed"),
+      );
     }
     this.guard.record(w);
     // One turn at a time per bot: a message that arrives mid-turn waits, so each answer goes where it was asked.
     const wake: QueuedWake = {
+      wakeId: row.id,
       conversationId,
       sender,
       text,
@@ -175,7 +212,9 @@ export class BotHub {
         : [];
     const groupMemory = conv ? await changedGroupMemory(entry, conv, this.deps.memory) : undefined;
     entry.current = { conversationId: q.conversationId, hop: q.hop };
+    entry.currentWakeId = q.wakeId;
     entry.busy = true;
+    await this.wakeLog.started(q.wakeId);
     entry.lastActive = clock.now();
     surface.showActivity(q.conversationId, { kind: "typing", botId: entry.bot.id });
     try {
@@ -191,6 +230,8 @@ export class BotHub {
     } catch (err) {
       // A send that fails (for example an unreadable attachment) must not leave the bot busy for good.
       entry.busy = false;
+      entry.currentWakeId = undefined;
+      await this.wakeLog.dropped(q.wakeId);
       throw err;
     }
   }
@@ -198,6 +239,7 @@ export class BotHub {
   private runPump(entry: PoolEntry): Promise<void> {
     return pumpEvents(entry, this.deps, {
       onBotText: async (e, text) => {
+        if (e.currentWakeId) await this.wakeLog.firstText(e.currentWakeId);
         const conv = await this.deps.store.conversations.get(e.current.conversationId);
         if (!conv) return;
         const author: Author = { kind: "bot", botId: e.bot.id };
@@ -206,6 +248,8 @@ export class BotHub {
       },
       onTurnEnd: async (e) => {
         e.busy = false;
+        if (e.currentWakeId) await this.wakeLog.done(e.currentWakeId);
+        e.currentWakeId = undefined;
         // A queued message that cannot be sent is reported; the next one still gets its turn.
         for (let next = e.queue.shift(); next; next = e.queue.shift()) {
           try {
@@ -213,28 +257,30 @@ export class BotHub {
             break;
           } catch (err) {
             const why = err instanceof Error ? err.message : String(err);
-            await this.deps.surface
-              .post(next.conversationId, {
-                author: { kind: "system" },
-                text: `Could not deliver the message: ${why}`,
-              })
-              .catch(() => {});
+            this.deps.log?.error({ error: why, botId: e.bot.id }, "hub.dispatch_failed");
+            await this.tell(next.conversationId, `Could not deliver the message: ${why}`);
           }
         }
       },
       onClosed: async (e, crashed, reason) => {
         if (this.pool.entry(e.bot.id) === e) this.pool.remove(e.bot.id);
+        // The turn that was running ends here, and the messages that waited behind it are not delivered.
+        if (e.currentWakeId) await this.wakeLog.interrupted(e.currentWakeId);
+        e.currentWakeId = undefined;
+        for (const q of e.queue) await this.wakeLog.dropped(q.wakeId);
         e.queue = [];
         if (!crashed) return;
         // A crashed session must not stay alive next to the one the next message resumes.
         e.stopping = true;
-        await e.session.stop().catch(() => {});
-        await this.deps.surface
-          .post(e.current.conversationId, {
-            author: { kind: "system" },
-            text: `${e.bot.name} stopped unexpectedly${reason ? `: ${reason}` : ""}. Send a message to continue.`,
-          })
-          .catch(() => {});
+        await e.session
+          .stop()
+          .catch((err) =>
+            this.deps.log?.error({ error: errText(err), botId: e.bot.id }, "hub.stop_failed"),
+          );
+        await this.tell(
+          e.current.conversationId,
+          `${e.bot.name} stopped unexpectedly${reason ? `: ${reason}` : ""}. Send a message to continue.`,
+        );
       },
     });
   }

@@ -16,6 +16,8 @@ export interface TaskInfo {
 
 /** A message waiting for the bot to finish its current turn. */
 export interface QueuedWake {
+  /** The stored wake this message belongs to. */
+  wakeId: string;
   conversationId: ConversationId;
   sender: Author;
   text: string;
@@ -31,6 +33,8 @@ export interface PoolEntry {
   lastActive: number;
   /** A turn was sent and has not ended yet. */
   busy: boolean;
+  /** The wake the bot is answering now; none between turns. */
+  currentWakeId?: string;
   /** The conversation (and chain depth) the bot is answering now. */
   current: { conversationId: ConversationId; hop: number };
   tasks: Map<string, TaskInfo>;
