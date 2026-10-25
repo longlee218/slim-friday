@@ -24,7 +24,7 @@ export const FRIDAY_MCP_SERVERS: readonly string[] = [
 ];
 
 /**
- * Tools whose results read only the bot's own state, so they never taint (spec §6.10). A name ending in `*` is
+ * Tools whose results read only the bot's own state or local files, so they never taint (spec §6.10). A name ending in `*` is
  * a prefix (every tool of that server). New tools taint by default (Rakazo).
  */
 export const OWN_STATE_TOOLS: readonly string[] = [
@@ -41,6 +41,12 @@ export const OWN_STATE_TOOLS: readonly string[] = [
   "AskUserQuestion",
   // Its output is only the bot's own tool definitions.
   "ToolSearch",
+  // Reads of files in the bot's workspaces and its own notes and skills (Bash can fetch from the network, so it taints).
+  "Read",
+  "Grep",
+  "Glob",
+  "TodoWrite",
+  "Skill",
 ];
 
 /**
@@ -106,6 +112,19 @@ export function fetchSiteOf(
   return host ? domainOf(host) : undefined;
 }
 
+/**
+ * A memory write that shapes later runs like an instruction: a lesson or preference note (they are read back into
+ * the prompt of every session), or any edit of a saved note (it may rewrite one of those). Plain fact and decision
+ * notes stay free.
+ */
+function changesStandingNotes(call: Pick<ToolCall, "tool" | "input">): boolean {
+  if (call.tool === "mcp__memory__MemoryEdit") return true;
+  return (
+    call.tool === "mcp__memory__MemorySave" &&
+    (call.input.kind === "lesson" || call.input.kind === "preference")
+  );
+}
+
 /** The taint ask of a call with its mandatory flag; undefined when the run is clean or the call needs none. */
 export function taintAskOf(
   call: Pick<ToolCall, "tool" | "input">,
@@ -115,6 +134,11 @@ export function taintAskOf(
   if (!run.tainted) return undefined;
   if (INSTRUCTION_CHANGE_TOOLS.includes(call.tool))
     return { reason: "changes bot instructions after untrusted content was read", mandatory: true };
+  if (changesStandingNotes(call))
+    return {
+      reason: "saves a lesson or preference after untrusted content was read",
+      mandatory: true,
+    };
   if (call.tool === "WebFetch") {
     const site = fetchSiteOf(call, domainOf);
     if (!site) return { reason: "web fetch to a url with no registrable site", mandatory: false };

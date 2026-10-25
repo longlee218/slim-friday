@@ -42,7 +42,11 @@ const call = (tool: string, input: Record<string, unknown> = {}): ToolCall => ({
 const fetch = (url: string) => call("WebFetch", { url });
 
 test("own-state tools never taint; anything else does", () => {
-  expect(taints("Read")).toBe(true);
+  expect(taints("Read")).toBe(false);
+  expect(taints("Grep")).toBe(false);
+  expect(taints("Glob")).toBe(false);
+  expect(taints("TodoWrite")).toBe(false);
+  expect(taints("Skill")).toBe(false);
   expect(taints("WebFetch")).toBe(true);
   expect(taints("Bash")).toBe(true);
   expect(taints(EXT)).toBe(true);
@@ -191,4 +195,17 @@ test("a public-suffix host is never stored as an approved site", () => {
   expect(r.approvedSites.size).toBe(0);
   noteTaintAllowed(fetch("https://myapp.fly.dev/a"), r, rd);
   expect(taintAsk(fetch("https://evil.fly.dev/a"), r, rd)).toBeDefined();
+});
+
+test("tainted run: a lesson or preference note and any note edit ask; a fact or decision does not", () => {
+  const save = (kind?: string) => call("mcp__memory__MemorySave", { note: "n", kind });
+  expect(taintAsk(save("lesson"), run(), rd)).toContain("lesson or preference");
+  expect(taintAsk(save("preference"), run(), rd)).toContain("lesson or preference");
+  expect(
+    taintAsk(call("mcp__memory__MemoryEdit", { id: "x", note: "n" }), run(), rd),
+  ).toBeDefined();
+  expect(taintAsk(save("fact"), run(), rd)).toBeUndefined();
+  expect(taintAsk(save("decision"), run(), rd)).toBeUndefined();
+  expect(taintAsk(save(), run(), rd)).toBeUndefined();
+  expect(taintAsk(save("lesson"), run({ tainted: false }), rd)).toBeUndefined();
 });

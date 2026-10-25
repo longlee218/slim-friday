@@ -129,6 +129,9 @@ test('transient error requeues with backoff, sixth gives up with "Send a message
   await flush();
   expect(only(h)).toMatchObject({ status: "failed", error: "overloaded" });
   expect(h.surface.posts.at(-1)?.message.text).toContain("Send a message to continue.");
+  // The owner gets the finished toast for a run that ended without an answer.
+  expect(h.surface.finished.at(-1)).toMatchObject({ conversationId: "dc", botId: "editor" });
+  expect(h.surface.finished.at(-1)?.preview).toContain("Send a message to continue.");
 });
 
 test("eighth setup failure ends failed", async () => {

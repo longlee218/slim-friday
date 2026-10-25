@@ -1,7 +1,7 @@
 /**
  * Caps of a bot's public profile on every write (`UpdateProfile`, `BotDesign` write_bot, the web settings). The
  * title is a trusted line of the bot's own system prompt, so a write keeps it short. The bot file parser loads
- * titles up to 200 chars, so an older, longer owner file still loads; it is refused only when written again.
+ * titles up to 200 chars, so an older, longer owner file still loads; it is refused only when changed to a longer one (an unchanged title still saves).
  */
 
 /** Longest title a write accepts (characters). */

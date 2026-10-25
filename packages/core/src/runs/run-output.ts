@@ -96,6 +96,18 @@ export async function settleOutput(ctx: HubContext, exec: RunExec): Promise<stri
 /** Longest finished preview (code points). */
 export const FINISHED_PREVIEW_CHARS = 180;
 
+/** The toast preview of a text: redacted, newlines collapsed to spaces, cut to 180 code points. */
+export function finishedPreview(ctx: HubContext, text: string): string {
+  const flat = redactSecrets(text, secretsFrom(ctx.deps.secretValues)).replace(/\s+/g, " ").trim();
+  const points = [...flat];
+  return points.length > FINISHED_PREVIEW_CHARS
+    ? `${points
+        .slice(0, FINISHED_PREVIEW_CHARS - 1)
+        .join("")
+        .trimEnd()}…`
+    : flat;
+}
+
 /**
  * Tell the surface the run's final answer was posted to the owner: redacted, newlines collapsed to spaces,
  * cut to 180 code points. Nothing for a run that does not talk to the owner (ticket, intro, bot-to-bot).
@@ -105,15 +117,7 @@ export const FINISHED_PREVIEW_CHARS = 180;
 export function announceFinished(ctx: HubContext, exec: RunExec): void {
   const text = exec.announceText;
   if (text === undefined || !talksToOwner(exec.row)) return;
-  const flat = redactSecrets(text, secretsFrom(ctx.deps.secretValues)).replace(/\s+/g, " ").trim();
-  const points = [...flat];
-  const preview =
-    points.length > FINISHED_PREVIEW_CHARS
-      ? `${points
-          .slice(0, FINISHED_PREVIEW_CHARS - 1)
-          .join("")
-          .trimEnd()}…`
-      : flat;
+  const preview = finishedPreview(ctx, text);
   try {
     ctx.deps.surface.notifyFinished({
       conversationId: exec.current.conversationId,

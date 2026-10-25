@@ -148,6 +148,13 @@ test("removed bot's queued run is cancelled with a notice", async () => {
   ]);
 });
 
+test("a run stopped by a config change toasts the owner; a delegated stop does not", async () => {
+  const h = await parked();
+  await h.hub.configChanged({ removedBots: ["editor"], removedGroups: [], resetScopes: [] });
+  expect(h.surface.finished.at(-1)?.botId).toBe("editor");
+  expect(h.surface.finished.at(-1)?.preview).toContain("was removed");
+});
+
 test("the reconciler withdraws open cards of a run cancelled before the process could", async () => {
   const h = await parked();
   // A crash after the cancel was committed: the row is cancelled, the card still open.

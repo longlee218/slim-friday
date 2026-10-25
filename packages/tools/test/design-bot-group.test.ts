@@ -302,6 +302,18 @@ test("a new group without workspaces or instructions writes no empty keys", asyn
   expect(text).not.toContain("instructions");
 });
 
+test("write_bot keeps an unchanged older title over 80 chars; a changed long one is refused", async () => {
+  const long = "y".repeat(120);
+  const { ctx, configDir } = setup({
+    botSummaries: () => [{ id: "ann", name: "Ann", title: long }],
+  });
+  const same = await call(createBotDesignTool(ctx), { ...bot, title: long });
+  expect(same.isError).toBeFalsy();
+  expect(existsSync(join(configDir, "bots", "ann.md"))).toBe(true);
+  const changed = await call(createBotDesignTool(ctx), { ...bot, title: `${long}z` });
+  expect(changed.isError).toBe(true);
+});
+
 test("write_bot refuses a title over 80 chars and writes nothing", async () => {
   const { ctx, configDir } = setup();
   const r = await call(createBotDesignTool(ctx), { ...bot, title: "x".repeat(81) });

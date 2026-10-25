@@ -51,7 +51,7 @@ test("a clean-run card answered in place after the run became tainted is no tain
   const id = cards(h)[0]?.id ?? "";
   expect(cards(h)[0]?.approval?.tainted).toBeUndefined();
   // While the run waits on the card, a Read result taints it.
-  s.emit({ type: "tool_call", toolUseId: "u1", tool: "Read", input: {} });
+  s.emit({ type: "tool_call", toolUseId: "u1", tool: "Bash", input: {} });
   s.emit({ type: "tool_result", toolUseId: "u1", ok: true });
   await flush();
   expect(await h.hub.answerCard(id, "once")).toBe("ok");

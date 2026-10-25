@@ -4,6 +4,7 @@ import type { GroupId } from "../domain/group";
 import type { WakeRow, WakeStatus } from "../domain/wake";
 import { type HubContext, tell } from "../hub/hub-context";
 import { withdrawCards } from "./run-card-withdraw";
+import { announceNotice } from "./run-notice-finished";
 
 /** What a stop acts on: a bot (all its scopes, or one), every member scope of a group, or one conversation. */
 export type StopTarget =
@@ -126,6 +127,8 @@ async function noticeConversations(
     if ((!reason.always && w.sender.kind !== "bot") || seen.has(w.conversationId)) continue;
     seen.add(w.conversationId);
     const bot = await ctx.deps.store.bots.get(w.targetBot);
-    await tell(ctx, w.conversationId, reason.notice(bot?.name ?? w.targetBot));
+    const notice = reason.notice(bot?.name ?? w.targetBot);
+    await tell(ctx, w.conversationId, notice);
+    announceNotice(ctx, w, notice);
   }
 }

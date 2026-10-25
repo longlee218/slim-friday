@@ -5,6 +5,7 @@ import { errText } from "../hub/hub-types";
 import { returnOutcomeSafe } from "./outcome-outbox";
 import { settleSteering } from "./run-continuation";
 import { finishRun } from "./run-finish";
+import { announceNotice } from "./run-notice-finished";
 import { backoffMs, classifyFailure } from "./run-rules";
 
 /** What the owner is told when a run gives up. */
@@ -73,6 +74,7 @@ export async function handleRunError(
       ? `${bot.name} stopped unexpectedly: ${why}. ${GIVE_UP_TEXT}`
       : `${bot.name} could not finish: ${why}. ${GIVE_UP_TEXT}`);
   await tell(ctx, row.conversationId, text);
+  announceNotice(ctx, row, text);
 }
 
 /**
@@ -104,10 +106,8 @@ export async function countCut(
   await settleSteering(ctx, row, "interrupted");
   await returnOutcomeSafe(ctx, { ...row, ...patch });
   ctx.deps.log?.warn({ event: "wake.interrupted", wakeId: row.id, cuts }, "wake.interrupted");
-  await tell(
-    ctx,
-    row.conversationId,
-    `${bot.name} was interrupted ${cuts} times by restarts; the message was not delivered again.`,
-  );
+  const notice = `${bot.name} was interrupted ${cuts} times by restarts; the message was not delivered again.`;
+  await tell(ctx, row.conversationId, notice);
+  announceNotice(ctx, row, notice);
   return undefined;
 }

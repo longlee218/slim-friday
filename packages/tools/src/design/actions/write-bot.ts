@@ -38,7 +38,9 @@ export function buildBotFile(
   const body = need(a.instructions, "instructions");
   const title = need(a.title, "title");
   // The title is a trusted line of the bot's system prompt: a write keeps it short (the parser loads up to 200).
-  const titleTooLong = profileLimitError("title", title);
+  // An unchanged older title (81-200 chars) is no new write, so editing other fields still saves.
+  const titleKept = ctx.botSummaries().some((b) => b.id === id && b.title === title);
+  const titleTooLong = titleKept ? undefined : profileLimitError("title", title);
   if (titleTooLong) throw new Refused(titleTooLong, "title");
   // Autonomy `autonomous` runs write and external tools without asking and beats settings.yaml: the owner sets it by hand.
   if (a.autonomy === "autonomous" && by === "bot")

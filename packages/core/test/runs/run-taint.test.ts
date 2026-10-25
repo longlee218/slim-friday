@@ -38,13 +38,13 @@ async function ownerRunAfter(h: Hub, text: string, tool?: string) {
   return s;
 }
 
-test("an owner-started run is clean until Read returns, then tainted and stored", async () => {
+test("an owner-started run is clean until Bash returns, then tainted and stored", async () => {
   const h = hub();
   h.surface.deliver({ conversationId: "dc", text: "summarise the notes" });
   await flush();
   const s = h.runtime.last();
   expect(await s.spec.decide(fetch("https://other.test/a"))).toEqual({ behavior: "allow" });
-  s.emit({ type: "tool_call", toolUseId: "t1", tool: "Read", input: { file_path: "/x" } });
+  s.emit({ type: "tool_call", toolUseId: "t1", tool: "Bash", input: { file_path: "/x" } });
   await flush();
   // The call is open, its result not read yet: still clean.
   expect(only(h).tainted).toBeUndefined();
@@ -63,7 +63,7 @@ test("MemorySearch does not taint the run", async () => {
 
 test("tainted: a fetch to a site in the owner's message needs no card, another site does", async () => {
   const h = hub();
-  const s = await ownerRunAfter(h, "check https://docs.example.com/page", "Read");
+  const s = await ownerRunAfter(h, "check https://docs.example.com/page", "Bash");
   expect(await s.spec.decide(fetch("https://example.com/other"))).toEqual({ behavior: "allow" });
   expect((await s.spec.decide(fetch("https://evil.test/x"))).behavior).toBe("park");
   expect([...h.store.cardMap.values()][0]?.approval?.summary).toContain("evil.test");
@@ -71,7 +71,7 @@ test("tainted: a fetch to a site in the owner's message needs no card, another s
 
 test("tainted: first external MCP call asks; after approval the second one does not", async () => {
   const h = hub();
-  const s = await ownerRunAfter(h, "search for me", "Read");
+  const s = await ownerRunAfter(h, "search for me", "Bash");
   const first = { tool: EXT, input: { q: "a" } };
   const d = await s.spec.decide(first);
   expect(d.behavior).toBe("park");
@@ -195,7 +195,7 @@ test("an intro run resumed after its question card and a cut is still clean", as
 test("an owner run tainted by a tool result asks a card for UpdateProfile", async () => {
   const h = hub();
   h.catalog.tools.push({ name: UPDATE_PROFILE, annotations: { readOnlyHint: true } });
-  const s = await ownerRunAfter(h, "read the page and update your profile", "Read");
+  const s = await ownerRunAfter(h, "read the page and update your profile", "Bash");
   expect(only(h).tainted).toBe(true);
   expect((await s.spec.decide({ tool: UPDATE_PROFILE, input: { title: "X" } })).behavior).toBe(
     "park",
