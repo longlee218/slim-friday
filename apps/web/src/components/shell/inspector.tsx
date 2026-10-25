@@ -1,7 +1,6 @@
 import type { BotDto, BotStatusDto, GroupDto } from "@friday/contracts";
 import { useQuery } from "@tanstack/react-query";
 import { CircleStop, LoaderCircle, SlidersHorizontal } from "lucide-react";
-import type { ReactNode } from "react";
 import { orpc } from "../../api/client";
 import { useDirectory } from "../../api/directory";
 import { formatCost } from "../../lib/format";
@@ -9,28 +8,12 @@ import { conversationParts } from "../chat/conversation-parts";
 import { Avatar } from "../ui/avatar";
 import { Button } from "../ui/button";
 import { Pill } from "../ui/pill";
+import { MemorySection, OpenTicketsSection } from "./bot-inspector-sections";
+import { InspectorSection, Prop } from "./inspector-parts";
 import { useAppNavigate } from "./use-app-navigate";
 import { useStopRun } from "./use-stop-run";
 
-/** One titled block of the inspector; plans 4-5 add open tickets and memory with it. */
-export function InspectorSection({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div className="insp-sec">
-      <h3>{title}</h3>
-      {children}
-    </div>
-  );
-}
-
-/** A label / value row. */
-const Prop = ({ label, children }: { label: string; children: ReactNode }) => (
-  <div className="prop">
-    <span>{label}</span>
-    <span className="num">{children}</span>
-  </div>
-);
-
-/** Bot inspector: hero with Edit and Stop, what it is doing now, and its settings. */
+/** Bot inspector: hero with Edit and Stop, what it is doing now, memory, settings, open tickets. */
 function BotInspector({ bot, status }: { bot: BotDto; status?: BotStatusDto }) {
   const go = useAppNavigate();
   const stop = useStopRun();
@@ -69,10 +52,17 @@ function BotInspector({ bot, status }: { bot: BotDto; status?: BotStatusDto }) {
           <div style={{ color: "var(--label-2)" }}>Idle</div>
         )}
       </InspectorSection>
+      <MemorySection bot={bot} />
       <InspectorSection title="About">
         <Prop label="Effort">{bot.effort ?? "Default"}</Prop>
         <Prop label="Spend today">{formatCost(status?.spendToday ?? 0)}</Prop>
+        {bot.workspaces.map((w) => (
+          <Prop key={w} label="Workspace">
+            <span className="mono">{w}</span>
+          </Prop>
+        ))}
       </InspectorSection>
+      <OpenTicketsSection botId={bot.id} />
     </>
   );
 }

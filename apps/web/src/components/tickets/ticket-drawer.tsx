@@ -4,7 +4,7 @@ import { Maximize2, X } from "lucide-react";
 import { useState } from "react";
 import { orpc } from "../../api/client";
 import { BotMarkdown } from "../markdown/bot-markdown";
-import { InspectorSection } from "../shell/inspector";
+import { InspectorSection } from "../shell/inspector-parts";
 import { useAppNavigate } from "../shell/use-app-navigate";
 import { Button, IconButton } from "../ui/button";
 import { TicketComment } from "./ticket-comments";
