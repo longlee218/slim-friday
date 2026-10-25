@@ -164,10 +164,9 @@ Older builds kept `<AGENT_HOME>/data/agent.db`, `workspaces/` and `goals/`. The 
 - Inbox folders older than a day are swept (boot and every 6 hours).
 
 ## Logs
-- App log: `$AGENT_HOME/logs/app.<date>.<n>.jsonl` (daily, 14 days; lines carry `workspace`)
-- Per run: `$AGENT_HOME/logs/tasks/<taskId>.jsonl` (deleted 10 days after the last write)
+- App log: `$AGENT_HOME/logs/app.<date>.<n>.jsonl` (daily, 14 days; lines carry `module`)
 - Sign-in links: `$AGENT_HOME/logs/owner-links.log` (mode 0600)
-- Example: `tail -f "$AGENT_HOME"/logs/app.$(date +%F).*.jsonl | jq 'select(.workspace=="<ws>")'`
+- Example: `tail -f "$AGENT_HOME"/logs/app.$(date +%F).*.jsonl | jq 'select(.module=="engine")'`
 
 ## Check bot collaboration (not verified live)
 1. In a group, ask the entry bot to get a teammate to do a small task: it must call `SendToBot`; the group conversation shows the request.
@@ -193,7 +192,7 @@ Older builds kept `<AGENT_HOME>/data/agent.db`, `workspaces/` and `goals/`. The 
 ## Owner live checklist
 Nothing below is verified live until you tick it.
 
-- [ ] Login: "Get a sign-in link", link from the log, "Create passkey", sign out all, "Sign in with passkey". Check on Safari (iPhone) and Chrome (desktop). You should land on the chat list each time.
+- [ ] Login: "Get a sign-in link", link from the log, "Create passkey", sign out all, "Sign in with passkey". Check on Safari (iPhone) and Chrome (desktop). The first sign-in lands on `/welcome`; later ones land on the chat list.
 - [ ] Chat from the phone over the tunnel (cellular, not home Wi-Fi): the reply arrives; the run block shows Thinking, then steps, then "Worked for ...".
 - [ ] Approval card: "Allow once" runs the call; "Always allow" does not ask again; "Deny" leaves a one-line receipt. Answer one card from two devices: the second gets a conflict.
 - [ ] Question card from a bot: single choice, multiple choice and free text work; a timed-out question closes.
@@ -205,7 +204,7 @@ Nothing below is verified live until you tick it.
 - [ ] Avatar upload for a bot and a group (crop; WebP, JPEG on Safari); the replaced avatar is gone from the bucket.
 - [ ] Skill install from a repo URL (Settings, Skills & plugins, "Install skill"): the lookup shows the files, install only after confirm; update works; remove lists the bots that lose the skill.
 - [ ] Rules: a rule turned off is gone from the next turn's prompt.
-- [ ] USER.md and SOUL.md edits (Settings, owner files) take effect on the next turn.
+- [ ] USER.md and SOUL.md edits (Settings: "About you" and "Personality") take effect on the next turn.
 - [ ] Unread badge, toast and tab-title count for a conversation you are not viewing.
 - [ ] Offline and reconnect: stop `cloudflared`; the app shows "Can't reach Friday. Reconnecting…". Start it; the stream resumes with no lost message. Restart the engine: open cards are denied and the app refetches.
 - [ ] Markdown with a table, a code block and a Mermaid diagram renders; the browser console has no CSP error.
