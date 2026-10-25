@@ -10,6 +10,9 @@ import { checkForm, isFieldError, localToday, newScheduleForm } from "./schedule
 import { FORM_ERROR_ID, formError, refusal, sendSchedule } from "./schedule-save";
 import { useCreateSchedule } from "./use-schedules";
 
+/** `/schedules?new=1` opens this sheet (New schedule buttons, the palette). */
+export const NEW_SCHEDULE = "/schedules?new=1";
+
 export interface NewScheduleSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;

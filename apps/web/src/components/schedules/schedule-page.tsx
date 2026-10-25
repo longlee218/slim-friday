@@ -1,10 +1,8 @@
 import type { ScheduleDto } from "@friday/contracts";
 import { ChevronRight, MessageCircle, Play } from "lucide-react";
-import { useState } from "react";
 import { Link } from "react-router";
 import { useDirectory } from "../../api/directory";
 import { StaleNotice, Switch } from "../settings/form-parts";
-import { useFormState } from "../settings/use-form-state";
 import { Toolbar } from "../shell/toolbar";
 import { useAppNavigate } from "../shell/use-app-navigate";
 import { Avatar } from "../ui/avatar";
@@ -12,18 +10,11 @@ import { Button } from "../ui/button";
 import { DeleteScheduleSheet } from "./delete-schedule-sheet";
 import { formatNextRun } from "./format-next-run";
 import { FormErrorLine, ScheduleForm } from "./schedule-form";
-import { isFieldError, scheduleToForm } from "./schedule-form-state";
 import { ScheduleRuns } from "./schedule-runs";
-import { FORM_ERROR_ID, formError, refusal, schedulePatch, sendSchedule } from "./schedule-save";
+import { FORM_ERROR_ID, formError } from "./schedule-save";
 import { conversationName } from "./schedule-target";
-import { useRunNow, useScheduleSwitch } from "./use-schedule-actions";
-import { useUpdateSchedule } from "./use-schedules";
-
-/** Why a schedule can only be deleted. */
-const GONE: Partial<Record<NonNullable<ScheduleDto["disabledReason"]>, string>> = {
-  bot_gone: "Its bot is gone, so this schedule cannot run or change. You can delete it.",
-  group_gone: "Its group is gone, so this schedule cannot run or change. You can delete it.",
-};
+import { useRunNow } from "./use-schedule-actions";
+import { useSchedulePage } from "./use-schedule-page";
 
 /** Toolbar: "Schedules > name" crumb, Run now ("Still running" when one is going), Open chat. */
 function PageToolbar({ schedule: s }: { schedule: ScheduleDto }) {
@@ -69,23 +60,11 @@ function PageToolbar({ schedule: s }: { schedule: ScheduleDto }) {
  */
 export function SchedulePage({ schedule: s }: { schedule: ScheduleDto }) {
   const dir = useDirectory();
-  const form = useFormState(scheduleToForm(s));
-  const update = useUpdateSchedule();
-  const onSwitch = useScheduleSwitch(s);
-  const [deleting, setDeleting] = useState(false);
-  const gone = s.disabledReason ? GONE[s.disabledReason] : undefined;
+  const { form, save, canSave, onSwitch, deleting, setDeleting, gone } = useSchedulePage(s);
   const next =
     s.enabled && s.nextRunAt !== undefined
       ? `next ${formatNextRun(s.nextRunAt, Date.now(), s.timeZone)}`
       : "paused";
-
-  const save = () =>
-    form.submit(async (f) => {
-      const patch = schedulePatch(f, s);
-      if (isFieldError(patch)) throw refusal(patch.field, patch.error);
-      if (Object.keys(patch).length === 0) return;
-      await sendSchedule(() => update.mutateAsync({ id: s.id, ...patch }));
-    });
 
   return (
     <section className="pane">
@@ -127,12 +106,12 @@ export function SchedulePage({ schedule: s }: { schedule: ScheduleDto }) {
             <Button variant="danger" className="sched-delete" onClick={() => setDeleting(true)}>
               Delete
             </Button>
-            <Button disabled={!form.dirty || form.saving || !!gone} onClick={form.revert}>
+            <Button disabled={!canSave} onClick={form.revert}>
               Revert
             </Button>
             <Button
               variant="primary"
-              disabled={!form.dirty || form.saving || !!gone}
+              disabled={!canSave}
               aria-describedby={formError(form.errors) ? FORM_ERROR_ID : undefined}
               onClick={() => void save()}
             >

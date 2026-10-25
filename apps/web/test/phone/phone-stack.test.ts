@@ -13,12 +13,22 @@ test("tabOf maps paths to tabs (chats own / and /c/*)", () => {
   expect(tabOf("/tickets/FRI-1")).toBe("tickets");
   expect(tabOf("/ops")).toBe("activity");
   expect(tabOf("/settings/bot/dev")).toBe("settings");
+  expect(tabOf("/schedules")).toBe("settings");
+  expect(tabOf("/schedules/a")).toBe("settings");
 });
 
 test("phoneStackFor seeds the chat", () => {
   expect(phoneStackFor("/c/bot:dev")).toEqual(["/", "/c/bot:dev"]);
   expect(phoneStackFor("/ops")).toEqual(["/ops"]);
   expect(phoneStackFor("/settings/bot/dev")).toEqual(["/settings", "/settings/bot/dev"]);
+});
+
+test("schedules sit under Settings; a schedule opened cold sits on the list", () => {
+  expect(phoneStackFor("/schedules")).toEqual(["/settings", "/schedules"]);
+  expect(phoneStackFor("/schedules/a")).toEqual(["/settings", "/schedules", "/schedules/a"]);
+  expect(backLabel(["/settings", "/schedules"])).toBe("Settings");
+  expect(backLabel(["/settings", "/schedules", "/schedules/a"])).toBe("Schedules");
+  expect(backLabel(["/", "/c/bot:dev", "/schedules/a"])).toBe("Chat");
 });
 
 test("push, pop and tab switch", () => {

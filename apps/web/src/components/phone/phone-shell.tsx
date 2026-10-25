@@ -82,7 +82,7 @@ function Screen({ routes, path }: { routes: RouteObject[]; path: string }) {
  * top slides over the one under it, which shifts -28% and dims. A tab switch resets the stack.
  */
 export function PhoneShell({ routes }: { routes: RouteObject[] }) {
-  const { pathname, key } = useLocation();
+  const { pathname, search, key } = useLocation();
   const type = useNavigationType();
   const navigate = useNavigate();
   const connection = useConnection();
@@ -142,7 +142,8 @@ export function PhoneShell({ routes }: { routes: RouteObject[] }) {
             <div key={`${index}:${path}`} className={cls} inert={!top}>
               <ViewContext.Provider value={index}>
                 <ScreenBoundary>
-                  <Screen routes={routes} path={path} />
+                  {/* The top view also gets the query (`?new=1` opens a sheet). */}
+                  <Screen routes={routes} path={top && path === pathname ? path + search : path} />
                 </ScreenBoundary>
               </ViewContext.Provider>
             </div>

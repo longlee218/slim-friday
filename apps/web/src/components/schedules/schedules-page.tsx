@@ -1,17 +1,14 @@
 import { CalendarClock, Plus } from "lucide-react";
-import { useRef } from "react";
 import { useIsPhone } from "../../app/use-is-phone";
-import { PhoneNavBar } from "../phone/phone-nav-bar";
 import { Toolbar } from "../shell/toolbar";
 import { useAppNavigate } from "../shell/use-app-navigate";
 import { Button } from "../ui/button";
+import { NEW_SCHEDULE } from "./new-schedule-sheet";
+import { PhoneSchedules } from "./phone-schedules";
 import { ScheduleRow } from "./schedule-row";
 import { enabledCount, useSchedules } from "./use-schedules";
 
-/** `?new=1` is the contract with the new-schedule sheet, which opens from it. */
-const NEW_SCHEDULE = "/schedules?new=1";
-
-/** The rows (or the empty state) and the footnote; the same body on desktop and phone. */
+/** The rows (or the empty state) and the footnote. */
 function SchedulesBody() {
   const { schedules, isLoading } = useSchedules();
   if (isLoading) return null;
@@ -37,39 +34,10 @@ function SchedulesBody() {
   );
 }
 
-/** Phone frame: large-title nav bar with a New schedule button over the scroll body. */
-function PhoneSchedules() {
-  const scroll = useRef<HTMLDivElement>(null);
-  const go = useAppNavigate();
-  return (
-    <>
-      <PhoneNavBar
-        title="Schedules"
-        large
-        scrollRef={scroll}
-        right={
-          <button
-            type="button"
-            className="nb"
-            aria-label="New schedule"
-            onClick={() => go(NEW_SCHEDULE)}
-          >
-            <Plus strokeWidth={1.75} />
-          </button>
-        }
-      />
-      <div className="ios-scroll" ref={scroll}>
-        <div className="large">Schedules</div>
-        <SchedulesBody />
-      </div>
-    </>
-  );
-}
-
 /**
  * `/schedules` (prototype `schedulesView`): toolbar with the on count and New schedule over the
- * list and its footnote. Below 720 px the list becomes an inset list (CSS); below 640 px the
- * phone nav bar replaces the toolbar.
+ * list and its footnote. Below 720 px the list becomes an inset list (CSS); on the phone it is
+ * `PhoneSchedules`, pushed from Settings.
  */
 export function SchedulesPage() {
   const { schedules } = useSchedules();

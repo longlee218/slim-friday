@@ -7,6 +7,13 @@
 .msg .who { display: flex; align-items: baseline; gap: 8px; margin-bottom: 2px; }
 .msg .who b { font-weight: 650; font-size: 13.5px; }
 .msg .who time { font-size: 11.5px; color: var(--label-3); }
+/* A message from a scheduled run names its schedule (prototype .sched-tag); a deleted one is plain text. */
+.sched-tag { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 8px; border-radius: 10px; background: var(--tint-soft); color: var(--tint-text); font-size: 11.5px; font-weight: 600; text-decoration: none; white-space: nowrap; transition: background var(--t-fast); }
+.sched-tag svg { width: 12px; height: 12px; flex: none; }
+a.sched-tag:hover { background: var(--sel); }
+a.sched-tag:active { background: var(--sel); filter: brightness(.92); }
+a.sched-tag:focus-visible { border-radius: 10px; }
+.sched-tag.gone { background: var(--fill); color: var(--label-2); }
 .md { font-size: 14px; line-height: 1.55; }
 .msg.owner { justify-content: flex-end; }
 .msg.owner > div { display: flex; flex-direction: column; align-items: flex-end; max-width: 80%; }

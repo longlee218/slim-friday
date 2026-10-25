@@ -11,7 +11,10 @@ export const TAB_ROOT: Record<PhoneTab, string> = {
 
 const ROOTS = new Set<string>(Object.values(TAB_ROOT));
 
-/** The tab a path belongs to (`/c/*` is a chat, so chats; unknown paths fall back to chats). */
+/**
+ * The tab a path belongs to (`/c/*` is a chat, so chats; schedules live in Settings; unknown
+ * paths fall back to chats).
+ */
 export function tabOf(path: string): PhoneTab {
   switch (path.split("/")[1]) {
     case "tickets":
@@ -19,16 +22,22 @@ export function tabOf(path: string): PhoneTab {
     case "ops":
       return "activity";
     case "settings":
+    case "schedules":
       return "settings";
     default:
       return "chats";
   }
 }
 
-/** The stack for a path opened cold (page load, crossing from desktop): its tab root, then the path. */
+/**
+ * The stack for a path opened cold (page load, crossing from desktop): its tab root, then the
+ * path. A schedule sits on the schedules list, so its back button reads "Schedules".
+ */
 export function phoneStackFor(path: string): string[] {
   const root = TAB_ROOT[tabOf(path)];
-  return path === root ? [root] : [root, path];
+  if (path === root) return [root];
+  if (path.startsWith("/schedules/")) return [root, "/schedules", path];
+  return [root, path];
 }
 
 /** One router navigation as the phone sees it. */
@@ -62,5 +71,6 @@ export function backLabel(stack: string[]): string {
   if (under === "/") return "Chats";
   if (under === "/settings") return "Settings";
   if (under === "/tickets") return "Tickets";
+  if (under === "/schedules") return "Schedules";
   return "Back";
 }
