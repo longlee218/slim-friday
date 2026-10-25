@@ -32,8 +32,10 @@ export const SSE_KEEPALIVE_MS = 25_000;
 
 export interface ApiDeps {
   auth: OwnerAuth;
-  /** The one allowed browser origin (CORS and the Origin check). */
+  /** The primary web origin (CORS, the Origin check, OAuth redirects back to the web app). */
   webOrigin: string;
+  /** More origins allowed like the primary one (for example a local dev web app). */
+  extraWebOrigins?: string[];
   /** The only email allowed on `/rpc/*`. */
   ownerEmail: string;
   log: ApiLog;
@@ -88,6 +90,7 @@ export type EngineDeps = Pick<
 
 /** Build the HTTP app: log, CORS, Origin check, then health, auth and the owner-only RPC. */
 export function createApiApp(deps: ApiDeps): Hono {
+  const webOrigins = [deps.webOrigin, ...(deps.extraWebOrigins ?? [])];
   const app = new Hono<{ Variables: { session: OwnerSession } }>();
   const rpcHandler = new RPCHandler(appRouter, {
     eventIteratorKeepAliveInterval: SSE_KEEPALIVE_MS,
@@ -105,14 +108,15 @@ export function createApiApp(deps: ApiDeps): Hono {
   app.use(
     "*",
     cors({
-      origin: deps.webOrigin,
+      // Echo the request's origin only when it is one of ours; anything else gets no CORS header.
+      origin: (origin) => (webOrigins.includes(origin) ? origin : undefined),
       credentials: true,
       allowMethods: ["GET", "POST", "OPTIONS"],
       allowHeaders: ["Content-Type"],
       maxAge: 600,
     }),
   );
-  app.use("*", originCheck(deps.webOrigin));
+  app.use("*", originCheck(webOrigins));
 
   app.get("/health", (c) => {
     const db = deps.dbReachable();

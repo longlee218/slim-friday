@@ -22,6 +22,8 @@ export interface ApiServerOptions {
   /** TCP port on 127.0.0.1; 0 picks a free one. */
   port: number;
   webOrigin: string;
+  /** More web origins allowed like `webOrigin` (the rest of the `WEB_ORIGIN` list). */
+  extraWebOrigins?: string[];
   publicApiUrl: string;
   authSecret: string;
   ownerEmail: string;
@@ -47,6 +49,8 @@ export async function startApiServer(
       secret: o.authSecret,
       baseURL: o.publicApiUrl,
       webOrigin: o.webOrigin,
+      extraWebOrigins: o.extraWebOrigins,
+      apiPort: o.port,
       ownerEmail: o.ownerEmail,
       ownerLinksFile: homePaths(o.agentHome).ownerLinks,
       now: systemClock.now,
@@ -57,6 +61,7 @@ export async function startApiServer(
     const app = createApiApp({
       auth,
       webOrigin: o.webOrigin,
+      extraWebOrigins: o.extraWebOrigins,
       ownerEmail: o.ownerEmail,
       log: o.log,
       cdnUrl: o.cdnUrl,

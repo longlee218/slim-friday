@@ -64,7 +64,7 @@ Chat images and avatars can load from a public custom domain on the same bucket.
 ## Engine env
 Put these in `.env` (see `.env.example` for every comment):
 - `CLAUDE_CODE_OAUTH_TOKEN` and `AGENT_HOME` as above
-- `WEB_ORIGIN=https://friday.example.com`
+- `WEB_ORIGIN=https://friday.example.com`. A comma-separated list allows more origins, for example `https://friday.example.com,http://localhost:5173` to run the web app locally against the same engine. Every listed origin passes CORS and the Origin check (exact match, no wildcard); the first is the primary one (passkeys, OAuth redirects back to the web app). Each origin signs in on its own: with a local origin in the list the API is also reachable as `localhost:<API_PORT>`, and a sign-in link requested there takes that host. The local web app uses its default `VITE_API_URL` (`http://localhost:8787`); sign in there with the magic link from `<AGENT_HOME>/logs/owner-links.log` (a passkey is bound to the primary origin).
 - `PUBLIC_API_URL=https://friday-api.example.com`
 - `API_PORT=8787` (the API listens on `127.0.0.1` only)
 - `AUTH_SECRET`: `openssl rand -base64 48` (at least 32 characters)

@@ -16,8 +16,16 @@ export interface OwnerAuthOptions {
   secret: string;
   /** Public URL of this API. */
   baseURL: string;
-  /** Origin of the web app (cookies, CORS, passkey origin). */
+  /** Primary origin of the web app (cookies, CORS, passkey origin). */
   webOrigin: string;
+  /**
+   * More web origins that may sign in (for example `http://localhost:5173` for UI work). Each gets its
+   * own session: a loopback one also lets the API be reached as `localhost:<apiPort>`, where links and
+   * cookies then take that host. Passkeys stay bound to the primary origin.
+   */
+  extraWebOrigins?: string[];
+  /** Port the API listens on; names the loopback host that is accepted when a loopback web origin is set. */
+  apiPort?: number;
   /** The only email that may sign in. */
   ownerEmail: string;
   /** File that receives magic links (0600). */
@@ -28,16 +36,31 @@ export interface OwnerAuthOptions {
   log: ApiLog;
 }
 
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+/**
+ * better-auth `baseURL`: the public URL, or, when a loopback web origin is allowed, a per-request one
+ * limited to the public host and the loopback API host (exact port, no wildcard).
+ */
+function baseUrlFor(o: OwnerAuthOptions, webOrigins: string[]) {
+  const loopback = webOrigins.some((w) => LOOPBACK_HOSTS.has(new URL(w).hostname));
+  if (!loopback || !o.apiPort) return o.baseURL;
+  const localHosts = ["localhost", "127.0.0.1"].map((h) => `${h}:${o.apiPort}`);
+  return { allowedHosts: [new URL(o.baseURL).host, ...localHosts], fallback: o.baseURL };
+}
+
 /** better-auth for a single owner: magic link (written to a file, not mailed) then passkey. */
 export function createOwnerAuth(o: OwnerAuthOptions) {
   const writeLink = ownerLinkWriter(o.ownerLinksFile, o.now);
   const owner = o.ownerEmail.toLowerCase();
+  const webOrigins = [o.webOrigin, ...(o.extraWebOrigins ?? [])];
+  const baseURL = baseUrlFor(o, webOrigins);
   return betterAuth({
     database: drizzleAdapter(o.db, { provider: "sqlite", schema: o.schema }),
     secret: o.secret,
-    baseURL: o.baseURL,
+    baseURL,
     basePath: "/api/auth",
-    trustedOrigins: [o.webOrigin],
+    trustedOrigins: webOrigins,
     // better-auth would print to the console; keep only the level (messages may hold emails or tokens).
     logger: {
       log: (level) =>
@@ -54,6 +77,9 @@ export function createOwnerAuth(o: OwnerAuthOptions) {
       // The Cloudflare Tunnel is the only ingress and it sets cf-connecting-ip; without it every
       // request shares one rate-limit bucket.
       ipAddress: { ipAddressHeaders: ["cf-connecting-ip"] },
+      // Per-request base URL: the tunnel reaches the engine over plain http, so the scheme comes from its
+      // x-forwarded-proto (the engine listens on 127.0.0.1 only; the host is still checked against allowedHosts).
+      ...(typeof baseURL === "object" ? { trustedProxyHeaders: true } : {}),
       useSecureCookies: true,
       defaultCookieAttributes: { httpOnly: true, secure: true, sameSite: "lax" },
     },

@@ -9,23 +9,40 @@ const secret = z
   .transform((v) => v.trim() || undefined)
   .optional();
 
+/** True for an absolute http(s) URL that is exactly its own origin (no path, no trailing slash). */
+const isOrigin = (v: string): boolean => {
+  try {
+    const u = new URL(v);
+    return (u.protocol === "http:" || u.protocol === "https:") && u.origin === v;
+  } catch {
+    return false;
+  }
+};
+
 /** Optional absolute http(s) URL that is exactly its own origin (no path, no trailing slash). */
 const originUrl = z
   .string()
   .trim()
   .optional()
-  .refine(
-    (v) => {
-      if (!v) return true;
-      try {
-        const u = new URL(v);
-        return (u.protocol === "http:" || u.protocol === "https:") && u.origin === v;
-      } catch {
-        return false;
-      }
-    },
-    { message: "must be an origin like https://host" },
-  );
+  .refine((v) => !v || isOrigin(v), { message: "must be an origin like https://host" });
+
+/** Splits a comma-separated origin list: trimmed, empty entries and duplicates dropped, order kept. */
+const splitOrigins = (v: string | undefined): string[] => [
+  ...new Set(
+    (v ?? "")
+      .split(",")
+      .map((o) => o.trim())
+      .filter(Boolean),
+  ),
+];
+
+/** Optional comma-separated list of origins; every entry must be a bare origin. */
+const originList = z
+  .string()
+  .optional()
+  .refine((v) => splitOrigins(v).every(isOrigin), {
+    message: "must be origins like https://host, separated by commas",
+  });
 
 /** Optional https URL of the CDN; a trailing `/` is stripped. */
 const cdnOrigin = z
@@ -47,8 +64,11 @@ const envSchema = z.object({
   AXIOM_DATASET: z.string().min(1).optional(),
   /** Web API (Hono) port; it listens on 127.0.0.1 only. */
   API_PORT: z.coerce.number().int().min(1).max(65535).default(8787),
-  /** Origin of the web app (CORS, passkey origin, trusted origin). */
-  WEB_ORIGIN: originUrl,
+  /**
+   * Origin of the web app (CORS, passkey origin, trusted origin). A comma-separated list allows more
+   * origins (for example a local dev web app); the first is the primary one.
+   */
+  WEB_ORIGIN: originList,
   /** Public origin of this API (better-auth baseURL). */
   PUBLIC_API_URL: originUrl,
   /** better-auth signing secret, at least 32 chars when set. Never log. */
@@ -82,8 +102,10 @@ export interface AgentConfig {
   logLevel: string;
   /** Web API port (default 8787). */
   apiPort: number;
-  /** Web app origin; undefined when unset (`startEngine` requires it). */
+  /** Primary web app origin (first of `WEB_ORIGIN`); undefined when unset (`startEngine` requires it). */
   webOrigin?: string;
+  /** The other origins of the `WEB_ORIGIN` list (same CORS and Origin check as the primary one). */
+  extraWebOrigins: string[];
   /** Public origin of the web API. */
   publicApiUrl?: string;
   /** better-auth secret. Never log. */
@@ -112,13 +134,15 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     throw new Error(`Invalid environment variables: ${names}`);
   }
   const e = parsed.data;
+  const webOrigins = splitOrigins(e.WEB_ORIGIN);
   return {
     oauthToken: e.CLAUDE_CODE_OAUTH_TOKEN,
     hasRealAuth: !isPlaceholder(e.CLAUDE_CODE_OAUTH_TOKEN),
     agentHome: e.AGENT_HOME,
     logLevel: e.LOG_LEVEL,
     apiPort: e.API_PORT,
-    webOrigin: e.WEB_ORIGIN,
+    webOrigin: webOrigins[0],
+    extraWebOrigins: webOrigins.slice(1),
     publicApiUrl: e.PUBLIC_API_URL,
     authSecret: e.AUTH_SECRET,
     ownerEmail: e.OWNER_EMAIL,

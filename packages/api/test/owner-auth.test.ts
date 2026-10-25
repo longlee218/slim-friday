@@ -132,3 +132,64 @@ test("better-auth logs go to the ApiLog as auth.lib with the level only, not to 
   expect(lib.length).toBeGreaterThan(0);
   for (const l of lib) expect(l).toEqual({ event: "auth.lib", level: "error" });
 });
+
+let ipCounter = 0;
+
+/** A magic-link request sent to `host` (the API as reached by the browser), from `origin`. */
+async function linkVia(
+  host: string,
+  origin: string,
+  extraWebOrigins: string[],
+  forwardedProto?: string,
+) {
+  const callbackURL = `${origin}/setup-passkey`;
+  const t = testAuth(mkdtempSync(join(tmpdir(), "owner-auth-")), {
+    extraWebOrigins,
+    apiPort: 8787,
+  });
+  await ensureOwner(t.auth, "owner@example.com");
+  const res = await t.auth.handler(
+    new Request(`${host}/api/auth/sign-in/magic-link`, {
+      method: "POST",
+      // A fresh client ip per call: better-auth rate-limits by it.
+      headers: {
+        "content-type": "application/json",
+        origin,
+        ...(forwardedProto ? { "x-forwarded-proto": forwardedProto } : {}),
+        "cf-connecting-ip": `10.9.${++ipCounter}.1`,
+      },
+      body: JSON.stringify({ email: "owner@example.com", callbackURL }),
+    }),
+  );
+  return { res, link: (t.links().at(-1) ?? "").split(" ")[1] ?? "" };
+}
+
+test("with a local web origin, a link requested through localhost points at localhost", async () => {
+  const LOCAL = "http://localhost:5173";
+  const { res, link } = await linkVia("http://localhost:8787", LOCAL, [LOCAL]);
+  expect(res.status).toBe(200);
+  expect(link.startsWith("http://localhost:8787/api/auth/magic-link/verify")).toBe(true);
+});
+
+test("with a local web origin, a link requested through the public API host keeps that host", async () => {
+  const { res, link } = await linkVia("https://friday-api.example.com", ORIGIN, [
+    "http://localhost:5173",
+  ]);
+  expect(res.status).toBe(200);
+  expect(link.startsWith("https://friday-api.example.com/api/auth/magic-link/verify")).toBe(true);
+});
+
+test("without a local web origin, a request through localhost is not served on that host", async () => {
+  const { link } = await linkVia("http://localhost:8787", ORIGIN, []);
+  expect(link.startsWith("http://localhost:8787")).toBe(false);
+});
+
+test("behind the tunnel (http to the engine, x-forwarded-proto https) the link stays https", async () => {
+  const { link } = await linkVia(
+    "http://friday-api.example.com",
+    ORIGIN,
+    ["http://localhost:5173"],
+    "https",
+  );
+  expect(link.startsWith("https://friday-api.example.com/api/auth/magic-link/verify")).toBe(true);
+});

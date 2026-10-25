@@ -25,6 +25,25 @@ describe("web API env vars", () => {
     expect(() => load({ WEB_ORIGIN: v })).toThrow(/WEB_ORIGIN/);
   });
 
+  test("WEB_ORIGIN lists several origins: the first is the primary, the rest are extra", () => {
+    const c = load({ WEB_ORIGIN: " https://friday.example.com , http://localhost:5173 " });
+    expect(c.webOrigin).toBe("https://friday.example.com");
+    expect(c.extraWebOrigins).toEqual(["http://localhost:5173"]);
+  });
+
+  test("one WEB_ORIGIN has no extra origins; a duplicate is dropped", () => {
+    expect(load({ WEB_ORIGIN: "https://friday.example.com" }).extraWebOrigins).toEqual([]);
+    const c = load({ WEB_ORIGIN: "https://a.example.com,https://a.example.com" });
+    expect(c.extraWebOrigins).toEqual([]);
+  });
+
+  test("a bad entry in the WEB_ORIGIN list is refused, naming only the variable", () => {
+    expect(() => load({ WEB_ORIGIN: "https://a.example.com,http://localhost:5173/" })).toThrow(
+      "Invalid environment variables: WEB_ORIGIN",
+    );
+    expect(() => load({ WEB_ORIGIN: "https://a.example.com,*" })).toThrow(/WEB_ORIGIN/);
+  });
+
   test("PUBLIC_API_URL with a path is refused", () => {
     expect(() => load({ PUBLIC_API_URL: "https://api.example.com/x" })).toThrow(/PUBLIC_API_URL/);
   });

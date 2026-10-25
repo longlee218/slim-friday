@@ -56,6 +56,7 @@ export async function startEngine(
   const { config, agentHome, signal } = opts;
   const web = {
     webOrigin: need("WEB_ORIGIN", config.webOrigin),
+    extraWebOrigins: config.extraWebOrigins,
     publicApiUrl: need("PUBLIC_API_URL", config.publicApiUrl),
     authSecret: need("AUTH_SECRET", config.authSecret),
     ownerEmail: need("OWNER_EMAIL", config.ownerEmail),
@@ -75,7 +76,13 @@ async function runEngine(
   config: AgentConfig,
   agentHome: string,
   signal: AbortSignal,
-  web: { webOrigin: string; publicApiUrl: string; authSecret: string; ownerEmail: string },
+  web: {
+    webOrigin: string;
+    extraWebOrigins: string[];
+    publicApiUrl: string;
+    authSecret: string;
+    ownerEmail: string;
+  },
   r2: ReturnType<typeof r2Of>,
   overrides?: EngineOverrides,
 ): Promise<void> {

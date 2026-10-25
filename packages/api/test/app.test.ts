@@ -15,15 +15,21 @@ let ipCounter = 0;
 
 /** An app over a fresh db, the owner created; every request carries a unique client ip (better-auth rate-limits by it). */
 async function fresh(
-  over: { ownerEmail?: string; dbReachable?: () => boolean; engine?: EngineDeps } = {},
+  over: {
+    ownerEmail?: string;
+    dbReachable?: () => boolean;
+    engine?: EngineDeps;
+    extraWebOrigins?: string[];
+  } = {},
 ) {
   const dir = mkdtempSync(join(tmpdir(), "api-app-"));
-  const t = testAuth(dir);
+  const t = testAuth(dir, { extraWebOrigins: over.extraWebOrigins });
   await ensureOwner(t.auth, "owner@example.com");
   const make = (ownerEmail = "owner@example.com") =>
     createApiApp({
       auth: t.auth,
       webOrigin: ORIGIN,
+      extraWebOrigins: over.extraWebOrigins,
       ownerEmail,
       log: {
         info: (o) => void t.logs.push(o),
@@ -114,6 +120,31 @@ test("preflight from the web origin succeeds with credentials", async () => {
   expect(res.status).toBe(204);
   expect(res.headers.get("access-control-allow-origin")).toBe(ORIGIN);
   expect(res.headers.get("access-control-allow-credentials")).toBe("true");
+});
+
+const LOCAL = "http://localhost:5173";
+
+test("an extra web origin passes the Origin check and CORS; any other origin still gets 403", async () => {
+  const t = await fresh({ extraWebOrigins: [LOCAL] });
+  expect((await purge(t.app, { origin: LOCAL })).status).toBe(401); // past the check, no cookie
+  expect((await purge(t.app, { origin: ORIGIN })).status).toBe(401);
+  expect((await purge(t.app, { origin: "http://localhost:5174" })).status).toBe(403);
+  const res = await t.app.request(`${API}/rpc/control/purge`, {
+    method: "OPTIONS",
+    headers: { origin: LOCAL, "access-control-request-method": "POST" },
+  });
+  expect(res.headers.get("access-control-allow-origin")).toBe(LOCAL);
+  expect(res.headers.get("access-control-allow-credentials")).toBe("true");
+});
+
+test("without extra origins the local origin is refused (403) and gets no CORS header", async () => {
+  const t = await fresh();
+  expect((await purge(t.app, { origin: LOCAL })).status).toBe(403);
+  const res = await t.app.request(`${API}/rpc/control/purge`, {
+    method: "OPTIONS",
+    headers: { origin: LOCAL, "access-control-request-method": "POST" },
+  });
+  expect(res.headers.get("access-control-allow-origin")).not.toBe(LOCAL);
 });
 
 test("GET /health", async () => {
