@@ -3,10 +3,10 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tansta
 import { client, orpc } from "../../api/client";
 import { invalidateSchedules } from "./schedule-cache";
 
-/** Every schedule, as served. */
-export function useSchedules(): { schedules: ScheduleDto[]; isLoading: boolean } {
+/** Every schedule, as served; `loaded` is false until the list has arrived (or after it failed). */
+export function useSchedules(): { schedules: ScheduleDto[]; isLoading: boolean; loaded: boolean } {
   const q = useQuery(orpc.schedules.list.queryOptions({ input: {} }));
-  return { schedules: q.data?.items ?? [], isLoading: q.isLoading };
+  return { schedules: q.data?.items ?? [], isLoading: q.isLoading, loaded: q.data !== undefined };
 }
 
 /** Schedules that are on (the sidebar badge and the page subtitle). */

@@ -8,7 +8,7 @@ import { useAppNavigate } from "../shell/use-app-navigate";
 import { Avatar } from "../ui/avatar";
 import { Button } from "../ui/button";
 import { DeleteScheduleSheet } from "./delete-schedule-sheet";
-import { formatNextRun } from "./format-next-run";
+import { nextRunNote } from "./format-next-run";
 import { FormErrorLine, ScheduleForm } from "./schedule-form";
 import { ScheduleRuns } from "./schedule-runs";
 import { FORM_ERROR_ID, formError } from "./schedule-save";
@@ -61,10 +61,9 @@ function PageToolbar({ schedule: s }: { schedule: ScheduleDto }) {
 export function SchedulePage({ schedule: s }: { schedule: ScheduleDto }) {
   const dir = useDirectory();
   const { form, save, canSave, onSwitch, deleting, setDeleting, gone } = useSchedulePage(s);
-  const next =
-    s.enabled && s.nextRunAt !== undefined
-      ? `next ${formatNextRun(s.nextRunAt, Date.now(), s.timeZone)}`
-      : "paused";
+  // Same note as the list row ("Next …", "Paused", or none when done or gone), lower-cased here.
+  const note = nextRunNote(s, Date.now());
+  const next = note ? ` · ${note[0].toLowerCase()}${note.slice(1)}` : "";
 
   return (
     <section className="pane">
@@ -76,7 +75,8 @@ export function SchedulePage({ schedule: s }: { schedule: ScheduleDto }) {
             <div className="grow">
               <h2>{s.name}</h2>
               <div className="r">
-                {s.when} · posts to {conversationName(s.conversationId, dir)} · {next}
+                {s.when} · posts to {conversationName(s.conversationId, dir)}
+                {next}
               </div>
             </div>
             <Switch

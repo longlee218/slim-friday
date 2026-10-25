@@ -15,7 +15,7 @@ const tag = { id: "s1", name: "Morning news" };
 
 test("the tag links to the schedule while it exists", () => {
   view(<ScheduleTag schedule={tag} exists />);
-  const link = screen.getByRole("link", { name: "Morning news" });
+  const link = screen.getByRole("link", { name: "Schedule Morning news" });
   expect(link.getAttribute("href")).toBe("/schedules/s1");
   expect(link.querySelector(".lucide-calendar-clock")).toBeTruthy();
 });
@@ -36,7 +36,7 @@ function renderMessage(items: ReturnType<typeof schedule>[]) {
 
 test("a bot message from a schedule shows the tag as a link", () => {
   renderMessage([schedule("s1")]);
-  expect(screen.getByRole("link", { name: "Morning news" }).getAttribute("href")).toBe(
+  expect(screen.getByRole("link", { name: "Schedule Morning news" }).getAttribute("href")).toBe(
     "/schedules/s1",
   );
 });
@@ -44,10 +44,20 @@ test("a bot message from a schedule shows the tag as a link", () => {
 test("a bot message from a deleted schedule shows the tag as text", () => {
   renderMessage([]);
   expect(screen.getByText("Morning news")).toBeTruthy();
-  expect(screen.queryByRole("link", { name: "Morning news" })).toBeNull();
+  expect(screen.queryByRole("link", { name: "Schedule Morning news" })).toBeNull();
 });
 
 test("a bot message without a schedule has no tag", () => {
   const { container } = view(<BotMessage message={msg()} phone={false} onReply={() => {}} />);
   expect(container.querySelector(".sched-tag")).toBeNull();
+});
+
+test("before the schedules list loads (or when it fails) the tag is the plain name, not gone", () => {
+  const { container } = view(
+    <BotMessage message={msg({ schedule: tag })} phone={false} onReply={() => {}} />,
+  );
+  expect(screen.getByText("Morning news")).toBeTruthy();
+  expect(screen.queryByRole("link")).toBeNull();
+  expect(container.querySelector(".sched-tag")).toBeTruthy();
+  expect(container.querySelector(".sched-tag.gone")).toBeNull();
 });

@@ -1,11 +1,22 @@
 import type { ScheduleDto } from "@friday/contracts";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, expect, test } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, expect, test, vi } from "vitest";
 import { orpc } from "../../src/api/client";
 import { phoneClient, renderPhone, stubMatchMedia } from "../phone/phone-fixtures";
 import { run, schedule } from "./fixtures";
 
+// The real client, except `schedules.create` (the phone tests need one create).
+const create = vi.hoisted(() => vi.fn());
+vi.mock("../../src/api/client", async (importOriginal) => {
+  const m = await importOriginal<typeof import("../../src/api/client")>();
+  const swap = <T extends object>(t: T, key: string, v: unknown) =>
+    new Proxy(t, { get: (o, k) => (k === key ? v : Reflect.get(o, k)) });
+  return { ...m, client: swap(m.client, "schedules", swap(m.client.schedules, "create", create)) };
+});
+
 beforeEach(() => {
+  create.mockReset();
   stubMatchMedia();
   window.innerWidth = 390;
 });
@@ -79,4 +90,52 @@ test("New schedule on the phone list opens the bottom sheet", async () => {
   fireEvent.click(within(top()).getByRole("button", { name: "New schedule" }));
   expect(router.state.location.search).toBe("?new=1");
   await waitFor(() => expect(document.querySelector(".bsheet")).toBeTruthy());
+});
+
+/** Opens Settings › Schedules › + (the new sheet) on the phone; returns the router and qc. */
+async function openNewFromSettings(items: ScheduleDto[] = []) {
+  const qc = client(items);
+  const r = renderPhone(qc, "/settings");
+  fireEvent.click(screen.getByRole("link", { name: /Schedules/ }));
+  await waitFor(() => expect(backText()).toBe("Settings"));
+  fireEvent.click(within(top()).getByRole("button", { name: "New schedule" }));
+  const sheet = await screen.findByRole("dialog");
+  return { ...r, qc, sheet };
+}
+const back = () => fireEvent.click(top().querySelector(".ios-nav .back") as HTMLElement);
+
+test("cancel the new sheet, then ONE Back returns to Settings", async () => {
+  const { router, sheet } = await openNewFromSettings();
+  fireEvent.click(within(sheet).getByRole("button", { name: "Cancel" }));
+  await waitFor(() => expect(router.state.location.search).toBe(""));
+  back();
+  await waitFor(() => expect(router.state.location.pathname).toBe("/settings"));
+});
+
+test("create, then Back lands on the list, then on Settings", async () => {
+  const made = schedule("s9", { name: "Evening wrap-up" });
+  create.mockResolvedValue(made);
+  const { router, qc, sheet } = await openNewFromSettings();
+  qc.setQueryData(orpc.schedules.get.queryKey({ input: { id: "s9" } }), { schedule: made });
+  await userEvent.type(within(sheet).getByLabelText("Name"), "Evening wrap-up");
+  await userEvent.type(within(sheet).getByLabelText("Task"), "Sum up the day.");
+  await userEvent.click(within(sheet).getByRole("button", { name: "Create schedule" }));
+  await waitFor(() => expect(router.state.location.pathname).toBe("/schedules/s9"));
+  await waitFor(() => expect(backText()).toBe("Schedules"));
+  back();
+  await waitFor(() => expect(router.state.location.pathname).toBe("/schedules"));
+  back();
+  await waitFor(() => expect(router.state.location.pathname).toBe("/settings"));
+});
+
+test("New schedule from another tab (the palette): cancel, then ONE Back returns there", async () => {
+  const { router } = renderPhone(client([]), "/");
+  await router.navigate("/schedules?new=1"); // what the palette does away from /schedules
+  fireEvent.click(
+    within(await screen.findByRole("dialog")).getByRole("button", { name: "Cancel" }),
+  );
+  await waitFor(() => expect(router.state.location.search).toBe(""));
+  await waitFor(() => expect(backText()).toBe("Chats"));
+  back();
+  await waitFor(() => expect(router.state.location.pathname).toBe("/"));
 });
