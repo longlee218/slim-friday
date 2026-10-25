@@ -123,6 +123,8 @@ export function reduceEvent(e: FridayEvent, view: ReducerView): CacheEffect[] {
       return [{ op: "invalidate", scope: "all" }];
     case "mcp.auth":
       return [{ op: "mcpAuth", server: e.server, status: e.status }];
+    case "schedule":
+      return []; // the schedules board handles it (plan 02 web tasks)
   }
 }
 

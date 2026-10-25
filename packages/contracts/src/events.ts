@@ -12,7 +12,7 @@ import { TicketDtoSchema } from "./dto/tickets";
 import { ConversationIdSchema } from "./ids";
 
 /**
- * Everything the server pushes to the web app (14 members). The numeric event id travels
+ * Everything the server pushes to the web app (15 members). The numeric event id travels
  * as the SSE id, not inside the event.
  */
 export const FridayEventSchema = z.discriminatedUnion("type", [
@@ -63,6 +63,8 @@ export const FridayEventSchema = z.discriminatedUnion("type", [
   // reserved: the v1 engine sends none, the web refetches control.status
   z.object({ type: z.literal("status"), bots: z.array(BotStatusDtoSchema) }),
   z.object({ type: z.literal("ticket"), ticket: TicketDtoSchema }),
+  // a schedule or one of its runs changed: refetch it
+  z.object({ type: z.literal("schedule"), id: z.string() }),
   z.object({ type: z.literal("config.changed") }),
   // an OAuth MCP server's sign-in state changed (told on change only)
   z.object({ type: z.literal("mcp.auth"), server: z.string(), status: McpAuthStatusSchema }),
