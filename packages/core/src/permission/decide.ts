@@ -68,7 +68,7 @@ export function decide(input: DecideInput): { outcome: Outcome; reason: string }
   if (taint && !grant) return { outcome: "ask_always", reason: `tainted: ${taint.reason}` };
   if (override) return upgrade(override, "tool override");
   if (grant) return { outcome: "allow", reason: `grant ${grant.id}` };
-  const cls = classifyTool(spec);
+  const cls = classifyTool(spec, call.tool);
   const level = settings.botLevels?.[call.botId] ?? settings.level;
   const outcome = LEVEL_MAP[level][cls];
   if (outcome === "ask") return upgrade(outcome, `${level}: ${cls}`);
