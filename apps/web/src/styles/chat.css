@@ -90,6 +90,10 @@
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .run { background: #242427; } }
 .run-h { display: flex; align-items: center; gap: 8px; color: var(--label); font-weight: 550; }
 .run-h .run-time { margin-left: auto; color: var(--label-2); font-weight: 400; }
+.run-d summary { list-style: none; cursor: pointer; user-select: none; }
+.run-d summary::-webkit-details-marker { display: none; }
+.run-d .chev { transition: transform var(--t-mid) var(--ease); width: 14px; height: 14px; }
+.run-d[open] .chev { transform: rotate(90deg); }
 .run-label { animation: breathe 1.6s ease-in-out infinite; }
 @keyframes breathe { 50% { opacity: .45; } }
 .run[data-state="done"] .run-label { animation: none; }

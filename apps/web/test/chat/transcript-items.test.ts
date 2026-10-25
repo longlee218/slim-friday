@@ -44,8 +44,12 @@ test("live runs, then pending cards, come after messages", () => {
   expect(items.slice(-2).map((i) => i.key)).toEqual(["r:dev", "a:a1"]);
 });
 
-test("receipts of another conversation are left out", () => {
-  const here: Receipt = { kind: "approval", card: apprCard(), answer: "once" };
+test("question receipts of another conversation are left out", () => {
+  const here: Receipt = {
+    kind: "question",
+    card: askCard({ cardId: "q1", conversationId: "bot:dev" }),
+    answer: null,
+  };
   const other: Receipt = {
     kind: "question",
     card: askCard({ cardId: "q9", conversationId: "bot:pia" }),
@@ -54,10 +58,21 @@ test("receipts of another conversation are left out", () => {
   const items = buildTranscriptItems({
     ...base,
     pages: [[]],
-    receipts: { a1: here, q9: other },
+    receipts: { q1: here, q9: other },
   });
-  expect(items.map((i) => i.key)).toEqual(["a:a1"]);
-  expect(items[0]).toMatchObject({ kind: "approval", receipt: here });
+  expect(items.map((i) => i.key)).toEqual(["q:q1"]);
+  expect(items[0]).toMatchObject({ kind: "question", receipt: here });
+});
+
+test("an answered approval leaves the transcript, even if its card is still pending", () => {
+  const done: Receipt = { kind: "approval", card: apprCard(), answer: "once" };
+  const items = buildTranscriptItems({
+    ...base,
+    pages: [[]],
+    approvals: [apprCard()],
+    receipts: { a1: done },
+  });
+  expect(items).toEqual([]);
 });
 
 test("a pending card of another conversation is left out and pending sends are marked", () => {

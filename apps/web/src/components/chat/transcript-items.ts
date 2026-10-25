@@ -28,7 +28,7 @@ const dayStart = (t: number): number => new Date(t).setHours(0, 0, 0, 0);
 /**
  * Flattens the query pages into the transcript: messages oldest first with a day line before
  * the first message of each local day, then the live runs, then this conversation's cards
- * (receipts in arrival order, then the still-open ones): a card sits under the run block that
+ * (question receipts in arrival order, then the still-open ones; an answered approval is dropped): a card sits under the run block that
  * raised it, as in the prototype. Keys are stable across renders.
  */
 export function buildTranscriptItems(input: BuildInput): TranscriptItem[] {
@@ -61,17 +61,19 @@ export function buildTranscriptItems(input: BuildInput): TranscriptItem[] {
 
   const here = (c: { conversationId: string }) => c.conversationId === input.conversationId;
   const cards = new Map<string, TranscriptItem>();
+  // An answered approval leaves the transcript at once (no receipt line); its id is kept so a late
+  // `approval.opened` cannot bring the card back.
+  const answered = new Set<string>();
   for (const [cardId, r] of Object.entries(input.receipts)) {
     if (!here(r.card)) continue;
-    cards.set(
-      cardId,
-      r.kind === "approval"
-        ? { kind: "approval", key: `a:${cardId}`, card: r.card, receipt: r }
-        : { kind: "question", key: `q:${cardId}`, card: r.card, receipt: r },
-    );
+    if (r.kind === "approval") {
+      answered.add(cardId);
+      continue;
+    }
+    cards.set(cardId, { kind: "question", key: `q:${cardId}`, card: r.card, receipt: r });
   }
   for (const card of input.approvals) {
-    if (here(card) && !cards.has(card.cardId)) {
+    if (here(card) && !cards.has(card.cardId) && !answered.has(card.cardId)) {
       cards.set(card.cardId, { kind: "approval", key: `a:${card.cardId}`, card });
     }
   }

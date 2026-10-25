@@ -15,6 +15,22 @@ const run = (steps: LiveRun["steps"], tail?: string): LiveRun => ({
   tail,
 });
 
+/** Opens the run block's folded steps. */
+const openRun = (c: HTMLElement) => {
+  (c.querySelector("details.run-d") as HTMLDetailsElement).open = true;
+};
+
+test("the run block is folded until its header is clicked; the tail stays in view", async () => {
+  const { container } = render(
+    <RunBlock run={run([step("tool", "done", { label: "Read" })], "bun test")} now={1000} />,
+  );
+  const d = container.querySelector("details.run-d") as HTMLDetailsElement;
+  expect(d.open).toBe(false);
+  expect(container.querySelector(".tail")?.textContent).toBe("bun test");
+  await userEvent.click(screen.getByText("Working"));
+  expect(d.open).toBe(true);
+});
+
 test("run block shows Thinking with a counter from the turn start", () => {
   render(<RunBlock run={run([])} now={3000} />);
   expect(screen.getByText("Thinking")).toBeTruthy();
@@ -22,12 +38,13 @@ test("run block shows Thinking with a counter from the turn start", () => {
 });
 
 test("an edit step shows +42 and the minus 3", () => {
-  render(
+  const { container } = render(
     <RunBlock
       run={run([step("tool", "done", { label: "Edited", target: "a.ts", added: 42, removed: 3 })])}
       now={1000}
     />,
   );
+  openRun(container);
   expect(screen.getByText("Working")).toBeTruthy();
   expect(screen.getByText("a.ts")).toBeTruthy();
   expect(screen.getByText("+42").className).toBe("add");
@@ -38,6 +55,7 @@ test("a one-sided delta shows only the side that exists", () => {
   const { container } = render(
     <RunBlock run={run([step("tool", "done", { label: "Wrote", added: 12 })])} now={1000} />,
   );
+  openRun(container);
   expect(container.querySelector(".delta")?.textContent).toBe("+12");
   expect(container.querySelector(".del")).toBeNull();
 });
@@ -73,6 +91,7 @@ test("running step has a spinner, done a check, failed an x; thinking steps hidd
       now={1000}
     />,
   );
+  openRun(container);
   const items = container.querySelectorAll(".run-steps li");
   expect(items).toHaveLength(3);
   expect(items[0]?.getAttribute("data-state")).toBe("done");
