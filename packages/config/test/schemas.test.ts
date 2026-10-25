@@ -154,3 +154,12 @@ test("isUploadAvatar returns the upload id or undefined", () => {
   expect(isUploadAvatar(`upload:${UUID}`)).toBe(UUID);
   expect(isUploadAvatar("fox")).toBeUndefined();
 });
+
+test("a bot description round-trips through the parser, is optional and is capped at 500 chars", () => {
+  const text = (extra: string) => `---\nname: Ann\ntitle: Dev\nmodel: m\n${extra}---\nBe brief.\n`;
+  expect(parseBotFile("ann", text("description: Reviews code.\n")).description).toBe(
+    "Reviews code.",
+  );
+  expect(parseBotFile("ann", text("")).description).toBeUndefined();
+  expect(() => parseBotFile("ann", text(`description: ${"x".repeat(501)}\n`))).toThrow();
+});

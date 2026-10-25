@@ -1,5 +1,5 @@
 import type { FileConfig } from "@friday/config";
-import type { BotHub, Log, Store } from "@friday/core";
+import type { BotHub, Conversation, Log, Store } from "@friday/core";
 
 /** Why a failure happened, as text. */
 const why = (err: unknown): string => (err instanceof Error ? err.message : String(err));
@@ -10,8 +10,8 @@ export interface ConfigReloadDeps {
   hub: BotHub;
   /** The composed store: the bots and groups as the reloaded config now has them. */
   store: Pick<Store, "bots" | "groups">;
-  /** Gives new bots and groups their conversations (queued, one at a time). */
-  sync: () => Promise<void>;
+  /** Gives new bots and groups their conversations (queued, one at a time); resolves with the ones it created. */
+  sync: () => Promise<Conversation[]>;
   /** Called once the reload has synced (the web surface publishes `config.changed`). */
   onConfigChanged?: () => void;
   log: Log;
@@ -21,7 +21,7 @@ export interface ConfigReloadDeps {
  * Watch the config dir. On a change the stored runs follow it (`hub.configChanged`): a removed bot or group has
  * its queued and parked runs cancelled and its running ones stopped; a changed one gets a fresh session at its
  * next open (a running run keeps its config, a parked one resumes on its own session). Then the conversations
- * are synced and the change reported. Returns the stop function.
+ * are synced, each new bot gets its intro run, and the change reported. Returns the stop function.
  */
 export function watchConfigReload(d: ConfigReloadDeps): () => void {
   return d.config.watch((r) => {
@@ -42,7 +42,10 @@ export function watchConfigReload(d: ConfigReloadDeps): () => void {
         else resetScopes.push(...group.members.map((m) => `${m}@${id}`));
       }
       await d.hub.configChanged({ removedBots, removedGroups, resetScopes });
-      await d.sync();
+      const created = await d.sync();
+      // A bot that got its direct conversation at a reload is new (the first sync at start creates the conversations
+      // of the bots that already exist): it introduces itself. One run per bot (deduped), so a repeat adds none.
+      for (const c of created) if (c.kind === "direct") await d.hub.queueIntroRun(c.botId);
       d.onConfigChanged?.();
     })().catch((err) => d.log.error({ error: why(err) }, "config.reload"));
   });

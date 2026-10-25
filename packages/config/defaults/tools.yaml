@@ -42,6 +42,8 @@ tools:
   - { name: mcp__chat__PostFile, sandboxed: true }
   # Changes only the thinking effort of the session, capped by the bot file's maxEffort: no side effect outside the run.
   - { name: mcp__chat__SetEffort, annotations: { readOnlyHint: true } }
+  # Writes only the calling bot's own title and description (one file, same parser as BotDesign, id from the session): no card.
+  - { name: mcp__chat__UpdateProfile, sandboxed: true }
   # A short progress note to the owner: the hub applies the budget (60 s old, 3 per run, 500 chars), so no card.
   - { name: mcp__chat__PostUpdate, annotations: { readOnlyHint: true } }
   # Messages between bots of one group: the hub checks the target, the hop and rate caps and the spend cap, so no card.

@@ -6,15 +6,18 @@ import { createPostFileTool } from "./tools/PostFileTool/post-file-tool";
 import { createPostUpdateTool } from "./tools/PostUpdateTool/post-update-tool";
 import { createSendToBotTool } from "./tools/SendToBotTool/send-to-bot-tool";
 import { createSetEffortTool } from "./tools/SetEffortTool/set-effort-tool";
+import { createUpdateProfileTool } from "./tools/UpdateProfileTool/update-profile-tool";
 
 /**
  * The tools of one session by run kind: an `owner` run gets all of them (`PostUpdate`; bot messaging only for a bot
  * that can reach a group); a `bot` run has no `PostUpdate`; a `ticket` run also no `SendToBot` / `HandOff`; an
- * `intro` run none of these (its only tools are `AskUserQuestion` and `UpdateProfile`, added with that tool).
+ * `intro` run only `UpdateProfile` (its other tool, `AskUserQuestion`, is the SDK's). `UpdateProfile` is in every kind
+ * (a bot still needs it in its `tools` to call it).
  */
 export function chatTools(ctx: ChatContext) {
-  if (ctx.runKind === "intro") return [];
+  if (ctx.runKind === "intro") return [createUpdateProfileTool(ctx)];
   return [
+    createUpdateProfileTool(ctx),
     createPostFileTool(ctx),
     createSetEffortTool(ctx),
     ...(ctx.runKind === "owner" ? [createPostUpdateTool(ctx)] : []),

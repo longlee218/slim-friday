@@ -41,20 +41,29 @@ test("a bot saved through the API gets its conversation without a direct reload"
 
 test("on rules saved through the API reach the next session's prompt, off rules do not", async () => {
   const h = await boot();
-  await h.client.config.bots.save({ id: "scout", bot: SCOUT, mode: "create" });
-  await until(() => h.of("config.changed").length > 0);
+  // The shipped Friday bot exists at boot and gets no intro run, so its first session is the owner's message.
   await h.client.memory.rules.save({
-    owner: "bot:scout",
+    owner: "bot:friday",
     rules: [
       { text: "A", on: true },
       { text: "B", on: false },
     ],
   });
-  await h.client.chat.send({ conversationId: "bot:scout", text: "hi" });
+  await h.client.chat.send({ conversationId: "bot:friday", text: "hi" });
   await until(() => h.runtime.opened.length === 1);
   const rules = h.runtime.nth(0).spec.rules ?? "";
   expect(rules).toBe("- A");
   expect(rules).not.toContain("B");
+});
+
+test("a bot created through the API gets one intro run in its direct chat", async () => {
+  const h = await boot();
+  await h.client.config.bots.save({ id: "scout", bot: SCOUT, mode: "create" });
+  await until(() => h.runtime.opened.length === 1);
+  const s = h.runtime.nth(0);
+  expect(s.spec.runKind).toBe("intro");
+  expect(s.spec.bot.id).toBe("scout");
+  expect(s.sent[0]?.text).toContain("Call AskUserQuestion right away");
 });
 
 test("USER.md saved through the API resets no session and reaches the next run's system prompt", async () => {

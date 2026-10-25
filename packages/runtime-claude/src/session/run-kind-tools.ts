@@ -1,8 +1,8 @@
 import type { McpServerConfig } from "@anthropic-ai/claude-agent-sdk";
 
 /**
- * The only tools of an intro run (the first hidden run of a new bot). `mcp__chat__UpdateProfile` is created later;
- * a name with no registered tool is harmless: only the tool list and the grant check read it.
+ * The only tools of an intro run (the first hidden run of a new bot). `mcp__chat__UpdateProfile` is registered
+ * in the `chat` server (`chatTools`); `AskUserQuestion` is the SDK's.
  */
 export const INTRO_TOOLS = ["AskUserQuestion", "mcp__chat__UpdateProfile"];
 

@@ -6,6 +6,7 @@ import type {
   PostUpdateResult,
   RunKind,
 } from "@friday/core";
+import type { ProfileFiles } from "./tools/UpdateProfileTool/profile-file";
 
 /** What the chat tools of one session need from the app. */
 export interface ChatContext {
@@ -24,6 +25,8 @@ export interface ChatContext {
   runKind: RunKind;
   /** Posts a progress update of the run (budget applied by the hub); unset outside a stored run. */
   postUpdate?: (text: string) => Promise<PostUpdateResult>;
+  /** What `UpdateProfile` writes through (the bot's own file in the owner's config dir); unset: the tool refuses. */
+  profile?: ProfileFiles;
   /** True when the real path is a sensitive file (`.env`, keys...) of its workspace. */
   isSensitive(real: string): boolean;
   /** The conversation of the turn in progress; undefined between turns. */

@@ -42,6 +42,8 @@ export interface WakeOpts {
   exemptFromHops?: boolean;
   ticketId?: string;
   rewake?: boolean;
+  /** The first run of a new bot with the owner (see `queueIntroRun`). */
+  intro?: boolean;
   /** The message this one replies to; stored on the run and sent with its turn. */
   quote?: { author: Author; text: string };
 }

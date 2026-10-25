@@ -14,7 +14,14 @@ const names = (runKind: RunKind) =>
 
 test("owner: every chat tool as configured", () => {
   expect(names("owner")).toEqual(
-    expect.arrayContaining(["PostFile", "SetEffort", "PostUpdate", "SendToBot", "HandOff"]),
+    expect.arrayContaining([
+      "PostFile",
+      "SetEffort",
+      "PostUpdate",
+      "SendToBot",
+      "HandOff",
+      "UpdateProfile",
+    ]),
   );
 });
 
@@ -30,6 +37,6 @@ test("ticket: no PostUpdate, SendToBot or HandOff", () => {
   expect(n).toContain("PostFile");
 });
 
-test("intro: no chat tool of this server yet (UpdateProfile arrives later)", () => {
-  expect(names("intro")).toEqual([]);
+test("intro: only UpdateProfile of this server (AskUserQuestion is an SDK tool)", () => {
+  expect(names("intro")).toEqual(["UpdateProfile"]);
 });

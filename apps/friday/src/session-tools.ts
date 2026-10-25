@@ -231,6 +231,7 @@ export function sessionTools(deps: SessionToolsDeps) {
       now: Date.now,
     });
     const { workspaces } = spec.bot;
+    const design = deps.design?.(spec, run);
     // Every bot may send a file from its workspaces or its session's scratch dir (the runtime's, see `main.ts`).
     servers[CHAT_MCP_SERVER] = chatServer({
       botId: spec.bot.id,
@@ -243,6 +244,14 @@ export function sessionTools(deps: SessionToolsDeps) {
       // The hub builds it per run (budget counted per wake in the store).
       ...(spec.postUpdate && { postUpdate: spec.postUpdate }),
       postFile: deps.postFile,
+      // The bot's own file in the owner's config dir and the app's bot parser (`UpdateProfile`).
+      ...(design && {
+        profile: {
+          configDir: design.configDir,
+          readBotFile: design.readBotFile,
+          checkBot: design.checkBot,
+        },
+      }),
       ...(deps.messenger &&
         (deps.groupIdsOf?.(spec.bot.id).length ?? 0) > 0 && {
           messenger: sessionMessenger(deps.messenger, spec.sessionKey ?? spec.bot.id),
@@ -287,13 +296,9 @@ export function sessionTools(deps: SessionToolsDeps) {
         spec.bot.tools,
       );
     // The design tools are the Friday bot\'s alone, whatever another bot file names.
-    if (
-      deps.design &&
-      spec.bot.id === FRIDAY_BOT_ID &&
-      wantsServer(spec.bot.tools, DESIGN_MCP_SERVER)
-    )
+    if (design && spec.bot.id === FRIDAY_BOT_ID && wantsServer(spec.bot.tools, DESIGN_MCP_SERVER))
       servers[DESIGN_MCP_SERVER] = designServer({
-        ...deps.design(spec, run),
+        ...design,
         memory: deps.memory,
         insight: deps.insight ?? NO_INSIGHT,
         messages: deps.store.messages,

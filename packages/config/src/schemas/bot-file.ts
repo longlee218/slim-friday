@@ -27,6 +27,8 @@ const botHeader = z
       // Discord refuses webhook usernames that contain these words.
       .refine((n) => !/discord|clyde/i.test(n), "name may not contain discord or clyde"),
     title: z.string().min(1),
+    // One public line other bots read in the teammate directory (the same cap the directory applies).
+    description: z.string().min(1).max(500).optional(),
     model: z.string().min(1),
     tools: z.array(z.string().min(1)).default([]),
     // A plain name: it becomes a dir name when the skill is loaded.
@@ -49,7 +51,7 @@ const botHeader = z
   );
 
 /**
- * Parse `bots/<id>.md`: a YAML header (name, title, model, effort, maxEffort, tools, skills, subagents, workspaces, autonomy, avatar)
+ * Parse `bots/<id>.md`: a YAML header (name, title, description, model, effort, maxEffort, tools, skills, subagents, workspaces, autonomy, avatar)
  * and the instructions as the body. Throws a readable error for any problem.
  */
 export function parseBotFile(id: string, text: string): Bot {
@@ -61,6 +63,7 @@ export function parseBotFile(id: string, text: string): Bot {
     id,
     name: h.name,
     title: h.title,
+    ...(h.description && { description: h.description }),
     instructions: body,
     model: h.model,
     tools: h.tools,

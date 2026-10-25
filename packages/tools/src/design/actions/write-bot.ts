@@ -6,6 +6,7 @@ import {
   atomicWrite,
   checkWorkspace,
   existingAvatar,
+  existingDescription,
   existingSubagents,
   listSkills,
   need,
@@ -73,9 +74,13 @@ export function buildBotFile(
   const subagents = a.subagents ?? existingSubagents(file);
   // Left out, an overwrite keeps the old avatar (an uploaded one is set only from the web app).
   const avatar = a.avatar ?? (a.overwrite ? existingAvatar(file) : undefined);
+  // Left out, an overwrite keeps the old description (a bot may have set its own with UpdateProfile).
+  const description =
+    a.description?.trim() || (a.overwrite ? existingDescription(file) : undefined);
   const header = {
     name,
     title: need(a.title, "title"),
+    ...(description && { description }),
     model: need(a.model, "model"),
     tools: a.tools ?? [],
     skills: a.skills ?? [],
