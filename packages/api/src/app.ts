@@ -22,6 +22,9 @@ import type { OwnerSession } from "./rpc/context";
 import { appRouter } from "./rpc/router";
 
 /** What the app needs from the engine; later plans add fields here, never a second clock. */
+/** A comment line every 25 s keeps an SSE stream open through proxies and the server idle timeout. */
+export const SSE_KEEPALIVE_MS = 25_000;
+
 export interface ApiDeps {
   auth: OwnerAuth;
   /** The one allowed browser origin (CORS and the Origin check). */
@@ -59,8 +62,7 @@ export type EngineDeps = Pick<
 export function createApiApp(deps: ApiDeps): Hono {
   const app = new Hono<{ Variables: { session: OwnerSession } }>();
   const rpcHandler = new RPCHandler(appRouter, {
-    // A comment line every 25 s keeps the SSE stream open through proxies.
-    eventIteratorKeepAliveInterval: 25_000,
+    eventIteratorKeepAliveInterval: SSE_KEEPALIVE_MS,
     // An unknown error (not an ORPCError) is logged here; the client only sees INTERNAL_SERVER_ERROR.
     clientInterceptors: [
       onError((err) => {

@@ -3,8 +3,9 @@ import { afterEach, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { SSE_KEEPALIVE_MS } from "@friday/api";
 import { fakeEngine } from "../../../packages/api/test/helpers/engine-deps";
-import { type ApiServerOptions, startApiServer } from "../src/api-server";
+import { API_IDLE_TIMEOUT_S, type ApiServerOptions, startApiServer } from "../src/api-server";
 import { captureLogs, logger } from "../src/observability/logger";
 
 const stops: Array<() => Promise<void>> = [];
@@ -94,4 +95,9 @@ test("a magic link goes to the 0600 links file and no token reaches the shared l
   } finally {
     cap.stop();
   }
+});
+
+test("the idle timeout outlasts the SSE heartbeat (Bun closes a quiet stream after 10 s by default)", () => {
+  expect(API_IDLE_TIMEOUT_S * 1000).toBeGreaterThan(SSE_KEEPALIVE_MS * 2);
+  expect(API_IDLE_TIMEOUT_S).toBeLessThanOrEqual(255);
 });

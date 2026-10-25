@@ -10,6 +10,12 @@ import { openAuthDb } from "@friday/store-sqlite";
 import { homePaths } from "./config/home-paths";
 import { systemClock } from "./system-clock";
 
+/**
+ * Seconds a connection may stay silent before Bun closes it (Bun's default is 10, max 255).
+ * Must outlast the SSE heartbeat (`SSE_KEEPALIVE_MS`), or every quiet event stream drops.
+ */
+export const API_IDLE_TIMEOUT_S = 255;
+
 /** Everything the web API needs to start; values come from `AgentConfig`. */
 export interface ApiServerOptions {
   agentHome: string;
@@ -60,7 +66,12 @@ export async function startApiServer(
     });
     let server: ReturnType<typeof Bun.serve>;
     try {
-      server = Bun.serve({ hostname: "127.0.0.1", port: o.port, fetch: app.fetch });
+      server = Bun.serve({
+        hostname: "127.0.0.1",
+        port: o.port,
+        idleTimeout: API_IDLE_TIMEOUT_S,
+        fetch: app.fetch,
+      });
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
       throw new Error(`API server could not listen on 127.0.0.1:${o.port}: ${reason}`);
