@@ -62,7 +62,12 @@ function EditorForm({ file, text }: { file: keyof typeof FILES; text: string }) 
           </h2>
           <div className="r">Every bot reads it before each turn.</div>
         </div>
-        <Segmented label="Mode" options={MODES} value={mode} onChange={setMode} />
+        <Segmented<(typeof MODES)[number]>
+          label="Mode"
+          options={MODES}
+          value={mode}
+          onChange={setMode}
+        />
       </div>
       {mode === "Preview" ? (
         <div className="list-panel of-preview">

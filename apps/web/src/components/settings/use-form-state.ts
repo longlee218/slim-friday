@@ -89,7 +89,7 @@ export function useFormState<T extends object>(
     }
   }, []);
 
-  const found = useMemo(() => validate?.(value) ?? {}, [validate, value]);
+  const found = useMemo<FieldErrors<T>>(() => validate?.(value) ?? {}, [validate, value]);
   const errors = useMemo(() => {
     const shown: FieldErrors<T> = {};
     for (const k of Object.keys(found) as (keyof T)[]) if (touched.has(k)) shown[k] = found[k];

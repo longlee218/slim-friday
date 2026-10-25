@@ -71,7 +71,7 @@ export function BotPage() {
   const shipped = bot.shipped === true;
   const tabAt = TABS.findIndex(([t]) => t === tab);
   /** Saves the owner's fields; the name always comes from the latest bot (rename has its own door). */
-  const save = async (input: Omit<BotFormValue, "id">, name?: string) => {
+  const save = async (input: Omit<BotFormValue, "id" | "name">, name?: string) => {
     await client.config.bots.save({
       id: bot.id,
       bot: { ...input, name: name ?? latest().name },
