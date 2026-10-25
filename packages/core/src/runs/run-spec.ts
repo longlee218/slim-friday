@@ -4,6 +4,7 @@ import type { HubContext } from "../hub/hub-context";
 import { stableJson } from "../permission/input-hash";
 import type { BotRuntimeSpec } from "../ports/agent-runtime";
 import { effectKeyFor } from "./effect-key";
+import { postProgress } from "./progress-budget";
 import { decideInRun } from "./run-cards";
 import type { RunExec } from "./run-exec";
 import { runKindOf } from "./run-kind";
@@ -49,6 +50,8 @@ export function runSpec(
       exec.sendCounts.set(hash, n);
       return effectKeyFor(exec.row.id, exec.row.cardId, tool, input, n);
     },
+    // A progress update counts per wake in the store, so a resumed run keeps its budget.
+    postUpdate: (text) => postProgress(ctx, exec, text),
     effortControl: {},
     currentConversation: () => (exec.live ? exec.current.conversationId : undefined),
   };

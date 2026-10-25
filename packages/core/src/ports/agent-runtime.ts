@@ -5,6 +5,7 @@ import type { Attachment, Author, StoredMessage } from "../domain/message";
 import type { QuestionAnswer, QuestionCard } from "../domain/question";
 import type { RuntimeToolCall } from "../domain/tool";
 import type { WakeIntent } from "../domain/wake";
+import type { PostUpdateResult } from "../runs/progress-budget";
 import type { RunKind } from "../runs/run-kind";
 
 /** One message pushed into a bot session. */
@@ -111,6 +112,11 @@ export interface BotRuntimeSpec {
    * execution's count of identical calls. Unset outside a stored run (tools then run unrecorded).
    */
   effectKey?: (tool: string, input: Record<string, unknown>) => Promise<string>;
+  /**
+   * Posts a progress update of the run (the `PostUpdate` tool): stored and shown if the run's budget allows.
+   * Unset outside a stored run.
+   */
+  postUpdate?: (text: string) => Promise<PostUpdateResult>;
   /** Lets the `SetEffort` tool reach the session; the runtime fills it in. */
   effortControl?: EffortControl;
   /**

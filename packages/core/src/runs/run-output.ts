@@ -4,6 +4,7 @@ import type { HubContext } from "../hub/hub-context";
 import { errText } from "../hub/hub-types";
 import { postStored } from "../hub/post-stored";
 import { redactStep, secretsFrom } from "../safety/redact-secrets";
+import { postProgress } from "./progress-budget";
 import type { RunExec } from "./run-exec";
 import { runKindOf, silenceAllowed } from "./run-kind";
 import { isSilent, stripSentinel } from "./silent-reply";
@@ -41,13 +42,20 @@ export async function releaseHeld(
   const text = exec.heldText;
   if (text === undefined) return;
   delete exec.heldText;
-  if (as === "narration") onNarration(ctx, exec, text);
+  if (as === "narration") await onNarration(ctx, exec, text);
   else await onAnswerText(ctx, exec, text);
 }
 
-/** A text written before a tool call: shown as a live run step, never stored as a message. */
-export function onNarration(ctx: HubContext, exec: RunExec, text: string): void {
+/**
+ * A text written before a tool call: always a live run step. An owner run also stores it as a progress message
+ * while the budget allows (60 s old, 3 per run); otherwise it is not stored (spec §6.2).
+ */
+export async function onNarration(ctx: HubContext, exec: RunExec, text: string): Promise<void> {
   showStep(ctx, exec, exec.steps.onNarration(text, ctx.deps.clock.now()));
+  if (runKindOf(exec.row) !== "owner") return;
+  await postProgress(ctx, exec, text).catch((err) =>
+    ctx.deps.log?.error({ error: errText(err), wakeId: exec.row.id }, "hub.progress_failed"),
+  );
 }
 
 /**

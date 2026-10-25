@@ -34,6 +34,7 @@ function setup(current: string | null = "c1", wsIsBase = false) {
     agentHome: home,
     isSensitive: (real) => basename(real).startsWith(".env"),
     effort: {},
+    runKind: "owner",
     conversation: () => current ?? undefined,
     postFile: async (conversationId, botId, file, caption) => {
       posts.push({ conversationId, botId, file, ...(caption && { caption }) });

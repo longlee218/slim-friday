@@ -229,6 +229,9 @@ export function sessionTools(deps: SessionToolsDeps) {
       agentHome: deps.home,
       isSensitive: sensitiveCheck(workspaces, deps.isSensitive),
       conversation: () => spec.currentConversation?.(),
+      runKind: spec.runKind,
+      // The hub builds it per run (budget counted per wake in the store).
+      ...(spec.postUpdate && { postUpdate: spec.postUpdate }),
       postFile: deps.postFile,
       ...(deps.messenger &&
         (deps.groupIdsOf?.(spec.bot.id).length ?? 0) > 0 && {

@@ -17,6 +17,7 @@ Risk: **none** = reads or chats only, never asks; **sandboxed** = writes, bounde
 | `mcp__memory` (`MemorySearch`, `MessageSearch`, `MemorySave`, `MemoryEdit`) | The bot's own memory and past messages | none / sandboxed |
 | `mcp__chat__SendToBot`, `mcp__chat__HandOff` | Ask another group member / pass ownership | none (hub checks caps) |
 | `mcp__chat__PostFile` | Send a file from its workspace or scratch to the chat | sandboxed |
+| `mcp__chat__PostUpdate` | Short progress note to the owner during long work (owner runs; 500 chars, 3 per run) | none |
 | `mcp__chat__SetEffort` | Raise or lower its own effort up to `maxEffort` | none |
 | `mcp__tickets` | Shared ticket board (list, get, create, update, comment) | none |
 | `mcp__effects__GitPush`, `CreatePullRequest`, `MergeBranch` | Push, open a PR, merge | asks |
