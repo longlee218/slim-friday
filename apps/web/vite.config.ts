@@ -1,7 +1,8 @@
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
+import { cspMetaPlugin } from "./csp/csp-meta-plugin";
 import { pwaOptions } from "./pwa-options";
 
 // Packages loaded through dynamic import (code highlighting, diagrams). They emit hundreds of
@@ -9,19 +10,23 @@ import { pwaOptions } from "./pwa-options";
 const LAZY_PACKAGES =
   /node_modules\/(shiki|@shikijs|mermaid|@mermaid-js|cytoscape[^/]*|katex|dagre-d3-es|d3[^/]*|langium|chevrotain[^/]*|@chevrotain|roughjs|khroma)\//;
 
-export default defineConfig({
-  plugins: [react(), tailwindcss(), VitePWA(pwaOptions)],
-  build: {
-    rolldownOptions: {
-      output: {
-        // A chunk holding lazy-package modules and no app source goes under assets/lazy/
-        // (see globIgnores). Bundler helper modules in the same chunk do not matter.
-        chunkFileNames: (chunk) =>
-          chunk.moduleIds.some((id) => LAZY_PACKAGES.test(id)) &&
-          !chunk.moduleIds.some((id) => id.includes("/apps/web/src/"))
-            ? "assets/lazy/[name]-[hash].js"
-            : "assets/[name]-[hash].js",
+export default defineConfig(({ mode }) => {
+  // Only VITE_* variables: they feed the build-time CSP (see csp/csp.ts).
+  const env = loadEnv(mode, import.meta.dirname, "VITE_");
+  return {
+    plugins: [react(), tailwindcss(), VitePWA(pwaOptions), cspMetaPlugin(env)],
+    build: {
+      rolldownOptions: {
+        output: {
+          // A chunk holding lazy-package modules and no app source goes under assets/lazy/
+          // (see globIgnores). Bundler helper modules in the same chunk do not matter.
+          chunkFileNames: (chunk) =>
+            chunk.moduleIds.some((id) => LAZY_PACKAGES.test(id)) &&
+            !chunk.moduleIds.some((id) => id.includes("/apps/web/src/"))
+              ? "assets/lazy/[name]-[hash].js"
+              : "assets/[name]-[hash].js",
+        },
       },
     },
-  },
+  };
 });
