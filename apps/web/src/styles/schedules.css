@@ -1,0 +1,51 @@
+/* Schedules list: prototype app.css .sched-list, .sched-row, .s-when, .s-last (round 4). Colours are DESIGN.md tokens only. */
+.sched-page-list { max-width: 1080px; }
+.sched-list { padding: 0; }
+.sched-row { display: flex; align-items: center; gap: 14px; padding: 14px 16px; cursor: pointer; transition: background var(--t-fast); }
+.sched-row + .sched-row { border-top: 1px solid var(--sep); }
+.sched-row:hover { background: var(--fill); }
+.sched-row:active { background: var(--fill-strong); }
+.sched-row.off { opacity: .6; }
+.sched-row .av { flex: none; }
+.sched-row .grow { flex: 1; min-width: 0; }
+.sched-row .s1 { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
+.sched-row .s1 .t2 { font-size: 12.5px; color: var(--label-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sched-row .s2 { font-size: 12.5px; color: var(--label-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+.s-name { color: var(--label); text-decoration: none; border-radius: 4px; white-space: nowrap; }
+.s-name:hover { text-decoration: underline; }
+.s-when { flex: none; width: 150px; font-size: 12.5px; }
+.s-when > div:first-child { display: flex; align-items: center; gap: 5px; font-weight: 500; }
+.s-when svg { width: 13px; height: 13px; color: var(--label-2); flex: none; }
+.s-when .t2 { color: var(--label-2); }
+.s-last { flex: none; width: 130px; }
+.s-last .pill svg { width: 12px; height: 12px; margin-right: 3px; vertical-align: -2px; }
+.s-busy { margin-top: 4px; font-size: 11.5px; color: var(--label-2); }
+.s-busy a { color: var(--tint-text); font-weight: 500; text-decoration: none; }
+.s-busy a:hover { text-decoration: underline; }
+.s-run { flex: none; }
+
+/* The shared .switch has no hover, pressed or disabled look; give it one here. */
+.sched-row .switch { flex: none; cursor: pointer; }
+.sched-row .switch:hover:not(:disabled) { filter: brightness(.95); }
+.sched-row .switch:active:not(:disabled)::after { width: 22px; }
+.sched-row .switch.on:active:not(:disabled)::after { transform: translateX(12px); }
+.sched-row .switch:disabled { opacity: .4; cursor: default; }
+
+.sched-empty { padding: 48px 20px; text-align: center; color: var(--label-2); }
+.sched-list + .sched-note, .sched-empty + .sched-note { margin-top: 12px; }
+
+/* Under 720 px: an inset list (prototype phone `.inset`): name, target, when and next, pill, switch. Run now lives on the schedule page. */
+@media (max-width: 719px) {
+  .sched-list { margin: 0 16px; border-radius: 12px; box-shadow: none; background: var(--well); }
+  .sched-row { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto auto; grid-template-areas: "av main last sw" "av when when when"; column-gap: 12px; row-gap: 2px; padding: 11px 14px; }
+  .sched-row .av { grid-area: av; align-self: start; }
+  .sched-row .grow { grid-area: main; }
+  .sched-row .s2, .sched-row .s-run { display: none; }
+  .sched-row .s1 { flex-direction: column; gap: 0; }
+  .s-when { grid-area: when; width: auto; display: flex; gap: 6px; color: var(--label-2); }
+  .s-when > div:first-child { font-weight: 400; }
+  .s-when > .t2::before { content: "· "; }
+  .s-last { grid-area: last; width: auto; }
+  .sched-row .switch { grid-area: sw; }
+  .sched-empty, .sched-note { margin-left: 32px; margin-right: 32px; }
+}
