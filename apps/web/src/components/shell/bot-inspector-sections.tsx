@@ -63,3 +63,31 @@ export function OpenTicketsSection({ botId }: { botId: string }) {
     </InspectorSection>
   );
 }
+
+/**
+ * The bot's open and parked scratchpad items, one block per scope (direct chat, then each group it is in).
+ * Read only: the bot owns the list.
+ */
+export function ScratchpadSection({ botId }: { botId: string }) {
+  const scopes =
+    useQuery(orpc.config.bots.scratchpad.queryOptions({ input: { id: botId } })).data ?? [];
+  return (
+    <InspectorSection title="Scratchpad">
+      {scopes.length === 0 ? (
+        <div style={{ color: "var(--label-2)" }}>Nothing open</div>
+      ) : (
+        scopes.map((s) => (
+          <div key={typeof s.scope === "string" ? s.scope : s.scope.groupId}>
+            <div className="t2">{typeof s.scope === "string" ? "Direct chat" : s.scope.name}</div>
+            {s.items.map((i) => (
+              <div key={i.id} className="member" title={i.notes || undefined}>
+                <div className="grow">{i.title}</div>
+                <span className="t2">{i.status}</span>
+              </div>
+            ))}
+          </div>
+        ))
+      )}
+    </InspectorSection>
+  );
+}

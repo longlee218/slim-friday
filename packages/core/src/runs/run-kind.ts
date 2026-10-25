@@ -31,6 +31,14 @@ export function silenceAllowed(row: WakeRow, kind: RunKind): boolean {
 }
 
 /**
+ * True when the run's answer is for the owner: an owner run, or a run resumed by the owner's card answer
+ * (`cardId`). Ticket, intro and bot-to-bot runs are not, so they raise no finished notice and no unread.
+ */
+export function talksToOwner(row: WakeRow): boolean {
+  return row.cardId !== undefined || runKindOf(row) === "owner";
+}
+
+/**
  * True when the turn's text comes from Friday rather than from its sender: a continuation run, a run resumed
  * with a card's answer (`resumed`), or a system sender. Such a turn is labelled as automated.
  */

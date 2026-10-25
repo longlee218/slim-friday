@@ -64,6 +64,16 @@ function renderInspector(id: string) {
       ticket(8, { title: "Old work", status: "done", assigneeBotId: "dev" }),
     ],
   });
+  qc.setQueryData(orpc.config.bots.scratchpad.queryKey({ input: { id: "dev" } }), [
+    {
+      scope: "direct",
+      items: [{ id: "i1", title: "Draft the spec", status: "open", notes: "", updatedAt: 1 }],
+    },
+    {
+      scope: { groupId: "crew", name: "Crew" },
+      items: [{ id: "i2", title: "Wait for review", status: "parked", notes: "", updatedAt: 1 }],
+    },
+  ]);
   return render(
     <QueryClientProvider client={qc}>
       <MemoryRouter>

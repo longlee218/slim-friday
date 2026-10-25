@@ -116,6 +116,11 @@ export class WebSurface implements Surface {
     });
   }
 
+  /** Tell the web a bot finished its answer to the owner (a toast when that conversation is not open). */
+  notifyFinished(e: { conversationId: ConversationId; botId: string; preview: string }): void {
+    this.bus.publish({ type: "run.finished", ...e });
+  }
+
   showRun(c: ConversationId, botId: string, step: RunStep): void {
     this.bus.publish({ type: "run", conversationId: c, botId, step });
   }

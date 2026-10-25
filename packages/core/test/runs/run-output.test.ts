@@ -189,3 +189,37 @@ test("a lost lease drops a text still held", async () => {
   await flush();
   expect(botPosts(h)).toEqual([]);
 });
+
+test("an owner final raises one finished notice: 180-char preview, newlines collapsed", async () => {
+  const h = makeHub();
+  const long = `line one\nline two ${"x".repeat(300)}`;
+  await turn(h, [long]);
+  expect(h.surface.finished).toHaveLength(1);
+  const f = h.surface.finished[0];
+  expect(f).toMatchObject({ conversationId: "dc", botId: "editor" });
+  expect([...(f?.preview ?? "")]).toHaveLength(180);
+  expect(f?.preview.startsWith("line one line two ")).toBe(true);
+  expect(f?.preview.endsWith("…")).toBe(true);
+});
+
+test("an empty owner final posts done. and notices it", async () => {
+  const h = makeHub();
+  await turn(h, []);
+  expect(botPosts(h)).toEqual(["done."]);
+  expect(h.surface.finished.map((f) => f.preview)).toEqual(["done."]);
+});
+
+test("ticket, intro and bot-to-bot runs raise no finished notice; a silent owner-less run neither", async () => {
+  for (const [sender, opts] of [
+    [{ kind: "user" }, { ticketId: "FRI-1" }],
+    [{ kind: "system" }, { intro: true }],
+    [writer, undefined],
+  ] as const) {
+    const h = makeHub();
+    const s = await start(h, sender, opts);
+    s.emit({ type: "text", text: "All good." });
+    s.emit({ type: "turn_end", costUsd: 0 });
+    await flush();
+    expect(h.surface.finished).toEqual([]);
+  }
+});

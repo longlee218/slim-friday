@@ -8,7 +8,7 @@ import { conversationParts } from "../chat/conversation-parts";
 import { Avatar } from "../ui/avatar";
 import { Button } from "../ui/button";
 import { Pill } from "../ui/pill";
-import { MemorySection, OpenTicketsSection } from "./bot-inspector-sections";
+import { MemorySection, OpenTicketsSection, ScratchpadSection } from "./bot-inspector-sections";
 import { InspectorSection, Prop } from "./inspector-parts";
 import { useAppNavigate } from "./use-app-navigate";
 import { useStopRun } from "./use-stop-run";
@@ -63,6 +63,7 @@ function BotInspector({ bot, status }: { bot: BotDto; status?: BotStatusDto }) {
         ))}
       </InspectorSection>
       <OpenTicketsSection botId={bot.id} />
+      <ScratchpadSection botId={bot.id} />
     </>
   );
 }

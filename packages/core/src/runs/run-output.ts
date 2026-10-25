@@ -3,10 +3,10 @@ import type { RunStep } from "../domain/run";
 import type { HubContext } from "../hub/hub-context";
 import { errText } from "../hub/hub-types";
 import { postStored } from "../hub/post-stored";
-import { redactStep, secretsFrom } from "../safety/redact-secrets";
+import { redactSecrets, redactStep, secretsFrom } from "../safety/redact-secrets";
 import { postProgress } from "./progress-budget";
 import type { RunExec } from "./run-exec";
-import { runKindOf, silenceAllowed } from "./run-kind";
+import { runKindOf, silenceAllowed, talksToOwner } from "./run-kind";
 import { isSilent, stripSentinel } from "./silent-reply";
 
 /** What an owner run posts when its final answer is empty or the silence sentinel (spec §6.3). */
@@ -79,11 +79,45 @@ export async function onAnswerText(ctx: HubContext, exec: RunExec, text: string)
  */
 export async function settleOutput(ctx: HubContext, exec: RunExec): Promise<string | undefined> {
   await releaseHeld(ctx, exec, "answer");
-  if (exec.finalText) return exec.finalText;
+  if (exec.finalText) {
+    notifyFinished(ctx, exec, exec.finalText);
+    return exec.finalText;
+  }
   if (silenceAllowed(exec.row, runKindOf(exec.row))) return undefined;
   if ((await ctx.deps.store.messages.countInterim(exec.row.id)) > 0) return undefined;
   await post(ctx, exec, EMPTY_FINAL);
+  notifyFinished(ctx, exec, EMPTY_FINAL);
   return undefined;
+}
+
+/** Longest finished preview (code points). */
+export const FINISHED_PREVIEW_CHARS = 180;
+
+/**
+ * Tell the surface the run's final answer was posted to the owner: redacted, newlines collapsed to spaces,
+ * cut to 180 code points. Nothing for a run that does not talk to the owner (ticket, intro, bot-to-bot).
+ * A surface failure never fails the run.
+ */
+function notifyFinished(ctx: HubContext, exec: RunExec, text: string): void {
+  if (!talksToOwner(exec.row)) return;
+  const flat = redactSecrets(text, secretsFrom(ctx.deps.secretValues)).replace(/\s+/g, " ").trim();
+  const points = [...flat];
+  const preview =
+    points.length > FINISHED_PREVIEW_CHARS
+      ? `${points
+          .slice(0, FINISHED_PREVIEW_CHARS - 1)
+          .join("")
+          .trimEnd()}…`
+      : flat;
+  try {
+    ctx.deps.surface.notifyFinished({
+      conversationId: exec.current.conversationId,
+      botId: exec.bot.id,
+      preview,
+    });
+  } catch (err) {
+    ctx.deps.log?.error({ error: errText(err), wakeId: exec.row.id }, "hub.finished_notice_failed");
+  }
 }
 
 /** Store and post one bot message in the conversation the run answers now, with the steps since the last one. */

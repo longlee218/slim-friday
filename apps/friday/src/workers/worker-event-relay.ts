@@ -31,6 +31,12 @@ export async function relayWorkerEvents(
       return surface.showActivity(m.conversationId, m.activity);
     case "run_step":
       return surface.showRun(m.conversationId, m.botId, m.step);
+    case "finished":
+      return surface.notifyFinished({
+        conversationId: m.conversationId,
+        botId: m.botId,
+        preview: m.preview,
+      });
     case "ticket": {
       const ticket = onTicketChange && (await store.tickets.get(m.ticketId));
       if (ticket) onTicketChange?.(ticket);

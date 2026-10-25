@@ -42,6 +42,11 @@ export class FakeSurface implements Surface {
   ): Promise<void> {
     this.files.push({ conversationId, author, name: file.name, ...(caption && { caption }) });
   }
+  /** Finished notices, in order. */
+  finished: { conversationId: ConversationId; botId: BotId; preview: string }[] = [];
+  notifyFinished(e: { conversationId: ConversationId; botId: BotId; preview: string }): void {
+    this.finished.push(e);
+  }
   showRun(conversationId: ConversationId, botId: BotId, step: RunStep): void {
     this.runs.push({ conversationId, botId, step });
   }

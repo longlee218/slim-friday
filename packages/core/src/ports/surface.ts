@@ -45,6 +45,11 @@ export interface Surface {
   showActivity(conversationId: ConversationId, a: Activity): void;
   /** Show one step of the bot's run in progress. */
   showRun(conversationId: ConversationId, botId: BotId, step: RunStep): void;
+  /**
+   * A run posted its final answer to the owner: tell the surface (live only, never stored). `preview` is the
+   * final text (secrets redacted) cut to 180 chars. Never called for silent, ticket, intro or bot-only runs.
+   */
+  notifyFinished(e: { conversationId: ConversationId; botId: BotId; preview: string }): void;
   /** Send a file (already checked by the caller) under the author's name, with an optional caption. */
   postFile(
     conversationId: ConversationId,

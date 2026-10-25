@@ -13,6 +13,7 @@ const ALL = [
   "config.bots.get",
   "config.bots.list",
   "config.bots.save",
+  "config.bots.scratchpad",
   "config.bots.setAvatar",
   "config.groups.delete",
   "config.groups.get",
@@ -73,7 +74,7 @@ const inputOf = (path: string) => procAt(path)["~orpc"].inputSchema;
 const uuid = "123e4567-e89b-42d3-a456-426614174000";
 
 test("the contract has exactly the shared-contract procedures", () => {
-  expect(ALL).toHaveLength(56);
+  expect(ALL).toHaveLength(57);
   expect(listProcedurePaths(contract)).toEqual(ALL);
 });
 

@@ -24,6 +24,7 @@ const implemented = [
   "config.bots.save",
   "config.bots.delete",
   "config.bots.setAvatar",
+  "config.bots.scratchpad",
   "config.avatars.",
   "config.groups.list",
   "config.groups.get",

@@ -114,3 +114,45 @@ test("uploads: pendingBefore also returns stale claimed rows, never used ones", 
   await s.uploads.claim("c");
   expect((await s.uploads.pendingBefore(10)).map((u) => u.id)).toEqual(["p", "c"]);
 });
+
+test("unread skips messages of intro, ticket and bot-sender runs, but not a card-resumed one", async () => {
+  const s = fresh();
+  const c = "bot:a";
+  const wake = (id: string, over: Record<string, unknown>) =>
+    s.wakes.insert({
+      id,
+      chainId: id,
+      conversationId: c,
+      targetBot: "a",
+      sender: { kind: "user" },
+      intent: "request",
+      hop: 0,
+      text: "t",
+      status: "done",
+      attempts: 1,
+      createdAt: 1,
+      scopeKey: "a",
+      priority: "interactive",
+      leaseFence: 0,
+      cuts: 0,
+      transientRetries: 0,
+      setupFailures: 0,
+      nudges: 0,
+      ...over,
+    } as never);
+  await wake("own", {});
+  await wake("intro", { intro: true });
+  await wake("tick", { ticketId: "FRI-1" });
+  await wake("bot", { sender: { kind: "bot", botId: "b" } });
+  await wake("botcard", { sender: { kind: "bot", botId: "b" }, cardId: "k1" });
+  for (const wakeId of ["own", "intro", "tick", "bot", "botcard", undefined])
+    await s.messages.append({
+      conversationId: c,
+      author: { kind: "bot", botId: "a" },
+      text: "t",
+      at: 1,
+      ...(wakeId && { wakeId }),
+    });
+  // own, botcard and the message without a wake count.
+  expect(await s.reads.unread(c)).toBe(3);
+});
