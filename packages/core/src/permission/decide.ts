@@ -64,11 +64,12 @@ export interface Decision {
 }
 
 /**
- * Decide one tool call (spec §6.14). Order: hard floor (deny), per-tool deny, a scheduled run's read step (allow), mandatory asks (instruction change
- * in a tainted run), the other taint asks (they yield only to an `always_allow` site rule, or for an MCP call a
- * tool or server rule), per-tool `ask` override, a `require_approval` rule, per-tool `allow` override, an
- * `always_allow` rule, then the autonomy level for the tool's class. An irreversible call is never lifted by an `always_allow` rule (nor
- * does one hide a require rule) and its ask is `ask_always`. Only the level's plain ask is `reviewable` (Auto Review, applied by the gate).
+ * Decide one tool call (spec §6.14). Order: hard floor (deny), per-tool deny, a scheduled run's read step
+ * (allow), mandatory asks (instruction change in a tainted run), the other taint asks (they yield only to an
+ * `always_allow` site rule, or for an MCP call a tool or server rule), per-tool `ask` override, a
+ * `require_approval` rule, per-tool `allow` override, an `always_allow` rule, then the autonomy level for the
+ * tool's class. An irreversible call is never lifted by an `always_allow` rule (nor does one hide a require
+ * rule) and its ask is `ask_always`. Only the level's plain ask is `reviewable` (Auto Review, applied by the gate).
  */
 export function decide(input: DecideInput): Decision {
   const { call, spec, grants, settings, now } = input;

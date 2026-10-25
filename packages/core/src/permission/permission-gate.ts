@@ -115,6 +115,7 @@ export class PermissionGate {
     );
     const site = call.tool === "WebFetch" ? fetchSiteOf(call, this.domainOf) : undefined;
     const settings = this.deps.settings();
+    const scheduledRead = ctx.scheduled === true && isScheduledRead(call, spec);
     const verdict = decide({
       call,
       spec,
@@ -124,7 +125,7 @@ export class PermissionGate {
       now: clock.now(),
       ...(taint && { taint }),
       ...(site && { site }),
-      ...(ctx.scheduled === true && isScheduledRead(call, spec) && { scheduledRead: true }),
+      ...(scheduledRead && { scheduledRead }),
     });
     const audit = (reason: string, review?: AuditEntry["review"], outcome = verdict.outcome) =>
       store.audit.append({
@@ -139,7 +140,7 @@ export class PermissionGate {
     if (verdict.outcome === "allow" || verdict.outcome === "deny") {
       await audit(verdict.reason);
       return verdict.outcome === "allow"
-        ? { behavior: "allow" }
+        ? { behavior: "allow", ...(scheduledRead && { scheduledRead: true as const }) }
         : { behavior: "deny", reason: verdict.reason };
     }
     const hash = await inputHash(call.tool, call.input);

@@ -61,7 +61,9 @@ export async function decideInRun(
   );
   if (d.behavior !== "park") {
     if (mine) exec.asking = false;
-    if (d.behavior === "allow") noteAllowed(ctx, exec, call, shot ? (shotCard ?? {}) : undefined);
+    // A scheduled run's automatic read is no owner decision: it must not mark a server or site as approved or used.
+    if (d.behavior === "allow" && !d.scheduledRead)
+      noteAllowed(ctx, exec, call, shot ? (shotCard ?? {}) : undefined);
     return d;
   }
   const r = await waitOrPark(ctx, exec, d.cardId);

@@ -224,3 +224,41 @@ test("tainted: a fetch of an exact url a WebSearch returned needs no card, anoth
   expect(await s.spec.decide(fetch("https://found.test/a"))).toEqual({ behavior: "allow" });
   expect((await s.spec.decide(fetch("https://found.test/b"))).behavior).toBe("park");
 });
+
+/**
+ * A hub at level `autonomous` with no owner rules, whose editor has an external read (`EXT`) and write
+ * (`EXT_WRITE`) tool of one server; the run is a scheduled one (`schedule`) or an owner chat, then tainted by Bash.
+ */
+async function taintedRun(schedule: boolean) {
+  const hub = makeHub(undefined, {}, "autonomous");
+  hub.catalog.tools = [
+    { name: EXT, annotations: { readOnlyHint: true } },
+    { name: EXT_WRITE, annotations: { destructiveHint: false, openWorldHint: false } },
+  ];
+  if (schedule) {
+    // The hub has no public scheduled entry yet: start the run through its context.
+    // biome-ignore lint/complexity/useLiteralKeys: the context is private
+    await hub.hub["ctx"].wake("editor", "dc", { kind: "system" }, "check", 0, {
+      schedule: { id: "s1", quiet: false },
+    });
+  } else hub.surface.deliver({ conversationId: "dc", text: "check" });
+  await flush();
+  const s = hub.runtime.last();
+  s.emit({ type: "tool_call", toolUseId: "t1", tool: "Bash", input: {} });
+  s.emit({ type: "tool_result", toolUseId: "t1", ok: true });
+  await flush();
+  return s;
+}
+
+test("a scheduled run's automatic read does not lift the first-call ask of its server", async () => {
+  const s = await taintedRun(true);
+  expect(await s.spec.decide({ tool: EXT, input: {} })).toMatchObject({ behavior: "allow" });
+  // Still the first call of the server in a tainted run: a write on it asks (nothing was noted).
+  expect((await s.spec.decide({ tool: EXT_WRITE, input: {} })).behavior).toBe("park");
+});
+
+test("control: in an owner run the same read is clean-noted or asked as before", async () => {
+  const s = await taintedRun(false);
+  // Tainted owner run: the first call of the server asks, so the read parks and no write follows it.
+  expect((await s.spec.decide({ tool: EXT, input: {} })).behavior).toBe("park");
+});
