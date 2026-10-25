@@ -65,13 +65,27 @@ async function start(config: Parameters<typeof startWorker>[0]["config"]) {
   return worker;
 }
 
+/**
+ * Exit, taking this worker's process group along: the worker leads its own group (spawned detached), so SDK
+ * children of a run that never settled are ended even when main is gone and cannot kill the group. SIGTERM, not
+ * SIGKILL: this process gets it too and ignores it (a shutdown is already under way), then exits with `code`.
+ */
+function exitWithGroup(code: number): never {
+  try {
+    process.kill(-process.pid, "SIGTERM");
+  } catch {
+    // Not a group leader (started without its own group) or the group is gone: nothing to end.
+  }
+  process.exit(code);
+}
+
 /** Stop claiming, requeue this worker's runs, close everything, exit. */
 async function shutdown(reason: string, code = 0): Promise<void> {
   if (closing) return;
   closing = true;
   log.info({ reason }, "worker.shutdown");
   // An orphan (main died) must never keep renewing leases: exit by the deadline whatever hangs.
-  setTimeout(() => process.exit(code), settleMs + HARD_EXIT_EXTRA_MS);
+  setTimeout(() => exitWithGroup(code), settleMs + HARD_EXIT_EXTRA_MS);
   try {
     const worker = await starting?.catch(() => undefined);
     await worker?.stop(settleMs);
@@ -80,7 +94,7 @@ async function shutdown(reason: string, code = 0): Promise<void> {
   } finally {
     clearInterval(keepAlive);
     await flushAxiom();
-    process.exit(code);
+    exitWithGroup(code);
   }
 }
 

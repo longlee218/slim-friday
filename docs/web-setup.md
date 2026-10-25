@@ -201,7 +201,7 @@ Main process (web, intake, sweeps, reconciler, config watch) plus `workers` work
 9. Stop the app (Ctrl-C) mid-run, start it again (also after more than 24 h): the run resumes with the cut note and no cut is counted (a graceful stop never trips the 3-cut guard).
 10. Not covered yet: an MCP server that fails to start keeps its current handling (its failure class was not reviewed for workers).
 11. Lost IPC post: kill a worker right after its reply was stored; a web refetch (reload) shows the message although the live post was lost.
-12. No SIGKILL leftovers: after `kill -9 <worker pid>` no SDK child process of that worker keeps running (main kills the worker's process group); check `ps`.
+12. No SIGKILL leftovers: after `kill -9 <worker pid>` no SDK child process of that worker keeps running (main kills the worker's process group); check `ps`; the same after `kill -9 <main pid>` once the workers have exited (about 15 s).
 13. Effect replay: after a cut, the resumed model may send the exact same tool input again; the effect tool then returns the stored result or the "may already have run" warning. Check the warning is shown and nothing runs twice.
 
 ## Owner live checklist

@@ -293,6 +293,42 @@ test("a routing throw after the append keeps the files rows and the uploads used
   expect(store.fileMap.size).toBe(1);
 });
 
+test("a throw after the append with a failed nonce lookup undoes nothing; the retry replays", async () => {
+  await seed("t2");
+  let fail = true;
+  surface.onMessage(async (m) => {
+    const r = await store.messages.appendOnce(
+      {
+        conversationId: m.conversationId,
+        author: { kind: "user" },
+        text: m.text,
+        at: 1,
+        kind: "text",
+        files: m.files,
+      },
+      m.clientNonce ?? "",
+    );
+    if (fail) throw new Error("routing");
+    return r.id;
+  });
+  // The first lookup (before claiming) works; the one in the error path fails.
+  const byNonce = store.messages.byNonce.bind(store.messages);
+  let lookups = 0;
+  store.messages.byNonce = async (c, n) => {
+    lookups++;
+    if (lookups === 2) throw new Error("db busy");
+    return byNonce(c, n);
+  };
+  await expect(send(["t2"], { clientNonce: "k3" })).rejects.toThrow("routing");
+  expect(store.fileMap.size).toBe(1);
+  expect((await store.uploads.get("t2"))?.state).toBe("claimed");
+  fail = false;
+  const r = await send(["t2"], { clientNonce: "k3" });
+  expect(r.messageId).toBe((await byNonce("bot:a", "k3")) ?? -1);
+  expect(store.fileMap.size).toBe(1);
+  expect((await store.uploads.get("t2"))?.state).toBe("used");
+});
+
 test("a nonce replay after a crash mid-send marks the uploads used and carries the stored files", async () => {
   // The state a crash after the append leaves: upload claimed, files row and message stored, nothing routed.
   const key = await seed("c1", { mimeType: "image/png", bytes: PNG, size: PNG.length });

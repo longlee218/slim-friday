@@ -156,9 +156,12 @@ export async function sendOwnerMessage(
   } catch (e) {
     // The handler appends, then routes: a throw may come after the append. With a nonce the stored message
     // tells; then its uploads are used and the replay finishes the routing. Without one nothing can tell.
-    const id = await stored().catch(() => undefined);
+    // A failed lookup undoes nothing: the message may be stored, and its files must stay (the retry's nonce
+    // check finds it; if it was not stored, the retry fails visibly on the still-claimed uploads).
+    const id = await stored().catch(() => "unknown" as const);
     if (id === undefined) await undoSend(deps, rows, fileRows);
-    else for (const u of rows) await store.uploads.markUsed(u.id, id).catch(() => undefined);
+    else if (id !== "unknown")
+      for (const u of rows) await store.uploads.markUsed(u.id, id).catch(() => undefined);
     throw e;
   }
   if (messageId === undefined) {

@@ -11,6 +11,7 @@ import { wireMemory } from "./memory-wiring";
 import { readProjectRules } from "./project-rules";
 import { scopeBotFor } from "./scope-bot";
 import { systemClock } from "./system-clock";
+import { availableMemoryMb } from "./workers/free-memory";
 
 /** What the shared engine parts are built from: the app's deps plus how the hub reaches runs. */
 export type EngineDeps = Pick<
@@ -110,6 +111,7 @@ export function composeEngine(deps: EngineDeps, opened: Array<() => unknown>) {
     ...(deps.onTicketChange && { onTicketChange: deps.onTicketChange }),
     scopeBot: scopeBotFor(agentHome, config),
     projectRules: readProjectRules,
+    freeMemoryMb: availableMemoryMb,
     log,
     ...deps.hubRuns?.(config),
   });

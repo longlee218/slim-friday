@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -13,7 +13,7 @@ function alive(pid: number): boolean {
   }
 }
 
-test("a worker whose main is SIGKILLed exits by the deadline even with a run that never settles", async () => {
+test("a worker whose main is SIGKILLed exits by the deadline even with a run that never settles, and its children die", async () => {
   const home = mkdtempSync(join(tmpdir(), "orphan-"));
   const main = Bun.spawn(
     [process.execPath, join(import.meta.dir, "fixtures", "orphan-main.ts"), home],
@@ -44,4 +44,10 @@ test("a worker whose main is SIGKILLed exits by the deadline even with a run tha
   // It waited the settle time for the stuck run (so the run really hung), then left anyway.
   expect(took).toBeGreaterThanOrEqual(900);
   expect(took).toBeLessThan(8_000);
+  // The run's child (an SDK child stand-in) dies with the worker: nobody else is left to kill its group.
+  const child = Number(readFileSync(join(home, "child.pid"), "utf8"));
+  expect(child).toBeGreaterThan(0);
+  const exitedAt = Date.now();
+  while (alive(child) && Date.now() - exitedAt < 3_000) await Bun.sleep(50);
+  expect(alive(child)).toBe(false);
 }, 40_000);
