@@ -37,6 +37,17 @@ test("parseMentions: whole words, case-insensitive, once each, in text order", (
   expect(parseMentions("hey @ghost", members)).toEqual([]);
 });
 
+test("parseMentions: display names with spaces and accents, longest name first", () => {
+  const analyst = bot("nha-phan-tich", "Nhà phân tích");
+  const nha = bot("nha", "Nhà");
+  const all = [writer, nha, analyst];
+  expect(parseMentions("@Nhà phân tích xem số liệu", all)).toEqual(["nha-phan-tich"]);
+  expect(parseMentions("@nhà PHÂN TÍCH, rồi @Nhà nữa", all)).toEqual(["nha-phan-tich", "nha"]);
+  // A name must end at a word boundary: "@Writers" is not @Writer.
+  expect(parseMentions("@Writers and @Nhàx", all)).toEqual([]);
+  expect(parseMentions("mail a@Nhà phân tích", all)).toEqual([]);
+});
+
 test("routeMessage: direct goes to its bot", () => {
   expect(routeMessage(directConv, undefined, [editor], "hello")).toEqual(["editor-id"]);
 });

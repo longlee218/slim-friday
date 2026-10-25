@@ -18,12 +18,14 @@ const subagentSchema = z.strictObject({
 /** The YAML header of `bots/<id>.md`. */
 const botHeader = z
   .strictObject({
-    // One word: `@name` routing matches a single word.
+    // The display name, also the `@name` handle: spaces and accents are fine (mentions match whole member names),
+    // but no `@`, no line break or other control character, and no space at either end.
     name: z
       .string()
       .min(1)
       .max(32)
-      .regex(/^[A-Za-z][A-Za-z0-9_-]*$/)
+      .regex(/^[^@\p{Cc}]+$/u, "name may not contain @ or line breaks")
+      .refine((n) => n === n.trim(), "name may not start or end with a space")
       // Discord refuses webhook usernames that contain these words.
       .refine((n) => !/discord|clyde/i.test(n), "name may not contain discord or clyde"),
     // Writes (UpdateProfile, BotDesign, web settings) cap it at 80; loading stays lenient so older files still load.

@@ -57,8 +57,10 @@ test("a BAD_REQUEST for name shows under Name in the error style", async () => {
   });
   onSave.mockRejectedValue(err);
   await userEvent.type(screen.getByLabelText("Name"), "Dev");
-  await userEvent.type(screen.getByLabelText("Id"), "dev");
+  // No Id field: the id is made from the name.
+  expect(screen.queryByLabelText("Id")).toBeNull();
   await userEvent.click(save());
+  expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ id: "dev", name: "Dev" }));
   const help = await screen.findByText("Name is taken");
   expect(help.className).toContain("err");
   expect(screen.getByLabelText("Name").className).toContain("err");

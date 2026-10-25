@@ -67,7 +67,7 @@ test("a bot file with a problem is refused", () => {
     ),
   ).toThrow();
   expect(bad((s) => s, "Bad_Id")).toThrow();
-  expect(bad((s) => s.replace("name: Ann", "name: Ann Lee"))).toThrow();
+  expect(bad((s) => s.replace("name: Ann", "name: Ann@Lee"))).toThrow();
 });
 
 test("a group file parses; an entry bot outside the members is refused", () => {

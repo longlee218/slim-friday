@@ -1,10 +1,11 @@
 import type { MessageDto } from "@friday/contracts";
-import { Fragment } from "react";
+import { Fragment, type ReactNode } from "react";
 import { useDirectory } from "../../api/directory";
 import { formatClock } from "../../lib/format";
 import { Avatar } from "../ui/avatar";
 import { FileCard } from "./file-card";
 import { ImageGallery } from "./image-gallery";
+import { mentionSpans } from "./mentions";
 import { ROUTE_SUFFIX, type RouteInfo } from "./route-info";
 import { useBotFace } from "./use-bot-face";
 
@@ -49,22 +50,20 @@ function RouteMeta({ route }: { route: RouteInfo }) {
 }
 
 /** Text with `@name` of a member wrapped in `.at`; every part is a React text node. */
-function AtText({ text, names }: { text: string; names: Set<string> }) {
-  const parts = text.split(/(@\w+)/g);
-  return (
-    <>
-      {parts.map((p, i) =>
-        i % 2 === 1 && names.has(p.slice(1).toLowerCase()) ? (
-          // biome-ignore lint/suspicious/noArrayIndexKey: parts are positional and static
-          <span key={i} className="at">
-            {p}
-          </span>
-        ) : (
-          p
-        ),
-      )}
-    </>
-  );
+function AtText({ text, names }: { text: string; names: string[] }) {
+  const parts: ReactNode[] = [];
+  let at = 0;
+  for (const { start, end } of mentionSpans(text, names)) {
+    parts.push(text.slice(at, start));
+    parts.push(
+      <span key={start} className="at">
+        {text.slice(start, end)}
+      </span>,
+    );
+    at = end;
+  }
+  parts.push(text.slice(at));
+  return <>{parts}</>;
 }
 
 /**
@@ -74,7 +73,7 @@ function AtText({ text, names }: { text: string; names: Set<string> }) {
  */
 export function OwnerBubble({ message, route, pending, onRetry, members = [] }: OwnerBubbleProps) {
   const dir = useDirectory();
-  const names = new Set(members.map((id) => dir.botName(id).toLowerCase()));
+  const names = members.map((id) => dir.botName(id));
   const images = message.files.filter((f) => f.kind === "image");
   const others = message.files.filter((f) => f.kind !== "image");
   return (

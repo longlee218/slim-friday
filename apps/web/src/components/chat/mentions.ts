@@ -1,8 +1,10 @@
 import type { GroupDto } from "@friday/contracts";
 import { ROUTE_SUFFIX, type RouteInfo } from "./route-info";
 
-/** `\w` limits names to ASCII letters, digits and `_` (known limit; matches the prototype). */
-const QUERY = /@(\w*)$/;
+/** A character that continues a name; the same rule as the engine's `parseMentions`. */
+const WORD = /[\p{L}\p{M}\p{N}_-]/u;
+/** The word being typed after an `@`, right before the caret. */
+const QUERY = /@([\p{L}\p{M}\p{N}_-]*)$/u;
 
 /** The partial `@name` right before the caret, lower-cased; null when the caret is not in one. */
 export function mentionQuery(text: string, caret: number): string | null {
@@ -10,11 +12,35 @@ export function mentionQuery(text: string, caret: number): string | null {
   return m ? (m[1] ?? "").toLowerCase() : null;
 }
 
+/**
+ * Where each `@name` of one of `names` sits in `text` (`end` is after the name). Names are display
+ * names (spaces, accents); the longest name after the `@` that ends at a word boundary wins, and an
+ * `@` glued to a word (an e-mail address) is skipped. Mirrors the engine's `parseMentions`.
+ */
+export function mentionSpans(text: string, names: string[]): { start: number; end: number }[] {
+  const byLength = names.map((n) => n.toLowerCase()).sort((a, b) => b.length - a.length);
+  const spans: { start: number; end: number }[] = [];
+  for (let i = text.indexOf("@"); i >= 0; i = text.indexOf("@", i + 1)) {
+    const before = text[i - 1];
+    if (before && (WORD.test(before) || before === "@")) continue;
+    const rest = text.slice(i + 1);
+    const hit = byLength.find(
+      (n) => rest.slice(0, n.length).toLowerCase() === n && !WORD.test(rest[n.length] ?? ""),
+    );
+    if (hit) spans.push({ start: i, end: i + 1 + hit.length });
+  }
+  return spans;
+}
+
 /** Ids of the members named with `@name` in the text: case-insensitive, unique, in order. */
 export function mentioned(text: string, members: { id: string; name: string }[]): string[] {
   const ids: string[] = [];
-  for (const m of text.matchAll(/@(\w+)/g)) {
-    const hit = members.find((b) => b.name.toLowerCase() === (m[1] ?? "").toLowerCase());
+  for (const { start, end } of mentionSpans(
+    text,
+    members.map((b) => b.name),
+  )) {
+    const name = text.slice(start + 1, end).toLowerCase();
+    const hit = members.find((b) => b.name.toLowerCase() === name);
     if (hit && !ids.includes(hit.id)) ids.push(hit.id);
   }
   return ids;

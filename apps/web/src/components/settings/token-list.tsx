@@ -83,7 +83,10 @@ export function TokenList({
                   aria-label={addLabel}
                   placeholder={placeholder}
                 />
-                <Combobox.Empty className="sel-it">Nothing to add.</Combobox.Empty>
+                {/* A list with no options takes free text (folder paths): say so instead. */}
+                <Combobox.Empty className="sel-it">
+                  {options.length ? "Nothing to add." : "Type to add."}
+                </Combobox.Empty>
                 <Combobox.List>
                   {(item: string) => (
                     <Combobox.Item key={item} value={item} className="sel-it">

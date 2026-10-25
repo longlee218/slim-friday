@@ -3,6 +3,7 @@ import { useDirectory } from "../../api/directory";
 import { TicketSelect } from "../tickets/ticket-select";
 import { AutoTextarea } from "../ui/auto-textarea";
 import { Avatar } from "../ui/avatar";
+import { autoId } from "./auto-id";
 import { Row, SaveBar, StaleNotice } from "./form-parts";
 import { TokenList } from "./token-list";
 import { type FieldErrors, useFormState } from "./use-form-state";
@@ -54,16 +55,9 @@ export function GroupForm({
   const form = useFormState(initial, validateGroup);
   const dir = useDirectory();
   const { value: v, set, errors } = form;
-  const text = (key: "name" | "id", label: string, help?: string) => (
-    <Row label={label} htmlFor={`g-${key}`} help={help} error={errors[key]}>
-      <input
-        id={`g-${key}`}
-        className={errors[key] ? "field err" : "field"}
-        value={v[key]}
-        onChange={(e) => set(key, e.target.value)}
-      />
-    </Row>
-  );
+  const create = mode === "create";
+  // A new group's id (file name, fixed for good) follows its name.
+  const nameError = errors.name ?? (create ? errors.id : undefined);
   const face = (id: string) => (
     <Avatar src={dir.bots.get(id)?.avatarUrl} name={dir.botName(id)} size={16} />
   );
@@ -71,8 +65,22 @@ export function GroupForm({
     <>
       {form.stale && <StaleNotice what="group" />}
       <div className="formgroup">
-        {text("name", "Name")}
-        {mode === "create" && text("id", "Id", "The file name. It cannot change later.")}
+        <Row
+          label="Name"
+          htmlFor="g-name"
+          help={create ? `File id: ${v.id || "–"}` : undefined}
+          error={nameError}
+        >
+          <input
+            id="g-name"
+            className={nameError ? "field err" : "field"}
+            value={v.name}
+            onChange={(e) => {
+              set("name", e.target.value);
+              if (create) set("id", autoId(e.target.value.trim(), dir.groups.keys(), "group"));
+            }}
+          />
+        </Row>
         <Row
           label="Entry bot"
           help="Gets your message when you don't @name anyone."

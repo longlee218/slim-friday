@@ -117,6 +117,14 @@ test("a group that lists the Friday bot as a member is refused", () => {
 const header = (name: string, extra = "") =>
   `---\nname: ${name}\ntitle: T\nmodel: sonnet\n${extra}---\nbody\n`;
 
+test("a bot name is a display name: spaces and accents pass; @, line breaks, edge spaces and 33 chars fail", async () => {
+  const { parseBotFile } = await import("../src/schemas/bot-file");
+  expect(parseBotFile("a", header("Nhà phân tích")).name).toBe("Nhà phân tích");
+  expect(parseBotFile("a", header("Data Bot 2")).name).toBe("Data Bot 2");
+  for (const bad of ["a@b", '" Lead"', '"Lead "', '"two\\nlines"', "x".repeat(33)])
+    expect(() => parseBotFile("a", header(bad))).toThrow();
+});
+
 test("bot names the chat app refuses for webhooks are refused; absolute workspaces are normalised", async () => {
   const { parseBotFile } = await import("../src/schemas/bot-file");
   expect(() => parseBotFile("a", header("Clyde"))).toThrow();

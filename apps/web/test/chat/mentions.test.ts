@@ -4,6 +4,7 @@ import {
   insertMention,
   mentioned,
   mentionQuery,
+  mentionSpans,
   routeChipText,
   routeOf,
 } from "../../src/components/chat/mentions";
@@ -53,4 +54,29 @@ test("route: named > reply > entry", () => {
   expect(routeChipText(routeOf({ text: "@Tess @Dev", group: crew, names }), names)).toBe(
     "To Tess, Dev",
   );
+});
+
+test("display names with spaces and accents: longest member name wins, word boundary after it", () => {
+  const members = [
+    { id: "nha-phan-tich", name: "Nhà phân tích" },
+    { id: "nha", name: "Nhà" },
+    { id: "pia", name: "Pia" },
+  ];
+  expect(mentioned("@Nhà phân tích xem số liệu", members)).toEqual(["nha-phan-tich"]);
+  expect(mentioned("@nhà PHÂN TÍCH rồi @Nhà, @Pia", members)).toEqual([
+    "nha-phan-tich",
+    "nha",
+    "pia",
+  ]);
+  expect(mentioned("@Pias, mail a@Pia", members)).toEqual([]);
+  expect(
+    mentionSpans(
+      "hi @Nhà phân tích!",
+      members.map((m) => m.name),
+    ),
+  ).toEqual([{ start: 3, end: 17 }]);
+});
+
+test("the @ query takes accented letters", () => {
+  expect(mentionQuery("hỏi @Nhà", 8)).toBe("nhà");
 });

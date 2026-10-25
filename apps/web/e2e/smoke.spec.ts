@@ -47,7 +47,6 @@ test("sign in with a passkey, chat, upload, answer an approval, run a ticket, op
   // Settings: a new bot appears in the sidebar under Bots.
   await page.goto("/settings/bot/new");
   await page.getByLabel("Name", { exact: true }).fill("Scout");
-  await page.getByLabel("Id", { exact: true }).fill("scout");
   await page.getByLabel("Title").fill("Researcher");
   await page.getByRole("combobox", { name: "Model" }).click();
   await page.getByRole("option", { name: "sonnet" }).click();

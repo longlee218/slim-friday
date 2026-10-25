@@ -110,7 +110,7 @@ test("refuses a write through a symlinked groups dir", () => {
 });
 
 test("parser message comes back on the field", () => {
-  expect(() => admin.saveBot({ ...dev, name: "two words" }, "create")).toThrow(
+  expect(() => admin.saveBot({ ...dev, name: "at@sign" }, "create")).toThrow(
     expect.objectContaining({ code: "BAD_REQUEST", field: "name" }),
   );
   expect(() => admin.saveBot({ ...dev, name: "Dev", tools: ["Nope"] }, "create")).toThrow(

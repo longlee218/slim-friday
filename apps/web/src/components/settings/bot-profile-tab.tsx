@@ -1,6 +1,8 @@
 import { EffortSchema } from "@friday/contracts";
+import { useDirectory } from "../../api/directory";
 import { TicketSelect } from "../tickets/ticket-select";
 import { AutoTextarea } from "../ui/auto-textarea";
+import { autoId } from "./auto-id";
 import type { BotFormValue } from "./bot-form-value";
 import { Row, Segmented } from "./form-parts";
 import type { FormState } from "./use-form-state";
@@ -12,14 +14,15 @@ const AUTONOMY = ["careful", "balanced", "autonomous"] as const;
 export interface BotTabProps {
   form: FormState<BotFormValue>;
   readOnly: boolean;
-  /** `create` also asks for the name and the id. */
+  /** `create` also asks for the name (the id is made from it). */
   mode: "create" | "update";
 }
 
-/** Profile tab: (new bot: name and id), title, model, effort, autonomy, instructions. */
+/** Profile tab: (new bot: name, its id made from it), title, model, effort, autonomy, instructions. */
 export function BotProfileTab({ form, readOnly, mode }: BotTabProps) {
   const { value: v, set, errors } = form;
-  const text = (key: "name" | "id" | "title", label: string, help?: string) => (
+  const dir = useDirectory();
+  const text = (key: "title", label: string, help?: string) => (
     <Row label={label} htmlFor={`f-${key}`} help={help} error={errors[key]}>
       <input
         id={`f-${key}`}
@@ -34,8 +37,25 @@ export function BotProfileTab({ form, readOnly, mode }: BotTabProps) {
   return (
     <>
       <div className="formgroup">
-        {mode === "create" && text("name", "Name", "Shown in chats; mentions use @name.")}
-        {mode === "create" && text("id", "Id", "The file name. It cannot change later.")}
+        {mode === "create" && (
+          // The id (file name, fixed for good) follows the name; mentions use the name itself.
+          <Row
+            label="Name"
+            htmlFor="f-name"
+            help={`Mention it as @${v.name.trim() || "name"}. File id: ${v.id || "–"}`}
+            error={errors.name ?? errors.id}
+          >
+            <input
+              id="f-name"
+              className={errors.name || errors.id ? "field err" : "field"}
+              value={v.name}
+              onChange={(e) => {
+                set("name", e.target.value);
+                set("id", autoId(e.target.value.trim(), dir.bots.keys(), "bot"));
+              }}
+            />
+          </Row>
+        )}
         {text("title", "Title")}
         <Row label="Model">
           {readOnly ? (

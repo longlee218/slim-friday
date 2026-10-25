@@ -70,3 +70,22 @@ test("changing instructions and saving sends the full value", async () => {
   await userEvent.click(screen.getByRole("button", { name: "Save" }));
   expect(onSave).toHaveBeenCalledWith({ ...crew, instructions: "Be kind.!" });
 });
+
+test("a new group gets its id from its name (no Id field)", async () => {
+  const onSave = vi.fn().mockResolvedValue(undefined);
+  const qc = seededClient({ bots: [bot("dev", "Dev")] });
+  render(
+    <QueryClientProvider client={qc}>
+      <GroupForm
+        initial={{ ...crew, id: "", name: "", members: ["dev"] }}
+        mode="create"
+        onSave={onSave}
+      />
+    </QueryClientProvider>,
+  );
+  expect(screen.queryByLabelText("Id")).toBeNull();
+  await userEvent.type(screen.getByLabelText("Name"), "Đội Dữ liệu");
+  expect(screen.getByText("File id: doi-du-lieu")).toBeTruthy();
+  await userEvent.click(screen.getByRole("button", { name: "Save" }));
+  expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ id: "doi-du-lieu" }));
+});
