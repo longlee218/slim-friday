@@ -4,6 +4,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, test, vi } from "vitest";
 import { BotForm, type BotFormValue } from "../../src/components/settings/bot-form";
+import { SettingsPage } from "../../src/components/settings/settings-page";
 import { seededClient } from "../shell/fixtures";
 
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));
@@ -101,4 +102,21 @@ test("an existing bot is renamed from the Name field and saved with the form; it
 test("a shipped bot's name is read only", () => {
   setup({ shipped: true });
   expect((screen.getByLabelText("Name") as HTMLInputElement).disabled).toBe(true);
+});
+
+test("phone: Save is in the nav bar", () => {
+  window.innerWidth = 390;
+  try {
+    render(
+      <QueryClientProvider client={seededClient({})}>
+        <SettingsPage title="Dev">
+          <BotForm initial={dev} mode="update" tab="profile" onSave={vi.fn()} />
+        </SettingsPage>
+      </QueryClientProvider>,
+    );
+    expect(save().closest(".ios-nav")).not.toBeNull();
+    expect(document.querySelector(".savebar")).toBeNull();
+  } finally {
+    window.innerWidth = 1024;
+  }
 });

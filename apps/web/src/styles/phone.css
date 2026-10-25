@@ -21,6 +21,8 @@
 .ios-nav .nb.back svg { width: 26px; height: 26px; margin-left: -6px; }
 .ios-nav .nb:active:not(:disabled) { opacity: .5; }
 .ios-nav .nb:disabled { color: var(--label-3); }
+/* The bar's main action (Save): iOS sets it bold. */
+.ios-nav .nb.strong { font-weight: 600; }
 .large { font: 700 34px/1.15 var(--font-display); letter-spacing: -0.025em; margin: 2px 16px 10px; }
 .ios-search { margin: 0 16px 12px; position: relative; }
 .ios-search input { width: 100%; height: 36px; border-radius: 10px; border: 0; background: var(--fill); padding: 0 12px 0 34px; font-size: 17px; outline: 0; }

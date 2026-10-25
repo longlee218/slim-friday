@@ -1,6 +1,8 @@
 import { type ReactNode, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "../ui/button";
 import { useSegThumb } from "../ui/use-seg-thumb";
+import { useNavSlot } from "./settings-page";
 
 /** One `.frow`: label, control and an optional help line (red when `error` is set). */
 export function Row({
@@ -124,7 +126,11 @@ export function Switch({
   );
 }
 
-/** Revert and Save at the bottom of a form; both stay disabled until something changed. */
+/**
+ * Revert and Save at the bottom of a form; both stay disabled until something changed. On a
+ * phone settings page Save goes to the nav bar instead, as on iOS, and there is no Revert:
+ * leaving the page drops the edits.
+ */
 export function SaveBar({
   dirty,
   valid,
@@ -138,6 +144,20 @@ export function SaveBar({
   onRevert(): void;
   onSave(): void;
 }) {
+  const slot = useNavSlot();
+  if (slot) {
+    return createPortal(
+      <button
+        type="button"
+        className="nb strong"
+        disabled={!dirty || !valid || saving}
+        onClick={onSave}
+      >
+        {saving ? "Saving…" : "Save"}
+      </button>,
+      slot,
+    );
+  }
   return (
     <div className="savebar">
       <Button disabled={!dirty || saving} onClick={onRevert}>

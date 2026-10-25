@@ -11,6 +11,7 @@ const save = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));
 vi.mock("../../src/components/settings/settings-page", () => ({
   SettingsPage: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  useNavSlot: () => null,
 }));
 vi.mock("../../src/api/client", async (orig) => ({
   ...(await orig<typeof import("../../src/api/client")>()),
