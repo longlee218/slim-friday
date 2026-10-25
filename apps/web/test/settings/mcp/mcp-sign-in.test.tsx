@@ -70,7 +70,7 @@ test("needs_login banner shows the Sign in button", async () => {
 });
 
 test("connected: one banner with tools and last refresh, Sign in again is secondary", async () => {
-  api.test.mockResolvedValue({ state: "connected", tools: [{ name: "a" }, { name: "b" }] });
+  api.test.mockResolvedValue({ state: "connected", tools: ["a", "b"] });
   setup(oauthServer({ status: "connected", lastRefreshAt: Date.now() - 3 * 3600_000 }));
   // The text is split by a <b>, so match the banner's own text content.
   const banner = await screen.findByText(

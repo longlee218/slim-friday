@@ -4,7 +4,7 @@ import { useState } from "react";
 import { orpc } from "../../api/client";
 import type { BotTabProps } from "./bot-profile-tab";
 import { Row, Switch } from "./form-parts";
-import { isServerEntry, serverRef, withoutServer } from "./mcp-tool-entries";
+import { isServerEntry, serverRef, toolSummary, withoutServer } from "./mcp-tool-entries";
 import { McpToolPicker } from "./mcp-tool-picker";
 import { TokenList } from "./token-list";
 
@@ -104,7 +104,7 @@ export function BotToolsTab({ form, readOnly }: BotTabProps) {
                     <Terminal size={16} strokeWidth={1.75} />
                   )}
                 </span>
-                <div className="grow">
+                <div className="grow" style={{ minWidth: 0 }}>
                   <b>{s.name}</b>
                   <div className="t2">{s.type === "http" ? "HTTP server" : "Local command"}</div>
                 </div>
@@ -112,10 +112,20 @@ export function BotToolsTab({ form, readOnly }: BotTabProps) {
                   <button
                     type="button"
                     className="ib"
+                    style={{
+                      width: "auto",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 2,
+                      padding: "0 6px",
+                      whiteSpace: "nowrap",
+                      flexShrink: 0,
+                    }}
                     aria-label={`Choose tools of ${s.name}`}
                     aria-expanded={picking}
                     onClick={() => setOpen(picking ? undefined : s.name)}
                   >
+                    {toolSummary(v.tools, s.name)}{" "}
                     {picking ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                   </button>
                 )}

@@ -16,6 +16,7 @@ import { McpForm } from "./mcp-form";
 import { SignInBanner, useSignInResult } from "./mcp-sign-in";
 import { fromServer, toSpec, validateMcp } from "./mcp-spec";
 import { ConnBanner, useMcpProbe } from "./mcp-status";
+import { McpToolList } from "./mcp-tool-list";
 import { McpUsedBy } from "./mcp-used-by";
 
 /** The body of one server: banner, form, switches and calls. Keyed by name so state resets. */
@@ -53,6 +54,7 @@ function Loaded({ server }: { server: McpServerDto }) {
     try {
       await client.config.mcp.delete({ name: server.name });
       await refresh();
+      toast(`${server.name} removed.`);
       void navigate("/settings/mcp", { replace: true });
     } catch (e) {
       // The server refuses while bots use it and names them.
@@ -96,6 +98,7 @@ function Loaded({ server }: { server: McpServerDto }) {
           onSave={() => void save()}
         />
       )}
+      <McpToolList probe={probe} />
       <McpUsedBy name={server.name} usedBy={server.usedBy} />
       <McpCalls server={server.name} />
       {!readOnly && <PhoneRemoveRow label="Remove this server" onClick={() => void remove()} />}
