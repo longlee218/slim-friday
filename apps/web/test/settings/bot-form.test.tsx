@@ -120,3 +120,14 @@ test("phone: Save is in the nav bar", () => {
     window.innerWidth = 1024;
   }
 });
+
+test("a new bot shows no File id until it has a name, and says what an unset Effort and Autonomy use", async () => {
+  setup({ initial: { ...dev, id: "", name: "" }, mode: "create" });
+  expect(screen.queryByText(/File id/)).toBeNull();
+  expect(screen.getByText(/No Effort chosen: the model's default applies\./)).toBeTruthy();
+  expect(screen.getByText(/No Autonomy chosen: the level from settings applies\./)).toBeTruthy();
+  await userEvent.type(screen.getByLabelText("Name"), "Ops");
+  expect(screen.getByText(/File id: ops/)).toBeTruthy();
+  await userEvent.click(screen.getByRole("button", { name: "careful" }));
+  expect(screen.queryByText(/No Autonomy chosen/)).toBeNull();
+});

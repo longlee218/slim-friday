@@ -4,7 +4,10 @@ import { Button } from "../ui/button";
 import { useSegThumb } from "../ui/use-seg-thumb";
 import { useNavSlot } from "./settings-page";
 
-/** One `.frow`: label, control and an optional help line (red when `error` is set). */
+/**
+ * One grouped row (`.frow`): label on the left, the control on the right (a tall `top` control
+ * takes the full width under its label). Help or the error (red) is a line under the row.
+ */
 export function Row({
   label,
   htmlFor,
@@ -15,24 +18,50 @@ export function Row({
 }: {
   label: string;
   htmlFor?: string;
-  /** Align to the top (for token lists and tall controls). */
+  /** Label above a full-width control (token lists, key-value rows, tall controls). */
   top?: boolean;
   help?: string;
   error?: string;
   children: ReactNode;
 }) {
+  const note = error || help;
   return (
     <div className={top ? "frow top" : "frow"}>
       <label htmlFor={htmlFor}>{label}</label>
-      <div>
-        {children}
-        {error ? (
-          <div className="help err">{error}</div>
-        ) : (
-          help && <div className="help">{help}</div>
-        )}
-      </div>
+      <div className="ctl">{children}</div>
+      {note && <div className={error ? "help err" : "help"}>{note}</div>}
     </div>
+  );
+}
+
+/**
+ * A grouped section (`.formgroup`) of rows, with an optional header above it and a footnote
+ * under it (iOS Settings); an `error` replaces the footnote in red. `wide` drops the row
+ * padding for one full-width control.
+ */
+export function Group({
+  title,
+  foot,
+  error,
+  wide,
+  children,
+}: {
+  title?: ReactNode;
+  foot?: ReactNode;
+  error?: string;
+  wide?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <section className="grp">
+      {title && <h3 className="grp-h">{title}</h3>}
+      <div className={wide ? "formgroup wide" : "formgroup"}>{children}</div>
+      {error ? (
+        <div className="grp-f err">{error}</div>
+      ) : (
+        foot && <div className="grp-f">{foot}</div>
+      )}
+    </section>
   );
 }
 
@@ -159,7 +188,8 @@ export function SaveBar({
     );
   }
   return (
-    <div className="savebar">
+    // Quiet until something changed; then it lifts and Save takes the gradient.
+    <div className={dirty ? "savebar on" : "savebar"}>
       <Button disabled={!dirty || saving} onClick={onRevert}>
         Revert
       </Button>

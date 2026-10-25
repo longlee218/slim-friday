@@ -2,9 +2,10 @@
    Base UI marks an exiting popup with [data-ending-style]; it is mapped to the prototype ".closing" rules. */
 
 /* popover */
-.pop { position: fixed; z-index: 40; width: 380px; background: var(--raised); border-radius: 12px; box-shadow: var(--shadow-pop); padding: 6px;
+.pop { position: fixed; z-index: 40; width: 380px; background: var(--glass-strong); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); border-radius: 20px; box-shadow: var(--glass-edge), var(--shadow-pop); padding: 8px;
   transform-origin: top center; animation: popIn 200ms var(--ease); }
-.pop::before { content: ""; position: absolute; top: -6px; left: calc(50% - 7px); width: 14px; height: 14px; background: var(--raised); transform: rotate(45deg); border-radius: 3px 0 0 0; }
+/* Glass popovers have no arrow: a solid arrow would show through the blur. */
+.pop::before { content: none; }
 @keyframes popIn { from { opacity: 0; transform: translateY(-4px) scale(.97); } }
 .pop.closing { animation: popOut 140ms ease-in forwards; }
 @keyframes popOut { to { opacity: 0; transform: translateY(-3px) scale(.98); } }
@@ -15,69 +16,87 @@
 @keyframes pop { from { transform: scale(.4); opacity: 0; } 60% { transform: scale(1.12); } }
 
 /* overlays */
-.dim { position: fixed; inset: 0; z-index: 50; background: var(--dim); animation: fade var(--t-mid) var(--ease); }
+.dim { position: fixed; inset: 0; z-index: 50; background: var(--dim); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); animation: fade var(--t-mid) var(--ease); }
 .dim.clear { background: transparent; }
 @keyframes fade { from { opacity: 0; } }
 .dim.closing { animation: fadeOut 180ms ease-in forwards; }
 @keyframes fadeOut { to { opacity: 0; } }
-.sheet { position: fixed; z-index: 51; left: 50%; top: 0; width: min(500px, calc(100vw - 32px)); transform: translateX(-50%); background: var(--raised); border-radius: 0 0 14px 14px; box-shadow: var(--shadow-sheet); padding: 20px 20px 16px; animation: sheetDown var(--t-slow) var(--ease-sheet); }
-@keyframes sheetDown { from { transform: translate(-50%, -100%); } }
+/* Desktop sheet: a centred glass card that rises in (macOS Tahoe), not a panel dropping from the toolbar edge. */
+.sheet { position: fixed; z-index: 51; left: 50%; top: 12vh; width: min(520px, calc(100vw - 32px)); max-height: 80vh; overflow: auto; transform: translateX(-50%); background: var(--glass-strong); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); border-radius: 26px; box-shadow: var(--glass-edge), var(--shadow-sheet); padding: 22px 22px 18px; animation: sheetDown var(--t-slow) var(--ease-sheet); }
+@keyframes sheetDown { from { opacity: 0; transform: translate(-50%, 16px) scale(.97); } }
 .sheet.closing { animation: sheetUp 240ms ease-in forwards; }
-@keyframes sheetUp { to { transform: translate(-50%, -100%); } }
-.sheet h3 { margin: 0 0 14px; font: 650 15px var(--font-display); }
-.toast { position: fixed; z-index: 60; right: 18px; bottom: 18px; display: flex; align-items: center; gap: 10px; padding: 10px 12px 10px 10px; background: var(--raised); border-radius: 12px; box-shadow: var(--shadow-pop); animation: toastIn 360ms var(--ease); max-width: 360px; }
+@keyframes sheetUp { to { opacity: 0; transform: translate(-50%, 10px) scale(.98); } }
+.sheet h3 { margin: 0 0 16px; font: 700 18px var(--font-display); letter-spacing: -0.015em; }
+.toast { position: fixed; z-index: 60; right: 18px; bottom: 18px; display: flex; align-items: center; gap: 10px; padding: 10px 14px 10px 10px; background: var(--glass-strong); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); border-radius: 18px; box-shadow: var(--glass-edge), var(--shadow-pop); animation: toastIn 360ms var(--ease); max-width: 360px; }
 @keyframes toastIn { from { opacity: 0; transform: translateY(12px) scale(.98); } }
 .toast .av { width: 30px; height: 30px; }
 .toast .t2 { font-size: 12px; color: var(--label-2); }
 
-/* iOS bottom sheet */
-.bsheet { position: absolute; z-index: 51; left: 0; right: 0; bottom: 0; background: var(--raised); border-radius: 14px 14px 0 0; padding: 8px 16px calc(16px + var(--safe-b)); box-shadow: 0 -10px 40px rgba(0, 0, 0, .18); animation: bsIn var(--t-slow) var(--ease-sheet); touch-action: none; }
-@keyframes bsIn { from { transform: translateY(100%); } }
-.bsheet.closing { transition: transform 280ms var(--ease-sheet); transform: translateY(100%) !important; }
+/* iOS bottom sheet (iOS 26): a glass card floating 8px off the sides and bottom, radius 30 all round, with a grab
+   handle. A form sheet (.bs-form, tall) is the full-width kind: attached to the bottom edge, top corners only. */
+.bsheet { position: absolute; z-index: 51; left: 8px; right: 8px; bottom: 0; background: var(--glass-strong); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); border-radius: 30px; padding: 8px 16px calc(14px + max(0px, var(--safe-b) - 8px)); box-shadow: var(--glass-edge), 0 -10px 40px rgba(0, 0, 0, .18); animation: bsIn var(--t-slow) var(--ease-sheet); touch-action: none; }
+/* 100% plus the 8px gap and the shadow, so the floating card leaves the screen entirely. */
+@keyframes bsIn { from { transform: translateY(calc(100% + 24px)); } }
+.bsheet.closing { transition: transform 280ms var(--ease-sheet); transform: translateY(calc(100% + 24px)) !important; }
 .grab { width: 36px; height: 5px; border-radius: 3px; background: var(--fill-strong); margin: 0 auto 14px; }
 .bsheet h3 { margin: 0 0 4px; font: 650 20px var(--font-display); letter-spacing: -0.015em; }
+/* Action sheets (message actions, approval review): full-width pill buttons, finger-sized. Beats cards.css `.bsheet .btn`. */
+.bsheet button.btn { width: 100%; height: 52px; border-radius: 999px; font-size: 17px; font-weight: 600; margin-top: 8px; }
+.bsheet button.btn:not(.primary) { background: var(--fill); }
+.bsheet button.btn:not(.primary):active { background: var(--fill-strong); }
 
 /* --- additions for the app (not in the prototype) --- */
 .dim[data-ending-style] { animation: fadeOut 180ms ease-in forwards; }
 .sheet[data-ending-style] { animation: sheetUp 240ms ease-in forwards; }
 .sheet.wide { width: min(760px, calc(100vw - 32px)); max-height: 86vh; overflow: auto; }
 .pop[data-ending-style] { animation: popOut 140ms ease-in forwards; }
-.bsheet[data-ending-style] { transition: transform 280ms var(--ease-sheet); transform: translateY(100%) !important; }
+.bsheet[data-ending-style] { transition: transform 280ms var(--ease-sheet); transform: translateY(calc(100% + 24px)) !important; }
 /* In the real viewport the bottom sheet pins to the screen, not to the prototype's phone frame. It is portalled
    outside `.ios`, so it sets its own `--safe-b` (unset, the padding shorthand above is invalid and drops to 0). */
 .bsheet { position: fixed; --safe-b: env(safe-area-inset-bottom, 0px); }
 /* A tall sheet stops below the status bar; a form's fields scroll in `.bs-body` (a swipe there scrolls, it never drags). */
-.bsheet { display: flex; flex-direction: column; max-height: calc(var(--vv-h, 100dvh) - env(safe-area-inset-top, 0px) - 10px); }
+.bsheet { display: flex; flex-direction: column; }
 /* With the iOS keyboard up the sheet rests on it (use-keyboard-inset.ts sets the two variables). */
-.bsheet { bottom: var(--kb-h, 0px); }
+.bsheet { bottom: calc(var(--kb-h, 0px) + 8px); max-height: calc(var(--vv-h, 100dvh) - env(safe-area-inset-top, 0px) - 18px); }
+.bsheet:has(.bs-form) { left: 0; right: 0; bottom: var(--kb-h, 0px); border-radius: 30px 30px 0 0; padding-bottom: calc(16px + var(--safe-b)); max-height: calc(var(--vv-h, 100dvh) - env(safe-area-inset-top, 0px) - 10px); }
 /* Sheet form (sheet-bar.tsx): Cancel | title | action, like the nav bar; the fields scroll under it. */
 .bs-form { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .bs-bar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; min-height: 44px; margin: -8px -6px 4px; }
 .bs-bar h3 { margin: 0; font: 600 17px var(--font); letter-spacing: -0.01em; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bs-bar .bs-bar-r { justify-self: end; }
-.bs-bar .nb { display: inline-flex; align-items: center; height: 44px; padding: 0 6px; border: 0; background: none; color: var(--tint); font-size: 17px; }
+.bs-bar .nb { display: inline-flex; align-items: center; height: 36px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--fill); color: var(--label); font-size: 16px; }
+.bs-bar .nb.strong { background: var(--grad); color: #fff; }
+/* The pill looks 36px; its hit area reaches the 44px touch target. */
+.bs-bar .nb { position: relative; }
+.bs-bar .nb::after { content: ""; position: absolute; inset: -4px -2px; }
 .bs-bar .nb:first-child { justify-self: start; }
 .bs-bar .nb.strong { font-weight: 600; }
 .bs-bar .nb:active:not(:disabled) { opacity: .5; }
-.bs-bar .nb:disabled { color: var(--label-3); }
+.bs-bar .nb:disabled { background: var(--fill); color: var(--label-3); }
 .bs-body .acts { flex-direction: column; }
 .bs-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; }
 .badge.red { background: var(--red-dot); color: #fff; }
 kbd { font: 500 11px var(--font); color: var(--label-3); padding: 1px 5px; border-radius: 4px; background: var(--fill); }
 
 /* Command palette (prototype app.css .palette*). */
-.palette { position: fixed; z-index: 51; left: 50%; top: 14vh; width: min(600px, calc(100vw - 32px)); transform: translateX(-50%); background: var(--raised); border-radius: 14px; box-shadow: var(--shadow-sheet); overflow: hidden; animation: palIn 240ms var(--ease); }
+.palette { position: fixed; z-index: 51; left: 50%; top: 14vh; width: min(620px, calc(100vw - 32px)); transform: translateX(-50%); background: var(--glass-strong); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); border-radius: 24px; box-shadow: var(--glass-edge), var(--shadow-sheet); overflow: hidden; animation: palIn 240ms var(--ease); }
 @keyframes palIn { from { opacity: 0; transform: translateX(-50%) scale(.97); filter: blur(4px); } }
-.palette input { width: 100%; height: 52px; border: 0; outline: 0; padding: 0 18px 0 46px; font-size: 16px; background: transparent; border-bottom: 1px solid var(--sep); }
-.palette .s-ico { position: absolute; left: 16px; top: 17px; color: var(--label-3); width: 18px; height: 18px; }
-.palette .res { max-height: 360px; overflow-y: auto; padding: 6px; }
-.palette .it { display: flex; align-items: center; gap: 10px; height: 38px; padding: 0 10px; border-radius: 8px; }
-.palette .it.on, .palette .it[data-selected="true"] { background: var(--tint-fill); color: #fff; }
+.palette input { width: 100%; height: 56px; border: 0; outline: 0; padding: 0 18px 0 46px; font-size: 16px; background: transparent; border-bottom: 1px solid var(--sep); }
+.palette .s-ico { position: absolute; left: 18px; top: 19px; color: var(--label-3); width: 18px; height: 18px; }
+.palette .res { max-height: 380px; overflow-y: auto; padding: 8px; }
+.palette .it { display: flex; align-items: center; gap: 10px; height: 42px; padding: 0 12px; border-radius: 12px; }
+.palette .it.on, .palette .it[data-selected="true"] { background: var(--grad); color: #fff; }
 .palette .it[data-selected="true"] .k, .palette .it[data-selected="true"] .sb-ico { color: rgba(255, 255, 255, .8); }
-.palette .it .av { width: 22px; height: 22px; }
+.palette .it .av { width: 26px; height: 26px; }
 .palette .it .k { margin-left: auto; font-size: 11.5px; color: var(--label-3); }
 .palette .grp, .palette [cmdk-group-heading] { font-size: 11.5px; font-weight: 600; color: var(--label-3); padding: 8px 10px 4px; }
 .palette [cmdk-root] { position: relative; }
 /* Phone: the sheet supplies the surface, so the panel loses its own frame. */
-.palette.in-sheet { position: static; transform: none; width: auto; box-shadow: none; animation: none; background: transparent; }
+.palette.in-sheet { position: static; transform: none; width: auto; box-shadow: none; animation: none; background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; }
+/* ...and its search field is the iOS search pill. */
+.palette.in-sheet input { height: 40px; border: 0; border-radius: 999px; background: var(--fill); padding: 0 14px 0 40px; font-size: 17px; }
+.palette.in-sheet input::placeholder { color: var(--label-2); }
+.palette.in-sheet .s-ico { left: 13px; top: 11px; color: var(--label-2); }
+.palette.in-sheet .res { padding: 8px 0 0; }
+.palette.in-sheet .it { height: 48px; }
 .palette[data-ending-style] { opacity: 0; transition: opacity 140ms ease-in; }

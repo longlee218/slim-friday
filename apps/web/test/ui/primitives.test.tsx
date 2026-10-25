@@ -141,6 +141,17 @@ describe("sheets", () => {
     );
     await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText("Name")));
   });
+  test("Sheet (desktop) focuses the first field of a form sheet, not the bar's Cancel", async () => {
+    render(
+      <Sheet open onOpenChange={() => {}}>
+        <button type="button">Cancel</button>
+        <div className="bs-body">
+          <input aria-label="Title" />
+        </div>
+      </Sheet>,
+    );
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText("Title")));
+  });
   test("BottomSheet sits on top of the iOS keyboard (visual viewport)", () => {
     const vv = Object.assign(new EventTarget(), { height: 844, offsetTop: 0 });
     vi.stubGlobal("visualViewport", vv);

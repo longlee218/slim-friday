@@ -1,33 +1,81 @@
-/* approval + question cards: prototype app.css .appr*, .kv, .opts, .opt*, .other-in, .ios-mini-appr* (@keyframes pop is in overlays.css) */
-.appr { margin: 8px 0 10px; border-radius: 14px; background: var(--raised); box-shadow: 0 0 0 1px var(--sep-strong), var(--shadow-card); overflow: hidden; display: grid; grid-template-rows: auto 1fr; transition: box-shadow var(--t-mid); max-width: 560px; }
-.appr-h { display: flex; align-items: center; gap: 8px; padding: 11px 14px 0; }
-.appr-h .t { font-weight: 650; font-size: 13.5px; flex: 1; }
+/* Live run (thinking -> doing -> writing -> done): a grey bubble where the answer will appear. */
+.run { width: fit-content; min-width: 220px; max-width: min(560px, 78%); border-radius: 20px; background: var(--bubble-bot); padding: 8px 14px 9px 10px; font-size: 12.5px; }
+.msg.bot:not(.first) .run { border-top-left-radius: 6px; }
+.run-h { display: flex; align-items: center; gap: 7px; color: var(--label); font-weight: 550; }
+.run-h .run-time { margin-left: auto; padding-left: 10px; color: var(--label-2); font-weight: 400; font-variant-numeric: tabular-nums; }
+.run-d summary { list-style: none; cursor: pointer; user-select: none; border-radius: 12px; }
+.run-d summary::-webkit-details-marker { display: none; }
+.run-d .chev { transition: transform var(--t-mid) var(--ease); width: 14px; height: 14px; color: var(--label-3); }
+.run-d[open] .chev { transform: rotate(90deg); }
+.run-label { animation: breathe 1.6s ease-in-out infinite; }
+@keyframes breathe { 50% { opacity: .45; } }
+.run[data-state="done"] .run-label { animation: none; }
+.run-steps { list-style: none; margin: 6px 0 0; padding: 0 0 0 4px; }
+.run-steps li { display: flex; align-items: center; gap: 8px; padding: 3px 0; color: var(--label-2); animation: stepIn 300ms var(--ease); min-width: 0; }
+@keyframes stepIn { from { opacity: 0; transform: translateY(-3px); } }
+.run-steps li .mono { color: var(--label); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.run-steps li svg { width: 14px; height: 14px; }
+.run-steps li.done > svg { color: var(--green); }
+.run-steps li.active > svg { color: var(--tint); }
+/* App addition: a failed step (the prototype has none) shows a red x in the glyph's place. */
+.run-steps li.failed > svg { color: var(--red); }
+.run-steps .delta { font: 11.5px var(--mono); }
+.run-steps .delta .add { color: var(--green); } .run-steps .delta .del { color: var(--red); }
+.tail { margin: 4px 0 0 22px; font: 11.5px/1.5 var(--mono); color: var(--label-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* "Worked for 42s": a quiet pill above the answer; it opens to the steps on a hairline rail. */
+.worked { margin: 0 0 4px 4px; }
+.worked summary { list-style: none; display: inline-flex; align-items: center; gap: 5px; height: 24px; font-size: 12px; color: var(--label-2); padding: 0 10px 0 6px; border-radius: 999px; user-select: none; cursor: pointer; transition: background var(--t-fast); }
+.worked summary::-webkit-details-marker { display: none; }
+.worked summary:hover { background: var(--fill); }
+.worked summary .chev { transition: transform var(--t-mid) var(--ease); width: 14px; height: 14px; color: var(--label-3); }
+.worked[open] summary .chev { transform: rotate(90deg); }
+.worked .run-steps { margin: 4px 0 8px 12px; padding-left: 12px; border-left: 1px solid var(--sep-strong); font-size: 12.5px; }
+
+/* typing dots */
+.dots { display: inline-flex; gap: 3px; }
+.dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--label-3); animation: dot 1.2s infinite var(--ease); }
+.dots i:nth-child(2) { animation-delay: .15s; } .dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes dot { 0%, 60%, 100% { transform: translateY(0); opacity: .5; } 30% { transform: translateY(-3px); opacity: 1; } }
+
+/* Approval + question cards: solid cards in the bot column (radius 20, one soft shadow), pill buttons, the primary
+   action on the gradient; prototype app.css .appr*, .kv, .opts, .opt*, .other-in, .ios-mini-appr* (@keyframes pop is in overlays.css). */
+.appr { margin: 6px 0 4px; border-radius: 20px; background: var(--raised); box-shadow: var(--shadow-card); overflow: hidden; display: grid; grid-template-rows: auto 1fr; transition: box-shadow var(--t-mid); max-width: 560px; }
+:root[data-theme="dark"] .appr { background: var(--well); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .appr { background: var(--well); } }
+.appr-h { display: flex; align-items: center; gap: 8px; padding: 14px 16px 0; }
+.appr-h .t { font-weight: 650; font-size: 13.5px; flex: 1; min-width: 0; }
 .appr-body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows var(--t-slow) var(--ease), opacity var(--t-mid); }
 .appr-body > div { overflow: hidden; }
-.appr-in { padding: 6px 14px 12px; }
+.appr-in { padding: 8px 16px 14px; }
 .appr p { margin: 0 0 10px; font-size: 13.5px; color: var(--label); }
-.kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; font-size: 12.5px; margin-bottom: 12px; padding: 9px 11px; border-radius: 8px; background: var(--well); }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; font-size: 12.5px; margin-bottom: 10px; padding: 10px 12px; border-radius: var(--r-m); background: var(--well); }
+:root[data-theme="dark"] .appr .kv, :root[data-theme="dark"] .appr .appr-input { background: var(--fill); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .appr :is(.kv, .appr-input) { background: var(--fill); } }
 .kv dt { color: var(--label-2); }
 .kv dd { margin: 0; font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
 .appr-actions { display: flex; align-items: center; gap: 6px; }
+.appr-actions .btn { height: 32px; padding: 0 16px; }
 .appr-actions .left { margin-right: auto; font-size: 12px; color: var(--label-2); display: inline-flex; gap: 5px; align-items: center; }
 .appr-receipt { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--label-2); padding: 0 14px; max-height: 0; opacity: 0; transition: max-height var(--t-slow) var(--ease), opacity var(--t-mid) 120ms, padding var(--t-slow) var(--ease); }
 .appr.done .appr-body { grid-template-rows: 0fr; opacity: 0; }
 .appr.done .appr-h { display: none; }
-.appr.done .appr-receipt { max-height: 44px; opacity: 1; padding: 11px 14px; }
-.appr.done { box-shadow: 0 0 0 1px var(--sep); }
+.appr.done .appr-receipt { max-height: 44px; opacity: 1; padding: 11px 16px; }
+.appr.done { box-shadow: 0 0 0 1px var(--sep); background: transparent; }
 .appr-receipt .ok { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: var(--green-dot); }
 .appr-receipt .ok.deny { background: var(--red-dot); }
 .appr-receipt .ok svg { width: 13px; height: 13px; stroke-width: 2.5; }
 .appr.done .appr-receipt .ok { animation: pop 420ms var(--ease) 120ms both; }
-.ios-mini-appr { display: flex; align-items: center; gap: 10px; margin: 6px 0 10px; padding: 12px; border-radius: 16px; background: var(--amber-fill); }
+.ios-mini-appr { display: flex; align-items: center; gap: 10px; margin: 6px 0 10px; padding: 12px 12px 12px 10px; border-radius: 20px; background: var(--amber-fill); }
+/* Dark: a solid raised card with a thin amber edge; a full amber fill turns brown on near-black. */
+:root[data-theme="dark"] .ios-mini-appr:not(.done) { background: var(--raised); box-shadow: inset 0 0 0 1px rgba(255, 179, 64, .35); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ios-mini-appr:not(.done) { background: var(--raised); box-shadow: inset 0 0 0 1px rgba(255, 179, 64, .35); } }
 .ios-mini-appr .grow { flex: 1; min-width: 0; }
 .ios-mini-appr b { display: block; font-size: 15px; }
-.ios-mini-appr span { font-size: 13px; color: var(--label-2); }
-.ios-mini-appr .btn { height: 32px; border-radius: 16px; font-size: 15px; }
+.ios-mini-appr span { font-size: 13px; color: var(--label-2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.ios-mini-appr .btn { height: 36px; padding: 0 16px; font-size: 15px; }
 .ios-mini-appr.done { background: var(--fill); }
 .opts { display: grid; gap: 6px; margin-bottom: 12px; }
-.opt { display: flex; align-items: flex-start; gap: 10px; padding: 9px 11px; border-radius: 10px; box-shadow: 0 0 0 1px var(--sep-strong); background: var(--raised); text-align: left; border: 0; width: 100%; transition: box-shadow var(--t-fast), background var(--t-fast); }
+.opt { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: 14px; box-shadow: 0 0 0 1px var(--sep-strong); background: var(--raised); text-align: left; border: 0; width: 100%; transition: box-shadow var(--t-fast), background var(--t-fast); }
 .opt:hover { background: var(--well); }
 .opt.on { box-shadow: 0 0 0 2px var(--tint); background: var(--tint-soft); }
 .opt .mark { width: 18px; height: 18px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--sep-strong); flex: none; margin-top: 1px; display: grid; place-items: center; transition: background var(--t-fast), box-shadow var(--t-fast); }
@@ -39,18 +87,18 @@
 .opt span.d { font-size: 12.5px; color: var(--label-2); }
 .other-in { display: none; margin-top: 8px; }
 .opt.on + .other-in, .other-in.show { display: block; }
-.ios-mini-appr.done { gap: 8px; padding: 8px 12px; margin: 4px 0 8px 38px; border-radius: 12px; background: transparent; box-shadow: inset 0 0 0 1px var(--sep); }
+.ios-mini-appr.done { gap: 8px; padding: 8px 12px; margin: 4px 0 8px 36px; border-radius: 16px; background: transparent; box-shadow: inset 0 0 0 1px var(--sep); }
 .ios-mini-appr.done > svg { width: 18px; height: 18px; flex: none; }
 .ios-mini-appr.done.deny > svg { color: var(--red); }
 .ios-mini-appr.done.allow > svg { color: var(--green); }
 .bsheet p { margin: 0 0 14px; font-size: 15px; color: var(--label-2); }
 .bsheet .kv { font-size: 14px; }
 .bsheet .kv dd { font-size: 13px; }
-.bsheet .btn { width: 100%; height: 50px; border-radius: 14px; font-size: 17px; margin-top: 8px; font-weight: 600; }
+.bsheet .btn { width: 100%; height: 50px; border-radius: 999px; font-size: 17px; margin-top: 8px; font-weight: 600; }
 .bsheet .btn svg { width: 18px; height: 18px; }
 /* neutral receipts (answered elsewhere, timed out): not an allow, not a deny */
 .appr-receipt .ok.neutral { background: transparent; color: var(--label-3); }
 .ios-mini-appr.done.neutral > svg { color: var(--label-3); }
 /* the exact tool input an approval binds (pretty JSON, cut by the engine) */
 .appr-cut { margin: 0 0 12px; color: var(--red); font-size: 12px; }
-.appr-input { margin: 0 0 12px; padding: 9px 11px; border-radius: 8px; background: var(--well); font-family: var(--mono); font-size: 12px; max-height: 180px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.appr-input { margin: 0 0 12px; padding: 10px 12px; border-radius: var(--r-m); background: var(--well); font-family: var(--mono); font-size: 12px; max-height: 180px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }

@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, test, vi } from "vitest";
-import { PhoneSheetForm, SheetBar } from "../../src/components/ui/sheet-bar";
+import { SheetBar, SheetForm } from "../../src/components/ui/sheet-bar";
 
 test("SheetBar: Cancel on the left, the title, the action on the right", async () => {
   const onCancel = vi.fn();
@@ -18,17 +18,17 @@ test("SheetBar: Cancel on the left, the title, the action on the right", async (
   expect(onCancel).toHaveBeenCalledOnce();
 });
 
-test("PhoneSheetForm: fields sit in the scrolling body and Enter submits once", async () => {
+test("SheetForm: fields sit in the scrolling body and Enter submits once", async () => {
   const onSubmit = vi.fn();
   render(
-    <PhoneSheetForm
+    <SheetForm
       title="New ticket"
       onCancel={() => {}}
       onSubmit={onSubmit}
       action={<button type="submit">Create</button>}
     >
       <input aria-label="Title" />
-    </PhoneSheetForm>,
+    </SheetForm>,
   );
   const field = screen.getByRole("textbox", { name: "Title" });
   expect(field.closest(".bs-body")).not.toBeNull();

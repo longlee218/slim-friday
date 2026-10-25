@@ -51,7 +51,7 @@ export function WakesTable({ wakes, now }: { wakes: WakeDto[]; now: number }) {
       <h2>
         Wakes
         <span className="aside">
-          {wakes.length >= MAX_WAKES && <span style={{ marginRight: 10 }}>Latest {MAX_WAKES}</span>}
+          {wakes.length >= MAX_WAKES && <span className="w-cap">Latest {MAX_WAKES}</span>}
           <WakeFilter value={active} onChange={setActive} />
         </span>
       </h2>
@@ -70,12 +70,11 @@ export function WakesTable({ wakes, now }: { wakes: WakeDto[]; now: number }) {
           <tbody>
             {rows.map((w) => (
               <tr key={w.id}>
-                <td className="mono" style={{ color: "var(--label-2)" }}>
+                <td className="mono w-id" title={w.id}>
                   {w.id}
                 </td>
                 <td>
-                  {who(w.sender)} <span style={{ color: "var(--label-3)" }}>→</span>{" "}
-                  {dir.botName(w.targetBot)}
+                  {who(w.sender)} <span className="t3">→</span> {dir.botName(w.targetBot)}
                 </td>
                 <td>{w.intent}</td>
                 <td>
@@ -86,9 +85,7 @@ export function WakesTable({ wakes, now }: { wakes: WakeDto[]; now: number }) {
                     {w.status}
                   </Pill>
                 </td>
-                <td className="r num" style={{ color: "var(--label-2)" }}>
-                  {formatClock(w.startedAt ?? w.createdAt, now)}
-                </td>
+                <td className="r num t2">{formatClock(w.startedAt ?? w.createdAt, now)}</td>
                 <td className="r num">
                   {w.startedAt !== undefined && w.endedAt !== undefined
                     ? formatDuration(w.endedAt - w.startedAt)

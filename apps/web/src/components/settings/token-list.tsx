@@ -1,6 +1,6 @@
 import { Combobox } from "@base-ui/react/combobox";
 import { Plus, X } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { IconButton } from "../ui/button";
 
 export interface TokenListProps {
@@ -18,6 +18,8 @@ export interface TokenListProps {
   label?: (value: string) => string;
   /** Placeholder of the search box (default "Type to search"; free text such as paths says so). */
   placeholder?: string;
+  /** Rows instead of tokens: one row per value with this face, and "add" as the last row. */
+  face?: (value: string) => ReactNode;
 }
 
 /**
@@ -34,6 +36,7 @@ export function TokenList({
   disabled,
   label = (v) => v,
   placeholder = "Type to search",
+  face,
 }: TokenListProps) {
   const [typed, setTyped] = useState("");
   const [open, setOpen] = useState(false);
@@ -43,20 +46,29 @@ export function TokenList({
   const items = [...free, ...custom];
 
   return (
-    <div className="toks">
-      {values.map((v) => (
-        <span key={v} className="tok" style={plain ? { fontFamily: "var(--font)" } : undefined}>
-          {label(v)}
-          {!disabled && (
-            <IconButton
-              label={`Remove ${label(v)}`}
-              onClick={() => onChange(values.filter((x) => x !== v))}
-            >
-              <X size={12} strokeWidth={1.75} />
-            </IconButton>
-          )}
-        </span>
-      ))}
+    <div className={face ? "toks rows" : "toks"}>
+      {values.map((v) => {
+        const remove = !disabled && (
+          <IconButton
+            label={`Remove ${label(v)}`}
+            onClick={() => onChange(values.filter((x) => x !== v))}
+          >
+            <X size={face ? 15 : 12} strokeWidth={1.75} />
+          </IconButton>
+        );
+        return face ? (
+          <div key={v} className="mrow">
+            {face(v)}
+            <span className="grow">{label(v)}</span>
+            {remove}
+          </div>
+        ) : (
+          <span key={v} className="tok" style={plain ? { fontFamily: "var(--font)" } : undefined}>
+            {label(v)}
+            {remove}
+          </span>
+        );
+      })}
       {!disabled && (
         <Combobox.Root
           items={items}
@@ -72,17 +84,20 @@ export function TokenList({
             setOpen(false);
           }}
         >
-          <Combobox.Trigger className="tok add">
-            <Plus size={12} strokeWidth={1.75} /> {addLabel}
+          <Combobox.Trigger className={face ? "mrow add" : "tok add"}>
+            {face ? (
+              <span className="add-ico">
+                <Plus size={16} strokeWidth={1.75} />
+              </span>
+            ) : (
+              <Plus size={12} strokeWidth={1.75} />
+            )}{" "}
+            {addLabel}
           </Combobox.Trigger>
           <Combobox.Portal>
             <Combobox.Positioner className="pop-pos" sideOffset={6}>
               <Combobox.Popup className="pop sel-pop">
-                <Combobox.Input
-                  className="field"
-                  aria-label={addLabel}
-                  placeholder={placeholder}
-                />
+                <Combobox.Input className="field" aria-label={addLabel} placeholder={placeholder} />
                 {/* A list with no options takes free text (folder paths): say so instead. */}
                 <Combobox.Empty className="sel-it">
                   {options.length ? "Nothing to add." : "Type to add."}

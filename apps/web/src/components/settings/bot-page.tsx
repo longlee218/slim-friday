@@ -1,8 +1,8 @@
 import { BotInputDtoSchema } from "@friday/contracts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { MessageCircle } from "lucide-react";
+import { Bot } from "lucide-react";
 import { useRef } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { client, orpc } from "../../api/client";
 import { useIsPhone } from "../../app/use-is-phone";
@@ -11,8 +11,9 @@ import { useSegThumb } from "../ui/use-seg-thumb";
 import { AvatarPicker } from "./avatar-picker";
 import { BotForm } from "./bot-form";
 import { type BotFormValue, NEW_BOT } from "./bot-form-value";
-import { SEG_BUTTON, SEG_GRID } from "./form-parts";
+import { SEG_BUTTON } from "./form-parts";
 import { MemoryPanel } from "./memory-panel";
+import { ChatAction, ProfileHead } from "./profile-head";
 import { RuleList } from "./rule-list";
 import { SettingsPage } from "./settings-page";
 
@@ -22,7 +23,6 @@ const TABS = [
   ["memory", "Memory"],
   ["rules", "Rules"],
 ] as const;
-/** Width of one tab (the tabs share the control equally). */
 
 /** `/settings/bot/new`: the Profile form of a bot that does not exist yet. */
 export function BotNewPage() {
@@ -40,12 +40,15 @@ export function BotNewPage() {
     <SettingsPage title="New bot">
       {/* The phone nav bar already names the page. */}
       {!phone && (
-        <div className="set-head">
-          <div className="grow">
-            <h2>New bot</h2>
-            <div className="r">Fill in the profile, then add tools and skills.</div>
-          </div>
-        </div>
+        <ProfileHead
+          face={
+            <span className="av none">
+              <Bot strokeWidth={1.5} />
+            </span>
+          }
+          title="New bot"
+          sub="Fill in the profile, then add tools and skills."
+        />
       )}
       <BotForm
         initial={NEW_BOT}
@@ -87,25 +90,26 @@ export function BotPage() {
   const initial: BotFormValue = { ...BotInputDtoSchema.parse(bot), id: bot.id };
   return (
     <SettingsPage title={bot.name}>
-      <div className="set-head">
-        {shipped ? (
-          <Avatar src={bot.avatarUrl} name={bot.name} size={64} />
-        ) : (
-          <AvatarPicker target={{ kind: "bot", id: bot.id }} current={bot.avatar} onDone={() => {}}>
-            <Avatar src={bot.avatarUrl} name={bot.name} size={64} />
-          </AvatarPicker>
-        )}
-        <div className="grow">
-          <h2>{bot.name}</h2>
-          <div className="r">{[bot.title, bot.model].filter(Boolean).join(" · ")}</div>
-        </div>
-        <Link className="btn" to={`/c/bot:${bot.id}`}>
-          <MessageCircle size={14} strokeWidth={1.75} />
-          Open chat
-        </Link>
-      </div>
+      <ProfileHead
+        face={
+          shipped ? (
+            <Avatar src={bot.avatarUrl} name={bot.name} size={96} />
+          ) : (
+            <AvatarPicker
+              target={{ kind: "bot", id: bot.id }}
+              current={bot.avatar}
+              onDone={() => {}}
+            >
+              <Avatar src={bot.avatarUrl} name={bot.name} size={96} />
+            </AvatarPicker>
+          )
+        }
+        title={bot.name}
+        sub={[bot.title, bot.model].filter(Boolean).join(" · ")}
+        actions={<ChatAction to={`/c/bot:${bot.id}`} />}
+      />
       <div className="tabs">
-        <div ref={tabBox} className="seg" style={SEG_GRID} role="tablist">
+        <div ref={tabBox} className="seg" role="tablist">
           {tabAt >= 0 && <span className="thumb" style={tabThumb} />}
           {TABS.map(([t, label]) => (
             <button

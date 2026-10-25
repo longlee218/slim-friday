@@ -1,6 +1,6 @@
 import { MessageCircle, Users } from "lucide-react";
 import { useDirectory } from "../../api/directory";
-import { Row, Segmented } from "../settings/form-parts";
+import { Group, Row, Segmented } from "../settings/form-parts";
 import { TicketSelect } from "../tickets/ticket-select";
 import { Avatar } from "../ui/avatar";
 import {
@@ -74,10 +74,11 @@ export function ScheduleForm(props: ScheduleFormProps) {
 
   return (
     <div className="sched-form">
-      <div className="formgroup">
+      <Group>
         <Row label="Name" htmlFor="sc-name" error={errors.name}>
           <input
             id="sc-name"
+            placeholder="Required"
             className={errors.name ? "field err" : "field"}
             maxLength={80}
             value={v.name}
@@ -121,25 +122,24 @@ export function ScheduleForm(props: ScheduleFormProps) {
             </span>
           )}
         </Row>
-        <Row
-          label="Task"
-          htmlFor="sc-task"
-          top
-          error={errors.task}
-          help="Written like a message to the bot. It runs with the bot's own tools and memory."
-        >
-          <textarea
-            id="sc-task"
-            className={errors.task ? "field err" : "field"}
-            rows={4}
-            maxLength={4000}
-            value={v.task}
-            disabled={readOnly}
-            onChange={(e) => set("task", e.target.value)}
-          />
-        </Row>
-      </div>
-      <div className="formgroup">
+      </Group>
+      <Group
+        title={<label htmlFor="sc-task">Task</label>}
+        foot="Written like a message to the bot. It runs with the bot's own tools and memory."
+        error={errors.task}
+        wide
+      >
+        <textarea
+          id="sc-task"
+          className={errors.task ? "field err" : "field"}
+          rows={4}
+          maxLength={4000}
+          value={v.task}
+          disabled={readOnly}
+          onChange={(e) => set("task", e.target.value)}
+        />
+      </Group>
+      <Group foot={NOTIFY_HELP[v.notify]}>
         <Row label="Repeat">
           <Segmented
             label="Repeat"
@@ -172,7 +172,7 @@ export function ScheduleForm(props: ScheduleFormProps) {
             <span className="sched-fixed">{chat}</span>
           )}
         </Row>
-        <Row label="Tell me" help={NOTIFY_HELP[v.notify]}>
+        <Row label="Tell me">
           <Segmented
             label="Tell me"
             options={["always", "problems"] as const}
@@ -182,7 +182,7 @@ export function ScheduleForm(props: ScheduleFormProps) {
             onChange={(n) => set("notify", n)}
           />
         </Row>
-      </div>
+      </Group>
     </div>
   );
 }

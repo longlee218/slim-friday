@@ -21,7 +21,7 @@ export function McpCalls({ server }: { server: string }) {
   const now = Date.now();
   return (
     <>
-      <h3 style={{ fontSize: 13, margin: "0 0 8px" }}>Recent calls</h3>
+      <h3 className="grp-h">Recent calls</h3>
       <div className="list-panel">
         {[...calls]
           .sort((a, b) => b.at - a.at)

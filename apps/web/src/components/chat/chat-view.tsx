@@ -70,7 +70,7 @@ export function ChatView({ connection = "live" }: { connection?: ConnectionState
         <ConnectionBanner state={connection} />
       </div>
       {empty ? (
-        <div className="content">
+        <div className="content chat-scroll">
           <EmptyConversation
             conversation={conversation}
             bot={bot}

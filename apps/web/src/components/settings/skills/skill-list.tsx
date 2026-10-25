@@ -24,11 +24,11 @@ function Section({
   const dir = useDirectory();
   return (
     <>
-      <h3 style={{ fontSize: 13, margin: "0 0 8px" }}>{title}</h3>
+      <h3 className="grp-h">{title}</h3>
       <div className="list-panel">
         {skills.map((s) => (
           <Link key={s.name} className="srow" to={`/settings/skills/${s.name}`}>
-            <span className="ico">
+            <span className="ico purple">
               <Puzzle size={16} strokeWidth={1.75} />
             </span>
             <div className="grow">

@@ -1,3 +1,20 @@
-/* Ported from docs/design/prototype/app.css: connection banner. */
-.banner { display: flex; align-items: center; justify-content: center; gap: 8px; height: 30px; font-size: 12.5px; background: var(--amber-fill); color: var(--amber); font-weight: 500; animation: bannerIn var(--t-mid) var(--ease); }
-@keyframes bannerIn { from { height: 0; opacity: 0; } }
+/* Connection banner and toasts. Both float over content, so both are glass.
+   The banner is an amber pill under the toolbar (amber = the owner may need to act: the link is down). */
+.banner { display: flex; align-items: center; justify-content: center; gap: 7px; width: max-content; max-width: calc(100% - 24px); height: 30px; margin: 6px auto 0; padding: 0 14px;
+  border-radius: 999px; font-size: 12.5px; font-weight: 550; color: var(--amber); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  background: color-mix(in srgb, var(--amber-dot) 14%, var(--glass-strong)); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-edge), var(--shadow-pop); animation: bannerIn var(--t-mid) var(--ease); }
+.banner svg.lucide { width: 14px; height: 14px; }
+@keyframes bannerIn { from { opacity: 0; transform: translateY(-8px) scale(.96); } }
+
+/* Plain sonner toasts (toast(), toast.success()) wear the same glass card as the message toast (.toast-card).
+   Sonner sets its colours on [data-sonner-toaster][data-sonner-theme]; this selector outranks it. */
+:root [data-sonner-toaster][data-sonner-theme] {
+  --normal-bg: var(--glass-strong); --normal-border: transparent; --normal-text: var(--label);
+  --border-radius: 18px; font-family: var(--font);
+}
+:root [data-sonner-toaster] [data-sonner-toast][data-styled="true"] {
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); box-shadow: var(--glass-edge), var(--shadow-pop);
+  padding: 12px 16px; font-size: 13px; gap: 8px;
+}
+:root [data-sonner-toaster] [data-sonner-toast][data-type="success"] [data-icon] svg { color: var(--green-dot); }

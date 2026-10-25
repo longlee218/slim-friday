@@ -179,7 +179,7 @@ export function Transcript({ conversation, phone, onReply, onDropFiles }: Transc
     // biome-ignore lint/a11y/noStaticElementInteractions: scroll container and file drop zone
     <div
       ref={setScroller}
-      className={phone ? "ios-scroll" : "content"}
+      className={phone ? "ios-scroll chat-scroll" : "content chat-scroll"}
       onScroll={scroll.onScroll}
       onWheel={scroll.markTouched}
       onTouchStart={scroll.markTouched}
@@ -209,6 +209,7 @@ export function Transcript({ conversation, phone, onReply, onDropFiles }: Transc
                   item={item}
                   phone={phone}
                   members={members}
+                  group={group !== undefined}
                   routeOf={(id) => pendingSends[id]?.route}
                   isFresh={(m) => m.id > (baseline.current ?? 0)}
                   onReply={onReply}

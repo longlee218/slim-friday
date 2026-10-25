@@ -1,44 +1,46 @@
-/* Schedules list: prototype app.css .sched-list, .sched-row, .s-when, .s-last (round 4). Colours are DESIGN.md tokens only. */
-.sched-page-list { max-width: 1080px; }
+/* Schedules list (grouped inset list on the solid pane), schedule page chrome, recent runs, phone list and head.
+   The form fields belong to the forms area. Colours are tokens only. */
+.sched-page-list { max-width: 960px; }
 .sched-list { padding: 0; }
-.sched-row { display: flex; align-items: center; gap: 14px; padding: 14px 16px; cursor: pointer; transition: background var(--t-fast); }
-.sched-row + .sched-row { border-top: 1px solid var(--sep); }
+.sched-row { position: relative; display: flex; align-items: center; gap: 14px; min-height: 68px; padding: 10px 14px 10px 16px; cursor: pointer; transition: background var(--t-fast), opacity var(--t-mid); }
+.sched-row + .sched-row::before { content: ""; position: absolute; top: 0; right: 0; left: 66px; height: .5px; background: var(--sep-strong); }
 .sched-row:hover { background: var(--fill); }
 /* No pressed fill while the press is on a control inside the row (switch, Run now). */
 .sched-row:active:not(:has(button:active)) { background: var(--fill-strong); }
-.sched-row.off { opacity: .6; }
-.sched-row .av { flex: none; }
+.sched-row.off > :not(.switch) { opacity: .55; }
+.sched-row .av { flex: none; width: 36px; height: 36px; }
 .sched-row .grow { flex: 1; min-width: 0; }
 .sched-row .s1 { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
 .sched-row .s1 .t2 { font-size: 12.5px; color: var(--label-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sched-row .s2 { font-size: 12.5px; color: var(--label-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
-.s-name { color: var(--label); text-decoration: none; border-radius: 4px; white-space: nowrap; }
-.s-name:hover { text-decoration: underline; }
-.s-when { flex: none; width: 150px; font-size: 12.5px; }
-.s-when > div:first-child { display: flex; align-items: center; gap: 5px; font-weight: 500; }
-.s-when svg { width: 13px; height: 13px; color: var(--label-2); flex: none; }
-.s-when .t2 { color: var(--label-2); }
-.s-last { flex: none; width: 130px; }
-.s-last .pill svg { width: 12px; height: 12px; margin-right: 3px; vertical-align: -2px; }
-.s-busy { margin-top: 4px; font-size: 11.5px; color: var(--label-2); }
+.s-name { color: var(--label); text-decoration: none; border-radius: 6px; white-space: nowrap; font-size: 14px; }
+.s-name:hover { text-decoration: underline; text-underline-offset: 2px; }
+.s-when { flex: none; width: 214px; font-size: 12.5px; min-width: 0; }
+.s-when > div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.s-when > div:first-child { font-weight: 500; }
+.s-when svg { display: inline-block; width: 13px; height: 13px; color: var(--label-2); vertical-align: -2px; margin-right: 5px; }
+.s-when .t2 { color: var(--label-2); margin-top: 1px; }
+.s-last { flex: none; width: 132px; }
+.s-last .pill svg, .sched-runs .pill svg, .sched-inset .pill svg { width: 12px; height: 12px; margin-right: 1px; }
+.s-busy { margin-top: 4px; font-size: 11.5px; color: var(--label-2); white-space: nowrap; }
 .s-busy a { color: var(--tint-text); font-weight: 500; text-decoration: none; }
 .s-busy a:hover { text-decoration: underline; }
+.toolbar .s-busy { margin: 0 8px 0 0; }
 .s-run { flex: none; }
 
-/* The shared .switch has no hover, pressed or disabled look; give it one here. */
-.sched-row .switch { flex: none; cursor: pointer; }
-.sched-row .switch:hover:not(:disabled) { filter: brightness(.95); }
-.sched-row .switch:active:not(:disabled)::after { width: 22px; }
-.sched-row .switch.on:active:not(:disabled)::after { transform: translateX(12px); }
-.sched-row .switch:disabled { opacity: .4; cursor: default; }
+/* The shared .switch has no hover, pressed or disabled look; give it one in the list and on the page. */
+:is(.sched-row, .sched-page, .ph-sched-head) .switch { flex: none; cursor: pointer; }
+:is(.sched-row, .sched-page) .switch:hover:not(:disabled) { filter: brightness(.95); }
+:is(.sched-row, .sched-page, .ph-sched-head) .switch:active:not(:disabled)::after { width: 22px; }
+:is(.sched-row, .sched-page, .ph-sched-head) .switch.on:active:not(:disabled)::after { transform: translateX(12px); }
+:is(.sched-row, .sched-page, .ph-sched-head) .switch:disabled { opacity: .4; cursor: default; }
 
-.sched-empty { padding: 48px 20px; text-align: center; color: var(--label-2); }
-.sched-list + .sched-note, .sched-empty + .sched-note { margin-top: 12px; }
+.sched-empty { padding: 56px 20px; text-align: center; color: var(--label-2); max-width: 420px; margin: 0 auto; text-wrap: balance; }
+.foot-note.sched-note { margin: 12px 16px 0; max-width: 72ch; }
 
-/* 640-719 px (the phone has its own list): an inset-style list (prototype phone `.inset`): name, target, when and next, pill, switch. Run now lives on the schedule page. The page already pads the sides, so the list adds no margin. */
+/* 640-719 px (the phone has its own list): name, target, when and next, pill, switch. Run now lives on the schedule page. */
 @media (max-width: 719px) {
-  .sched-list { border-radius: 12px; box-shadow: none; background: var(--well); }
-  .sched-row { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto auto; grid-template-areas: "av main last sw" "av when when when"; column-gap: 12px; row-gap: 2px; padding: 11px 14px; }
+  .sched-row { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto auto; grid-template-areas: "av main last sw" "av when when when"; column-gap: 12px; row-gap: 2px; padding: 11px 14px; }
   .sched-row .av { grid-area: av; align-self: start; }
   .sched-row .grow { grid-area: main; }
   .sched-row .s2, .sched-row .s-run { display: none; }
@@ -48,11 +50,13 @@
   .s-when > .t2::before { content: "· "; }
   .s-last { grid-area: last; width: auto; }
   .sched-row .switch { grid-area: sw; }
-  .sched-empty, .sched-note { margin-left: 16px; margin-right: 16px; }
 }
 
-/* Schedule page and form (prototype scheduleView / scheduleForm, round 4). Token colours only. */
+/* Schedule page: profile-like head (face, name, when and target, on switch), the form, recent runs. */
 .sched-page { max-width: 760px; }
+.sched-page > .page-head { padding: 6px 4px 6px; margin-bottom: 20px; }
+.sched-page > .page-head h2 { font-size: 24px; letter-spacing: -0.022em; }
+.sched-page > .page-head .r { margin-top: 2px; }
 .sched-when { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .sched-when .field.num { width: 110px; }
 .sched-when input[type="date"].field { width: 150px; }
@@ -62,37 +66,28 @@
 .sched-form .popbtn:disabled, .sched-form .field:disabled, .sched-form .seg button:disabled { opacity: .5; cursor: default; }
 .sched-form-err { margin: -10px 0 18px 2px; font-size: 12px; color: var(--red); }
 .sched-gone { margin: 0 0 18px 2px; }
-.sched-runs-title { font-size: 13px; margin: 0 0 8px; }
-.sched-runs .pill svg { width: 12px; height: 12px; }
+.sched-runs-title { font: 650 15px var(--font-display); letter-spacing: -0.01em; margin: 28px 4px 10px; }
 .sched-run { color: inherit; text-decoration: none; }
 .sched-run:active { background: var(--fill-strong); }
 .sched-run-err { color: var(--red); }
+.sched-runs .srow .grow b { font-weight: 550; }
 .sched-run-cost { width: 56px; text-align: right; }
 .sched-delete { margin-right: auto; }
 /* The time-zone list (hundreds of zones) scrolls inside its popup. */
 .pop.sched-zone-pop { max-height: min(360px, var(--available-height, 360px)); overflow-y: auto; }
 
-/* The shared .switch has no hover, pressed or disabled look; give it one on the page too. */
-.sched-page .switch { flex: none; cursor: pointer; }
-.sched-page .switch:hover:not(:disabled) { filter: brightness(.95); }
-.sched-page .switch:active:not(:disabled)::after { width: 22px; }
-.sched-page .switch.on:active:not(:disabled)::after { transform: translateX(12px); }
-.sched-page .switch:disabled { opacity: .4; cursor: default; }
-
-/* Phone schedules list (prototype phone `scheds`): pill icons sized like the desktop row. */
+/* Phone schedules list (prototype phone `scheds`). */
 .sched-inset .pill { flex: none; }
-.sched-inset .pill svg { width: 12px; height: 12px; margin-right: 3px; vertical-align: -2px; }
 .sched-inset .irow .grow { min-width: 0; }
 .sched-inset .irow .t2 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sched-inset .sched-none { padding-block: 10px; }
 .sched-inset .sched-none .t2 { white-space: normal; }
 
-/* Phone schedule page (prototype .ph-sched-head, .ph-wide). */
-.ph-sched-head { display: flex; align-items: center; gap: 12px; margin: 4px 0 14px; }
+/* Phone schedule page head: centred profile (face, name, when and target), switch on its own row end. */
+.ph-sched-head { display: flex; align-items: center; gap: 12px; margin: 4px 0 16px; padding: 12px 16px; border-radius: var(--r-l); background: var(--well); }
 .ph-sched-head .grow { flex: 1; min-width: 0; }
+.ph-sched-head b { font-size: 16px; }
 .ph-sched-head .t2 { font-size: 13px; color: var(--label-2); }
-.ph-sched-head .switch { flex: none; }
-.ph-sched-head .switch:disabled { opacity: .4; }
-.ph-wide { width: 100%; justify-content: center; height: 40px; margin: 0 0 16px; }
+.ph-wide { width: 100%; justify-content: center; height: 44px; margin: 0 0 16px; font-size: 15px; }
 .ph-busy { margin: -10px 0 16px; text-align: center; }
-.ph-delete { margin: 8px 0 0; }
+.ph-delete { margin: 8px 0 0; background: var(--well); }

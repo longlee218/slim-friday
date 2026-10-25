@@ -64,7 +64,7 @@ export function LookupResult({
     <div className="list-panel" style={{ margin: "4px 0 0" }}>
       {skills.map((s) => (
         <div className="srow" key={s.name}>
-          <span className="ico">
+          <span className="ico purple">
             <Puzzle size={16} strokeWidth={1.75} />
           </span>
           <div className="grow">

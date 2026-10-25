@@ -147,3 +147,37 @@ test("a reaction whose target is not loaded, or plain text, stays a row", () => 
   });
   expect(items.filter((i) => i.kind === "message").map((i) => i.message.id)).toEqual([1, 2, 3]);
 });
+
+test("consecutive messages of one author form a run; a card or a long gap breaks it", () => {
+  const MIN = 60_000;
+  const user = { kind: "user" as const };
+  const pages = [
+    [
+      msg({ id: 6, at: NOW }),
+      msg({ id: 5, at: NOW - 20 * MIN }),
+      msg({ id: 4, at: NOW - 21 * MIN }),
+      msg({ id: 3, at: NOW - 22 * MIN, author: user }),
+      msg({ id: 2, at: NOW - 23 * MIN, author: user }),
+      msg({ id: 1, at: NOW - 24 * MIN, author: user }),
+    ],
+  ];
+  const items = buildTranscriptItems({
+    ...base,
+    pages,
+    runs: { dev: { botId: "dev", startedAt: 0, steps: [] } },
+    approvals: [apprCard()],
+  });
+  const places = items.flatMap((i) =>
+    i.kind === "message" || i.kind === "run" ? [[i.key, i.place?.head, i.place?.tail]] : [],
+  );
+  expect(places).toEqual([
+    ["m:1", true, false],
+    ["m:2", false, false],
+    ["m:3", false, true],
+    ["m:4", true, false],
+    ["m:5", false, true],
+    // Twenty minutes later: a new run, joined by the live run of the same bot.
+    ["m:6", true, false],
+    ["r:dev", false, true],
+  ]);
+});

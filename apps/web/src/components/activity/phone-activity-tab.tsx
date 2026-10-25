@@ -41,11 +41,7 @@ export function PhoneActivityTab() {
                 <div>{b.name}</div>
                 <div className="t2">{b.label ?? "Working"}</div>
               </div>
-              <Button
-                variant="danger"
-                style={{ height: 30, borderRadius: 15 }}
-                onClick={() => void stop({ botId: b.botId })}
-              >
+              <Button variant="danger" onClick={() => void stop({ botId: b.botId })}>
                 Stop
               </Button>
             </div>
@@ -82,7 +78,7 @@ export function PhoneActivityTab() {
           </>
         )}
         <div className="inset-h">Spend, 7 days</div>
-        <div className="inset" style={{ padding: "14px 16px" }}>
+        <div className="inset">
           <SpendChart days={chart} bare />
         </div>
         <div className="inset-h">Recent wakes</div>

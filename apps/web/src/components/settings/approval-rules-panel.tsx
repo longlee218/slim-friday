@@ -108,7 +108,7 @@ export function ApprovalRulesPanel() {
       <div className="list-panel">
         {rules.map((r) => (
           <div className="srow" key={r.id}>
-            <span className="ico">
+            <span className="ico teal">
               <ShieldCheck size={16} strokeWidth={1.75} />
             </span>
             <div className="grow">

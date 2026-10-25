@@ -68,11 +68,11 @@ test("sidebar row shows the amber approval count over unread", () => {
   const badge = within(dev).getByText("1");
   expect(badge.className).toContain("amber");
   expect(within(dev).queryByText("3")).toBeNull();
-  // unread without a card: tint badge; a working bot without either: "working".
+  // unread without a card: tint badge; a working bot says what it does on line 2.
   expect(within(screen.getByRole("link", { name: /Pia/ })).getByText("2").className).toContain(
     "tint",
   );
-  expect(within(screen.getByRole("link", { name: /Ray/ })).getByText("working")).toBeTruthy();
+  expect(within(screen.getByRole("link", { name: /Ray/ })).getByText("Reading…")).toBeTruthy();
 });
 
 test("the open conversation row carries the shared selection element", () => {
@@ -81,17 +81,21 @@ test("the open conversation row carries the shared selection element", () => {
   expect(screen.getByRole("link", { name: /Pia/ }).querySelector(".sel")).toBeNull();
 });
 
-test("sections, workspace rows and footer", async () => {
+test("filter chips, add rows and the workspace dock", async () => {
   renderSidebar(seed);
-  for (const t of ["Bots", "Groups", "Workspace"]) expect(screen.getByText(t)).toBeTruthy();
-  expect(screen.getByRole("link", { name: /^Tickets\s*0$/ })).toBeTruthy();
+  expect(screen.getByRole("link", { name: "Tickets" })).toBeTruthy();
   expect(screen.getByRole("link", { name: "Activity" })).toBeTruthy();
   expect(screen.getByRole("link", { name: "Settings" })).toBeTruthy();
-  expect(screen.getByRole("link", { name: /Owner/ }).getAttribute("href")).toBe(
+  expect(screen.getByRole("link", { name: "Owner" }).getAttribute("href")).toBe(
     "/settings/account",
   );
+  await userEvent.click(screen.getByRole("tab", { name: "Groups" }));
+  expect(screen.queryByRole("link", { name: /Pia/ })).toBeNull();
+  expect(screen.getByRole("link", { name: /Core team/ })).toBeTruthy();
   await userEvent.click(screen.getByRole("button", { name: "New group" }));
   expect(screen.getByTestId("path").textContent).toBe("/settings/group/new");
+  await userEvent.click(screen.getByRole("tab", { name: "Bots" }));
+  expect(screen.queryByRole("link", { name: /Core team/ })).toBeNull();
   await userEvent.click(screen.getByRole("button", { name: "New bot" }));
   expect(screen.getByTestId("path").textContent).toBe("/settings/bot/new");
 });
@@ -109,13 +113,9 @@ test("New chat and the search field open the palette", async () => {
   expect(onPalette).toHaveBeenCalledTimes(2);
 });
 
-test("past seven bots a row says how many more; it shows them", async () => {
+test("every bot and group is a chat row, even before its first message", () => {
   const many = ["a", "b", "c", "d", "e", "f", "g", "h", "i"].map((x) => bot(x, x.toUpperCase()));
   renderSidebar({ ...seed, bots: [...many, bot("dev", "Dev")] });
-  // "dev" is open and has an approval, so it stays: H and I are hidden.
-  expect(screen.queryByRole("link", { name: "HH" })).toBeNull();
+  expect(screen.getByRole("link", { name: /^I\b/ })).toBeTruthy();
   expect(screen.getByRole("link", { name: /Dev/ })).toBeTruthy();
-  await userEvent.click(screen.getByRole("button", { name: "2 more" }));
-  expect(screen.getByRole("link", { name: "HH" })).toBeTruthy();
-  expect(screen.queryByRole("button", { name: /more$/ })).toBeNull();
 });

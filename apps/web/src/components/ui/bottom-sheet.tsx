@@ -26,7 +26,7 @@ export function canStartSheetDrag(target: Element | null): boolean {
  * Where focus lands when a sheet opens: a form sheet's first field (not the bar's Cancel). A
  * touch open keeps Base UI's default (the sheet itself), so the keyboard does not pop up.
  */
-function firstField(popup: HTMLElement | null, openType: string): HTMLElement | true {
+export function firstField(popup: HTMLElement | null, openType: string): HTMLElement | true {
   if (openType === "touch") return true;
   return popup?.querySelector<HTMLElement>(".bs-body :is(input, textarea, select)") ?? true;
 }

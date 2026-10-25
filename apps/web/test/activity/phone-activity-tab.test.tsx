@@ -66,7 +66,8 @@ test("lists working bots with Stop, the spend chart and recent wakes", async () 
   api.pending.mockResolvedValue([]);
   renderTab();
   expect(await screen.findByText("Running tests")).toBeTruthy();
-  expect(screen.getByText("No spend yet")).toBeTruthy();
+  expect(screen.getByText(/No spend in the last 7 days/)).toBeTruthy();
+  expect(document.querySelector(".bars")).toBeNull();
   expect(await screen.findByText("expired")).toBeTruthy();
   await userEvent.click(screen.getByRole("button", { name: "Stop" }));
   expect(api.stop).toHaveBeenCalledWith({ botId: "dev" });

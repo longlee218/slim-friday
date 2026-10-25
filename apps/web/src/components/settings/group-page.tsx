@@ -1,12 +1,14 @@
 import { GroupInputDtoSchema } from "@friday/contracts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { MessageCircle } from "lucide-react";
-import { Link, useNavigate, useParams } from "react-router";
+import { Users } from "lucide-react";
+import { useNavigate, useParams } from "react-router";
 import { client, orpc } from "../../api/client";
 import { useDirectory } from "../../api/directory";
+import { useIsPhone } from "../../app/use-is-phone";
 import { AvatarPicker } from "./avatar-picker";
 import { GroupAvatar } from "./group-avatar";
 import { GroupForm, type GroupFormValue, NEW_GROUP } from "./group-form";
+import { ChatAction, ProfileHead } from "./profile-head";
 import { RuleList } from "./rule-list";
 import { SettingsPage } from "./settings-page";
 
@@ -14,6 +16,7 @@ import { SettingsPage } from "./settings-page";
 export function GroupNewPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const phone = useIsPhone();
   const onSave = async (v: GroupFormValue) => {
     const { id, ...group } = v;
     await client.config.groups.save({ id, group, mode: "create" });
@@ -22,12 +25,18 @@ export function GroupNewPage() {
   };
   return (
     <SettingsPage title="New group">
-      <div className="page-head">
-        <div className="grow">
-          <h2>New group</h2>
-          <div className="r">Bots that work together in one channel.</div>
-        </div>
-      </div>
+      {/* The phone nav bar already names the page. */}
+      {!phone && (
+        <ProfileHead
+          face={
+            <span className="av none">
+              <Users strokeWidth={1.5} />
+            </span>
+          }
+          title="New group"
+          sub="Bots that work together in one channel."
+        />
+      )}
       <GroupForm initial={NEW_GROUP} mode="create" onSave={onSave} />
     </SettingsPage>
   );
@@ -55,30 +64,27 @@ export function GroupPage() {
   };
   return (
     <SettingsPage title={group.name}>
-      <div className="page-head">
-        <AvatarPicker
-          target={{ kind: "group", id: group.id }}
-          current={group.avatar}
-          onDone={() => {}}
-        >
-          <GroupAvatar {...group} bots={dir.bots} size={64} />
-        </AvatarPicker>
-        <div className="grow">
-          <h2>{group.name}</h2>
-          <div className="r">{group.members.length} members</div>
-        </div>
-        <Link className="btn" to={`/c/group:${group.id}`}>
-          <MessageCircle size={14} strokeWidth={1.75} />
-          Open chat
-        </Link>
-      </div>
+      <ProfileHead
+        face={
+          <AvatarPicker
+            target={{ kind: "group", id: group.id }}
+            current={group.avatar}
+            onDone={() => {}}
+          >
+            <GroupAvatar {...group} bots={dir.bots} size={96} />
+          </AvatarPicker>
+        }
+        title={group.name}
+        sub={`${group.members.length} members`}
+        actions={<ChatAction to={`/c/group:${group.id}`} />}
+      />
       <GroupForm
         key={group.id}
         initial={{ ...GroupInputDtoSchema.parse(group), id: group.id }}
         mode="update"
         onSave={onSave}
       />
-      <h3 style={{ fontSize: 13, margin: "0 0 8px" }}>Group rules</h3>
+      <h3 className="grp-h">Group rules</h3>
       <RuleList owner={`group:${group.id}`} />
     </SettingsPage>
   );

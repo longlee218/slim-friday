@@ -21,11 +21,11 @@ export function SheetBar({ title, onCancel, action }: SheetBarProps) {
 }
 
 /**
- * A form sheet on the phone: the bar stays put and the fields scroll in `.bs-body` (see
- * BottomSheet). Submitting (Enter or a submit `action`) calls `onSubmit` with the default
- * prevented.
+ * A form sheet, on the phone (BottomSheet) and on desktop (Sheet) alike: the bar stays put and
+ * the fields scroll in `.bs-body`. Submitting (Enter or a submit `action`) calls `onSubmit` with
+ * the default prevented.
  */
-export function PhoneSheetForm({
+export function SheetForm({
   onSubmit,
   children,
   ...bar

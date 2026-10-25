@@ -9,7 +9,7 @@ import { useAppNavigate } from "../shell/use-app-navigate";
 import { Button } from "../ui/button";
 import { taskIndexAtLine, taskProgress, toggleTask } from "./task-list";
 import { TicketSide } from "./ticket-side";
-import { PriorityPill } from "./ticket-status";
+import { PriorityPill, StatusPill } from "./ticket-status";
 import { TicketTimeline } from "./ticket-timeline";
 import { useCommentDraft } from "./use-comment-draft";
 import { useUpdateTicket } from "./use-update-ticket";
@@ -56,7 +56,8 @@ function PageToolbar({ ticketRef, actions }: { ticketRef: string; actions?: Reac
 }
 
 /**
- * Full page of a ticket (prototype `ticketPage`): crumb and actions, ref and priority, title,
+ * Full page of a ticket (prototype `ticketPage`): crumb and actions, ref, status and priority
+ * pills, title,
  * task progress, the description with clickable task boxes, the activity rail, a comment box
  * and the side column. A ref the server does not know shows "doesn't exist".
  */
@@ -121,8 +122,10 @@ export function TicketPage({ ticketRef }: { ticketRef: string }) {
       <div className="content">
         <div className="tpage">
           <div className="tmain">
-            <div className="td-ref">
-              {t.ref} <PriorityPill priority={t.priority} />
+            <div className="td-pills tp-pills">
+              <span className="td-ref">{t.ref}</span>
+              <StatusPill status={t.status} />
+              <PriorityPill priority={t.priority} />
             </div>
             <h1 className="tp-title">{t.title}</h1>
             {all > 0 && (

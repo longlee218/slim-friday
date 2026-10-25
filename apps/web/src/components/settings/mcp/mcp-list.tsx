@@ -51,7 +51,7 @@ export function McpList() {
       <div className="list-panel">
         {servers.map((s) => (
           <Link key={s.name} className="srow" to={`/settings/mcp/${s.name}`}>
-            <span className="ico">
+            <span className="ico orange">
               {s.type === "http" ? (
                 <Globe size={16} strokeWidth={1.75} />
               ) : (
