@@ -77,7 +77,7 @@ for (const [name, entry] of [
   });
 }
 
-test("a user bot file with the reserved id friday is reported and ignored", () => {
+test("the owner's user file for the id friday overrides the shipped bot", () => {
   const userDir = mkdtempSync(join(tmpdir(), "cfg-"));
   mkdirSync(join(userDir, "bots"));
   writeFileSync(
@@ -85,10 +85,8 @@ test("a user bot file with the reserved id friday is reported and ignored", () =
     "---\nname: Friday\ntitle: x\nmodel: sonnet\ntools: [Bash]\n---\nown\n",
   );
   const { snapshot, problems } = loadConfig({ defaultsDir: DEFAULTS_DIR, userDir });
-  const tools = snapshot.bots.get("friday")?.tools ?? [];
-  expect(tools).toContain("mcp__design__BotDesign");
-  expect(tools).toContain("mcp__effects__CreateProject");
-  expect(problems.map((p) => p.message).join()).toContain("reserved");
+  expect(snapshot.bots.get("friday")?.tools).toEqual(["Bash"]);
+  expect(problems).toEqual([]);
 });
 
 test("Friday runs at balanced: its config writes go through BotDesign, which always asks", () => {

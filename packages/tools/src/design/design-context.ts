@@ -18,6 +18,8 @@ export interface DesignContext {
   skillDirs: string[];
   /** Bot ids no tool may write (the shipped bots). */
   reservedBotIds: string[];
+  /** Reserved ids the owner (the settings admin, never a bot tool) may still write: the shipped Friday bot. */
+  ownerBotIds?: string[];
   /** Names of every tool in the catalog (SDK, effects, memory, chat...). */
   catalogTools(): string[];
   /** Names of the MCP servers a bot may name (shipped and owner). */
