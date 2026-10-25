@@ -91,6 +91,21 @@ export type McpProbeResult =
 /** Connects to a server once and reports what it found. */
 export type McpProbe = (name: string, server: McpServerInput) => Promise<McpProbeResult>;
 
+/** A model a bot may use, as the runtime lists it. */
+export interface ModelEntry {
+  /** What a bot file's `model` holds: an alias (`sonnet`) or a full id. */
+  value: string;
+  displayName: string;
+  description: string;
+  /** The full id an alias stands for. */
+  resolvedModel?: string;
+  /** Effort levels the model accepts; unset when it has none. */
+  efforts?: string[];
+}
+
+/** Lists the models the runtime offers. */
+export type ModelCatalog = () => Promise<ModelEntry[]>;
+
 /** An installed or shipped skill. */
 export interface SkillEntry {
   name: string;

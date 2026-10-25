@@ -5,6 +5,7 @@ import { avatarsRouter } from "../routers/config/avatars-router";
 import { botsRouter } from "../routers/config/bots-router";
 import { groupsRouter } from "../routers/config/groups-router";
 import { mcpRouter } from "../routers/config/mcp-router";
+import { modelsRouter } from "../routers/config/models-router";
 import { ownerRouter } from "../routers/config/owner-router";
 import { permissionsRouter } from "../routers/config/permissions-router";
 import { skillsRouter } from "../routers/config/skills-router";
@@ -34,6 +35,7 @@ export const appRouter = authed.router({
     skills: skillsRouter,
     approvalRules: approvalRulesRouter,
     permissions: permissionsRouter,
+    models: modelsRouter,
   } as unknown as AppRouterInput["config"],
   conversations: conversationsRouter,
   chat: chatRouter,

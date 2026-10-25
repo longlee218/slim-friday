@@ -23,3 +23,15 @@ test("permissions routes refuse a bad input and a call without a session", async
     code: "UNAUTHORIZED",
   });
 });
+
+test("the model list comes from the settings models", async () => {
+  const h = engineHarness();
+  expect(await h.client.config.models.list()).toEqual([
+    {
+      value: "sonnet",
+      displayName: "Sonnet",
+      description: "Fast",
+      resolvedModel: "claude-sonnet-5-5",
+    },
+  ]);
+});

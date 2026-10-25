@@ -1,4 +1,6 @@
 import { EffortSchema } from "@friday/contracts";
+import { useQuery } from "@tanstack/react-query";
+import { orpc } from "../../api/client";
 import { useDirectory } from "../../api/directory";
 import { TicketSelect } from "../tickets/ticket-select";
 import { AutoTextarea } from "../ui/auto-textarea";
@@ -7,7 +9,8 @@ import type { BotFormValue } from "./bot-form-value";
 import { Row, Segmented } from "./form-parts";
 import type { FormState } from "./use-form-state";
 
-const MODELS = ["haiku", "sonnet", "opus"];
+/** The picker while the runtime list is loading or failed. */
+const FALLBACK_MODELS = ["haiku", "sonnet", "opus"];
 const AUTONOMY = ["careful", "balanced", "autonomous"] as const;
 
 /** Props of a bot tab: the form and whether the bot is read only (shipped). */
@@ -35,7 +38,15 @@ export function BotProfileTab({ form, readOnly, mode }: BotTabProps) {
       />
     </Row>
   );
-  const models = MODELS.includes(v.model) ? MODELS : [v.model, ...MODELS];
+  // The runtime's own list (aliases and full ids); the saved value stays choosable even if it is not in it.
+  const listed = useQuery(orpc.config.models.list.queryOptions({ staleTime: 5 * 60_000 })).data;
+  const known = new Map(listed?.map((m) => [m.value, m.displayName]));
+  const ids = listed?.length ? [...known.keys()] : FALLBACK_MODELS;
+  const models = ids.includes(v.model) ? ids : [v.model, ...ids];
+  const modelNode = (m: string) => {
+    const name = known.get(m);
+    return name && name !== m ? `${name} (${m})` : m;
+  };
   return (
     <>
       <div className="formgroup">
@@ -65,8 +76,8 @@ export function BotProfileTab({ form, readOnly, mode }: BotTabProps) {
             <TicketSelect
               label="Model"
               value={v.model}
-              options={models.map((m) => ({ value: m, node: m }))}
-              current={v.model}
+              options={models.map((m) => ({ value: m, node: modelNode(m) }))}
+              current={modelNode(v.model)}
               onChange={(m) => set("model", m)}
             />
           )}

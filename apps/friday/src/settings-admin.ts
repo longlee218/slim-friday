@@ -2,8 +2,8 @@ import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import type { EngineDeps } from "@friday/api";
 import { expandServer, type FileConfig, isOAuthServer } from "@friday/config";
-import type { McpProbe } from "@friday/core";
-import { createMcpProbe } from "@friday/runtime-claude";
+import type { McpProbe, ModelCatalog } from "@friday/core";
+import { createMcpProbe, createModelCatalog } from "@friday/runtime-claude";
 import {
   createConfigAdmin,
   createMemoryAdmin,
@@ -65,6 +65,38 @@ function mcpProbeOf(d: SettingsDeps): McpProbe {
   };
 }
 
+/** How long a model list is kept before the SDK is asked again. */
+const MODELS_TTL_MS = 10 * 60_000;
+
+/**
+ * The model list, kept for ten minutes (a failed ask is not kept). The SDK process gets only `PATH` and `HOME`, as the
+ * probe does, and starts in an empty dir.
+ */
+function modelCatalogOf(d: SettingsDeps): ModelCatalog {
+  const env: Record<string, string> = { PATH: d.pathEnv };
+  if (d.env.HOME) env.HOME = d.env.HOME;
+  // The OAuth token is the SDK's only login; without it the list would be empty.
+  if (d.env.CLAUDE_CODE_OAUTH_TOKEN) env.CLAUDE_CODE_OAUTH_TOKEN = d.env.CLAUDE_CODE_OAUTH_TOKEN;
+  const root = join(d.agentHome, "data", "model-list");
+  let kept: { at: number; list: Awaited<ReturnType<ModelCatalog>> } | undefined;
+  return async () => {
+    if (kept && Date.now() - kept.at < MODELS_TTL_MS) return kept.list;
+    mkdirSync(root, { recursive: true, mode: 0o700 });
+    const cwd = mkdtempSync(join(root, "m-"));
+    try {
+      const list = await createModelCatalog({
+        env,
+        cwd,
+        ...(d.probeQuery && { query: d.probeQuery }),
+      })();
+      kept = { at: Date.now(), list };
+      return list;
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  };
+}
+
 /**
  * The settings admins behind the web API, over the live config and the app's own memory. Config and skill writes go
  * to `<AGENT_HOME>/config/` and the watcher reloads them; skill lookups wait in `<AGENT_HOME>/data/skill-lookups`
@@ -96,5 +128,6 @@ export function createSettings(d: SettingsDeps): EngineDeps["settings"] {
     }),
     probe: mcpProbeOf(d),
     permissions: createPermissionsAdmin(d.config, d.agentHome),
+    models: modelCatalogOf(d),
   };
 }

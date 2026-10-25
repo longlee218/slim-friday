@@ -214,6 +214,14 @@ export function fakeSettings() {
     probeCalls,
     state,
     memory: new FakeMemoryAdmin(),
+    models: async () => [
+      {
+        value: "sonnet",
+        displayName: "Sonnet",
+        description: "Fast",
+        resolvedModel: "claude-sonnet-5-5",
+      },
+    ],
     // Auto Review switch: `setAutoReview` writes it, `get` reads it back.
     permissions: {
       autoReview: false,

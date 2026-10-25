@@ -36,6 +36,7 @@ const implemented = [
   "config.owner.",
   "config.approvalRules.",
   "config.permissions.",
+  "config.models.",
   "memory.",
 ];
 const expected = listProcedurePaths(contract)

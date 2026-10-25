@@ -5,6 +5,7 @@ import type {
   FileStore,
   McpProbe,
   MemoryAdmin,
+  ModelCatalog,
   PermissionsAdmin,
   RegistrableDomain,
   SkillAdmin,
@@ -55,6 +56,8 @@ export interface ApiDeps {
     memory: MemoryAdmin;
     probe: McpProbe;
     permissions: PermissionsAdmin;
+    /** The models the runtime offers. */
+    models: ModelCatalog;
   };
   /** OAuth sign-in of MCP servers (status, sign-in url, callback). */
   mcpAuth: McpAuthAdmin;
