@@ -81,28 +81,6 @@ export function GroupForm({
             }}
           />
         </Row>
-        <Row
-          label="Entry bot"
-          help="Gets your message when you don't @name anyone."
-          error={errors.entryBot}
-        >
-          <TicketSelect
-            label="Entry bot"
-            value={v.entryBot || null}
-            options={v.members.map((m) => ({ value: m, node: dir.botName(m) }))}
-            current={
-              v.entryBot ? (
-                <>
-                  {face(v.entryBot)}
-                  {dir.botName(v.entryBot)}
-                </>
-              ) : (
-                "Choose a member"
-              )
-            }
-            onChange={(m) => set("entryBot", m)}
-          />
-        </Row>
         <Row label="Members" top error={errors.members}>
           <TokenList
             plain
@@ -117,6 +95,33 @@ export function GroupForm({
               if (!next.includes(v.entryBot)) set("entryBot", next[0] ?? "");
             }}
           />
+        </Row>
+        <Row
+          label="Entry bot"
+          help="Gets your message when you don't @name anyone."
+          error={errors.entryBot}
+        >
+          {v.members.length ? (
+            <TicketSelect
+              label="Entry bot"
+              value={v.entryBot || null}
+              options={v.members.map((m) => ({ value: m, node: dir.botName(m) }))}
+              current={
+                v.entryBot ? (
+                  <>
+                    {face(v.entryBot)}
+                    {dir.botName(v.entryBot)}
+                  </>
+                ) : (
+                  "Choose a member"
+                )
+              }
+              onChange={(m) => set("entryBot", m)}
+            />
+          ) : (
+            // Nothing to choose from yet: an empty picker would open an empty popup.
+            <span style={{ color: "var(--label-2)" }}>Add a member first.</span>
+          )}
         </Row>
         <Row label="Workspaces" top help="The first is the main project.">
           <TokenList

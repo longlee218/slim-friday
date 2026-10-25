@@ -61,7 +61,7 @@ test("removing the entry bot moves it to a remaining member", async () => {
 test("removing the last member empties the entry bot", async () => {
   setup({ ...crew, members: ["dev"] });
   await userEvent.click(screen.getByRole("button", { name: /Remove Dev/ }));
-  expect(screen.getByText("Choose a member")).toBeTruthy();
+  expect(screen.getByText("Add a member first.")).toBeTruthy();
 });
 
 test("changing instructions and saving sends the full value", async () => {
@@ -88,4 +88,22 @@ test("a new group gets its id from its name (no Id field)", async () => {
   expect(screen.getByText("File id: doi-du-lieu")).toBeTruthy();
   await userEvent.click(screen.getByRole("button", { name: "Save" }));
   expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ id: "doi-du-lieu" }));
+});
+
+test("no members yet: Entry bot asks for a member first; the first member added becomes it", async () => {
+  const qc = seededClient({ bots: [bot("dev", "Dev"), bot("ops", "Ops")] });
+  render(
+    <QueryClientProvider client={qc}>
+      <GroupForm
+        initial={{ ...crew, id: "", name: "", members: [], entryBot: "" }}
+        mode="create"
+        onSave={vi.fn()}
+      />
+    </QueryClientProvider>,
+  );
+  expect(screen.queryByRole("combobox", { name: "Entry bot" })).toBeNull();
+  expect(screen.getByText("Add a member first.")).toBeTruthy();
+  await userEvent.click(screen.getByText("Add member"));
+  await userEvent.type(await screen.findByLabelText("Add member"), "ops{Enter}");
+  expect(screen.getByRole("combobox", { name: "Entry bot" }).textContent).toContain("Ops");
 });
