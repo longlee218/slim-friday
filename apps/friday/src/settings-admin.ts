@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import type { EngineDeps } from "@friday/api";
-import { expandServer, type FileConfig } from "@friday/config";
+import { expandServer, type FileConfig, isOAuthServer } from "@friday/config";
 import type { McpProbe } from "@friday/core";
 import { createMcpProbe } from "@friday/runtime-claude";
 import {
@@ -11,6 +11,7 @@ import {
   type FileMemory,
 } from "@friday/tools";
 import { ownerDesignContext } from "./design-context";
+import type { McpProxy } from "./mcp-oauth/mcp-proxy";
 import { commandEnv, runCommand } from "./session-tools";
 
 /** What `createSettings` is made from. */
@@ -26,6 +27,8 @@ export interface SettingsDeps {
   env: Record<string, string | undefined>;
   /** `PATH` handed to git and to a probed server. */
   pathEnv: string;
+  /** The local OAuth proxy: an OAuth server is probed through it (its tokens never reach the probe). */
+  mcpProxy?: Pick<McpProxy, "configFor">;
   /** The SDK `query` of the probe (tests pass a fake). */
   probeQuery?: NonNullable<Parameters<typeof createMcpProbe>[0]["query"]>;
 }
@@ -40,7 +43,9 @@ function mcpProbeOf(d: SettingsDeps): McpProbe {
   if (d.env.HOME) probeEnv.HOME = d.env.HOME;
   const root = join(d.agentHome, "data", "mcp-probe");
   return async (name, server) => {
-    const r = expandServer(server, d.env);
+    // An OAuth server is reached only through the proxy, which adds the bearer token of the saved login.
+    const target = isOAuthServer(server) && d.mcpProxy ? d.mcpProxy.configFor(name) : server;
+    const r = expandServer(target, d.env);
     if ("missing" in r) return { status: "failed", error: `needs ${r.missing.join(", ")}` };
     // A fresh empty dir (0700) per probe, removed afterwards: the server never starts in the engine's cwd, where a
     // `.env` could be read, and one probe leaves nothing for the next.

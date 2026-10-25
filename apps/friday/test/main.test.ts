@@ -63,6 +63,12 @@ test("with every value set the engine starts with the API and stops on abort", a
   const run = startEngine({ config: loadConfig(env), agentHome: home, signal: ac.signal });
   // Give the boot a moment, then stop it; it must not have thrown.
   await new Promise((r) => setTimeout(r, 300));
+  // The OAuth callback is wired: an unknown state goes back to Settings as expired.
+  const cb = await fetch(`http://127.0.0.1:${port}/oauth/mcp/callback?code=c&state=x`, {
+    redirect: "manual",
+  });
+  expect(cb.status).toBe(302);
+  expect(cb.headers.get("location")).toBe("https://friday.example.com/settings/mcp?signin=expired");
   ac.abort();
   await run;
   expect(existsSync(join(home, "data", "engine.db"))).toBe(true);

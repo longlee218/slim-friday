@@ -17,6 +17,15 @@ export interface PendingLogin {
   at: number;
 }
 
+/** The `state` of a callback is unknown, already used or expired. */
+export class UnknownLoginStateError extends Error {
+  /** Fixed message: never the state value. */
+  constructor() {
+    super("unknown or expired login state");
+    this.name = "UnknownLoginStateError";
+  }
+}
+
 /** Started logins keyed by `state`: single use, expire after 10 minutes. */
 export class PendingLogins {
   /** Pending logins by `state`. */
@@ -40,8 +49,7 @@ export class PendingLogins {
   take(state: string): PendingLogin {
     const login = this.byState.get(state);
     this.byState.delete(state);
-    if (!login || this.now() - login.at > PENDING_LOGIN_TTL_MS)
-      throw new Error("unknown or expired login state");
+    if (!login || this.now() - login.at > PENDING_LOGIN_TTL_MS) throw new UnknownLoginStateError();
     return login;
   }
 

@@ -12,6 +12,7 @@ import { FakeToolCatalog } from "../../../core/test/fakes/fake-tool-catalog";
 import type { ApiDeps, EngineDeps } from "../../src/index";
 import { appRouter } from "../../src/index";
 import { ticketChangePublisher } from "../../src/routers/tickets/ticket-publish";
+import { FakeMcpAuth } from "./mcp-auth-fake";
 import { fakeSettings } from "./settings-fakes";
 
 /** A bot with only a name that matters. */
@@ -64,6 +65,7 @@ export function engineHarness() {
     files,
     purge: () => 0,
     settings,
+    mcpAuth: new FakeMcpAuth(),
     now: () => clock.now(),
     limits: () => ({ maxSpendPerBotPerDayUsd: 10 }),
     log,
@@ -87,8 +89,9 @@ export function engineHarness() {
 
 /** Just the engine fields of `ApiDeps`, over the same fakes (for tests that build the app themselves). */
 export function fakeEngine(): EngineDeps {
-  const { hub, store, surface, files, settings } = engineHarness();
+  const { hub, store, surface, files, settings, deps } = engineHarness();
   return {
+    mcpAuth: deps.mcpAuth,
     hub,
     store,
     surface,

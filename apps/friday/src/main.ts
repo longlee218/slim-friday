@@ -16,8 +16,9 @@ import { HAIKU_SUMMARY_MODEL } from "./config/model-ids";
 import { readProcessEnv } from "./config/process-env";
 import { acquireMainLock } from "./lifecycle/main-lock";
 import { startMcpProxy } from "./mcp-oauth/mcp-proxy";
+import { mcpAuthAdmin, startOAuthUpkeep } from "./mcp-oauth/oauth-api";
 import { McpOAuthManager } from "./mcp-oauth/oauth-manager";
-import { oauthConfs, warnNeedsLogin, withProxiedServers } from "./mcp-oauth/oauth-servers";
+import { oauthConfs, withProxiedServers } from "./mcp-oauth/oauth-servers";
 import { logEvent, logger } from "./observability/logger";
 import { need, r2Of } from "./required-config";
 import { createSettings } from "./settings-admin";
@@ -27,9 +28,6 @@ import { bootId } from "./workers/boot-id";
 import { workerLauncher } from "./workers/worker-spawn";
 
 const log = logger.child({ module: "engine" });
-
-/** OAuth keep-alive period: every `connected` server is refreshed this often. */
-const KEEP_ALIVE_MS = 24 * 60 * 60 * 1000;
 
 /** Test seams of `startEngine`; any of them runs the runs in the main process (no workers). */
 interface EngineOverrides {
@@ -137,16 +135,13 @@ async function runEngine(
     engine.close();
     throw err;
   });
-  // Tell the owner which OAuth servers need a login, then refresh every connected one now and daily.
-  void warnNeedsLogin(oauth, oauthServers(), log).catch((err) =>
-    log.error({ error: String(err) }, "mcp.oauth.status_failed"),
-  );
-  const keepAlive = () =>
-    oauth
-      .keepAlive()
-      .catch((err) => log.error({ error: String(err) }, "mcp.oauth.keepalive_failed"));
-  void keepAlive();
-  const keepAliveTimer = setInterval(() => void keepAlive(), KEEP_ALIVE_MS);
+  // Sign-in changes go to the web app; servers that need a login are logged; connected ones refresh daily.
+  const stopUpkeep = startOAuthUpkeep({
+    manager: oauth,
+    servers: oauthServers,
+    bus: surface.bus,
+    log,
+  });
   // The web API over the running engine; a failed start stops the app.
   const api = await startApiServer({
     agentHome,
@@ -167,11 +162,13 @@ async function runEngine(
         capChars: app.config.limits().memoryPromptChars,
         env,
         pathEnv: env.PATH ?? "",
+        mcpProxy,
       }),
+      mcpAuth: mcpAuthAdmin(oauth, engine.mcpOAuth, web.publicApiUrl),
       limits: () => app.config.limits(),
     },
   }).catch(async (err) => {
-    clearInterval(keepAliveTimer);
+    stopUpkeep();
     await mcpProxy.stop();
     await app.stop();
     throw err;
@@ -180,7 +177,7 @@ async function runEngine(
   if (!signal.aborted)
     await new Promise<void>((r) => signal.addEventListener("abort", () => r(), { once: true }));
   // Open cards stay open: they are rows, shown again at the next start. The API stops first, then the app.
-  clearInterval(keepAliveTimer);
+  stopUpkeep();
   try {
     await api.stop();
   } finally {

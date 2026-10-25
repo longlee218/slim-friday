@@ -15,9 +15,11 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { type ApiLog, logApiEvent } from "./api-log";
 import type { OwnerAuth } from "./auth/owner-auth";
+import { MCP_OAUTH_CALLBACK_PATH, mcpOAuthCallback } from "./http/mcp-oauth-callback";
 import { originCheck } from "./http/origin-check";
 import { requestLog } from "./http/request-log";
 import { ownerSession } from "./http/session";
+import type { McpAuthAdmin } from "./mcp-auth";
 import type { OwnerSession } from "./rpc/context";
 import { appRouter } from "./rpc/router";
 
@@ -46,6 +48,8 @@ export interface ApiDeps {
   cdnUrl?: string;
   /** Admins over the config, skill and memory files, and the MCP connection test. */
   settings: { config: ConfigAdmin; skills: SkillAdmin; memory: MemoryAdmin; probe: McpProbe };
+  /** OAuth sign-in of MCP servers (status, sign-in url, callback). */
+  mcpAuth: McpAuthAdmin;
   /** The spend cap the ops view shows, read on every call (follows a config reload). */
   limits: () => Pick<CoreLimits, "maxSpendPerBotPerDayUsd">;
   /** Empty the trash; returns how many entries were removed. */
@@ -55,7 +59,7 @@ export interface ApiDeps {
 /** The fields the engine adds to `ApiDeps` (plan 2). */
 export type EngineDeps = Pick<
   ApiDeps,
-  "hub" | "store" | "surface" | "files" | "purge" | "settings" | "limits"
+  "hub" | "store" | "surface" | "files" | "purge" | "settings" | "mcpAuth" | "limits"
 >;
 
 /** Build the HTTP app: log, CORS, Origin check, then health, auth and the owner-only RPC. */
@@ -90,6 +94,8 @@ export function createApiApp(deps: ApiDeps): Hono {
     const db = deps.dbReachable();
     return c.json({ ok: db, db }, db ? 200 : 503);
   });
+  // A safe GET, so the Origin check lets the identity provider's redirect through; bound to `state`, no session.
+  app.get(MCP_OAUTH_CALLBACK_PATH, mcpOAuthCallback(deps));
   app.on(["GET", "POST"], "/api/auth/*", (c) => deps.auth.handler(c.req.raw));
   // RPC is POST only: HEAD and GET must never reach the handler (RPCHandler treats HEAD like POST).
   // Event streams must not be cached, transformed or buffered by a proxy.

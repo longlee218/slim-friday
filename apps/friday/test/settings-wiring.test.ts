@@ -80,7 +80,10 @@ test("USER.md saved through the API resets no session and reaches the next run's
 });
 
 /** Settings over a temp home with a scripted probe `query`; records the SDK options of every probe. */
-function probeSettings(env: Record<string, string>) {
+function probeSettings(
+  env: Record<string, string>,
+  mcpProxy?: Parameters<typeof createSettings>[0]["mcpProxy"],
+) {
   const home = mkdtempSync(join(tmpdir(), "settings-probe-"));
   const { config } = FileConfig.load({ defaultsDir: DEFAULTS_DIR, userDir: join(home, "config") });
   const options: Record<string, unknown>[] = [];
@@ -103,6 +106,7 @@ function probeSettings(env: Record<string, string>) {
     env,
     pathEnv: "/usr/bin",
     probeQuery: query,
+    ...(mcpProxy && { mcpProxy }),
   });
   return { settings, options, dirsSeen, home };
 }
@@ -149,4 +153,16 @@ test("the probe runs in an empty private dir under the agent home, removed after
   expect(dirsSeen[0]).toEqual([]);
   expect(dirsSeen[0]).not.toContain(".env");
   expect(existsSync(cwd)).toBe(false);
+});
+
+test("the probe of an OAuth server goes through the local proxy, never to its url", async () => {
+  const proxied = {
+    type: "http" as const,
+    url: "http://127.0.0.1:9/mcp/gh",
+    headers: { "x-friday-mcp-key": "k" },
+  };
+  const { settings, options } = probeSettings({}, { configFor: () => proxied });
+  // The scripted query answers for `gh`.
+  await settings.probe("gh", { type: "http", url: "https://gh.example/mcp", oauth: {} });
+  expect(options[0]?.mcpServers).toEqual({ gh: proxied });
 });

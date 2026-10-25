@@ -3,6 +3,8 @@ export { type ApiDeps, createApiApp, type EngineDeps, SSE_KEEPALIVE_MS } from ".
 export { ensureOwner } from "./auth/ensure-owner";
 export { createOwnerAuth, type OwnerAuth, type OwnerAuthOptions } from "./auth/owner-auth";
 export { rpIdFor } from "./auth/rp-id";
+export { MCP_OAUTH_CALLBACK_PATH } from "./http/mcp-oauth-callback";
+export { type McpAuthAdmin, type McpAuthStatus, McpLoginExpiredError } from "./mcp-auth";
 export { ticketChangePublisher } from "./routers/tickets/ticket-publish";
 export type { RpcContext } from "./rpc/context";
 export { authed, rpc } from "./rpc/implementer";

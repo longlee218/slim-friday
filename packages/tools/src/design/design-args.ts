@@ -71,6 +71,10 @@ export const DESIGN_SHAPE = {
       env: z.record(z.string(), z.string()).optional(),
       url: z.string().optional(),
       headers: z.record(z.string(), z.string()).optional(),
+      oauth: z
+        .object({ scopes: z.array(z.string()).optional() })
+        .optional()
+        .describe("http only: Friday signs in with OAuth; no Authorization header, https url."),
     })
     .optional(),
   lesson: z

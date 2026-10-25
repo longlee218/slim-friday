@@ -75,7 +75,12 @@ export function checkMcpEntry(
         ...(s.args && { args: s.args }),
         ...(s.env && { env: s.env }),
       }
-    : { type: "http", url: required(s.url, "url"), ...(s.headers && { headers: s.headers }) };
+    : {
+        type: "http",
+        url: required(s.url, "url"),
+        ...(s.headers && { headers: s.headers }),
+        ...(s.oauth && { oauth: s.oauth }),
+      };
 }
 
 /** The owner's `mcp.yaml` servers (empty when there is no file). */

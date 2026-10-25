@@ -66,7 +66,13 @@ export interface GroupEntry extends GroupInput {
 /** An MCP server definition: a local command or a remote URL. */
 export type McpServerInput =
   | { type: "stdio"; command: string; args?: string[]; env?: Record<string, string> }
-  | { type: "http"; url: string; headers?: Record<string, string> };
+  | {
+      type: "http";
+      url: string;
+      headers?: Record<string, string>;
+      /** Friday signs in to the server (OAuth) and holds its tokens; `scopes` overrides the advertised ones. */
+      oauth?: { scopes?: string[] };
+    };
 
 /** An MCP server as listed, with the bots that name it. */
 export interface McpEntry {

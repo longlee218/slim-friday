@@ -6,12 +6,13 @@ import {
   QuestionCardDtoSchema,
 } from "./dto/cards";
 import { MessageDtoSchema, RunStepDtoSchema } from "./dto/chat";
+import { McpAuthStatusSchema } from "./dto/config";
 import { BotStatusDtoSchema } from "./dto/status";
 import { TicketDtoSchema } from "./dto/tickets";
 import { ConversationIdSchema } from "./ids";
 
 /**
- * Everything the server pushes to the web app (12 members). The numeric event id travels
+ * Everything the server pushes to the web app (13 members). The numeric event id travels
  * as the SSE id, not inside the event.
  */
 export const FridayEventSchema = z.discriminatedUnion("type", [
@@ -56,6 +57,8 @@ export const FridayEventSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("status"), bots: z.array(BotStatusDtoSchema) }),
   z.object({ type: z.literal("ticket"), ticket: TicketDtoSchema }),
   z.object({ type: z.literal("config.changed") }),
+  // an OAuth MCP server's sign-in state changed (told on change only)
+  z.object({ type: z.literal("mcp.auth"), server: z.string(), status: McpAuthStatusSchema }),
   // the client's lastEventId is older than the buffer: refetch everything
   z.object({ type: z.literal("resync") }),
 ]);

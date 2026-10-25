@@ -56,6 +56,8 @@ export const mcp = {
   test: base
     .input(z.object({ name: McpNameSchema, server: McpServerSpecDtoSchema }))
     .output(McpTestDtoSchema),
+  /** Start an OAuth sign-in; the browser opens `url` (the callback is `GET /oauth/mcp/callback`). */
+  signIn: base.input(z.object({ name: McpNameSchema })).output(z.object({ url: z.string() })),
   calls: base
     .input(z.object({ server: McpNameSchema, limit: z.number().int().min(1).max(MAX_PAGE) }))
     .output(z.array(McpCallDtoSchema)),

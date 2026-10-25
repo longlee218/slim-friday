@@ -23,6 +23,7 @@ const ALL = [
   "config.mcp.delete",
   "config.mcp.list",
   "config.mcp.save",
+  "config.mcp.signIn",
   "config.mcp.test",
   "config.owner.get",
   "config.owner.save",
@@ -72,7 +73,7 @@ const inputOf = (path: string) => procAt(path)["~orpc"].inputSchema;
 const uuid = "123e4567-e89b-42d3-a456-426614174000";
 
 test("the contract has exactly the shared-contract procedures", () => {
-  expect(ALL).toHaveLength(55);
+  expect(ALL).toHaveLength(56);
   expect(listProcedurePaths(contract)).toEqual(ALL);
 });
 

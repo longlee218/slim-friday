@@ -114,6 +114,9 @@ export function reduceEvent(e: FridayEvent, view: ReducerView): CacheEffect[] {
       return [{ op: "invalidate", scope: "config" }];
     case "resync":
       return [{ op: "invalidate", scope: "all" }];
+    case "mcp.auth":
+      // Shown by the MCP settings later (refetch and toast); nothing to do yet.
+      return [];
   }
 }
 

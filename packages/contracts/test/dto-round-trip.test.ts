@@ -111,11 +111,12 @@ const events = [
   { type: "status", bots: [status] },
   { type: "ticket", ticket },
   { type: "config.changed" },
+  { type: "mcp.auth", server: "db", status: "needs_login" },
   { type: "resync" },
 ];
 
 test("every FridayEvent type parses and an unknown type is refused", () => {
-  expect(events).toHaveLength(12);
+  expect(events).toHaveLength(13);
   for (const e of events) same(FridayEventSchema.parse(e), e);
   expect(FridayEventSchema.safeParse({ type: "nope" }).success).toBe(false);
 });
@@ -157,4 +158,32 @@ test("McpServerDto holds the spec, name, shipped and usedBy", () => {
 test("approval.closed accepts a null answer (withdrawn)", () => {
   const e = { type: "approval.closed", cardId: "c1", answer: null };
   same(FridayEventSchema.parse(e), e);
+});
+
+test("spec with oauth parses; oauth + Authorization header refused", () => {
+  const ok = { type: "http", url: "https://x.example/mcp", oauth: { scopes: ["read"] } };
+  same(McpServerSpecDtoSchema.parse(ok), ok);
+  const bare = { type: "http", url: "https://x.example/mcp", oauth: {} };
+  same(McpServerSpecDtoSchema.parse(bare), bare);
+  const withAuth = { ...ok, headers: { authorization: "$" + "{T}" } };
+  expect(McpServerSpecDtoSchema.safeParse(withAuth).success).toBe(false);
+  expect(McpServerSpecDtoSchema.safeParse({ ...ok, url: "http://x.example/mcp" }).success).toBe(
+    false,
+  );
+  expect(McpServerSpecDtoSchema.safeParse({ ...ok, oauth: { extra: 1 } }).success).toBe(false);
+});
+
+test("McpServerDto carries the oauth block and the sign-in status", () => {
+  const s = {
+    name: "db",
+    type: "http",
+    url: "https://x.example/mcp",
+    oauth: {},
+    shipped: false,
+    usedBy: [],
+    auth: { status: "connected", lastRefreshAt: 5 },
+  };
+  same(McpServerDtoSchema.parse(s), s);
+  const bad = { ...s, auth: { status: "nope" } };
+  expect(McpServerDtoSchema.safeParse(bad).success).toBe(false);
 });

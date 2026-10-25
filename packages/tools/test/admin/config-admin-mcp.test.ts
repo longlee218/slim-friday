@@ -117,3 +117,14 @@ test("checkMcpServer checks and writes nothing", () => {
     admin.checkMcpServer("gh", { type: "http", url: "https://x", headers: { A: "lit" } }),
   ).toThrow(bad("BAD_REQUEST"));
 });
+
+test("saveMcp keeps the oauth block in mcp.yaml", () => {
+  const db: McpServerInput = {
+    type: "http",
+    url: "https://db.example/mcp",
+    oauth: { scopes: ["read"] },
+  };
+  admin.saveMcp("db", db, "create");
+  expect(admin.listMcp().find((e) => e.name === "db")?.server).toEqual(db);
+  expect(readFileSync(join(configDir, "mcp.yaml"), "utf8")).toContain("oauth:");
+});

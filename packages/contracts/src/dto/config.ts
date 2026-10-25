@@ -64,29 +64,61 @@ export type GroupInputDto = z.infer<typeof GroupInputDtoSchema>;
 
 const stringMap = z.record(z.string(), z.string());
 
+/** The fields of a local (stdio) server. */
+const stdioShape = {
+  type: z.literal("stdio"),
+  command: z.string().min(1),
+  args: z.array(z.string()).optional(),
+  env: stringMap.optional(),
+};
+
+/** The fields of a remote server; `oauth` means Friday signs in to it and holds the tokens. */
+const httpShape = {
+  type: z.literal("http"),
+  url: z.string().min(1),
+  headers: stringMap.optional(),
+  oauth: z.strictObject({ scopes: z.array(z.string().min(1)).optional() }).optional(),
+};
+
+/** The config parser's rules: `oauth` excludes an `Authorization` header and needs an https url. */
+function checkOAuth(
+  s: { url: string; headers?: Record<string, string>; oauth?: unknown },
+  ctx: z.RefinementCtx,
+): void {
+  if (!s.oauth) return;
+  if (Object.keys(s.headers ?? {}).some((k) => k.toLowerCase() === "authorization"))
+    ctx.addIssue({
+      code: "custom",
+      path: ["headers"],
+      message: "oauth cannot be combined with an Authorization header",
+    });
+  if (!s.url.startsWith("https://"))
+    ctx.addIssue({ code: "custom", path: ["url"], message: "oauth needs an https url" });
+}
+
 /** An MCP server spec; strict like `packages/config/src/schemas/mcp-file.ts`. */
 export const McpServerSpecDtoSchema = z.discriminatedUnion("type", [
-  z.strictObject({
-    type: z.literal("stdio"),
-    command: z.string().min(1),
-    args: z.array(z.string()).optional(),
-    env: stringMap.optional(),
-  }),
-  z.strictObject({
-    type: z.literal("http"),
-    url: z.string().min(1),
-    headers: stringMap.optional(),
-  }),
+  z.strictObject(stdioShape),
+  z.strictObject(httpShape).superRefine(checkOAuth),
 ]);
 export type McpServerSpecDto = z.infer<typeof McpServerSpecDtoSchema>;
 
-/** Fields every listed MCP server adds to its spec. */
-const mcpListed = { name: z.string(), shipped: z.boolean(), usedBy: z.array(z.string()) };
+/** Sign-in state of an OAuth MCP server. */
+export const McpAuthStatusSchema = z.enum(["connected", "needs_login", "never"]);
+export type McpAuthStatus = z.infer<typeof McpAuthStatusSchema>;
+
+/** Fields every listed MCP server adds to its spec; `auth` is set for an OAuth server only. */
+const mcpListed = {
+  name: z.string(),
+  shipped: z.boolean(),
+  usedBy: z.array(z.string()),
+  auth: z.object({ status: McpAuthStatusSchema, lastRefreshAt: z.number().optional() }).optional(),
+};
 
 /** An MCP server with its name, origin and the bots that use it (spec fields inline). */
 export const McpServerDtoSchema = z.discriminatedUnion("type", [
-  z.strictObject({ ...McpServerSpecDtoSchema.options[0].shape, ...mcpListed }),
-  z.strictObject({ ...McpServerSpecDtoSchema.options[1].shape, ...mcpListed }),
+  z.strictObject({ ...stdioShape, ...mcpListed }),
+  z.strictObject({ ...httpShape, ...mcpListed }).superRefine(checkOAuth),
 ]);
 export type McpServerDto = z.infer<typeof McpServerDtoSchema>;
 
