@@ -390,3 +390,49 @@ test("src, test, living docs and app-owned skills hold no `lead` role or engine 
   expect(texts.length).toBeGreaterThan(20);
   expect(texts.filter((f) => OLD_LEAD.test(f.text)).map((f) => f.file)).toEqual([]);
 });
+
+/** Discord surface, deleted by web app plan 2: its env keys, package, port types, library and guide. */
+const DISCORD: Record<string, RegExp> = {
+  "discord token env": j("DISCORD", "_TOKEN"),
+  "discord guild env": j("DISCORD", "_GUILD_ID"),
+  "discord owner env": j("OWNER", "_DISCORD_ID"),
+  "discord package": j("surface", "-discord"),
+  "discord port type": new RegExp(`\\b${["Discord", "Port"].join("")}\\b`),
+  "discord surface type": new RegExp(`\\b${["Discord", "Surface"].join("")}\\b`),
+  "discord library": j("discord", "\\.js"),
+  "discord guide": j("discord", "-setup"),
+};
+
+/** Files allowed to name a retired Discord key. */
+const DISCORD_EXEMPT = [
+  // Defines the banned names.
+  "retired-naming-scan.test.ts",
+  // Asserts a stale token of the retired surface stays denied to bots.
+  "child-env-deny.test.ts",
+];
+
+test("code, living docs and .env.example hold no Discord surface name", () => {
+  const packageSrc = readdirSync("packages").flatMap((p) =>
+    existsSync(join("packages", p, "src")) ? sources(join("packages", p, "src")) : [],
+  );
+  const docs = [
+    "CLAUDE.md",
+    "AGENTS.md",
+    "README.md",
+    "CONTRIBUTING.md",
+    ".env.example",
+    ...readdirSync("docs")
+      .filter((f) => f.endsWith(".md") && !f.startsWith("project-changelog"))
+      .map((f) => join("docs", f)),
+    ...readdirSync("docs/ports").map((f) => join("docs/ports", f)),
+  ].map((file) => ({ file, text: readFileSync(file, "utf8") }));
+  const texts = [...appSources(), ...packageSrc, ...sources("test"), ...docs].filter(
+    (f) => !DISCORD_EXEMPT.some((e) => f.file.endsWith(e)),
+  );
+  const hits = texts.flatMap((f) =>
+    Object.entries(DISCORD)
+      .filter(([, re]) => re.test(f.text))
+      .map(([n]) => `${f.file}: ${n}`),
+  );
+  expect(hits).toEqual([]);
+});

@@ -15,10 +15,23 @@ const REQUIRED = [
   "docs/ports/runtime.md",
   "docs/ports/tools.md",
   "docs/ports/store.md",
+  "docs/ports/file-store.md",
+  "docs/web-setup.md",
+  ".env.example",
+  "apps/web/.env.example",
+  "apps/web/vercel.json",
 ];
 
 /** Dirs and files scanned (a dir is walked; `node_modules` is skipped). */
-const SCANNED = ["README.md", "LICENSE", "CONTRIBUTING.md", "docs/ports", "apps"];
+const SCANNED = [
+  "README.md",
+  "LICENSE",
+  "CONTRIBUTING.md",
+  "docs/ports",
+  "docs/web-setup.md",
+  ".env.example",
+  "apps",
+];
 /** Per-package dirs scanned. */
 const PACKAGE_DIRS = ["defaults", "templates", "src"];
 
@@ -39,6 +52,7 @@ const SKIPPED_DIRS = new Set([
   "dev-dist",
   "test-results",
   "playwright-report",
+  ".vercel",
 ]);
 
 /** Every file under `path` (a file is itself). */
