@@ -9,6 +9,7 @@ import { events } from "./events";
 import { memory } from "./memory";
 import { ops } from "./ops";
 import { models, permissions } from "./permissions";
+import { schedules } from "./schedules";
 import { tickets } from "./tickets";
 
 /** The shared oRPC contract: every router of the web app API. */
@@ -19,6 +20,7 @@ export const contract = {
   questions,
   control,
   tickets,
+  schedules,
   ops,
   config: { bots, groups, avatars, skills, mcp, owner, approvalRules, permissions, models },
   memory,

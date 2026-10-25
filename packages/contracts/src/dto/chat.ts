@@ -58,6 +58,8 @@ export const MessageDtoSchema = z.object({
   files: z.array(FileDtoSchema).default([]),
   run: z.array(RunStepDtoSchema).optional(),
   relay: RelayDtoSchema.optional(),
+  /** Set when a scheduled run posted this message. */
+  schedule: z.object({ id: z.string(), name: z.string() }).optional(),
 });
 export type MessageDto = z.infer<typeof MessageDtoSchema>;
 
