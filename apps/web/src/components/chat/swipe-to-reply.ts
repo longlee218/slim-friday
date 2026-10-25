@@ -4,6 +4,8 @@ import { useEffect, useRef } from "react";
 export const SWIPE_PX = 56;
 /** Press-and-hold time (ms) that opens the message sheet. */
 export const HOLD_MS = 450;
+/** Delay (ms) before the press cue (slight shrink) shows. */
+const CUE_MS = 150;
 /** Furthest the message follows the finger (px). */
 const MAX_DX = 80;
 /** Movement (px) that cancels the hold and decides between swipe and scroll. */
@@ -64,15 +66,20 @@ export function useSwipeToReply(el: HTMLElement | null, handlers: SwipeHandlers)
     let start = { x: 0, y: 0 };
     let state: SwipeState = { phase: "idle", dx: 0, ok: false };
     let hold: ReturnType<typeof setTimeout> | undefined;
+    let cue: ReturnType<typeof setTimeout> | undefined;
 
-    /** Springs the message back (240 ms) and forgets the gesture. */
+    /** Forgets the gesture; a message that slid springs back (240 ms). */
     const reset = () => {
       clearTimeout(hold);
+      clearTimeout(cue);
       const m = msg;
+      const slid = state.phase === "swiping";
       msg = null;
       state = { phase: "idle", dx: 0, ok: false };
       if (!m) return;
+      // The press cue eases back by itself (transcript.css); a tap that never slid writes no inline style.
       m.classList.remove("swipe-ok", "holding");
+      if (!slid) return;
       m.style.transition = "transform 240ms var(--ease)";
       m.style.transform = "";
       m.style.setProperty("--sw", "0");
@@ -91,7 +98,8 @@ export function useSwipeToReply(el: HTMLElement | null, handlers: SwipeHandlers)
       msg = m;
       start = { x: e.clientX, y: e.clientY };
       state = { phase: "pressing", dx: 0, ok: false };
-      m.classList.add("holding");
+      // The press cue waits a moment so a tap or the start of a scroll never flashes it.
+      cue = setTimeout(() => m.classList.add("holding"), CUE_MS);
       const id = Number(m.dataset.mi);
       hold = setTimeout(() => {
         reset();
@@ -105,10 +113,13 @@ export function useSwipeToReply(el: HTMLElement | null, handlers: SwipeHandlers)
       const delta = { dx: e.clientX - start.x, dy: e.clientY - start.y };
       if (movedPastSlop(delta)) {
         clearTimeout(hold);
+        clearTimeout(cue);
         msg.classList.remove("holding");
       }
       state = swipeStep(state, delta);
       if (state.phase === "cancelled") return reset();
+      // Under the slop the bubble stays still, so the small drift of a tap never wiggles it.
+      if (state.phase !== "swiping") return;
       msg.style.transform = `translateX(${state.dx}px)`;
       msg.style.setProperty("--sw", String(Math.min(1, state.dx / SWIPE_PX)));
       msg.classList.toggle("swipe-ok", state.ok);
