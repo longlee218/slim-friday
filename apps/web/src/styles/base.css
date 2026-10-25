@@ -1,6 +1,8 @@
 /* ------------------------------------------------------------------ base */
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
+/* No double-tap zoom (pinch zoom stays) and no iOS text inflation on rotation. */
+html { touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 body {
   font: 13px/1.45 var(--font); color: var(--label); background: var(--ground);
   -webkit-font-smoothing: antialiased; overflow: hidden; letter-spacing: -0.003em;
@@ -71,7 +73,17 @@ select.field { appearance: none; -webkit-appearance: none; padding-right: 30px; 
   background-repeat: no-repeat; background-position: right 9px center; background-size: 13px; }
 .field:focus { border-color: var(--tint); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tint) 28%, transparent); }
 textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height: 1.5; }
+/* Instructions and other code-like text: mono, a step smaller (raised to 16px on touch screens below). */
+textarea.field.code { font-family: var(--mono); font-size: 12.5px; }
 .field.err { border-color: var(--red); box-shadow: 0 0 0 3px var(--red-fill); }
 .spin { animation: spin 1s linear infinite; }
 .status { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; }
 .status .sdot { width: 7px; height: 7px; }
+
+/* iOS Safari zooms the page when a focused field is under 16px. On touch screens: fields that inherit the 13px
+   body text get 16px (element-only, so a larger size such as the 17px phone search stays), and the few rules that
+   set a smaller size are raised by name. */
+@media (pointer: coarse) {
+  input, textarea, select { font-size: 16px; }
+  :root :is(.sb-search .field, .composer textarea, textarea.field.code) { font-size: 16px; }
+}

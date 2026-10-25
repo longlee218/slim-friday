@@ -110,9 +110,8 @@ export function BotProfileTab({ form, readOnly, mode }: BotTabProps) {
         </label>
         <AutoTextarea
           id="f-instructions"
-          className="field"
+          className="field code"
           rows={6}
-          style={{ fontFamily: "var(--mono)", fontSize: 12.5 }}
           value={v.instructions}
           disabled={readOnly}
           onChange={(e) => set("instructions", e.target.value)}
