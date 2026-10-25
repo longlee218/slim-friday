@@ -7,6 +7,7 @@ import { askOwner, PARKED_RESULT } from "./ask-question";
 import type { CallGuard } from "./call-guard";
 import { floorCheck } from "./floor-check";
 import { mcpGranted, pickServers, splitTools } from "./mcp-grants";
+import { postToolUseHook } from "./post-tool-use-hook";
 import { preToolUseHook } from "./pre-tool-use-hook";
 import { INTRO_TOOLS, introServers } from "./run-kind-tools";
 import { buildSkillsPlugin } from "./skills-plugin";
@@ -147,6 +148,8 @@ export function buildOptions(input: BuildOptionsInput): Options {
     // so the floor holds there too (and for Glob / Grep with no path); the call guard counts there too.
     hooks: {
       PreToolUse: [{ hooks: [preToolUseHook(floor, input.guard, input.onGuardStop)] }],
+      // Clips an external MCP result over 12 000 chars (Friday's own tools clip when they build the result).
+      PostToolUse: [{ hooks: [postToolUseHook()] }],
       PostCompact: [
         {
           hooks: [
