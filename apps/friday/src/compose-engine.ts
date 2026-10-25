@@ -12,6 +12,7 @@ import { idleFlush } from "./idle-flush";
 import { wireMemory } from "./memory-wiring";
 import { readProjectRules } from "./project-rules";
 import { registrableDomain } from "./registrable-domain";
+import { nextRunAtCroner } from "./schedules/next-run-croner";
 import { scopeBotFor } from "./scope-bot";
 import { deniedEnvValues } from "./secret-values";
 import { systemClock } from "./system-clock";
@@ -35,6 +36,8 @@ export type EngineDeps = Pick<
   | "log"
   | "onTicketChange"
 > & {
+  /** Called when a schedule changes; only the main process (which has the ticker) sets it. */
+  onScheduleChange?: (scheduleId: string) => void;
   /** How the hub's hints travel and whether it runs runs here; read after the config is loaded. */
   hubRuns?: (config: FileConfig) => Pick<BotHubDeps, "hints" | "runner">;
 };
@@ -125,6 +128,8 @@ export function composeEngine(deps: EngineDeps, opened: Array<() => unknown>) {
     // Read at every turn, so a settings.yaml edit reaches the next run.
     timeZone: () => resolveOwnerTimeZone(config.ownerTimeZone()),
     ...(deps.onTicketChange && { onTicketChange: deps.onTicketChange }),
+    nextRunAt: nextRunAtCroner,
+    ...(deps.onScheduleChange && { onScheduleChange: deps.onScheduleChange }),
     scopeBot: scopeBotFor(agentHome, config),
     projectRules: readProjectRules,
     freeMemoryMb: availableMemoryMb,

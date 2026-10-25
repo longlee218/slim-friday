@@ -68,3 +68,10 @@ describe("axiom stream", () => {
     expect(c.sent).toEqual([]);
   });
 });
+
+test("scheduleId passes the allow-list (metadata only)", () => {
+  const out = pickAxiomFields(
+    JSON.stringify({ event: "schedule.fired", scheduleId: "s1", task: "secret text" }),
+  );
+  expect(out).toEqual({ event: "schedule.fired", scheduleId: "s1" });
+});

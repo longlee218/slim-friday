@@ -8,6 +8,7 @@ import {
   pruneJournals,
 } from "@friday/tools";
 import { sweepScratchpad } from "./lifecycle/home-retention-sweeper";
+import { pruneSchedules } from "./schedules/schedule-retention";
 
 /** How often the daily run repeats. */
 const DAILY_MS = 24 * 3_600_000;
@@ -74,6 +75,9 @@ export function startDailyMaintenance(d: DailyDeps) {
       .catch((err) => log.error({ error: why(err) }, "wakes.prune"));
     sweepScratchpad(d.engine.scratchpad, clock.now()).catch((err) =>
       log.error({ error: why(err) }, "scratchpad.prune"),
+    );
+    pruneSchedules(d.engine, clock.now()).catch((err) =>
+      log.error({ error: why(err) }, "schedules.prune"),
     );
     if (!stopped)
       cancelTimer = clock.setTimer(DAILY_MS, () => {
