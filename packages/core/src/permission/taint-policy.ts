@@ -52,6 +52,16 @@ export const OWN_STATE_TOOLS: readonly string[] = [
 ];
 
 /**
+ * Tools that create, change or delete a schedule (a recurring job): asked even over a grant when the run is tainted
+ * or was not started by the owner (a bot-to-bot or ticket run, spec §7).
+ */
+export const SCHEDULE_CHANGE_TOOLS: readonly string[] = [
+  "mcp__schedules__ScheduleCreate",
+  "mcp__schedules__ScheduleUpdate",
+  "mcp__schedules__ScheduleDelete",
+];
+
+/**
  * Tools that change a bot's instructions (config, lessons in memory): asked when tainted even over a grant.
  * Bots have no tool that edits RULES.md (only the owner does, through the API); `BotDesign` covers bot config
  * and `add_lesson`; `UpdateProfile` writes the bot's title, a trusted line of its own system prompt (an intro
@@ -60,15 +70,15 @@ export const OWN_STATE_TOOLS: readonly string[] = [
 export const INSTRUCTION_CHANGE_TOOLS: readonly string[] = [
   "mcp__design__BotDesign",
   "mcp__chat__UpdateProfile",
-  "mcp__schedules__ScheduleCreate",
-  "mcp__schedules__ScheduleUpdate",
-  "mcp__schedules__ScheduleDelete",
+  ...SCHEDULE_CHANGE_TOOLS,
 ];
 
 /** What the taint policy reads of a run. */
 export interface TaintRun {
   /** The run read untrusted input. */
   tainted: boolean;
+  /** The run was started by another bot or a ticket, not the owner: schedule changes ask even when clean. */
+  notOwnerRun?: boolean;
   /** Registrable domains the owner named in the run's messages (`ownerSites`). */
   sites: Set<string>;
   /** Registrable domains the owner approved on a taint card in this run. */
@@ -162,6 +172,8 @@ export function taintAskOf(
   run: TaintRun,
   domainOf: RegistrableDomain = exactHost,
 ): TaintAsk | undefined {
+  if (run.notOwnerRun && SCHEDULE_CHANGE_TOOLS.includes(call.tool))
+    return { reason: "changes a schedule in a run the owner did not start", mandatory: true };
   if (!run.tainted) return undefined;
   if (INSTRUCTION_CHANGE_TOOLS.includes(call.tool))
     return { reason: "changes bot instructions after untrusted content was read", mandatory: true };

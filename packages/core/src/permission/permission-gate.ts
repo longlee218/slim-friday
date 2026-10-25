@@ -47,6 +47,8 @@ export interface GateContext {
   tainted: boolean;
   /** The run is a scheduled run (`row.scheduleId` set): its read steps never ask (`isScheduledRead`). */
   scheduled?: boolean;
+  /** The run was started by another bot or a ticket (`runKindOf`): schedule changes ask even when clean. */
+  notOwnerRun?: boolean;
   /** The run's owner-named and approved sites and approved MCP servers; unset: none (every taint ask asks). */
   taint?: Omit<TaintRun, "tainted">;
   /** The run's chain (`row.chainId`): Auto Review reads the owner's words from it; unset: no review. */
@@ -110,6 +112,7 @@ export class PermissionGate {
         usedMcpServers: none,
         ...ctx.taint,
         tainted: ctx.tainted,
+        ...(ctx.notOwnerRun && { notOwnerRun: true }),
       },
       this.domainOf,
     );

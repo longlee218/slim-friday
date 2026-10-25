@@ -42,7 +42,7 @@ tools:
   - { name: mcp__scratchpad__ScratchpadComplete, annotations: { readOnlyHint: true } }
   - { name: mcp__scratchpad__ScratchpadRemove, annotations: { readOnlyHint: true } }
   # The bot's own schedules (every bot): bounded by the board's checks (scope, limits, 15 minute interval), so no
-  # card; a tainted run still asks for create, update and delete (taint policy: instruction change list).
+  # card; a tainted, bot-to-bot or ticket run still asks for create, update and delete (taint policy).
   - { name: mcp__schedules__ScheduleList, annotations: { readOnlyHint: true } }
   - { name: mcp__schedules__ScheduleCreate, annotations: { readOnlyHint: true } }
   - { name: mcp__schedules__ScheduleUpdate, annotations: { readOnlyHint: true } }
