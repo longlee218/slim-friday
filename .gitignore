@@ -49,3 +49,4 @@ apps/web/playwright-report/
 
 # Local-only git hook overrides
 lefthook-local.yml
+.vercel
