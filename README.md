@@ -21,7 +21,7 @@ You need [Bun](https://bun.sh), a Claude subscription token and a Discord server
 2. `claude setup-token`, then copy `.env.example` to `.env` and fill it in (`CLAUDE_CODE_OAUTH_TOKEN`, `DISCORD_TOKEN`, `DISCORD_GUILD_ID`, `OWNER_DISCORD_ID`, `AGENT_HOME`).
 3. `bun run start`
 
-Create the Discord app and check the first start with [docs/discord-setup.md](docs/discord-setup.md).
+Create the Discord app and check the first start with [docs/web-setup.md](docs/web-setup.md).
 
 ## Where things live
 
