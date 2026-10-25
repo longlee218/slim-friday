@@ -85,6 +85,7 @@
 .sched-inset .irow .grow { min-width: 0; }
 .sched-inset .irow .t2 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sched-inset .sched-none { padding-block: 10px; }
+.sched-inset .sched-none .t2 { white-space: normal; }
 
 /* Phone schedule page (prototype .ph-sched-head, .ph-wide). */
 .ph-sched-head { display: flex; align-items: center; gap: 12px; margin: 4px 0 14px; }

@@ -10,7 +10,8 @@
 .ios-view.leave { transition: transform 320ms var(--ease-sheet); transform: translateX(100%) !important; }
 .ios-view.shift { transform: translateX(-28%); filter: brightness(.94); }
 .ios-scroll { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-top: calc(var(--safe-t) + var(--nav-h)); padding-bottom: calc(var(--safe-b) + var(--tab-h) + 8px); }
-.ios-scroll.nt { padding-bottom: 8px; }
+/* Pushed pages: a grouped-list gap under the solid bar, so the first card never touches its hairline. */
+.ios-scroll.nt { padding-top: calc(var(--safe-t) + var(--nav-h) + 16px); padding-bottom: 8px; }
 .ios-nav { position: absolute; z-index: 4; top: 0; left: 0; right: 0; padding-top: var(--safe-t); height: calc(var(--safe-t) + var(--nav-h)); display: flex; align-items: center; justify-content: space-between; padding-left: 8px; padding-right: 8px;
   background: transparent; border-bottom: .5px solid transparent; transition: background var(--t-mid), border-color var(--t-mid); }
 .ios-nav.solid { background: var(--toolbar); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); border-bottom-color: var(--sep-strong); }

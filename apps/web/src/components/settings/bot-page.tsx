@@ -5,6 +5,7 @@ import { useRef } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { client, orpc } from "../../api/client";
+import { useIsPhone } from "../../app/use-is-phone";
 import { Avatar } from "../ui/avatar";
 import { useSegThumb } from "../ui/use-seg-thumb";
 import { AvatarPicker } from "./avatar-picker";
@@ -28,6 +29,7 @@ export function BotNewPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { tab } = useParams();
+  const phone = useIsPhone();
   const onSave = async (v: BotFormValue) => {
     const { id, ...bot } = v;
     await client.config.bots.save({ id, bot, mode: "create" });
@@ -36,12 +38,15 @@ export function BotNewPage() {
   };
   return (
     <SettingsPage title="New bot">
-      <div className="set-head">
-        <div className="grow">
-          <h2>New bot</h2>
-          <div className="r">Fill in the profile, then add tools and skills.</div>
+      {/* The phone nav bar already names the page. */}
+      {!phone && (
+        <div className="set-head">
+          <div className="grow">
+            <h2>New bot</h2>
+            <div className="r">Fill in the profile, then add tools and skills.</div>
+          </div>
         </div>
-      </div>
+      )}
       <BotForm
         initial={NEW_BOT}
         mode="create"
