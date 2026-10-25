@@ -1,0 +1,1 @@
+ALTER TABLE `wakes` ADD `reaction` text;

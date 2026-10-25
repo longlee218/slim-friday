@@ -1,10 +1,18 @@
 import type { ApprovalCardDto, MessageDto, QuestionCardDto } from "@friday/contracts";
 import type { LiveRun, Receipt } from "../../events/client-keys";
+import { type ReactionCounts, reactionOfMessage } from "./reactions";
 
 /** One row of the transcript, in display order. */
 export type TranscriptItem =
   | { kind: "day"; key: string; at: number }
-  | { kind: "message"; key: string; message: MessageDto; pending?: "sending" | "failed" }
+  | {
+      kind: "message";
+      key: string;
+      message: MessageDto;
+      pending?: "sending" | "failed";
+      /** Emoji reactions folded under this message. */
+      reactions?: ReactionCounts;
+    }
   | { kind: "approval"; key: string; card: ApprovalCardDto; receipt?: Receipt }
   | { kind: "question"; key: string; card: QuestionCardDto; receipt?: Receipt }
   | { kind: "run"; key: string; run: LiveRun };
@@ -29,17 +37,27 @@ const dayStart = (t: number): number => new Date(t).setHours(0, 0, 0, 0);
  * Flattens the query pages into the transcript: messages oldest first with a day line before
  * the first message of each local day, then the live runs, then this conversation's cards
  * (question receipts in arrival order, then the still-open ones; an answered approval is dropped): a card sits under the run block that
- * raised it, as in the prototype. Keys are stable across renders.
+ * raised it, as in the prototype. A reaction whose target is loaded is no row of its own: it counts under that message.
+ * Keys are stable across renders.
  */
 export function buildTranscriptItems(input: BuildInput): TranscriptItem[] {
   const items: TranscriptItem[] = [];
   const seen = new Set<number>();
+  const loaded = new Set(input.pages.flat().map((m) => m.id));
+  const reactions = new Map<number, ReactionCounts>();
   let day = Number.NaN;
   // Pages and their messages are newest first; walk both backwards to get oldest first.
   for (const page of [...input.pages].reverse()) {
     for (const message of [...page].reverse()) {
       if (seen.has(message.id)) continue;
       seen.add(message.id);
+      const emoji = reactionOfMessage(message);
+      const target = message.replyTo?.messageId;
+      if (emoji && target !== undefined && target !== message.id && loaded.has(target)) {
+        const counts = reactions.get(target) ?? {};
+        reactions.set(target, { ...counts, [emoji]: (counts[emoji] ?? 0) + 1 });
+        continue;
+      }
       const d = dayStart(message.at);
       if (d !== day) {
         day = d;
@@ -53,6 +71,11 @@ export function buildTranscriptItems(input: BuildInput): TranscriptItem[] {
         ...(pending && { pending }),
       });
     }
+  }
+  // Reactions come after their target in id order, so the counts are complete only now.
+  for (const item of items) {
+    const counts = item.kind === "message" ? reactions.get(item.message.id) : undefined;
+    if (item.kind === "message" && counts) item.reactions = counts;
   }
 
   for (const run of Object.values(input.runs)) {

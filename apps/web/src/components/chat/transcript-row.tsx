@@ -1,4 +1,4 @@
-import type { MessageDto } from "@friday/contracts";
+import type { MessageDto, MessageReaction } from "@friday/contracts";
 import type { LiveRun } from "../../events/client-keys";
 import { Avatar } from "../ui/avatar";
 import { ApprovalCard } from "./approval-card";
@@ -39,6 +39,7 @@ export interface TranscriptRowProps {
   /** True for a bot message that arrived over the stream after the view opened. */
   isFresh(m: MessageDto): boolean;
   onReply(m: MessageDto): void;
+  onReact(m: MessageDto, emoji: MessageReaction): void;
   onRetry(tempId: number): void;
 }
 
@@ -73,7 +74,16 @@ export function TranscriptRow(p: TranscriptRowProps) {
           />
         );
       }
-      return <BotMessage message={m} phone={p.phone} onReply={p.onReply} fresh={p.isFresh(m)} />;
+      return (
+        <BotMessage
+          message={m}
+          phone={p.phone}
+          onReply={p.onReply}
+          onReact={p.onReact}
+          fresh={p.isFresh(m)}
+          {...(item.reactions && { reactions: item.reactions })}
+        />
+      );
     }
   }
 }

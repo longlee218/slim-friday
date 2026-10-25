@@ -11,6 +11,13 @@ test("allowBackground leaves the background-task switch unset", () => {
   expect(off.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS).toBe("1");
 });
 
+test("the parallel subagent cap comes only from the option, never from the source env", () => {
+  const set = sdkEnv(AUTH, { PATH: "/bin" }, { maxParallelSubagents: 4 });
+  expect(set.CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS).toBe("4");
+  const none = sdkEnv(AUTH, { CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS: "99" }, {});
+  expect("CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS" in none).toBe(false);
+});
+
 test("a worker env has the subprocess scrub on and no app secrets", () => {
   const env = sdkEnv(
     AUTH,

@@ -92,6 +92,10 @@ limits:
   # reconcileMs: 30000
   ## Tool calls a bot may make in one turn; the next call is denied and the run stops with a note (0 = no cap).
   # maxToolCallsPerTurn: 0
+  ## A bot is woken by an owner emoji reaction at most once in this long (ms); a reaction in between is context only.
+  # reactionCooldownMs: 30000
+  ## Subagents of one bot that may run at once; a further spawn is refused until one ends.
+  # maxParallelSubagents: 4
   ## Tool search: `on` finds tools through ToolSearch when there are many, `off` loads every tool, `auto:<1-100>` defers tools past that % of the context.
   # toolSearch: on
   ## No new run starts below this much free memory (MB).

@@ -37,7 +37,7 @@ const SUBPROCESS_SCRUB_VAR = "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB";
 
 /**
  * Build the SDK child env: the owner's env passes through (the agent runs as the owner, with the owner's git / gh / ssh
- * auth) minus the bot's own variables (`config/data/child-env-deny.yaml`), then the app-owned ones on top: the OAuth token (when real), the subagent limits (depth = `opts.subagentDepth`), the compaction vars (window = the app default `COMPACT_WINDOW_TOKENS`, percent always) and the cache TTL vars: the ONLY source of these, the same names in the
+ * auth) minus the bot's own variables (`config/data/child-env-deny.yaml`), then the app-owned ones on top: the OAuth token (when real), the subagent limits (depth = `opts.subagentDepth`, parallel = `opts.maxParallelSubagents`), the compaction vars (window = the app default `COMPACT_WINDOW_TOKENS`, percent always) and the cache TTL vars: the ONLY source of these, the same names in the
  * caller env are on the deny list. `opts.worker` (a dispatched worker) drops every secret-like variable too and turns the SDK's
  * subprocess scrub on. `opts.allowBackground` leaves the background-task switch unset, so subagents may run in the background.
  */
@@ -48,6 +48,7 @@ export function sdkEnv(
     oneShot?: boolean;
     worker?: boolean;
     subagentDepth?: number;
+    maxParallelSubagents?: number;
     allowBackground?: boolean;
   } = {},
 ): Record<string, string | undefined> {
@@ -60,6 +61,9 @@ export function sdkEnv(
   // Foreground subagents only; depth = the role's `subagents.depth` (1 = a subagent gets no Agent tool).
   if (!opts.allowBackground) Object.assign(env, SUBAGENT_LIMIT_ENV);
   env.CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH = String(opts.subagentDepth ?? DEFAULT_SUBAGENT_DEPTH);
+  // Subagents running at once (`limits.maxParallelSubagents`); unset keeps the SDK default.
+  if (opts.maxParallelSubagents)
+    env.CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS = String(opts.maxParallelSubagents);
   // The SDK strips the credentials above from the env of its Bash tool, hooks and MCP servers: the model call still has them.
   if (opts.worker) env[SUBPROCESS_SCRUB_VAR] = "1";
   // One-shot calls (attachment and summary calls) are single-turn: no compaction, and a 1h cache write

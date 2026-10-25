@@ -48,6 +48,8 @@ export interface WakeRow {
   scheduleId?: string;
   /** A schedule run that stays silent unless it has a problem (notify "problems"). */
   scheduleQuiet?: boolean;
+  /** The emoji the owner reacted with to the bot's message (a reaction run). */
+  reaction?: string;
   /** Created by `HandOff`: the receiver owns the step and does not answer the sender. */
   handoff?: boolean;
   status: WakeStatus;

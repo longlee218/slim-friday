@@ -47,6 +47,8 @@ export interface WakeOpts {
   intro?: boolean;
   /** The schedule that fires this run, and whether it stays quiet unless there is a problem. */
   schedule?: { id: string; quiet: boolean };
+  /** The emoji the owner reacted with to a bot message (see `intakeReaction`). */
+  reaction?: string;
   /** The message this one replies to; stored on the run and sent with its turn. */
   quote?: { author: Author; text: string };
 }

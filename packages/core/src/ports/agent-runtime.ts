@@ -123,6 +123,8 @@ export interface BotRuntimeSpec {
   postUpdate?: (text: string) => Promise<PostUpdateResult>;
   /** Main-thread tool calls allowed per turn (`limits.maxToolCallsPerTurn`); 0 or unset = no cap. */
   maxToolCallsPerTurn?: number;
+  /** Subagents of a bot running at once (`limits.maxParallelSubagents`); unset = the runtime default. */
+  maxParallelSubagents?: number;
   /** Tool search mode (`limits.toolSearch`: `on`, `off`, `auto:<1-100>`); unset = `on`. */
   toolSearch?: string;
   /** Lets the `SetEffort` tool reach the session; the runtime fills it in. */
