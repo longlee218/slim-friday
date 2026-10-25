@@ -51,3 +51,12 @@ test("a finished or gone schedule shows only its pill, not a second Paused", asy
   expect(within(await row("B")).queryByText("Paused")).toBeNull();
   expect(within(await row("C")).getAllByText("Paused")).toHaveLength(2);
 });
+
+test("a refused switch toasts the board's message", async () => {
+  api.setEnabled.mockRejectedValue(
+    Object.assign(new Error("That time is already past."), { code: "BAD_REQUEST" }),
+  );
+  renderPage([schedule("a", { name: "A", enabled: false })]);
+  await userEvent.click(within(await row("A")).getByRole("switch"));
+  await waitFor(() => expect(toast).toHaveBeenCalledWith("That time is already past."));
+});
