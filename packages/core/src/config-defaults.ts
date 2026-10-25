@@ -55,6 +55,10 @@ export const CORE_DEFAULTS = {
   reconcileMs: 30_000,
   /** Main-thread tool calls a bot may make in one turn; the next is denied and the run stops (0 = no cap). */
   maxToolCallsPerTurn: 0,
+  /** A bot is woken by an owner reaction at most once in this long (ms); a reaction in between is context only. */
+  reactionCooldownMs: 30_000,
+  /** Subagents of one bot that may run at once; a further spawn is refused until one ends. */
+  maxParallelSubagents: 4,
   /** Tool search: `on` (default), `off`, or `auto:<1-100>` (defer tool definitions past that % of the context). */
   toolSearch: "on" as string,
   /** A worker claims no new run below this much free memory. */
