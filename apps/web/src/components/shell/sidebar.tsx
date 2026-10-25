@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import {
+  CalendarClock,
   Ellipsis,
   Fingerprint,
   Gauge,
@@ -13,6 +14,7 @@ import { type ReactNode, useState } from "react";
 import { useLocation } from "react-router";
 import { orpc } from "../../api/client";
 import { useDirectory } from "../../api/directory";
+import { enabledCount, useSchedules } from "../schedules/use-schedules";
 import { GroupAvatar } from "../settings/group-avatar";
 import { openCount, useAllTickets } from "../tickets/use-tickets";
 import { Avatar } from "../ui/avatar";
@@ -55,6 +57,7 @@ export function Sidebar({ onPalette }: { onPalette: () => void }) {
 
   const { tickets } = useAllTickets();
   const open = openCount(tickets);
+  const { schedules } = useSchedules();
   const working = new Set(status.filter((s) => s.working).map((s) => s.botId));
   const unread = (id: string) => conversations.find((c) => c.id === id)?.unread ?? 0;
   const pending = (id: string) => approvals.filter((a) => a.conversationId === id).length;
@@ -132,6 +135,13 @@ export function Sidebar({ onPalette }: { onPalette: () => void }) {
           </Ico>
           <span className="name">Tickets</span>
           <span className="sub num">{open}</span>
+        </SidebarRow>
+        <SidebarRow href="/schedules" on={pathname.startsWith("/schedules")}>
+          <Ico>
+            <CalendarClock size={16} strokeWidth={1.75} />
+          </Ico>
+          <span className="name">Schedules</span>
+          <span className="sub num">{enabledCount(schedules)}</span>
         </SidebarRow>
         <SidebarRow href="/ops" on={pathname.startsWith("/ops")}>
           <Ico>

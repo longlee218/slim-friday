@@ -2,6 +2,7 @@ import type { BotStatusDto } from "@friday/contracts";
 import type { QueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { orpc } from "../api/client";
+import { invalidateSchedules } from "../components/schedules/schedule-cache";
 import { patchTicket } from "../components/tickets/ticket-cache";
 import { closeApproval, closeQuestion, openApproval, openQuestion } from "./apply-cards";
 import { appendMessage, setUnread } from "./apply-messages";
@@ -105,6 +106,7 @@ export function applyEffects(qc: QueryClient, effects: CacheEffect[], notify: No
         break;
       case "invalidate":
         if (e.scope === "all") void qc.invalidateQueries();
+        else if (e.scope === "schedules") void invalidateSchedules(qc);
         else if (e.scope === "tickets") void qc.invalidateQueries({ queryKey: orpc.tickets.key() });
         else {
           void qc.invalidateQueries({ queryKey: orpc.config.key() });

@@ -74,8 +74,15 @@ test("shows No results", async () => {
   expect(screen.getByText("No results")).toBeTruthy();
 });
 
-test("no Schedules item", () => {
-  expect(paletteItems(dir).some((i) => /schedule/i.test(i.label))).toBe(false);
+test("Schedules opens /schedules and New schedule calls ctx.newSchedule", () => {
+  const items = paletteItems(dir);
+  const go = vi.fn();
+  const newSchedule = vi.fn();
+  const ctx = { navigate: go, stopAll: async () => {}, newTicket: () => {}, newSchedule };
+  items.find((i) => i.label === "Schedules")?.run(ctx);
+  expect(go).toHaveBeenCalledWith("/schedules");
+  items.find((i) => i.label === "New schedule")?.run(ctx);
+  expect(newSchedule).toHaveBeenCalledOnce();
 });
 
 test("items carry the destinations and hints", () => {
@@ -86,9 +93,24 @@ test("items carry the destinations and hints", () => {
   expect(by("Open tickets")?.shortcut).toBe("⌘2");
   expect(by("Open activity")?.shortcut).toBe("⌘3");
   const go = vi.fn();
-  by("Core team")?.run({ navigate: go, stopAll: async () => {}, newTicket: () => {} });
-  by("Skills & plugins")?.run({ navigate: go, stopAll: async () => {}, newTicket: () => {} });
-  by("Open activity")?.run({ navigate: go, stopAll: async () => {}, newTicket: () => {} });
+  by("Core team")?.run({
+    navigate: go,
+    stopAll: async () => {},
+    newTicket: () => {},
+    newSchedule: () => {},
+  });
+  by("Skills & plugins")?.run({
+    navigate: go,
+    stopAll: async () => {},
+    newTicket: () => {},
+    newSchedule: () => {},
+  });
+  by("Open activity")?.run({
+    navigate: go,
+    stopAll: async () => {},
+    newTicket: () => {},
+    newSchedule: () => {},
+  });
   expect(go.mock.calls).toEqual([["/c/group:core"], ["/settings/skills"], ["/ops"]]);
 });
 
@@ -96,7 +118,7 @@ test("New ticket (⌘N) opens the new-ticket sheet through the context", () => {
   const newTicket = vi.fn();
   const item = paletteItems(dir).find((i) => i.label === "New ticket");
   expect(item?.shortcut).toBe("⌘N");
-  item?.run({ navigate: vi.fn(), stopAll: async () => {}, newTicket });
+  item?.run({ navigate: vi.fn(), stopAll: async () => {}, newTicket, newSchedule: () => {} });
   expect(newTicket).toHaveBeenCalledOnce();
 });
 
