@@ -142,9 +142,8 @@ export function GroupForm({
         </label>
         <AutoTextarea
           id="g-instructions"
-          className="field"
+          className="field code"
           rows={6}
-          style={{ fontFamily: "var(--mono)", fontSize: 12.5 }}
           value={v.instructions}
           onChange={(e) => set("instructions", e.target.value)}
         />
