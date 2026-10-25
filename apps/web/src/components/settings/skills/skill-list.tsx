@@ -73,7 +73,20 @@ export function SkillList() {
     skills.filter((_, i) => checks[i]?.data?.updateAvailable).map((s) => s.name),
   );
   return (
-    <SettingsPage title="Skills & plugins">
+    <SettingsPage
+      title="Skills & plugins"
+      // The phone hides the page head, so "Install skill" lives in the nav bar there.
+      right={
+        <button
+          type="button"
+          className="nb"
+          aria-label="Install skill"
+          onClick={() => setInstalling(true)}
+        >
+          <Plus strokeWidth={1.75} />
+        </button>
+      }
+    >
       <div className="page-head">
         <div className="grow">
           <h2>Skills & plugins</h2>
