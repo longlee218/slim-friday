@@ -23,7 +23,7 @@ Friday is a team engine ([design](superpowers/specs/2026-10-23-friday-team-engin
 3. Write `~/.cloudflared/config.yml`:
    ```yaml
    tunnel: <UUID>
-   credentials-file: /Users/you/.cloudflared/<UUID>.json   # absolute path
+   credentials-file: <HOME>/.cloudflared/<UUID>.json   # absolute path: replace <HOME> with yours
    ingress:
      - hostname: friday-api.example.com
        service: http://127.0.0.1:8787                      # API_PORT
