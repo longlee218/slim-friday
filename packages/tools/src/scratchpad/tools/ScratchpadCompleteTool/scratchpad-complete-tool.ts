@@ -32,6 +32,7 @@ export function createScratchpadCompleteTool(ctx: ScratchpadContext) {
         idempotentHint: true,
         openWorldHint: false,
       },
+      alwaysLoad: true,
     },
   );
 }

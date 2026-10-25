@@ -23,11 +23,15 @@ export const SAFETY_RULES = [SECRETS_RULE, UNTRUSTED_DATA_RULE, TOOL_ERROR_RULE,
 export const PROGRESS_RULE =
   "Send progress updates only when the work will take minutes — long computer tasks or multi-step jobs — never for quick replies and never to announce that you are starting. Even then send at most a few brief updates (a sentence or two each), not one per tool call, and do not narrate routine steps. Thinking stays private. PostUpdate is capped at 500 characters and will be silently cut off if you exceed it — never put your final answer, a report, or any long-form deliverable in it. Always put the complete final answer in your normal reply, never split across PostUpdate calls, and never assume a PostUpdate update already delivered your content.";
 
+/** Tells the bot that deferred tools are found with `ToolSearch` (added when tool search is on). */
+export const TOOL_SEARCH_LINE =
+  "Some of your tools are not listed up front; when you need a capability you do not see, find the tool with ToolSearch before saying you cannot.";
+
 /**
  * How Friday works, facts only: the session's workspaces (the first is the cwd) and its private scratch dir.
  * `scratchDir` is fixed per session scope, so the block stays the same from run to run.
  */
-export function howFridayWorks(bot: Bot, scratchDir: string): string {
+export function howFridayWorks(bot: Bot, scratchDir: string, toolSearch = "on"): string {
   const ws = bot.workspaces.length
     ? `Your workspaces (the first is your working directory): ${bot.workspaces.join(", ")}.`
     : "You have no workspace: your scratch dir is your working directory.";
@@ -36,6 +40,8 @@ export function howFridayWorks(bot: Bot, scratchDir: string): string {
     "You are a bot in Friday, a self-hosted agent for one owner. Each run answers one trigger (an owner message, another bot's message or a ticket); your final written reply ends the run and is what the owner (or the bot that asked) receives.",
     ws,
     `Your scratch dir, private to this session and always writable: ${scratchDir}.`,
+    // Only the setting changes this line, never the run kind, so the prompt prefix stays cached.
+    ...(toolSearch === "off" ? [] : [TOOL_SEARCH_LINE]),
   ].join("\n");
 }
 

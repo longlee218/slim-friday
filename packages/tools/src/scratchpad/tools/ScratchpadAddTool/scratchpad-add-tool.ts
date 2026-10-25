@@ -38,6 +38,9 @@ export function createScratchpadAddTool(ctx: ScratchpadContext) {
       );
       return textResult(JSON.stringify(itemView(item)));
     },
-    { annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false } },
+    {
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+      alwaysLoad: true,
+    },
   );
 }

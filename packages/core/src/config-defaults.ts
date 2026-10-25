@@ -55,6 +55,8 @@ export const CORE_DEFAULTS = {
   reconcileMs: 30_000,
   /** Main-thread tool calls a bot may make in one turn; the next is denied and the run stops (0 = no cap). */
   maxToolCallsPerTurn: 0,
+  /** Tool search: `on` (default), `off`, or `auto:<1-100>` (defer tool definitions past that % of the context). */
+  toolSearch: "on" as string,
   /** A worker claims no new run below this much free memory. */
   minFreeMemoryMb: 512,
 } as const;

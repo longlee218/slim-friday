@@ -163,3 +163,10 @@ test("a bot description round-trips through the parser, is optional and is cappe
   expect(parseBotFile("ann", text("")).description).toBeUndefined();
   expect(() => parseBotFile("ann", text(`description: ${"x".repeat(501)}\n`))).toThrow();
 });
+
+test("limits.toolSearch accepts on, off and auto:<1-100>; anything else is refused", () => {
+  for (const v of ["on", "off", "auto:1", "auto:5", "auto:100"])
+    expect(parseSettingsFile(`limits:\n  toolSearch: ${v}\n`).limits).toEqual({ toolSearch: v });
+  for (const v of ["auto:0", "auto:101", "auto:", "maybe", "true", "5"])
+    expect(() => parseSettingsFile(`limits:\n  toolSearch: ${v}\n`)).toThrow();
+});

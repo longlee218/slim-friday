@@ -21,6 +21,6 @@ export function createScratchpadListTool(ctx: ScratchpadContext) {
       const shown = items.filter((i) => includeDone || i.status !== "done");
       return textResult(shown.length === 0 ? "No items." : JSON.stringify(shown.map(itemView)));
     },
-    { annotations: { readOnlyHint: true } },
+    { annotations: { readOnlyHint: true }, alwaysLoad: true },
   );
 }

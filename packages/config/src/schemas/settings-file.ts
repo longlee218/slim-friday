@@ -11,8 +11,14 @@ const MAX_TIMER_MS = 2_147_483_647;
 /** Limits where 0 is a usable value: `workers: 0` runs every run in the main process, `maxToolCallsPerTurn: 0` is no cap. */
 const ZERO_OK = ["workers", "maxToolCallsPerTurn"];
 
+/** `limits.toolSearch`: `on`, `off` or `auto:<1-100>`. */
+const TOOL_SEARCH = z
+  .string()
+  .regex(/^(on|off|auto:([1-9]\d?|100))$/, "use on, off or auto:<1-100>");
+
 /** One limit: a positive number (see `ZERO_OK` for 0); counts are whole numbers, `*Ms` fit a 32-bit timer. */
-function limitSchema(key: string): z.ZodOptional<z.ZodNumber> {
+function limitSchema(key: string): z.ZodOptional<z.ZodNumber> | z.ZodOptional<z.ZodString> {
+  if (key === "toolSearch") return TOOL_SEARCH.optional();
   if (ZERO_OK.includes(key)) return z.number().int().min(0).optional();
   const n = z.number().positive();
   if (key.endsWith("Ms")) return n.max(MAX_TIMER_MS).optional();
@@ -30,7 +36,7 @@ const limitsSchema = z
   .strictObject({
     ...(Object.fromEntries(Object.keys(CORE_DEFAULTS).map((k) => [k, limitSchema(k)])) as Record<
       keyof CoreLimits,
-      z.ZodOptional<z.ZodNumber>
+      z.ZodOptional<z.ZodNumber> | z.ZodOptional<z.ZodString>
     >),
     ...RETIRED_LIMITS,
   })

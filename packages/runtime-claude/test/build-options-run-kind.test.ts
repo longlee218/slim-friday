@@ -49,7 +49,7 @@ const opts = { signal: new AbortController().signal, toolUseID: "t", requestId: 
 test("owner, bot and ticket runs keep the configured tools and servers", () => {
   for (const k of ["owner", "bot", "ticket"] as const) {
     const { o } = build(k);
-    expect(o.tools).toEqual(["Read", "Bash"]);
+    expect(o.tools).toEqual(["Read", "Bash", "ToolSearch"]);
     expect(Object.keys(o.mcpServers ?? {}).sort()).toEqual(["chat", "memory"]);
     expect(Object.keys(o.agents ?? {})).toEqual(["helper"]);
   }

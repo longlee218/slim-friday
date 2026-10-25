@@ -31,7 +31,7 @@ export function buildSettings(
   let level: PermissionSettings["level"] = "balanced";
   const botLevels: Record<BotId, PermissionSettings["level"]> = {};
   const tools: NonNullable<PermissionSettings["tools"]> = {};
-  const limits: Record<string, number> = { ...CORE_DEFAULTS };
+  const limits: Record<string, number | string> = { ...CORE_DEFAULTS };
   let projectsDir = join(homedir(), "friday-projects");
   let memoryProviders: MemoryProviderEntry[] = [];
   let ownerTimeZone: string | undefined;

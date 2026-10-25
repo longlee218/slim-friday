@@ -12,6 +12,8 @@ tools:
   # Starting a subagent or writing the todo list changes nothing; the subagent's own calls are decided one by one.
   - { name: Agent, annotations: { readOnlyHint: true } }
   - { name: TodoWrite, annotations: { readOnlyHint: true } }
+  # ToolSearch only looks up the tool definitions of the bot's own session: no card.
+  - { name: ToolSearch, annotations: { readOnlyHint: true } }
   # Browser tools that only look; the rest (click, type, ...) ask.
   - { name: mcp__playwright__browser_navigate, annotations: { readOnlyHint: true, openWorldHint: true } }
   - { name: mcp__playwright__browser_snapshot, annotations: { readOnlyHint: true, openWorldHint: true } }

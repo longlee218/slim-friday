@@ -43,6 +43,9 @@ export function createScratchpadUpdateTool(ctx: ScratchpadContext) {
         ? textResult(JSON.stringify(itemView(item)))
         : textResult(`No scratchpad item ${itemId}.`, true);
     },
-    { annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false } },
+    {
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+      alwaysLoad: true,
+    },
   );
 }

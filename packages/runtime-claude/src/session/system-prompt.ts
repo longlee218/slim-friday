@@ -15,7 +15,7 @@ export function systemPromptOf(spec: BotRuntimeSpec, scratchDir: string): string
     text ? `## ${heading}\n${label ? `${label}\n\n` : ""}${text}` : undefined;
   const blocks = [
     `You are ${bot.name}, ${bot.title}.\n\n${bot.instructions}`,
-    howFridayWorks(bot, scratchDir),
+    howFridayWorks(bot, scratchDir, spec.toolSearch),
     capabilityNotes(bot),
     section("Safety", SAFETY_RULES.join("\n")),
     section("Progress updates", PROGRESS_RULE),

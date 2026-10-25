@@ -64,6 +64,14 @@ export interface BuildOptionsInput {
 }
 
 /**
+ * The `ENABLE_TOOL_SEARCH` of the SDK child for a `limits.toolSearch` value: `on` leaves it unset (the SDK default,
+ * even when the owner's shell sets it), `off` is `false`, `auto:N` passes through.
+ */
+function toolSearchEnv(mode: string): Record<string, string | undefined> {
+  return { ENABLE_TOOL_SEARCH: mode === "on" ? undefined : mode === "off" ? "false" : mode };
+}
+
+/**
  * SDK options for one bot session: its model, prompt, tools and background subagents, the OS sandbox around its
  * workspaces, a scrubbed env that lets background tasks run, and a permission callback that applies the hard floor
  * first and then asks `spec.decide` (a throw or a refusal is a deny; a park is a deny that ends the turn).
@@ -89,7 +97,13 @@ export function buildOptions(input: BuildOptionsInput): Options {
   };
   // An intro run has its own fixed tool list (no bot tools, subagents, skills or other servers).
   const intro = spec.runKind === "intro";
-  const { builtIn, mcp } = splitTools(intro ? INTRO_TOOLS : bot.tools);
+  const { builtIn: granted, mcp } = splitTools(intro ? INTRO_TOOLS : bot.tools);
+  // Tool search needs the built-in `ToolSearch` listed (spike); an intro run keeps its fixed list as it is.
+  const search = spec.toolSearch ?? "on";
+  const builtIn =
+    intro || search === "off" || granted.includes("ToolSearch")
+      ? granted
+      : [...granted, "ToolSearch"];
   const perSession = introServers(intro, config.mcpServersFor?.(spec) ?? {});
   // A function is read at every session build, so an edited config reaches the next session.
   const configured =
@@ -131,11 +145,14 @@ export function buildOptions(input: BuildOptionsInput): Options {
     ...(input.resume && { resume: input.resume }),
     ...(input.sessionId && { sessionId: input.sessionId }),
     ...(Object.keys(mcpServers).length && { mcpServers }),
-    env: sdkEnv(
-      { hasRealAuth: !!config.oauthToken, oauthToken: config.oauthToken },
-      config.env ?? {},
-      { worker: true, allowBackground: true, subagentDepth: 1 },
-    ),
+    env: {
+      ...sdkEnv(
+        { hasRealAuth: !!config.oauthToken, oauthToken: config.oauthToken },
+        config.env ?? {},
+        { worker: true, allowBackground: true, subagentDepth: 1 },
+      ),
+      ...toolSearchEnv(search),
+    },
     sandbox: workerSandbox({
       writePaths,
       readPaths,

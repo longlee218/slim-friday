@@ -14,11 +14,17 @@ const SHAPE = {
 
 /** `PostUpdate` for one session: the hub stores the message and applies the run's progress budget. */
 export function createPostUpdateTool(ctx: ChatContext) {
-  return tool(POST_UPDATE_TOOL, POST_UPDATE_DESCRIPTION, SHAPE, async ({ message }) => {
-    if (!message.trim()) return textResult("Refused: the message is empty.", true);
-    const r = await ctx.postUpdate?.(message);
-    if (!r) return textResult("Refused: there is no run to post an update for.", true);
-    if (!r.posted) return textResult(POST_UPDATE_NOT_POSTED);
-    return textResult(r.cut ? POST_UPDATE_CUT : "Posted.");
-  });
+  return tool(
+    POST_UPDATE_TOOL,
+    POST_UPDATE_DESCRIPTION,
+    SHAPE,
+    async ({ message }) => {
+      if (!message.trim()) return textResult("Refused: the message is empty.", true);
+      const r = await ctx.postUpdate?.(message);
+      if (!r) return textResult("Refused: there is no run to post an update for.", true);
+      if (!r.posted) return textResult(POST_UPDATE_NOT_POSTED);
+      return textResult(r.cut ? POST_UPDATE_CUT : "Posted.");
+    },
+    { alwaysLoad: true },
+  );
 }

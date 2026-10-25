@@ -51,7 +51,7 @@ test("options carry the bot's model, dirs, tools and safe defaults", () => {
   expect(o.model).toBe("sonnet");
   expect(o.cwd).toBe(ws1);
   expect(o.additionalDirectories).toEqual([ws2]);
-  expect(o.tools).toEqual(["Read", "Bash"]);
+  expect(o.tools).toEqual(["Read", "Bash", "ToolSearch"]);
   expect(o.settingSources).toEqual([]);
   expect(o.permissionMode).toBe("default");
   expect(o.systemPrompt).toStartWith("You are Ann, Dev.\n\nBe brief.\n\n## How Friday works\n");
@@ -230,7 +230,7 @@ const buildMcp = (tools: string[], s = spec(bot({ tools }))) =>
 
 test("mcp names pick servers and never reach the built-in tools list; an unknown server is ignored", () => {
   const o = buildMcp(["Read", "mcp__playwright__browser_navigate", "mcp__ghost"]);
-  expect(o.tools).toEqual(["Read"]);
+  expect(o.tools).toEqual(["Read", "ToolSearch"]);
   expect(Object.keys(o.mcpServers ?? {}).sort()).toEqual(["memory", "playwright"]);
 });
 

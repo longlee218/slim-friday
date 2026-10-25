@@ -84,5 +84,7 @@ limits:
   # reconcileMs: 30000
   ## Tool calls a bot may make in one turn; the next call is denied and the run stops with a note (0 = no cap).
   # maxToolCallsPerTurn: 0
+  ## Tool search: `on` finds tools through ToolSearch when there are many, `off` loads every tool, `auto:<1-100>` defers tools past that % of the context.
+  # toolSearch: on
   ## No new run starts below this much free memory (MB).
   # minFreeMemoryMb: 512

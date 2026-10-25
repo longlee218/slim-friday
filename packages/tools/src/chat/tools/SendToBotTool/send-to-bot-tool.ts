@@ -15,9 +15,15 @@ const SHAPE = {
 
 /** `SendToBot` for one session: the hub checks the target, the caps and wakes the member. */
 export function createSendToBotTool(ctx: ChatContext) {
-  return tool(SEND_TO_BOT_TOOL, SEND_TO_BOT_DESCRIPTION, SHAPE, async ({ to, message, intent }) => {
-    const r = await ctx.messenger?.send(ctx.botId, { to, text: message, intent });
-    if (!r) return textResult("Refused: you are in no group.", true);
-    return r.ok ? textResult(r.note) : textResult(r.error, true);
-  });
+  return tool(
+    SEND_TO_BOT_TOOL,
+    SEND_TO_BOT_DESCRIPTION,
+    SHAPE,
+    async ({ to, message, intent }) => {
+      const r = await ctx.messenger?.send(ctx.botId, { to, text: message, intent });
+      if (!r) return textResult("Refused: you are in no group.", true);
+      return r.ok ? textResult(r.note) : textResult(r.error, true);
+    },
+    { alwaysLoad: true },
+  );
 }
