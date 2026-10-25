@@ -41,6 +41,12 @@ tools:
   - { name: mcp__scratchpad__ScratchpadUpdate, annotations: { readOnlyHint: true } }
   - { name: mcp__scratchpad__ScratchpadComplete, annotations: { readOnlyHint: true } }
   - { name: mcp__scratchpad__ScratchpadRemove, annotations: { readOnlyHint: true } }
+  # The bot's own schedules (every bot): bounded by the board's checks (scope, limits, 15 minute interval), so no
+  # card; a tainted run still asks for create, update and delete (taint policy: instruction change list).
+  - { name: mcp__schedules__ScheduleList, annotations: { readOnlyHint: true } }
+  - { name: mcp__schedules__ScheduleCreate, annotations: { readOnlyHint: true } }
+  - { name: mcp__schedules__ScheduleUpdate, annotations: { readOnlyHint: true } }
+  - { name: mcp__schedules__ScheduleDelete, annotations: { readOnlyHint: true } }
   # Sending a file to the chat: the tool checks the path itself (workspace or scratch dir only), so no card.
   - { name: mcp__chat__PostFile, sandboxed: true }
   # Changes only the thinking effort of the session, capped by the bot file's maxEffort: no side effect outside the run.

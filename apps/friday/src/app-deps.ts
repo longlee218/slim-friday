@@ -11,6 +11,7 @@ import type {
   MemoryIndexStore,
   MemoryOwner,
   MessageIndexStore,
+  ScheduleBoard,
   Store,
   Surface,
   Ticket,
@@ -26,6 +27,8 @@ export interface RuntimeParts {
   messenger: BotMessenger;
   /** The shared ticket board; undefined until the hub exists (the runtime reads it when a session opens). */
   tickets: () => TicketBoard | undefined;
+  /** The schedule board; undefined until the hub exists (the runtime reads it when a session opens). */
+  schedules: () => ScheduleBoard | undefined;
   config: FileConfig;
   /** The MCP servers for a session (read again per session; the main process swaps OAuth ones for the local proxy). */
   mcpServers: () => Record<string, McpServerSpec>;
