@@ -1,8 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { Globe, Terminal } from "lucide-react";
+import { ChevronDown, ChevronRight, Globe, Terminal } from "lucide-react";
+import { useState } from "react";
 import { orpc } from "../../api/client";
 import type { BotTabProps } from "./bot-profile-tab";
 import { Row, Switch } from "./form-parts";
+import { isServerEntry, serverRef, withoutServer } from "./mcp-tool-entries";
+import { McpToolPicker } from "./mcp-tool-picker";
 import { TokenList } from "./token-list";
 
 /** Names of the SDK tools and Friday's own tools a bot may be given (annotated in tools.yaml). */
@@ -31,20 +34,19 @@ const TOOLS = [
   "mcp__tickets",
 ];
 
-/** The tools entry that switches a whole MCP server on. */
-const mcpEntry = (name: string) => `mcp__${name}`;
-
 /** Tools & skills tab: tool, skill and workspace token lists, and a switch per MCP server. */
 export function BotToolsTab({ form, readOnly }: BotTabProps) {
   const { value: v, set } = form;
   const skills = useQuery(orpc.config.skills.list.queryOptions()).data ?? [];
   const servers = useQuery(orpc.config.mcp.list.queryOptions()).data ?? [];
-  const serverEntries = new Set(servers.map((s) => mcpEntry(s.name)));
-  // Server entries are edited by the switches below, so the tool tokens leave them out.
-  const shown = v.tools.filter((t) => !serverEntries.has(t));
-  const hidden = v.tools.filter((t) => serverEntries.has(t));
+  // Server and per-tool MCP entries are edited by the server rows below, so the tool tokens leave them out.
+  const isMcp = (t: string) => servers.some((s) => isServerEntry(t, s.name));
+  const shown = v.tools.filter((t) => !isMcp(t));
+  const hidden = v.tools.filter(isMcp);
   const toggle = (name: string, on: boolean) =>
-    set("tools", on ? [...v.tools, mcpEntry(name)] : v.tools.filter((t) => t !== mcpEntry(name)));
+    set("tools", on ? [...v.tools, serverRef(name)] : withoutServer(v.tools, name));
+  // The server whose tool list is open.
+  const [open, setOpen] = useState<string>();
 
   return (
     <>
@@ -89,27 +91,56 @@ export function BotToolsTab({ form, readOnly }: BotTabProps) {
             <div className="grow t2">No MCP servers yet.</div>
           </div>
         )}
-        {servers.map((s) => (
-          <div className="srow" key={s.name}>
-            <span className="ico">
-              {s.type === "http" ? (
-                <Globe size={16} strokeWidth={1.75} />
-              ) : (
-                <Terminal size={16} strokeWidth={1.75} />
+        {servers.map((s) => {
+          const on = v.tools.some((t) => isServerEntry(t, s.name));
+          const picking = open === s.name;
+          return (
+            <div key={s.name}>
+              <div className="srow">
+                <span className="ico">
+                  {s.type === "http" ? (
+                    <Globe size={16} strokeWidth={1.75} />
+                  ) : (
+                    <Terminal size={16} strokeWidth={1.75} />
+                  )}
+                </span>
+                <div className="grow">
+                  <b>{s.name}</b>
+                  <div className="t2">{s.type === "http" ? "HTTP server" : "Local command"}</div>
+                </div>
+                {on && (
+                  <button
+                    type="button"
+                    className="ib"
+                    aria-label={`Choose tools of ${s.name}`}
+                    aria-expanded={picking}
+                    onClick={() => setOpen(picking ? undefined : s.name)}
+                  >
+                    {picking ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                  </button>
+                )}
+                <Switch
+                  label={`Use ${s.name}`}
+                  on={on}
+                  disabled={readOnly}
+                  onChange={(next) => toggle(s.name, next)}
+                />
+              </div>
+              {on && picking && (
+                <div className="srow">
+                  <div className="grow">
+                    <McpToolPicker
+                      server={s}
+                      entries={v.tools}
+                      disabled={readOnly}
+                      onChange={(next) => set("tools", next)}
+                    />
+                  </div>
+                </div>
               )}
-            </span>
-            <div className="grow">
-              <b>{s.name}</b>
-              <div className="t2">{s.type === "http" ? "HTTP server" : "Local command"}</div>
             </div>
-            <Switch
-              label={`Use ${s.name}`}
-              on={v.tools.includes(mcpEntry(s.name))}
-              disabled={readOnly}
-              onChange={(on) => toggle(s.name, on)}
-            />
-          </div>
-        ))}
+          );
+        })}
       </div>
     </>
   );
