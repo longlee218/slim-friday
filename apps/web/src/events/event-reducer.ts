@@ -26,6 +26,8 @@ export type CacheEffect =
   | { op: "refetchStatus" }
   | { op: "patchTicket"; ticket: TicketDto }
   | { op: "invalidate"; scope: "tickets" | "config" | "all" }
+  /** An OAuth MCP server changed sign-in state: refetch the list; toast when it lost its login. */
+  | { op: "mcpAuth"; server: string; status: "connected" | "needs_login" | "never" }
   | { op: "notify"; conversationId: string; botId?: string; title: string; text: string };
 
 /** What the reducer needs to know about the screen. */
@@ -115,8 +117,7 @@ export function reduceEvent(e: FridayEvent, view: ReducerView): CacheEffect[] {
     case "resync":
       return [{ op: "invalidate", scope: "all" }];
     case "mcp.auth":
-      // Shown by the MCP settings later (refetch and toast); nothing to do yet.
-      return [];
+      return [{ op: "mcpAuth", server: e.server, status: e.status }];
   }
 }
 

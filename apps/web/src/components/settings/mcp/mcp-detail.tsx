@@ -12,6 +12,7 @@ import { SettingsPage } from "../settings-page";
 import { useFormState } from "../use-form-state";
 import { McpCalls } from "./mcp-calls";
 import { McpForm } from "./mcp-form";
+import { SignInBanner, useSignInResult } from "./mcp-sign-in";
 import { fromServer, toSpec, validateMcp } from "./mcp-spec";
 import { ConnBanner, useMcpProbe } from "./mcp-status";
 import { McpUsedBy } from "./mcp-used-by";
@@ -24,6 +25,10 @@ function Loaded({ server }: { server: McpServerDto }) {
   const initial = fromServer(server);
   const form = useFormState(initial, validateMcp);
   const readOnly = server.shipped;
+  useSignInResult(server.name);
+  // The test runs the saved server, so unsaved URL or OAuth edits are not part of it.
+  const untested =
+    form.dirty && (form.value.url !== initial.url || form.value.oauth !== initial.oauth);
 
   // Test the saved server when the page opens and again after its spec changes.
   const key = JSON.stringify(initial);
@@ -71,7 +76,13 @@ function Loaded({ server }: { server: McpServerDto }) {
           </Button>
         )}
       </div>
-      <ConnBanner probe={probe} onTest={() => void probe.run(server.name, initial)} />
+      <SignInBanner server={server} />
+      <ConnBanner
+        probe={probe}
+        quietAuth={!!server.auth}
+        onTest={() => void probe.run(server.name, initial)}
+      />
+      {untested && <div className="help">The test uses the saved settings.</div>}
       <div className="formgroup">
         <McpForm value={form.value} errors={form.errors} disabled={readOnly} onChange={form.set} />
       </div>

@@ -204,6 +204,15 @@ Main process (web, intake, sweeps, reconciler, config watch) plus `workers` work
 12. No SIGKILL leftovers: after `kill -9 <worker pid>` no SDK child process of that worker keeps running (main kills the worker's process group); check `ps`; the same after `kill -9 <main pid>` once the workers have exited (about 15 s).
 13. Effect replay: after a cut, the resumed model may send the exact same tool input again; the effect tool then returns the stored result or the "may already have run" warning. Check the warning is shown and nothing runs twice.
 
+## Check OAuth MCP servers (not verified live)
+For an MCP server that signs in with OAuth (example: `https://db-mcp.example.com/mcp`).
+1. Settings, MCP servers, Add server: choose HTTP, enter the https URL, turn **Sign in with OAuth** on (scopes optional), test, add. Do not add an `Authorization` header.
+2. Open the server page, press **Sign in**, accept at the provider; you return to the server page with a "Signed in" toast and the banner turns green (`Connected · last refresh ...`).
+3. Turn the server on for a bot (Used by) and ask it to call a read tool. To skip approval cards annotate the read tools `readOnlyHint: true` in `<AGENT_HOME>/config/tools.yaml`.
+4. Restart the engine and call the tool again without signing in: it works (the login is kept).
+5. If the provider revokes the login, the tool answers `<server> needs a new login: open Settings → MCP servers → <server> → Sign in.`, the banner turns amber and one toast shows; sign in again.
+6. The test button on the page runs the saved settings, not unsaved edits.
+
 ## Owner live checklist
 Nothing below is verified live until you tick it.
 

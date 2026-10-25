@@ -1,4 +1,4 @@
-import { Row, Segmented } from "../form-parts";
+import { Row, Segmented, Switch } from "../form-parts";
 import { KvRows } from "./mcp-kv-rows";
 import type { McpFormValue } from "./mcp-spec";
 
@@ -21,6 +21,10 @@ export function McpForm({
   onChange<K extends keyof McpFormValue>(k: K, v: McpFormValue[K]): void;
 }) {
   const http = value.type === "http";
+  // With OAuth on, an Authorization header is not editable (it is dropped on save).
+  const isAuth = (p: { k: string }) => value.oauth && p.k.trim().toLowerCase() === "authorization";
+  const hidden = value.headers.filter(isAuth);
+  const shown = value.headers.filter((p) => !isAuth(p));
   return (
     <>
       <Row label="Connection">
@@ -45,6 +49,33 @@ export function McpForm({
             />
           </Row>
           <Row
+            label="Sign in with OAuth"
+            error={errors.oauth}
+            help="Friday signs in once and keeps the login; no token goes in a header."
+          >
+            <Switch
+              label="Sign in with OAuth"
+              on={value.oauth}
+              disabled={disabled}
+              onChange={(on) => onChange("oauth", on)}
+            />
+          </Row>
+          {value.oauth && (
+            <Row
+              label="Scopes"
+              htmlFor="mcp-scopes"
+              help="Optional, separated by spaces. Empty uses the server's defaults."
+            >
+              <input
+                id="mcp-scopes"
+                className="field mono"
+                value={value.scopes}
+                disabled={disabled}
+                onChange={(e) => onChange("scopes", e.target.value)}
+              />
+            </Row>
+          )}
+          <Row
             label="Headers"
             top
             error={errors.headers}
@@ -52,9 +83,9 @@ export function McpForm({
           >
             <KvRows
               what="Header"
-              rows={value.headers}
+              rows={shown}
               disabled={disabled}
-              onChange={(r) => onChange("headers", r)}
+              onChange={(r) => onChange("headers", [...hidden, ...r])}
             />
           </Row>
         </>

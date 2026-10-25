@@ -55,7 +55,16 @@ export function McpStatusLine({ probe }: { probe: McpProbe }) {
  * The status banner (prototype `.conn`): green when connected, amber when the server needs
  * sign-in, red with the error in mono when it failed. Shows nothing before the first test.
  */
-export function ConnBanner({ probe, onTest }: { probe: McpProbe; onTest(): void }) {
+export function ConnBanner({
+  probe,
+  onTest,
+  quietAuth,
+}: {
+  probe: McpProbe;
+  onTest(): void;
+  /** An OAuth server shows its own sign-in banner, so a `needs_auth` result is not repeated. */
+  quietAuth?: boolean;
+}) {
   const { result, running } = probe;
   if (running) {
     return (
@@ -65,7 +74,7 @@ export function ConnBanner({ probe, onTest }: { probe: McpProbe; onTest(): void 
       </div>
     );
   }
-  if (!result) return null;
+  if (!result || (quietAuth && result.state === "needs_auth")) return null;
   const failed = result.state === "error";
   const tone = result.state === "connected" ? "ok" : failed ? "bad" : "warn";
   return (

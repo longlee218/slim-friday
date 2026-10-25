@@ -23,6 +23,10 @@ export interface McpFormValue {
   url: string;
   env: Pair[];
   headers: Pair[];
+  /** HTTP only: Friday signs in to the server (OAuth) and holds the tokens. */
+  oauth: boolean;
+  /** OAuth scopes, one line split on spaces or commas; empty = the server's defaults. */
+  scopes: string;
 }
 
 /** The values of a server that does not exist yet. */
@@ -33,6 +37,8 @@ export const NEW_MCP: McpFormValue = {
   url: "",
   env: [],
   headers: [],
+  oauth: false,
+  scopes: "",
 };
 
 const toPairs = (m?: Record<string, string>): Pair[] =>
@@ -40,6 +46,8 @@ const toPairs = (m?: Record<string, string>): Pair[] =>
 
 const toMap = (p: Pair[]): Record<string, string> =>
   Object.fromEntries(p.filter((x) => x.k.trim()).map((x) => [x.k.trim(), x.v]));
+
+const isAuthorization = (k: string): boolean => k.trim().toLowerCase() === "authorization";
 
 /** The form value of a server the engine returned. */
 export function fromServer(s: McpServerDto): McpFormValue {
@@ -51,14 +59,28 @@ export function fromServer(s: McpServerDto): McpFormValue {
         args: (s.args ?? []).join(" "),
         env: toPairs(s.env),
       }
-    : { ...NEW_MCP, type: "http", url: s.url, headers: toPairs(s.headers) };
+    : {
+        ...NEW_MCP,
+        type: "http",
+        url: s.url,
+        headers: toPairs(s.headers),
+        oauth: !!s.oauth,
+        scopes: (s.oauth?.scopes ?? []).join(" "),
+      };
 }
 
 /** The contract's spec for a form value (empty arguments, env and headers are left out). */
 export function toSpec(v: McpFormValue): McpServerSpecDto {
   if (v.type === "http") {
-    const headers = toMap(v.headers);
-    return { type: "http", url: v.url.trim(), ...(Object.keys(headers).length && { headers }) };
+    // With OAuth on, an Authorization header would clash with the token Friday injects.
+    const headers = toMap(v.oauth ? v.headers.filter((h) => !isAuthorization(h.k)) : v.headers);
+    const scopes = v.scopes.split(/[\s,]+/).filter(Boolean);
+    return {
+      type: "http",
+      url: v.url.trim(),
+      ...(Object.keys(headers).length && { headers }),
+      ...(v.oauth && { oauth: scopes.length ? { scopes } : {} }),
+    };
   }
   const args = v.args.split(/\s+/).filter(Boolean);
   const env = toMap(v.env);

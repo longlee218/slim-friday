@@ -1,5 +1,6 @@
 import type { BotStatusDto } from "@friday/contracts";
 import type { QueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { orpc } from "../api/client";
 import { patchTicket } from "../components/tickets/ticket-cache";
 import { closeApproval, closeQuestion, openApproval, openQuestion } from "./apply-cards";
@@ -46,6 +47,17 @@ export function refetchStatus(qc: QueryClient): void {
         .catch(() => {});
     }, STATUS_DEBOUNCE_MS),
   );
+}
+
+/** One toast per server (a repeat replaces it) with a link to the server page. */
+function needsLoginToast(server: string): void {
+  toast(`${server} needs sign-in`, {
+    id: `mcp-auth-${server}`,
+    action: {
+      label: "Open",
+      onClick: () => window.location.assign(`/settings/mcp/${server}`),
+    },
+  });
 }
 
 /** Applies reducer effects to the query cache; `notify` effects go to the callback. */
@@ -99,6 +111,10 @@ export function applyEffects(qc: QueryClient, effects: CacheEffect[], notify: No
           // The engine syncs conversations before it sends config.changed (new or removed bots).
           void qc.invalidateQueries({ queryKey: orpc.conversations.list.key() });
         }
+        break;
+      case "mcpAuth":
+        void qc.invalidateQueries({ queryKey: orpc.config.mcp.key() });
+        if (e.status === "needs_login") needsLoginToast(e.server);
         break;
       case "notify":
         notify(e);
