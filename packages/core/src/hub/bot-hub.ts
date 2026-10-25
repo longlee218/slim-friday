@@ -9,10 +9,12 @@ import { ChainGuard } from "../routing/chain-guard";
 import { startOutcomeReconciler } from "../runs/outcome-reconciler";
 import { type AnswerCardResult, answerCard, remindWaitingCards } from "../runs/run-card-answer";
 import { applyConfigChange, type ConfigChange } from "../runs/run-config-change";
+import { createRun } from "../runs/run-create";
 import { InProcessHints } from "../runs/run-hints";
 import { intakeOwnerMessage } from "../runs/run-intake";
 import { LocalRunner } from "../runs/run-local-runner";
 import { stopScope } from "../runs/run-stop";
+import { ScheduleBoard } from "../schedules/schedule-board";
 import type { Ticket } from "../tickets/ticket";
 import { TicketBoard } from "../tickets/ticket-board";
 import { sendFromSession } from "./bot-messaging";
@@ -39,6 +41,8 @@ export class BotHub implements BotMessenger {
   private ctx: HubContext;
   /** The shared ticket board; assigning a ticket wakes its assignee through this hub. */
   readonly tickets: TicketBoard;
+  /** The schedules; their fires become runs of this hub. */
+  readonly schedules: ScheduleBoard;
   /** Executes the runs in this process; unset when `deps.hints` is given without `deps.runner` (main with workers). */
   private runner?: LocalRunner;
 
@@ -65,6 +69,17 @@ export class BotHub implements BotMessenger {
       wake: (botId, conversationId, sender, text, hop, opts) =>
         wake(this.ctx, botId, conversationId, sender, text, hop, opts),
     };
+    this.schedules = new ScheduleBoard({
+      store: deps.store,
+      clock: deps.clock,
+      timeZone: deps.timeZone ?? (() => "UTC"),
+      createRun: (r) => createRun(this.ctx, r),
+      tell: (conversationId, text) => tell(this.ctx, conversationId, text),
+      notifyFinished: (e) => deps.surface.notifyFinished(e),
+      ...(deps.nextRunAt && { nextRunAt: deps.nextRunAt }),
+      ...(deps.log && { log: deps.log }),
+      ...(deps.onScheduleChange && { onChange: deps.onScheduleChange }),
+    });
     if (local) this.runner = new LocalRunner(this.ctx, local, deps.freeMemoryMb);
     else if (deps.runner)
       this.runner = new LocalRunner(this.ctx, deps.runner.hints, deps.freeMemoryMb, deps.runner);

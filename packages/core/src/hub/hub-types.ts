@@ -9,6 +9,7 @@ import type { Clock } from "../ports/clock";
 import type { Log } from "../ports/log";
 import type { Memory } from "../ports/memory";
 import type { MemorySearcher } from "../ports/memory-recall";
+import type { NextRunAt } from "../ports/next-run";
 import type { Store } from "../ports/store";
 import type { Surface } from "../ports/surface";
 import type { ProjectRulesReader } from "../routing/group-context";
@@ -102,4 +103,8 @@ export interface BotHubDeps {
   timeZone?: () => string;
   /** Told after every saved ticket create, update and comment (the board never lets it throw). */
   onTicketChange?: (t: Ticket) => void;
+  /** Next-occurrence math of repeat rules; unset: schedules cannot be created and nothing fires. */
+  nextRunAt?: NextRunAt;
+  /** Told after a schedule create, update, remove, fire and each settled history row (never awaited, never throws out). */
+  onScheduleChange?: (scheduleId: string) => void;
 }
