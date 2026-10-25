@@ -6,6 +6,7 @@ import type { Clock } from "../ports/clock";
 import type { Store } from "../ports/store";
 import type { Surface } from "../ports/surface";
 import type { ToolCatalog } from "../ports/tool-catalog";
+import { redactSecrets, redactValue, secretsFrom } from "../safety/redact-secrets";
 import { scopeOf } from "./classify-tool";
 import { decide } from "./decide";
 import { inputHash } from "./input-hash";
@@ -21,6 +22,8 @@ export interface PermissionGateDeps {
   clock: Clock;
   /** Read at every call, so a settings change applies at once. */
   settings: () => PermissionSettings;
+  /** The configured secret values to hide on a card (the app's denied env values); unset: only token patterns. */
+  secretValues?: () => string[];
 }
 
 /** The run a call belongs to, as the gate needs it. */
@@ -112,6 +115,11 @@ export class PermissionGate {
       verdict.outcome === "ask" &&
       spec !== undefined &&
       Object.values(scope).every((v) => v !== "*");
+    // The card shows the call redacted; the hash stays that of the real input (it is what the one shot matches).
+    const secrets = secretsFrom(this.deps.secretValues);
+    const shownScope = redactValue(scope, secrets);
+    // A scope with a secret in it must never become a stored "always" grant.
+    const scopeClean = JSON.stringify(shownScope) === JSON.stringify(scope);
     const card: CardRow = {
       id: `card-${crypto.randomUUID()}`,
       kind: "approval",
@@ -121,11 +129,14 @@ export class PermissionGate {
       scopeKey: ctx.scopeKey,
       approval: {
         tool: call.tool,
-        input: call.input,
+        input: redactValue(call.input, secrets),
         inputHash: hash,
-        summary: [call.tool, ...Object.entries(scope).map(([k, v]) => `${k}=${v}`)].join(" "),
-        scope,
-        offerAlways,
+        summary: redactSecrets(
+          [call.tool, ...Object.entries(scope).map(([k, v]) => `${k}=${v}`)].join(" "),
+          secrets,
+        ),
+        scope: shownScope,
+        offerAlways: offerAlways && scopeClean,
       },
       status: "open",
       createdAt: clock.now(),

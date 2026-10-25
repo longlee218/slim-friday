@@ -92,6 +92,8 @@ export interface BotHubDeps {
   runner?: RunnerIdentity & { hints: HintSource };
   /** Free memory of the machine in MB, for the claimer's memory floor; unset: never short. */
   freeMemoryMb?: () => number;
+  /** The secret values (env values the bots are denied) every bot-authored text is cleaned of; unset: only token patterns. */
+  secretValues?: () => string[];
   /** Told after every saved ticket create, update and comment (the board never lets it throw). */
   onTicketChange?: (t: Ticket) => void;
 }

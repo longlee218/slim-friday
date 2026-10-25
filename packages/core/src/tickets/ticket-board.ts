@@ -3,6 +3,7 @@ import type { ConversationId } from "../domain/conversation";
 import type { Author } from "../domain/message";
 import type { Clock } from "../ports/clock";
 import type { Store } from "../ports/store";
+import { redactSecrets, secretsFrom } from "../safety/redact-secrets";
 import type { Ticket, TicketComment, TicketPriority, TicketStatus } from "./ticket";
 import {
   BAD_STATUS,
@@ -38,6 +39,8 @@ export class TicketBoard {
       wake: (ticket: Ticket, botId: BotId, actor: Author) => Promise<void>;
       /** Told after every saved create, update and comment; whatever it throws stays here. */
       onChange?: (t: Ticket) => void;
+      /** The configured secret values to hide in ticket text (the app's denied env values). */
+      secretValues?: () => string[];
     },
   ) {
     this.reads = new TicketReads(deps.store);
@@ -53,7 +56,7 @@ export class TicketBoard {
       conversationId?: ConversationId;
     },
   ): Promise<TicketResult<{ ticket: Ticket }>> {
-    const title = i.title.trim();
+    const title = this.clean(i.title.trim());
     if (!title || title.length > TITLE_MAX) return INVALID;
     if (i.description !== undefined && i.description.length > DESCRIPTION_MAX) return INVALID;
     if (i.priority !== undefined && !PRIORITIES.includes(i.priority)) return INVALID;
@@ -63,7 +66,7 @@ export class TicketBoard {
     const ticket = await this.deps.store.tickets.create(
       {
         title,
-        ...(i.description && { description: i.description }),
+        ...(i.description && { description: this.clean(i.description) }),
         status: "todo",
         priority: i.priority ?? "normal",
         ...(assigneeBotId && { assigneeBotId }),
@@ -117,7 +120,7 @@ export class TicketBoard {
     const cur = await this.reads.find(i.id);
     if (!cur) return NOT_FOUND;
     if (i.status !== undefined && !STATUSES.includes(i.status)) return BAD_STATUS;
-    const title = i.title?.trim();
+    const title = i.title === undefined ? undefined : this.clean(i.title.trim());
     if (title !== undefined && (!title || title.length > TITLE_MAX)) return INVALID;
     if (i.description && i.description.length > DESCRIPTION_MAX) return INVALID;
     if (i.priority !== undefined && !PRIORITIES.includes(i.priority)) return INVALID;
@@ -133,7 +136,9 @@ export class TicketBoard {
       {
         ...(title !== undefined && { title }),
         // `null` clears the description.
-        ...(i.description !== undefined && { description: i.description ?? undefined }),
+        ...(i.description !== undefined && {
+          description: i.description === null ? undefined : this.clean(i.description),
+        }),
         ...(i.priority && { priority: i.priority }),
         ...(i.status && { status: i.status }),
         ...(i.assigneeBotId && { assigneeBotId: i.assigneeBotId }),
@@ -162,7 +167,7 @@ export class TicketBoard {
     actor: Author,
     i: { id: string; body: string; conversationId?: ConversationId },
   ): Promise<TicketResult<{ comment: TicketComment }>> {
-    const body = i.body.trim();
+    const body = this.clean(i.body.trim());
     if (!body || body.length > COMMENT_MAX) return INVALID;
     const ticket = await this.reads.find(i.id);
     if (!ticket) return NOT_FOUND;
@@ -180,6 +185,10 @@ export class TicketBoard {
     if (saved) this.changed(saved);
     return { ok: true, comment };
   }
+
+  /** Ticket text with secrets redacted (bots write titles, descriptions and comments). */
+  private clean = (text: string): string =>
+    redactSecrets(text, secretsFrom(this.deps.secretValues));
 
   /** Tell `onChange`; a failing listener must never fail the change that was already saved. */
   private changed(t: Ticket): void {

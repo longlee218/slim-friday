@@ -4,6 +4,7 @@ import type { HubContext } from "../hub/hub-context";
 import { errText } from "../hub/hub-types";
 import { postStored } from "../hub/post-stored";
 import type { RuntimeEvent } from "../ports/agent-runtime";
+import { redactStep, secretsFrom } from "../safety/redact-secrets";
 import { parkNow } from "./run-cards";
 import { abortRun, type RunExec } from "./run-exec";
 import { dayOf } from "./run-rules";
@@ -57,7 +58,13 @@ async function onEvent(
   delete exec.cancelGrace;
   const conversationId = exec.current.conversationId;
   /** Shows a step in the run line of the current conversation. */
-  const show = (step?: RunStep) => step && surface.showRun(conversationId, exec.bot.id, step);
+  const show = (step?: RunStep) =>
+    step &&
+    surface.showRun(
+      conversationId,
+      exec.bot.id,
+      redactStep(step, secretsFrom(ctx.deps.secretValues)),
+    );
   if (e.type === "thinking") {
     exec.turnOpen = true;
     show(exec.steps.onThinking(now));

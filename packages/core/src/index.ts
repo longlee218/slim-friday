@@ -49,6 +49,7 @@ export * from "./runs/run-card-answer";
 export type { ConfigChange } from "./runs/run-config-change";
 export * from "./runs/run-hints";
 export * from "./runs/run-rules";
+export * from "./safety/redact-secrets";
 export * from "./tickets/ticket";
 export * from "./tickets/ticket-board";
 export * from "./tickets/ticket-context";

@@ -6,10 +6,12 @@ import { openEngineStore } from "@friday/store-sqlite";
 import { WriteThroughMemory } from "@friday/tools";
 import type { AppDeps } from "./app-deps";
 import { composeStore } from "./compose-store";
+import { readProcessEnv } from "./config/process-env";
 import { idleFlush } from "./idle-flush";
 import { wireMemory } from "./memory-wiring";
 import { readProjectRules } from "./project-rules";
 import { scopeBotFor } from "./scope-bot";
+import { deniedEnvValues } from "./secret-values";
 import { systemClock } from "./system-clock";
 import { availableMemoryMb } from "./workers/free-memory";
 
@@ -84,12 +86,15 @@ export function composeEngine(deps: EngineDeps, opened: Array<() => unknown>) {
         })
       : deps.runtime;
 
+  // The env values the bots are denied are hidden from everything they post, show or write.
+  const secretValues = () => deniedEnvValues({ ...readProcessEnv(), ...deps.env });
   const gate = new PermissionGate({
     store,
     surface,
     clock,
     catalog: config.catalog,
     settings: config.settings,
+    secretValues,
   });
   const botHub = new BotHub({
     runtime,
@@ -109,6 +114,7 @@ export function composeEngine(deps: EngineDeps, opened: Array<() => unknown>) {
       }),
     }),
     limits: config.limits(),
+    secretValues,
     ...(deps.onTicketChange && { onTicketChange: deps.onTicketChange }),
     scopeBot: scopeBotFor(agentHome, config),
     projectRules: readProjectRules,

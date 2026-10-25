@@ -47,6 +47,7 @@ export class BotHub implements BotMessenger {
       clock: deps.clock,
       wake: (t, botId, actor) => this.wakeForTicket(t, botId, false, actor),
       ...(deps.onTicketChange && { onChange: deps.onTicketChange }),
+      ...(deps.secretValues && { secretValues: deps.secretValues }),
     });
     const limits = deps.limits ?? CORE_DEFAULTS;
     const local = deps.hints ? undefined : new InProcessHints();
