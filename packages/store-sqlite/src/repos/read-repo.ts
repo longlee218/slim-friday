@@ -12,13 +12,15 @@ export function readRepo(db: BunSQLiteDatabase): Store["reads"] {
       .where(eq(conversationReads.conversationId, c))
       .get()?.id ?? 0;
   // Ids of the wakes whose messages never count as unread (core's `talksToOwner` is false): not resumed by a card,
-  // and an intro, a ticket, or a bot-sent run that is no relay (`result` / `status`) and no hand-off.
+  // never a schedule run, and an intro, a ticket, or a bot-sent run that is no relay (`result` / `status`) and no hand-off.
   const quietWakes = db
     .select({ id: wakes.id })
     .from(wakes)
     .where(
       and(
         isNull(wakes.cardId),
+        // A schedule run talks to the owner whatever its sender, so it is never quiet.
+        isNull(wakes.scheduleId),
         or(
           eq(wakes.intro, true),
           isNotNull(wakes.ticketId),

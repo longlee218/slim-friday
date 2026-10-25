@@ -25,7 +25,7 @@ const wake = (id: string, over: Partial<WakeRow>): WakeRow => ({
   ...over,
 });
 
-/** Every combination of sender, intent, hand-off, ticket, intro and card resume. */
+/** Every combination of sender, intent, hand-off, ticket, intro, schedule and card resume. */
 function matrix(): WakeRow[] {
   const senders: Author[] = [{ kind: "user" }, { kind: "bot", botId: "b" }, { kind: "system" }];
   const rows: WakeRow[] = [];
@@ -36,16 +36,21 @@ function matrix(): WakeRow[] {
         for (const ticketId of [undefined, "FRI-1"])
           for (const intro of [undefined, true])
             for (const cardId of [undefined, "k1"])
-              rows.push(
-                wake(`w${n++}`, {
-                  sender,
-                  intent,
-                  ...(handoff && { handoff }),
-                  ...(ticketId && { ticketId }),
-                  ...(intro && { intro }),
-                  ...(cardId && { cardId }),
-                }),
-              );
+              for (const scheduleId of [undefined, "s1"]) {
+                // A schedule wake is never also a ticket or an intro wake.
+                if (scheduleId && (ticketId || intro)) continue;
+                rows.push(
+                  wake(`w${n++}`, {
+                    sender,
+                    intent,
+                    ...(handoff && { handoff }),
+                    ...(ticketId && { ticketId }),
+                    ...(intro && { intro }),
+                    ...(cardId && { cardId }),
+                    ...(scheduleId && { scheduleId }),
+                  }),
+                );
+              }
   return rows;
 }
 
@@ -66,6 +71,23 @@ test("the unread query and core's talksToOwner agree on every kind of run", asyn
       row: row.id,
       counts: talksToOwner(row),
     });
+  }
+});
+
+test("a schedule run's message counts as unread, quiet or not", async () => {
+  for (const scheduleQuiet of [false, true]) {
+    const row = wake("sc", { sender: { kind: "system" }, scheduleId: "s1", scheduleQuiet });
+    const s = openEngineStore(":memory:");
+    await s.wakes.insert(row);
+    await s.messages.append({
+      conversationId: "bot:a",
+      author: { kind: "bot", botId: "a" },
+      text: "answer",
+      at: 1,
+      wakeId: row.id,
+    });
+    expect(await s.reads.unread("bot:a")).toBe(1);
+    expect(talksToOwner(row)).toBe(true);
   }
 });
 

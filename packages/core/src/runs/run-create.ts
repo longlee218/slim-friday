@@ -51,7 +51,7 @@ export async function createRun(ctx: HubContext, r: NewRun): Promise<WakeOutcome
     hop: r.hop,
     text: r.text,
     scopeKey: scope?.key ?? bot.id,
-    priority: priorityOf(r.sender, opts.ticketId),
+    priority: priorityOf(r.sender, Boolean(opts.ticketId || opts.schedule?.id)),
     wakeAt: HOLD_UNTIL,
     ...(r.dedupeKey && { dedupeKey: r.dedupeKey }),
     ...(opts.handoff && { handoff: true }),

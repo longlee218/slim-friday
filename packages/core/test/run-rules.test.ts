@@ -20,9 +20,9 @@ test("owner message without ticket is conversational", () => {
 });
 
 test("ticket wake is background", () => {
-  expect(priorityOf({ kind: "user" })).toBe("interactive");
-  expect(priorityOf({ kind: "user" }, "FRI-1")).toBe("background");
-  expect(priorityOf({ kind: "bot", botId: "bob" as never })).toBe("interactive");
+  expect(priorityOf({ kind: "user" }, false)).toBe("interactive");
+  expect(priorityOf({ kind: "user" }, true)).toBe("background");
+  expect(priorityOf({ kind: "bot", botId: "bob" as never }, false)).toBe("interactive");
 });
 
 test("scopeKeyOf matches sessionScope keys", () => {
