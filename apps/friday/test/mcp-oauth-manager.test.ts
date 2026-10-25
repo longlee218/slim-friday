@@ -70,6 +70,23 @@ describe("McpOAuthManager", () => {
     expect(events).toEqual([["db", "connected"]]);
   });
 
+  test("a server saved just now is found once the config reloads", async () => {
+    const { mgr, servers } = setup();
+    const conf = servers.db as OAuthServerConf;
+    delete servers.db;
+    // The config watcher reloads ~300 ms after the save; the login waits for it.
+    setTimeout(() => {
+      servers.db = conf;
+    }, 150);
+    const { url } = await mgr.startLogin("db", REDIRECT);
+    expect(new URL(url).searchParams.get("redirect_uri")).toBe(REDIRECT);
+  });
+
+  test("an unknown server still fails after the wait", async () => {
+    const { mgr } = setup();
+    await expect(mgr.startLogin("nope", REDIRECT)).rejects.toThrow("unknown OAuth MCP server");
+  });
+
   test("state is single use and expires", async () => {
     const { mgr, clock } = setup();
     const { state } = await mgr.startLogin("db", REDIRECT);

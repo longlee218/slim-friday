@@ -22,6 +22,10 @@ export type { McpOAuthStatus, OAuthServerConf };
 
 /** An access token is used only while it stays valid this much longer. */
 const MIN_TOKEN_LIFE_MS = 60_000;
+/** How long a login waits for a server saved just now to appear (the config watcher reloads ~300 ms after a save). */
+const CONF_WAIT_MS = 2_000;
+/** Poll step of that wait. */
+const CONF_POLL_MS = 100;
 
 /**
  * Owns OAuth logins of MCP servers: discovery, dynamic registration, PKCE login, refresh of the
@@ -69,7 +73,7 @@ export class McpOAuthManager {
 
   /** Begin a login: returns the authorize url (PKCE S256, offline scope) and its single-use state. */
   async startLogin(server: string, redirectUri: string): Promise<{ url: string; state: string }> {
-    const conf = this.deps.servers()[server];
+    const conf = await this.confSoon(server);
     if (!conf) throw new Error(`unknown OAuth MCP server: ${server}`);
     const d = await this.discovered.get(server, conf.url);
     const row = await this.deps.store.get(server);
@@ -97,6 +101,15 @@ export class McpOAuthManager {
     });
     logEvent(this.deps.log, "mcp.oauth.login_started", { server });
     return { url: authorizationUrl.href, state };
+  }
+
+  /** The server's conf, waiting up to `CONF_WAIT_MS` for a config reload when it is not there yet. */
+  private async confSoon(server: string): Promise<OAuthServerConf | undefined> {
+    for (let waited = 0; ; waited += CONF_POLL_MS) {
+      const conf = this.deps.servers()[server];
+      if (conf || waited >= CONF_WAIT_MS) return conf;
+      await Bun.sleep(CONF_POLL_MS);
+    }
   }
 
   /** Finish a login from the callback: exchange the code, save the row, status `connected`. */
