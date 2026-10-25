@@ -1,9 +1,10 @@
 import type { ScheduleDto } from "@friday/contracts";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router";
 import { beforeEach, expect, test, vi } from "vitest";
+import { orpc } from "../../src/api/client";
 import { SchedulesRoute } from "../../src/components/schedules/schedules-route";
 import { PanelsContext } from "../../src/components/shell/use-responsive-panels";
 import { bot, group, seededClient } from "../shell/fixtures";
@@ -37,7 +38,7 @@ function renderPage(items: ScheduleDto[]) {
     bots: [bot("ray", "Ray")],
     groups: [group("crew", "Crew", ["ray"])],
   });
-  return render(
+  const view = render(
     <QueryClientProvider client={qc}>
       <PanelsContext.Provider value={{ toggle: () => {} } as never}>
         <MemoryRouter initialEntries={["/schedules"]}>
@@ -47,13 +48,15 @@ function renderPage(items: ScheduleDto[]) {
       </PanelsContext.Provider>
     </QueryClientProvider>,
   );
+  return { ...view, qc };
 }
 
 /** The row of the schedule named `name`. */
 const row = async (name: string) =>
   (await screen.findByText(name)).closest(".sched-row") as HTMLElement;
+/** Run now of a row is named after its schedule. */
 const runNowIn = (r: HTMLElement) =>
-  within(r).getByRole("button", { name: "Run now" }) as HTMLButtonElement;
+  within(r).getByRole("button", { name: /^Run .+ now$/ }) as HTMLButtonElement;
 
 test("rows show the last-result pills from the brief's map", async () => {
   renderPage([
@@ -109,7 +112,7 @@ test("an on row shows when and the next run in the schedule's time zone", async 
     }),
   ]);
   const r = await row("A");
-  expect(within(r).getByText("Every day · 07:30")).toBeTruthy();
+  expect(within(r).getByText("Every day 07:30 (Asia/Ho_Chi_Minh)")).toBeTruthy();
   expect(within(r).getByText("Next 15 Jan 07:30")).toBeTruthy();
 });
 
@@ -171,4 +174,35 @@ test("no schedules shows the empty state and the footnote", async () => {
       "A scheduled run is a normal turn: it uses the bot's tools and memory, counts toward its daily spend limit and posts where you chose. Missed runs (Friday was off) run once when it starts again.",
     ),
   ).toBeTruthy();
+});
+
+test("Run now of a row is named after the schedule", async () => {
+  renderPage([schedule("a", { name: "Morning news" })]);
+  expect(await screen.findByRole("button", { name: "Run Morning news now" })).toBeTruthy();
+});
+
+test("Still running clears once the schedule's last run changes", async () => {
+  api.runNow.mockRejectedValue(Object.assign(new Error("busy"), { code: "CONFLICT" }));
+  const { qc } = renderPage([schedule("a", { name: "A", last: run("running") })]);
+  const r = await row("A");
+  await userEvent.click(runNowIn(r));
+  expect(await within(r).findByText(/Still running/)).toBeTruthy();
+  act(() =>
+    qc.setQueryData(orpc.schedules.list.queryKey({ input: {} }), {
+      items: [schedule("a", { name: "A", last: { ...run("ok"), id: "r-next" } })],
+    }),
+  );
+  await waitFor(() => expect(within(r).queryByText(/Still running/)).toBeNull());
+});
+
+test("a finished or gone schedule shows only its pill, not a second Paused", async () => {
+  renderPage([
+    schedule("a", { name: "A", enabled: false, disabledReason: "done" }),
+    schedule("b", { name: "B", enabled: false, disabledReason: "group_gone" }),
+    schedule("c", { name: "C", enabled: false }),
+  ]);
+  expect(within(await row("A")).getByText("Done")).toBeTruthy();
+  expect(within(await row("A")).queryByText("Paused")).toBeNull();
+  expect(within(await row("B")).queryByText("Paused")).toBeNull();
+  expect(within(await row("C")).getAllByText("Paused")).toHaveLength(2);
 });

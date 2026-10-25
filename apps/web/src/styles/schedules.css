@@ -4,7 +4,8 @@
 .sched-row { display: flex; align-items: center; gap: 14px; padding: 14px 16px; cursor: pointer; transition: background var(--t-fast); }
 .sched-row + .sched-row { border-top: 1px solid var(--sep); }
 .sched-row:hover { background: var(--fill); }
-.sched-row:active { background: var(--fill-strong); }
+/* No pressed fill while the press is on a control inside the row (switch, Run now). */
+.sched-row:active:not(:has(button:active)) { background: var(--fill-strong); }
 .sched-row.off { opacity: .6; }
 .sched-row .av { flex: none; }
 .sched-row .grow { flex: 1; min-width: 0; }
@@ -34,9 +35,9 @@
 .sched-empty { padding: 48px 20px; text-align: center; color: var(--label-2); }
 .sched-list + .sched-note, .sched-empty + .sched-note { margin-top: 12px; }
 
-/* Under 720 px: an inset list (prototype phone `.inset`): name, target, when and next, pill, switch. Run now lives on the schedule page. */
+/* 640-719 px (the phone has its own list): an inset-style list (prototype phone `.inset`): name, target, when and next, pill, switch. Run now lives on the schedule page. The page already pads the sides, so the list adds no margin. */
 @media (max-width: 719px) {
-  .sched-list { margin: 0 16px; border-radius: 12px; box-shadow: none; background: var(--well); }
+  .sched-list { border-radius: 12px; box-shadow: none; background: var(--well); }
   .sched-row { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto auto; grid-template-areas: "av main last sw" "av when when when"; column-gap: 12px; row-gap: 2px; padding: 11px 14px; }
   .sched-row .av { grid-area: av; align-self: start; }
   .sched-row .grow { grid-area: main; }
@@ -47,7 +48,7 @@
   .s-when > .t2::before { content: "· "; }
   .s-last { grid-area: last; width: auto; }
   .sched-row .switch { grid-area: sw; }
-  .sched-empty, .sched-note { margin-left: 32px; margin-right: 32px; }
+  .sched-empty, .sched-note { margin-left: 16px; margin-right: 16px; }
 }
 
 /* Schedule page and form (prototype scheduleView / scheduleForm, round 4). Token colours only. */

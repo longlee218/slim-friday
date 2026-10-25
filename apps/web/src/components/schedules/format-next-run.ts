@@ -33,3 +33,19 @@ export function formatNextRun(at: number, now: number, timeZone: string): string
   const month = date.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
   return `${date.getUTCDate()} ${month} ${next.time}`;
 }
+
+/**
+ * The line under a schedule's `when`: `"Next Tomorrow 07:30"` while on, `"Paused"` when the
+ * owner turned it off, nothing when the engine did (done, bot or group gone: its pill says so).
+ */
+export function nextRunNote(
+  s: { enabled: boolean; nextRunAt?: number; timeZone: string; disabledReason?: string },
+  now: number,
+): string | undefined {
+  if (s.enabled) {
+    return s.nextRunAt === undefined
+      ? undefined
+      : `Next ${formatNextRun(s.nextRunAt, now, s.timeZone)}`;
+  }
+  return s.disabledReason ? undefined : "Paused";
+}

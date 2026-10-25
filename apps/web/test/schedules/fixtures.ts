@@ -8,7 +8,7 @@ export const schedule = (id: string, over: Partial<ScheduleDto> = {}): ScheduleD
   task: "Send me the news.",
   rule: { kind: "daily", at: "07:30" },
   timeZone: "UTC",
-  when: "Every day · 07:30",
+  when: "Every day 07:30 (Asia/Ho_Chi_Minh)",
   conversationId: "bot:ray",
   notify: "always",
   enabled: true,
