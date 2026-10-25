@@ -3,6 +3,8 @@
 #   - ai.friday.engine : `bun run start` in the repo (Bun reads .env from the repo root)
 #   - ai.friday.tunnel : `cloudflared tunnel run <TUNNEL>` (uses ~/.cloudflared/config.yml)
 # Usage: scripts/install-launchd.sh [install|uninstall|status]   (TUNNEL env var, default: friday)
+#        scripts/install-launchd.sh start|stop [engine|tunnel]    (default: both)
+#        scripts/install-launchd.sh restart [engine|tunnel]       (default: engine, to load new code)
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -41,6 +43,18 @@ $args  </array>
 EOF
 }
 
+# pick <engine|tunnel|""> <default when empty>: sets TARGETS to the agent labels a command acts on.
+# (An array set here, not printed: an `exit` inside $(...) would only leave the subshell.)
+pick() {
+  case "${1:-$2}" in
+    engine) TARGETS=(ai.friday.engine) ;;
+    tunnel) TARGETS=(ai.friday.tunnel) ;;
+    all) TARGETS=("${LABELS[@]}") ;;
+    *) echo "unknown target: $1 (engine|tunnel)" >&2; exit 2 ;;
+  esac
+}
+loaded() { launchctl print "gui/$UID/$1" >/dev/null 2>&1; }
+
 case "${1:-install}" in
   install)
     mkdir -p "$AGENTS" "$LOGS"
@@ -57,8 +71,33 @@ case "${1:-install}" in
       rm -f "$AGENTS/$l.plist"
     done
     ;;
+  start)
+    # Loads a stopped agent from its plist; an already loaded one is started if it is not running.
+    pick "${2:-}" all
+    for l in "${TARGETS[@]}"; do
+      [[ -f "$AGENTS/$l.plist" ]] || { echo "$l: not installed, run: $0 install" >&2; exit 1; }
+      if loaded "$l"; then launchctl kickstart "gui/$UID/$l"; else launchctl bootstrap "gui/$UID" "$AGENTS/$l.plist"; fi
+      echo "$l: started"
+    done
+    ;;
+  stop)
+    # Unloads the agent (launchd sends SIGTERM, so runs settle); KeepAlive no longer restarts it until `start`.
+    pick "${2:-}" all
+    for l in "${TARGETS[@]}"; do
+      launchctl bootout "gui/$UID/$l" 2>/dev/null || true
+      echo "$l: stopped"
+    done
+    ;;
+  restart)
+    # SIGTERM stops it cleanly and KeepAlive starts it again with the new code (about 10 s, ThrottleInterval).
+    pick "${2:-}" engine
+    for l in "${TARGETS[@]}"; do
+      if loaded "$l"; then launchctl kill SIGTERM "gui/$UID/$l"; else launchctl bootstrap "gui/$UID" "$AGENTS/$l.plist"; fi
+      echo "$l: restarting"
+    done
+    ;;
   status)
     for l in "${LABELS[@]}"; do launchctl print "gui/$UID/$l" 2>/dev/null | rg -m3 'state|pid|last exit' || echo "$l: not loaded"; done
     ;;
-  *) echo "usage: $0 [install|uninstall|status]" >&2; exit 2 ;;
+  *) echo "usage: $0 [install|uninstall|status|start|stop|restart] [engine|tunnel]" >&2; exit 2 ;;
 esac

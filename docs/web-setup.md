@@ -30,7 +30,7 @@ Friday is a team engine (design): bots and groups of bots, used from a web app (
      - service: http_status:404
    ```
 4. `cloudflared tunnel route dns friday friday-api.example.com`
-5. `cloudflared tunnel run friday`. To keep the engine and the tunnel running (restart on crash, start at login): `scripts/install-launchd.sh` (agents `ai.friday.engine` and `ai.friday.tunnel`; `status` and `uninstall` also work; logs in `<AGENT_HOME>/logs/ai.friday.*.log`).
+5. `cloudflared tunnel run friday`. To keep the engine and the tunnel running (restart on crash, start at login): `scripts/install-launchd.sh` (agents `ai.friday.engine` and `ai.friday.tunnel`; `status` and `uninstall` also work; logs in `<AGENT_HOME>/logs/ai.friday.*.log`). Day to day: `scripts/install-launchd.sh restart` reloads the engine after new code (a clean SIGTERM, back in about 10 s), `stop` and `start` turn both off and on (or name one: `stop engine`, `start tunnel`).
 6. With the engine running (below): `curl -s https://friday-api.example.com/health` prints `{"ok":true,"db":true}`. When the engine db does not answer it prints `{"ok":false,"db":false}` with HTTP 503.
 
 ## R2 bucket
