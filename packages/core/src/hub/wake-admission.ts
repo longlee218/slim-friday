@@ -32,7 +32,7 @@ export async function placeInScope(ctx: HubContext, row: WakeRow, bot: Bot): Pro
   const group = conv?.kind === "group" ? await store.groups.get(conv.groupId) : undefined;
   const scope = conv && sessionScope(bot, conv, group, ctx.deps.scopeBot);
   if (!scope) return false;
-  const priority = priorityOf(row.sender, row.ticketId);
+  const priority = priorityOf(row.sender, Boolean(row.ticketId || row.scheduleId));
   if (row.scopeKey !== scope.key || row.priority !== priority)
     await store.wakes.update(row.id, { scopeKey: scope.key, priority });
   return true;

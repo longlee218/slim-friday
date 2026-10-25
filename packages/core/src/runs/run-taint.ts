@@ -33,7 +33,7 @@ export function newRunTaint(): RunTaint {
 }
 
 /**
- * Whether a claimed run starts tainted (spec §6.10): not started by the owner, resumes a cut or parked run, a
+ * Whether a claimed run starts tainted (spec §6.10): not started by the owner (a schedule run counts as the owner's: the owner wrote its task), resumes a cut or parked run, a
  * second attempt, or stored as tainted by an earlier attempt. An intro run is the exception: its sender is
  * Friday (system) with Friday's fixed text and its only tools are `AskUserQuestion` (own state) and
  * `UpdateProfile`, so nothing outside reaches it; it is tainted only when an attempt stored it so.
@@ -41,7 +41,7 @@ export function newRunTaint(): RunTaint {
 export function taintedAtClaim(row: WakeRow, fence: number): boolean {
   if (row.intro) return row.tainted === true;
   return (
-    row.sender.kind !== "user" ||
+    (row.sender.kind !== "user" && !row.scheduleId) ||
     row.cuts > 0 ||
     row.cardId !== undefined ||
     fence > 1 ||
@@ -108,12 +108,13 @@ export function noteAllowed(
 }
 
 /**
- * When the run starts: the sites in its own owner message (an owner-sent row only), and the sites and MCP
+ * When the run starts: the sites in its own owner message (an owner-sent row or a schedule row: the owner wrote its task), and the sites and MCP
  * servers the owner approved on this run's earlier cards asked while tainted (a card asked in a clean run is
  * no taint approval). The card keeps the call's input redacted; a redacted url only fails to match (a new card).
  */
 export async function seedTaint(ctx: HubContext, exec: RunExec): Promise<void> {
-  if (exec.row.sender.kind === "user") addOwnerTexts(ctx, exec, [exec.row.text]);
+  if (exec.row.sender.kind === "user" || exec.row.scheduleId)
+    addOwnerTexts(ctx, exec, [exec.row.text]);
   for (const card of await ctx.deps.store.cards.forWake(exec.row.id)) {
     const a = card.approval;
     const approved = card.answer === "once" || card.answer === "always";

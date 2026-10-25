@@ -16,9 +16,9 @@ export function isConversational(w: Pick<WakeRow, "sender" | "ticketId">): boole
   return w.sender.kind === "user" && w.ticketId === undefined;
 }
 
-/** Ticket wakes are background work; everything else is claimed first. */
-export function priorityOf(_sender: Author, ticketId?: string): "interactive" | "background" {
-  return ticketId === undefined ? "interactive" : "background";
+/** Ticket and schedule wakes (`background`) are background work; everything else is claimed first. */
+export function priorityOf(_sender: Author, background: boolean): "interactive" | "background" {
+  return background ? "background" : "interactive";
 }
 
 /** Session scope key: the bot id (direct) or `<botId>@<groupId>` (group); equals `sessionScope().key`. */

@@ -11,7 +11,7 @@ import { createUpdateProfileTool } from "./tools/UpdateProfileTool/update-profil
 /**
  * The tools of one session by run kind: an `owner` run gets all of them (`PostUpdate`, `UpdateProfile`; bot messaging
  * only for a bot that can reach a group); a `bot` run has no `PostUpdate` and no `UpdateProfile`; a `ticket` run also
- * no `SendToBot` / `HandOff`; an `intro` run only `UpdateProfile` (its other tool, `AskUserQuestion`, is the SDK's).
+ * no `SendToBot` / `HandOff`; a `schedule` run is like a `bot` run (no `PostUpdate`, no `UpdateProfile`, bot messaging stays); an `intro` run only `UpdateProfile` (its other tool, `AskUserQuestion`, is the SDK's).
  * `UpdateProfile` exists only where the owner started the run: its title is a trusted line of the bot's own system
  * prompt, so a run woken by another bot or a ticket may not rewrite it (a bot still needs it in its `tools`).
  */

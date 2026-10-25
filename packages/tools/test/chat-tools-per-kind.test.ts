@@ -42,3 +42,10 @@ test("ticket: no PostUpdate, SendToBot, HandOff or UpdateProfile", () => {
 test("intro: only UpdateProfile of this server (AskUserQuestion is an SDK tool)", () => {
   expect(names("intro")).toEqual(["UpdateProfile"]);
 });
+
+test("schedule: PostFile, SetEffort and bot messaging; no PostUpdate, no UpdateProfile", () => {
+  const n = names("schedule");
+  expect(n).toEqual(expect.arrayContaining(["PostFile", "SetEffort", "SendToBot", "HandOff"]));
+  expect(n).not.toContain("PostUpdate");
+  expect(n).not.toContain("UpdateProfile");
+});

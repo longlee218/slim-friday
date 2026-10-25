@@ -115,6 +115,8 @@ async function onEvent(
     await answerFirstTurn(ctx, exec);
     exec.followUp = false;
     await store.spend.add(exec.bot.id, dayOf(now), e.costUsd);
+    // A scheduled run's cost is also kept on its history row.
+    if (exec.row.scheduleId) await store.scheduleRuns.addCost(exec.row.id, e.costUsd);
     const taskDoneInTurn = exec.taskDoneInTurn;
     exec.taskDoneInTurn = false;
     // A background task still runs: the run waits for it, never nudged or failed (spec §6.5).

@@ -4,17 +4,18 @@ import { CONTINUATION_KEY } from "./run-steering";
 /**
  * What started a run, which decides its reply guidance, its tool set and whether it may stay silent:
  * `owner` (an owner message, a continuation or a card resume), `bot` (another bot's message), `ticket`
- * (a ticket wake) or `intro` (the first hidden run of a new bot).
+ * (a ticket wake), `intro` (the first hidden run of a new bot) or `schedule` (a run fired by a schedule).
  */
-export type RunKind = "owner" | "bot" | "ticket" | "intro";
+export type RunKind = "owner" | "bot" | "ticket" | "intro" | "schedule";
 
 /**
- * The kind of a run: the intro flag first, then the ticket, then a bot sender; everything else is the owner's.
+ * The kind of a run: the intro flag first, then the schedule, then the ticket, then a bot sender; everything else is the owner's.
  * An intro run that parked on its question and was answered (`cardId`) is the owner's run from then on: the answer is
  * the owner's first request, and the bot needs its full tools to act on it (the intro list has only two).
  */
 export function runKindOf(row: WakeRow): RunKind {
   if (row.intro && row.cardId === undefined) return "intro";
+  if (row.scheduleId) return "schedule";
   if (row.ticketId) return "ticket";
   if (row.sender.kind === "bot") return "bot";
   return "owner";
@@ -31,20 +32,22 @@ export function runKindOf(row: WakeRow): RunKind {
 export function silenceAllowed(row: WakeRow, kind: RunKind): boolean {
   if (row.cardId !== undefined) return false;
   if (kind === "ticket") return true;
+  // A schedule run in "only problems" mode may end with NO_RESPONSE.
+  if (kind === "schedule") return row.scheduleQuiet === true;
   return kind === "bot" && row.intent === "fyi" && row.parentWakeId === undefined;
 }
 
 /**
  * True when the run's answer is for the owner: an owner run, a run resumed by the owner's card answer
  * (`cardId`), or a bot-sent run that must reach the owner: a `result` / `status` (relayed to the owner, spec
- * §6.3) or a hand-off (the receiver posts the stage's result in the group). Ticket, intro and bot-to-bot
+ * §6.3) or a hand-off (the receiver posts the stage's result in the group). A schedule run does (its result is posted to the owner's chat). Ticket, intro and bot-to-bot
  * `request` / `question` / `fyi` runs are not, so they raise no finished notice and no unread. The store's unread
  * query (`readRepo`, `quietWakes`) applies the same rule in SQL; a store test keeps both in agreement.
  */
 export function talksToOwner(row: WakeRow): boolean {
   if (row.cardId !== undefined) return true;
   const kind = runKindOf(row);
-  if (kind === "owner") return true;
+  if (kind === "owner" || kind === "schedule") return true;
   return (
     kind === "bot" && (row.handoff === true || row.intent === "result" || row.intent === "status")
   );
