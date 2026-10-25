@@ -4,7 +4,7 @@ import { Avatar } from "../ui/avatar";
 import { BottomSheet } from "../ui/bottom-sheet";
 import { Button } from "../ui/button";
 import { ApprovalDetail } from "./approval-detail";
-import { approvalTitle } from "./approval-text";
+import { alwaysLabel, approvalTitle } from "./approval-text";
 import { useAnswerApproval } from "./use-answer-card";
 import { useBotFace } from "./use-bot-face";
 
@@ -36,7 +36,7 @@ export function ApprovalSheet({ card, open, onOpenChange }: ApprovalSheetProps) 
       )}
       {card.offerAlways && !card.inputCut && (
         <Button disabled={busy} onClick={() => send("always")}>
-          Always allow
+          {alwaysLabel(card)}
         </Button>
       )}
       <Button variant="danger" disabled={busy} onClick={() => send("deny")}>

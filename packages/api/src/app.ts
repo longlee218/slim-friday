@@ -5,6 +5,7 @@ import type {
   FileStore,
   McpProbe,
   MemoryAdmin,
+  RegistrableDomain,
   SkillAdmin,
   Store,
 } from "@friday/core";
@@ -54,12 +55,22 @@ export interface ApiDeps {
   limits: () => Pick<CoreLimits, "maxSpendPerBotPerDayUsd">;
   /** Empty the trash; returns how many entries were removed. */
   purge: () => number;
+  /** Registrable domain of a host (the engine's Public Suffix List); unset: the exact host. Checks site rules. */
+  registrableDomain?: RegistrableDomain;
 }
 
 /** The fields the engine adds to `ApiDeps` (plan 2). */
 export type EngineDeps = Pick<
   ApiDeps,
-  "hub" | "store" | "surface" | "files" | "purge" | "settings" | "mcpAuth" | "limits"
+  | "hub"
+  | "store"
+  | "surface"
+  | "files"
+  | "purge"
+  | "settings"
+  | "mcpAuth"
+  | "limits"
+  | "registrableDomain"
 >;
 
 /** Build the HTTP app: log, CORS, Origin check, then health, auth and the owner-only RPC. */

@@ -169,9 +169,12 @@ export interface Store {
     /** Messages of `c` above the read position whose author is not the owner. */
     unread(c: ConversationId): Promise<number>;
   };
+  /** Owner rules (spec §6.14; the "always allow" grants of older builds). */
   grants: {
     /** The bot's grants plus the grants for every bot ("*"). */
     list(botId: BotId): Promise<Grant[]>;
+    /** Every owner rule of every bot, oldest first (the settings list). */
+    all(): Promise<Grant[]>;
     add(g: Grant): Promise<void>;
     revoke(id: string): Promise<void>;
   };

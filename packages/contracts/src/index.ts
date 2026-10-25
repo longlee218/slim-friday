@@ -1,4 +1,5 @@
 export * from "./contract";
+export * from "./dto/approval-rules";
 export * from "./dto/cards";
 export * from "./dto/chat";
 export * from "./dto/config";

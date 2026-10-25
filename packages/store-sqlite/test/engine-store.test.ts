@@ -48,6 +48,8 @@ test("grants.list returns the bot's and the wildcard grants, never another bot's
   const g = (id: string, botId: string, extra: Partial<Grant> = {}): Grant => ({
     id,
     botId,
+    effect: "always_allow",
+    match: "tool",
     tool: "Bash",
     scope: {},
     createdAt: 1,

@@ -11,7 +11,7 @@ import { scopeOf } from "./classify-tool";
 import { decide } from "./decide";
 import { inputHash } from "./input-hash";
 import { exactHost, type RegistrableDomain } from "./owner-sites";
-import { type TaintRun, taintAskOf } from "./taint-policy";
+import { fetchSiteOf, type TaintRun, taintAskOf } from "./taint-policy";
 
 /** Deny reason for a call that needs approval while the same run already waits on a card. */
 export const WAITING_TEXT = "waiting for the owner's answer to an earlier request";
@@ -102,6 +102,7 @@ export class PermissionGate {
       },
       this.domainOf,
     );
+    const site = call.tool === "WebFetch" ? fetchSiteOf(call, this.domainOf) : undefined;
     const verdict = decide({
       call,
       spec,
@@ -110,6 +111,7 @@ export class PermissionGate {
       floorDenyReason,
       now: clock.now(),
       ...(taint && { taint }),
+      ...(site && { site }),
     });
     const audit = (reason: string) =>
       store.audit.append({
@@ -134,16 +136,18 @@ export class PermissionGate {
       await audit("approved by the owner");
       return { behavior: "allow" };
     }
-    // "Always allow" only for a tool the catalog knows, with plain scope values (a "*" would become a wildcard grant).
-    const offerAlways =
-      verdict.outcome === "ask" &&
-      spec !== undefined &&
-      Object.values(scope).every((v) => v !== "*");
     // The card shows the call redacted; the hash stays that of the real input (it is what the one shot matches).
     const secrets = secretsFrom(this.deps.secretValues);
     const shownScope = redactValue(scope, secrets);
-    // A scope with a secret in it must never become a stored "always" grant.
-    const scopeClean = JSON.stringify(shownScope) === JSON.stringify(scope);
+    // "Always allow" only for a tool the catalog knows. A tool rule needs plain scope values (a "*" would become a
+    // wildcard rule) and a scope with no secret in it; a site rule a site with no secret in it.
+    const alwaysSite = verdict.always === "site" ? site : undefined;
+    const offerAlways =
+      spec !== undefined &&
+      (verdict.always === "tool"
+        ? Object.values(scope).every((v) => v !== "*") &&
+          JSON.stringify(shownScope) === JSON.stringify(scope)
+        : alwaysSite !== undefined && redactSecrets(alwaysSite, secrets) === alwaysSite);
     const card: CardRow = {
       id: `card-${crypto.randomUUID()}`,
       kind: "approval",
@@ -162,7 +166,8 @@ export class PermissionGate {
           secrets,
         ),
         scope: shownScope,
-        offerAlways: offerAlways && scopeClean,
+        offerAlways,
+        ...(offerAlways && alwaysSite && { always: { match: "site" as const, value: alwaysSite } }),
         // Asked in a tainted run: only such an approval restores a site or server on resume (`restoreTaint`).
         ...(ctx.tainted && { tainted: true }),
       },

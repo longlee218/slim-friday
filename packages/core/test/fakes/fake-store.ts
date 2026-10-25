@@ -144,6 +144,7 @@ export class FakeStore implements Store {
   grants = {
     list: async (botId: BotId) =>
       this.grantList.filter((g) => g.botId === botId || g.botId === "*"),
+    all: async () => [...this.grantList],
     add: async (g: Grant) => {
       this.grantList.push(g);
     },

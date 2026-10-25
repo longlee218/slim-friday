@@ -85,6 +85,13 @@
       "when": 1792916682941,
       "tag": "0011_tiny_overlord",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1792924803957,
+      "tag": "0012_premium_vulcan",
+      "breakpoints": true
     }
   ]
 }

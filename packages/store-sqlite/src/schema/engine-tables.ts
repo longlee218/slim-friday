@@ -51,18 +51,23 @@ export const messages = sqliteTable(
   ],
 );
 
-/** Stored "always allow" decisions. */
+/** Owner rules (spec §6.14): always-allow and require-approval decisions by site, tool, server or category. */
 export const grants = sqliteTable(
   "grants",
   {
     id: text("id").primaryKey(),
     /** A bot id, or `*` for every bot. */
     botId: text("bot_id").notNull(),
+    /** The matched value: tool name, site (registrable domain), MCP server id or category, by `match_kind`. */
     tool: text("tool").notNull(),
-    /** JSON object: scope key to value. */
+    /** JSON object: scope key to value (only `tool` rules have keys). */
     scope: text("scope").notNull(),
     createdAt: integer("created_at").notNull(),
     expiresAt: integer("expires_at"),
+    /** `always_allow` | `require_approval`; rows of older builds are always-allow grants. */
+    effect: text("effect").notNull().default("always_allow"),
+    /** `site` | `tool` | `server` | `category`; rows of older builds are tool grants. */
+    matchKind: text("match_kind").notNull().default("tool"),
   },
   (t) => [index("grants_bot_idx").on(t.botId)],
 );

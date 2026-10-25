@@ -20,6 +20,7 @@ import { mcpAuthAdmin, startOAuthUpkeep } from "./mcp-oauth/oauth-api";
 import { McpOAuthManager } from "./mcp-oauth/oauth-manager";
 import { oauthConfs, withProxiedServers } from "./mcp-oauth/oauth-servers";
 import { logEvent, logger } from "./observability/logger";
+import { registrableDomain } from "./registrable-domain";
 import { need, r2Of } from "./required-config";
 import { createSettings } from "./settings-admin";
 import { startApp } from "./start-app";
@@ -165,6 +166,7 @@ async function runEngine(
         mcpProxy,
       }),
       mcpAuth: mcpAuthAdmin(oauth, engine.mcpOAuth, web.publicApiUrl),
+      registrableDomain,
       limits: () => app.config.limits(),
     },
   }).catch(async (err) => {

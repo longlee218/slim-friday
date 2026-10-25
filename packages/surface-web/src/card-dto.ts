@@ -36,6 +36,7 @@ export function toApprovalDto(card: CardRow, botName: string): ApprovalCardDto |
     summary: flattenSummary(a.summary),
     scope: a.scope,
     offerAlways: a.offerAlways,
+    ...(a.offerAlways && a.always?.match === "site" && { alwaysSite: a.always.value }),
     input: showInput(a.input),
     inputCut: inputCut(a.input),
   };

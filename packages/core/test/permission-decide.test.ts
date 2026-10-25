@@ -75,7 +75,7 @@ test("level map: careful, balanced, autonomous", () => {
   expect(
     run({ name: "T", annotations: { destructiveHint: true, idempotentHint: true } }, "autonomous")
       .outcome,
-  ).toBe("ask");
+  ).toBe("ask_always");
 });
 
 test("an irreversible call asks always", () => {
@@ -86,6 +86,8 @@ test("an irreversible call asks always", () => {
 const grant = (over: Partial<Grant> = {}): Grant => ({
   id: "g1",
   botId: "b1",
+  effect: "always_allow",
+  match: "tool",
   tool: "T",
   scope: { repo: "a" },
   createdAt: 0,

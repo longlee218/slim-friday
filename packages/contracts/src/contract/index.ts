@@ -1,3 +1,4 @@
+import { approvalRules } from "./approval-rules";
 import { approvals, questions } from "./cards";
 import { chat } from "./chat";
 import { avatars, bots, groups } from "./config-bots";
@@ -18,7 +19,7 @@ export const contract = {
   control,
   tickets,
   ops,
-  config: { bots, groups, avatars, skills, mcp, owner },
+  config: { bots, groups, avatars, skills, mcp, owner, approvalRules },
   memory,
   events,
 };

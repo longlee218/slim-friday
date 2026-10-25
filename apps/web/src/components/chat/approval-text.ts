@@ -22,3 +22,8 @@ export const APPROVAL_VERB = {
   always: "You always allow",
   deny: "You denied",
 } as const;
+
+/** The "Always" button: a web fetch card allows its site (registrable domain), any other card the tool. */
+export function alwaysLabel(card: ApprovalCardDto): string {
+  return card.alwaysSite ? `Always allow ${card.alwaysSite}` : "Always allow";
+}

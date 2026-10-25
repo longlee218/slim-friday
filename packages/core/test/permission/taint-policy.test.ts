@@ -110,13 +110,23 @@ test("gate: a tainted fetch to an owner site is allowed, to another site parks w
   const d = await gate.decide(fetch("https://evil.test/a"), "B", ctx(run()));
   expect(d.behavior).toBe("park");
   const card = [...store.cardMap.values()][0];
-  expect(card?.approval?.offerAlways).toBe(false);
+  // "Always" on a tainted fetch card is the site (spec §6.14), never the tool.
+  expect(card?.approval?.offerAlways).toBe(true);
+  expect(card?.approval?.always).toEqual({ match: "site", value: "evil.test" });
   expect(card?.approval?.summary).toContain("evil.test was not named by the owner");
 });
 
 test("gate: tainted BotDesign asks even with a grant; clean it is allowed by the grant", async () => {
   const { gate, store } = gateSetup();
-  await store.grants.add({ id: "g1", botId: "b1", tool: BOT_DESIGN, scope: {}, createdAt: 0 });
+  await store.grants.add({
+    id: "g1",
+    botId: "b1",
+    effect: "always_allow",
+    match: "tool",
+    tool: BOT_DESIGN,
+    scope: {},
+    createdAt: 0,
+  });
   const clean = run({ tainted: false });
   expect(await gate.decide(call(BOT_DESIGN), "B", ctx(clean))).toEqual({ behavior: "allow" });
   expect((await gate.decide(call(BOT_DESIGN), "B", ctx(run()))).behavior).toBe("park");
@@ -126,7 +136,15 @@ test("gate: a grant still allows a tainted external MCP call", async () => {
   const { gate, store } = gateSetup();
   expect((await gate.decide(call(EXT), "B", ctx(run()))).behavior).toBe("park");
   const { gate: g2, store: s2 } = gateSetup();
-  await s2.grants.add({ id: "g1", botId: "b1", tool: EXT, scope: {}, createdAt: 0 });
+  await s2.grants.add({
+    id: "g1",
+    botId: "b1",
+    effect: "always_allow",
+    match: "tool",
+    tool: EXT,
+    scope: {},
+    createdAt: 0,
+  });
   expect(await g2.decide(call(EXT), "B", ctx(run()))).toEqual({ behavior: "allow" });
   expect(store.cardMap.size).toBe(1);
 });

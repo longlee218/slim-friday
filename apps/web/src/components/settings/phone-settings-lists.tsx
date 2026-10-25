@@ -6,6 +6,7 @@ import {
   Plug,
   Plus,
   Puzzle,
+  ShieldCheck,
   Sparkles,
   UserRound,
   Users,
@@ -50,7 +51,7 @@ function Row({
 
 const ic = { size: 17, strokeWidth: 1.75 } as const;
 
-/** The phone Settings tab: Bots, Groups, MCP servers, Skills, then the owner files and account. */
+/** The phone Settings tab: Bots, Groups, MCP servers, Skills, Approval rules, then the owner files and account. */
 export function PhoneSettingsRoot() {
   const dir = useDirectory();
   const skills = useQuery(orpc.config.skills.list.queryOptions()).data;
@@ -74,6 +75,9 @@ export function PhoneSettingsRoot() {
         </Row>
         <Row to="/settings/skills" color="#af52de" icon={<Puzzle {...ic} />} value={skills?.length}>
           Skills & plugins
+        </Row>
+        <Row to="/settings/approvals" color="#30b0c7" icon={<ShieldCheck {...ic} />}>
+          Approval rules
         </Row>
       </div>
       <div className="inset-h">You</div>
