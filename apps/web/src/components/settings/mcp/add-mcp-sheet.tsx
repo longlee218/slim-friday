@@ -42,7 +42,11 @@ function AddMcpBody({ onClose, onAdded }: { onClose(): void; onAdded(name: strin
     form.submit(async (v) => {
       await client.config.mcp.save({ name: v.name, server: toSpec(v), mode: "create" });
       await qc.invalidateQueries({ queryKey: orpc.config.mcp.key() });
-      toast(`${v.name} added. Turn it on for a bot in its Tools & skills tab.`);
+      toast(
+        oauth
+          ? `${v.name} added. Sign in on its page to finish.`
+          : `${v.name} added. Turn it on for a bot in its Tools & skills tab.`,
+      );
       onAdded(v.name);
       onClose();
     });
@@ -60,17 +64,23 @@ function AddMcpBody({ onClose, onAdded }: { onClose(): void; onAdded(name: strin
         />
       </Row>
       <McpForm value={value} errors={form.errors} onChange={form.set} />
-      <Row label="Status" help={oauth ? "Add the server, then sign in from its page." : undefined}>
-        <McpStatusLine probe={probe} />
+      <Row label="Status">
+        {oauth ? (
+          <span className="t2">Sign in after adding; the test runs once you are signed in.</span>
+        ) : (
+          <McpStatusLine probe={probe} />
+        )}
       </Row>
       {probe.result && probe.result.state !== "connected" && testedKey === key && (
         <ConnBanner probe={probe} onTest={() => void test()} />
       )}
       <div className="acts">
         <Button onClick={onClose}>Cancel</Button>
-        <Button disabled={!form.valid || probe.running || oauth} onClick={() => void test()}>
-          Test connection
-        </Button>
+        {!oauth && (
+          <Button disabled={!form.valid || probe.running} onClick={() => void test()}>
+            Test connection
+          </Button>
+        )}
         <Button variant="primary" disabled={!tested || form.saving} onClick={() => void add()}>
           Add server
         </Button>

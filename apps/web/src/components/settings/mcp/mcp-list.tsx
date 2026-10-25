@@ -22,7 +22,20 @@ export function McpList() {
   const [adding, setAdding] = useState(false);
   const servers = useQuery(orpc.config.mcp.list.queryOptions()).data ?? [];
   return (
-    <SettingsPage title="MCP servers">
+    <SettingsPage
+      title="MCP servers"
+      // The phone hides the page head, so "Add server" lives in the nav bar there.
+      right={
+        <button
+          type="button"
+          className="nb"
+          aria-label="Add server"
+          onClick={() => setAdding(true)}
+        >
+          <Plus strokeWidth={1.75} />
+        </button>
+      }
+    >
       <div className="page-head">
         <div className="grow">
           <h2>MCP servers</h2>

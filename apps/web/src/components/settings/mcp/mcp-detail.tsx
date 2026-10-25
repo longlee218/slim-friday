@@ -26,7 +26,7 @@ function Loaded({ server }: { server: McpServerDto }) {
   const form = useFormState(initial, validateMcp);
   const readOnly = server.shipped;
   useSignInResult(server.name);
-  // The test runs the saved server, so unsaved URL or OAuth edits are not part of it.
+  // Test and sign-in use the saved server, so unsaved URL or OAuth edits are not part of them.
   const untested =
     form.dirty &&
     form.value.type === "http" &&
@@ -37,6 +37,7 @@ function Loaded({ server }: { server: McpServerDto }) {
   // biome-ignore lint/correctness/useExhaustiveDependencies: `key` stands for `initial`
   useEffect(() => void probe.run(server.name, initial), [server.name, key, probe.run]);
 
+  const retest = () => void probe.run(server.name, initial);
   const refresh = () =>
     Promise.all([
       qc.invalidateQueries({ queryKey: orpc.config.mcp.key() }),
@@ -78,13 +79,9 @@ function Loaded({ server }: { server: McpServerDto }) {
           </Button>
         )}
       </div>
-      <SignInBanner server={server} />
-      <ConnBanner
-        probe={probe}
-        quietAuth={!!server.auth}
-        onTest={() => void probe.run(server.name, initial)}
-      />
-      {untested && <div className="help">The test uses the saved settings.</div>}
+      <SignInBanner server={server} probe={probe} onTest={retest} locked={untested} />
+      <ConnBanner probe={probe} errorsOnly={!!server.auth} onTest={retest} />
+      {untested && <div className="help">Test and sign-in use the saved settings.</div>}
       <div className="formgroup">
         <McpForm value={form.value} errors={form.errors} disabled={readOnly} onChange={form.set} />
       </div>

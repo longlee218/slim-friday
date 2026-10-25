@@ -108,7 +108,9 @@ test("an OAuth server can be added without a test", async () => {
   setup();
   await fillHttp();
   await userEvent.click(screen.getByRole("switch", { name: "Sign in with OAuth" }));
-  expect((testBtn() as HTMLButtonElement).disabled).toBe(true);
+  // No test before sign-in: the button is gone and the status says what comes next.
+  expect(screen.queryByRole("button", { name: "Test connection" })).toBeNull();
+  expect(screen.getByText(/Sign in after adding/)).toBeTruthy();
   expect(add().disabled).toBe(false);
   await userEvent.click(add());
   await waitFor(() =>
@@ -128,5 +130,5 @@ test("switching back to a local command ends the OAuth bypass", async () => {
   await userEvent.type(screen.getByLabelText("Command"), "npx");
   expect((testBtn() as HTMLButtonElement).disabled).toBe(false);
   expect(add().disabled).toBe(true);
-  expect(screen.queryByText("Add the server, then sign in from its page.")).toBeNull();
+  expect(screen.queryByText(/Sign in after adding/)).toBeNull();
 });

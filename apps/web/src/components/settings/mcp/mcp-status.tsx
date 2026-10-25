@@ -58,14 +58,15 @@ export function McpStatusLine({ probe }: { probe: McpProbe }) {
 export function ConnBanner({
   probe,
   onTest,
-  quietAuth,
+  errorsOnly,
 }: {
   probe: McpProbe;
   onTest(): void;
-  /** An OAuth server shows its own sign-in banner, so a `needs_auth` result is not repeated. */
-  quietAuth?: boolean;
+  /** An OAuth server shows testing and connected in its sign-in banner; only a failure shows here. */
+  errorsOnly?: boolean;
 }) {
   const { result, running } = probe;
+  if (errorsOnly && (running || result?.state !== "error")) return null;
   if (running) {
     return (
       <div className="conn">
@@ -74,7 +75,7 @@ export function ConnBanner({
       </div>
     );
   }
-  if (!result || (quietAuth && result.state === "needs_auth")) return null;
+  if (!result) return null;
   const failed = result.state === "error";
   const tone = result.state === "connected" ? "ok" : failed ? "bad" : "warn";
   return (

@@ -69,20 +69,32 @@ test("needs_login banner shows the Sign in button", async () => {
   expect(screen.getByRole("button", { name: "Sign in" })).toBeTruthy();
 });
 
-test("connected banner shows the last refresh", async () => {
+test("connected: one banner with tools and last refresh, Sign in again is secondary", async () => {
+  api.test.mockResolvedValue({ state: "connected", tools: [{ name: "a" }, { name: "b" }] });
   setup(oauthServer({ status: "connected", lastRefreshAt: Date.now() - 3 * 3600_000 }));
   // The text is split by a <b>, so match the banner's own text content.
   const banner = await screen.findByText(
     (_, el) =>
-      !!el?.classList.contains("grow") && el.textContent === "Connected · last refresh 3h ago",
+      !!el?.classList.contains("grow") &&
+      el.textContent === "Signed in · 2 tools · refreshed 3h ago",
   );
   expect(banner).toBeTruthy();
+  // The probe's own green banner is not repeated.
+  expect(document.querySelectorAll(".conn.ok")).toHaveLength(1);
+  expect(screen.getByRole("button", { name: "Test again" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Sign in again" }).classList).not.toContain("primary");
+});
+
+test("a failed test still shows its error under the sign-in banner", async () => {
+  api.test.mockResolvedValue({ state: "error", message: "upstream 502" });
+  setup(oauthServer({ status: "connected" }));
+  expect(await screen.findByText("upstream 502")).toBeTruthy();
 });
 
 test("Sign in calls signIn and navigates to the returned url", async () => {
   api.signIn.mockResolvedValue({ url: "https://auth.example.com/authorize?x=1" });
   setup(oauthServer({ status: "never" }));
-  expect(await screen.findByText("Not signed in yet")).toBeTruthy();
+  expect(await screen.findByText("Not signed in")).toBeTruthy();
   await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
   await waitFor(() =>
     expect(assign).toHaveBeenCalledWith("https://auth.example.com/authorize?x=1"),
@@ -111,11 +123,14 @@ test("a failure lands on the list: toast and cleared param there", async () => {
 
 test("the unsaved-edits hint shows after editing the URL or OAuth, not on a clean form", async () => {
   setup(oauthServer({ status: "connected" }));
-  const hint = () => screen.queryByText("The test uses the saved settings.");
-  await screen.findByText("Connected");
+  const hint = () => screen.queryByText("Test and sign-in use the saved settings.");
+  const signIn = () => screen.getByRole("button", { name: "Sign in again" }) as HTMLButtonElement;
+  await screen.findByText("Signed in");
   expect(hint()).toBeNull();
+  expect(signIn().disabled).toBe(false);
   await userEvent.type(screen.getByLabelText("URL"), "x");
   expect(hint()).toBeTruthy();
+  expect(signIn().disabled).toBe(true);
   await userEvent.type(screen.getByLabelText("URL"), "{Backspace}");
   expect(hint()).toBeNull();
   await userEvent.click(screen.getByRole("switch", { name: "Sign in with OAuth" }));

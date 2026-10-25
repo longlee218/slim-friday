@@ -64,7 +64,7 @@ export function McpForm({
             <Row
               label="Scopes"
               htmlFor="mcp-scopes"
-              help="Optional, separated by spaces. Empty uses the server's defaults."
+              help="Optional, separated by spaces. Empty uses the server's defaults; offline_access is always added so the login lasts."
             >
               <input
                 id="mcp-scopes"
