@@ -63,10 +63,10 @@ test("schedule tools: write ones are mandatory taint asks, own-state for the tai
   expect(taints("mcp__schedules__ScheduleList")).toBe(false);
 });
 
-/** A gate over `SPECS` with a `require_approval` rule on every tool the test uses. */
-async function gateWith(level: PermissionSettings["level"]) {
+/** A gate over `SPECS`, with a `require_approval` rule on every tool the test uses unless `rules` is false. */
+async function gateWith(level: PermissionSettings["level"], rules = true) {
   const store = new FakeStore();
-  for (const tool of [SEARCH.name, CREATE.name, "WebFetch", "Bash"])
+  for (const tool of rules ? [SEARCH.name, CREATE.name, "WebFetch", "Bash"] : [])
     await store.grants.add({
       id: `r-${tool}`,
       botId: "*",
@@ -98,8 +98,12 @@ test("gate: a scheduled run reads over a require rule, tainted or not", async ()
     const c = ctx({ scheduled: true, tainted });
     expect(await gate.decide(call("WebFetch", { url: "https://a.example.com" }), "B", c)).toEqual({
       behavior: "allow",
+      scheduledRead: true,
     });
-    expect(await gate.decide(call(SEARCH.name), "B", c)).toEqual({ behavior: "allow" });
+    expect(await gate.decide(call(SEARCH.name), "B", c)).toEqual({
+      behavior: "allow",
+      scheduledRead: true,
+    });
   }
 });
 
@@ -112,12 +116,26 @@ test("gate: a non-scheduled run is unchanged (same calls ask)", async () => {
   }
 });
 
-test("gate: a scheduled run keeps asking for writes, Bash, BotDesign and schedule tools when tainted", async () => {
-  const gate = await gateWith("autonomous");
-  const c = ctx({ scheduled: true });
-  expect((await gate.decide(call(CREATE.name), "B", c)).behavior).toBe("park");
-  expect((await gate.decide(call("Bash"), "B", { ...c, wakeId: "w2" })).behavior).toBe("park");
+test("gate: a tainted scheduled run still asks for a write and the mandatory tools, with no rules at autonomous", async () => {
+  const gate = await gateWith("autonomous", false);
   const t = ctx({ scheduled: true, tainted: true });
+  // First call of an external server in a tainted run: the taint ask, not a rule.
+  const write = await gate.decide(call(CREATE.name), "B", { ...t, wakeId: "w1" });
+  expect(write.behavior).toBe("park");
   expect((await gate.decide(call(DESIGN.name), "B", { ...t, wakeId: "w3" })).behavior).toBe("park");
   expect((await gate.decide(call(SCHED.name), "B", { ...t, wakeId: "w4" })).behavior).toBe("park");
+  // Bash is no read step: it takes the old path (the level allows it) and carries no scheduled-read mark.
+  expect(await gate.decide(call("Bash"), "B", { ...t, wakeId: "w2" })).toEqual({
+    behavior: "allow",
+  });
+});
+
+test("gate: an allowed scheduled read carries the scheduledRead mark; other allows do not", async () => {
+  const gate = await gateWith("autonomous", false);
+  const c = ctx({ scheduled: true });
+  expect(await gate.decide(call(SEARCH.name), "B", c)).toEqual({
+    behavior: "allow",
+    scheduledRead: true,
+  });
+  expect(await gate.decide(call("Bash"), "B", c)).toEqual({ behavior: "allow" });
 });

@@ -88,9 +88,8 @@ export type AskResult =
   | ParkDecision;
 
 export type ToolDecision =
-  | { behavior: "allow" }
-  | { behavior: "deny"; reason: string }
-  | ParkDecision;
+  /** `scheduledRead`: allowed by a scheduled run's read-step rule, not by an owner decision (never noted as a taint approval). */
+  { behavior: "allow"; scheduledRead?: true } | { behavior: "deny"; reason: string } | ParkDecision;
 
 /** Everything a runtime needs to run one bot. */
 export interface BotRuntimeSpec {

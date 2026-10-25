@@ -27,7 +27,11 @@ export const flush = async () => {
 };
 
 /** A hub over fakes with bots writer (entry) and editor in group "g", a group chat "gc", and a direct chat "dc" with editor. */
-export function makeHub(memory?: Memory, extra: Partial<BotHubDeps> = {}) {
+export function makeHub(
+  memory?: Memory,
+  extra: Partial<BotHubDeps> = {},
+  level: "careful" | "balanced" | "autonomous" = "balanced",
+) {
   const store = new FakeStore();
   const runtime = new FakeRuntime();
   const surface = new FakeSurface();
@@ -54,7 +58,7 @@ export function makeHub(memory?: Memory, extra: Partial<BotHubDeps> = {}) {
     surface,
     clock,
     catalog,
-    settings: () => ({ level: "balanced" }),
+    settings: () => ({ level }),
     registrableDomain: fakeRegistrableDomain,
   });
   const hub = new BotHub({
