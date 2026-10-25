@@ -25,7 +25,7 @@ export type CacheEffect =
   | { op: "setStatus"; bots: BotStatusDto[] }
   | { op: "refetchStatus" }
   | { op: "patchTicket"; ticket: TicketDto }
-  | { op: "invalidate"; scope: "tickets" | "config" | "all" }
+  | { op: "invalidate"; scope: "tickets" | "schedules" | "config" | "all" }
   /** An OAuth MCP server changed sign-in state: refetch the list; toast when it lost its login. */
   | { op: "mcpAuth"; server: string; status: "connected" | "needs_login" | "never" }
   | { op: "notify"; conversationId: string; botId?: string; title: string; text: string };
@@ -124,7 +124,7 @@ export function reduceEvent(e: FridayEvent, view: ReducerView): CacheEffect[] {
     case "mcp.auth":
       return [{ op: "mcpAuth", server: e.server, status: e.status }];
     case "schedule":
-      return []; // the schedules board handles it (plan 02 web tasks)
+      return [{ op: "invalidate", scope: "schedules" }];
   }
 }
 

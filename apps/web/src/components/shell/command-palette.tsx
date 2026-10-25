@@ -2,6 +2,8 @@ import { Dialog } from "@base-ui/react/dialog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Command } from "cmdk";
 import {
+  CalendarClock,
+  CalendarPlus,
   CircleStop,
   Gauge,
   type LucideIcon,
@@ -29,6 +31,8 @@ import { useAppNavigate } from "./use-app-navigate";
 const ICONS: Record<string, LucideIcon> = {
   users: Users,
   plus: Plus,
+  "calendar-clock": CalendarClock,
+  "calendar-plus": CalendarPlus,
   "square-kanban": SquareKanban,
   gauge: Gauge,
   "circle-stop": CircleStop,
@@ -70,6 +74,8 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
   const ctx: PaletteContext = {
     navigate,
     newTicket,
+    // Opens the schedules page with the new-schedule request; the sheet (Task 6) reads `?new=1`.
+    newSchedule: () => navigate("/schedules?new=1"),
     stopAll: async () => {
       const working = (status ?? []).filter((s) => s.working);
       if (working.length === 0) {

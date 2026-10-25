@@ -6,6 +6,11 @@ export interface PaletteContext {
   stopAll(): Promise<void>;
   /** Opens the new-ticket sheet. */
   newTicket(): void;
+  /**
+   * Opens the new-schedule sheet. Until that sheet exists it navigates to `/schedules?new=1`, which
+   * the sheet will read to open itself (so the palette keeps working from any route).
+   */
+  newSchedule(): void;
 }
 
 /** One row of the command palette. `icon` is a key of the icon map in `command-palette.tsx`. */
@@ -40,6 +45,12 @@ export const EXTRA_PALETTE_ITEMS: PaletteItem[] = [
     shortcut: "⌘N",
     run: (ctx) => ctx.newTicket(),
   },
+  {
+    group: "Actions",
+    label: "New schedule",
+    icon: "calendar-plus",
+    run: (ctx) => ctx.newSchedule(),
+  },
 ];
 
 /** Every palette row for the current bots and groups: Bots, Groups, Actions, Settings. */
@@ -63,6 +74,7 @@ export function paletteItems(dir: Directory): PaletteItem[] {
     ...bots,
     ...groups,
     go("Actions", "Open tickets", "square-kanban", "/tickets", "⌘2"),
+    go("Actions", "Schedules", "calendar-clock", "/schedules"),
     go("Actions", "Open activity", "gauge", "/ops", "⌘3"),
     {
       group: "Actions",

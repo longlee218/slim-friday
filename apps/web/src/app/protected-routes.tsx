@@ -3,6 +3,8 @@ import { ActivityRoute } from "../components/activity/activity-route";
 import { ChatView } from "../components/chat/chat-view";
 import { ChatsList } from "../components/phone/chats-list";
 import { PhoneChat } from "../components/phone/phone-chat";
+import { SchedulePageRoute } from "../components/schedules/schedule-page-route";
+import { SchedulesRoute } from "../components/schedules/schedules-route";
 import { settingsRoutes } from "../components/settings/settings-routes";
 import { navHistory } from "../components/shell/nav-history";
 import { TicketPageRoute } from "../components/tickets/ticket-page-route";
@@ -45,6 +47,8 @@ export const protectedChildren: RouteObject[] = [
   { path: "/c/:conversationId", element: <ChatRoute /> },
   { path: "/tickets", element: <TicketsRoute /> },
   { path: "/tickets/:ref", element: <TicketPageRoute /> },
+  { path: "/schedules", element: <SchedulesRoute /> },
+  { path: "/schedules/:id", element: <SchedulePageRoute /> },
   { path: "/ops", element: <ActivityRoute /> },
   ...settingsRoutes,
   { path: "*", element: <NotFound /> },
