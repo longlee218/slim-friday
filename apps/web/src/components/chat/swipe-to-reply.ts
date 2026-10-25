@@ -2,8 +2,10 @@ import { useEffect, useRef } from "react";
 
 /** Drag distance (px) past which a release replies. */
 export const SWIPE_PX = 56;
-/** Press-and-hold time (ms) that opens the message sheet. */
+/** Press-and-hold time (ms) that opens the reaction bar. */
 export const HOLD_MS = 450;
+/** Two taps on one message within this time (ms) are a double tap. */
+export const DOUBLE_TAP_MS = 300;
 /** Delay (ms) before the press cue (slight shrink) shows. */
 const CUE_MS = 150;
 /** Furthest the message follows the finger (px). */
@@ -43,16 +45,28 @@ export function swipeStep(s: SwipeState, move: { dx: number; dy: number }): Swip
   };
 }
 
+/** A finger position in viewport pixels. */
+export interface Point {
+  x: number;
+  y: number;
+}
+
 export interface SwipeHandlers {
   /** Released past the threshold on the bot message with this id. */
   onReply(messageId: number): void;
-  /** Held for 450 ms on the bot message with this id. */
-  onHold(messageId: number): void;
+  /** Held for 450 ms on the bot message with this id; the finger is still down at `at`. */
+  onHold(messageId: number, at: Point): void;
+  /** The finger moved after a hold (the page does not scroll meanwhile). */
+  onHoldMove?(at: Point): void;
+  /** The finger lifted (or the browser took the touch) after a hold. */
+  onHoldEnd?(at: Point): void;
+  /** Two quick taps on the bot message with this id. */
+  onDoubleTap?(messageId: number): void;
 }
 
 /**
  * Phone gesture on bot messages inside `el` (the scroller): swipe right to reply, press and
- * hold for the sheet. A bot message is a `.msg[data-mi]`; presses within 30 px of the left
+ * hold for the reaction bar (the finger keeps reporting until it lifts), double tap to react. A bot message is a `.msg[data-mi]`; presses within 30 px of the left
  * edge and on buttons, links or inputs are ignored. Pass `null` to switch it off.
  */
 export function useSwipeToReply(el: HTMLElement | null, handlers: SwipeHandlers): void {
@@ -67,6 +81,10 @@ export function useSwipeToReply(el: HTMLElement | null, handlers: SwipeHandlers)
     let state: SwipeState = { phase: "idle", dx: 0, ok: false };
     let hold: ReturnType<typeof setTimeout> | undefined;
     let cue: ReturnType<typeof setTimeout> | undefined;
+    /** The message a hold opened the bar for; the finger is still down. */
+    let held: number | null = null;
+    let last: Point = { x: 0, y: 0 };
+    let lastTap: { id: number; at: number } | null = null;
 
     /** Forgets the gesture; a message that slid springs back (240 ms). */
     const reset = () => {
@@ -94,21 +112,27 @@ export function useSwipeToReply(el: HTMLElement | null, handlers: SwipeHandlers)
       const m = target.closest<HTMLElement>(".msg[data-mi]");
       if (!m) return;
       // A new press ends whatever the previous one left running.
+      held = null;
       reset();
       msg = m;
       start = { x: e.clientX, y: e.clientY };
+      last = start;
       state = { phase: "pressing", dx: 0, ok: false };
       // The press cue waits a moment so a tap or the start of a scroll never flashes it.
       cue = setTimeout(() => m.classList.add("holding"), CUE_MS);
       const id = Number(m.dataset.mi);
       hold = setTimeout(() => {
         reset();
+        held = id;
+        lastTap = null;
         navigator.vibrate?.(10);
-        h.current.onHold(id);
+        h.current.onHold(id, last);
       }, HOLD_MS);
     };
 
     const move = (e: PointerEvent) => {
+      last = { x: e.clientX, y: e.clientY };
+      if (held !== null) return h.current.onHoldMove?.(last);
       if (!msg || state.phase === "idle") return;
       const delta = { dx: e.clientX - start.x, dy: e.clientY - start.y };
       if (movedPastSlop(delta)) {
@@ -125,24 +149,58 @@ export function useSwipeToReply(el: HTMLElement | null, handlers: SwipeHandlers)
       msg.classList.toggle("swipe-ok", state.ok);
     };
 
-    const up = () => {
+    const up = (e: PointerEvent) => {
+      if (held !== null) {
+        held = null;
+        return h.current.onHoldEnd?.({ x: e.clientX, y: e.clientY });
+      }
       if (!msg) return;
       const id = Number(msg.dataset.mi);
       const ok = state.ok;
+      // A tap never slid the bubble and ended before the hold: two of them in a row are a double tap.
+      const tap = !ok && state.phase === "pressing";
       reset();
-      if (ok) h.current.onReply(id);
+      if (ok) return h.current.onReply(id);
+      if (!tap) return;
+      const now = Date.now();
+      if (lastTap && lastTap.id === id && now - lastTap.at < DOUBLE_TAP_MS) {
+        lastTap = null;
+        h.current.onDoubleTap?.(id);
+      } else lastTap = { id, at: now };
+    };
+
+    /** The browser took the touch (a scroll began): after a hold the bar stays, otherwise the gesture ends. */
+    const cancel = () => {
+      if (held === null) return reset();
+      held = null;
+      h.current.onHoldEnd?.(last);
+    };
+
+    /** While the bar is armed the finger must not scroll the page. */
+    const noScroll = (e: TouchEvent) => {
+      if (held !== null && e.cancelable) e.preventDefault();
+    };
+    /** A long press must not open the browser's own menu. */
+    const noMenu = (e: Event) => {
+      if (held !== null || msg) e.preventDefault();
     };
 
     el.addEventListener("pointerdown", down);
-    el.addEventListener("pointermove", move);
-    el.addEventListener("pointerup", up);
-    el.addEventListener("pointercancel", reset);
+    // Move, lift and cancel are heard on the window: after a hold the finger travels onto the bar,
+    // which lives outside the scroller.
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", cancel);
+    el.addEventListener("touchmove", noScroll, { passive: false });
+    el.addEventListener("contextmenu", noMenu);
     return () => {
       reset();
       el.removeEventListener("pointerdown", down);
-      el.removeEventListener("pointermove", move);
-      el.removeEventListener("pointerup", up);
-      el.removeEventListener("pointercancel", reset);
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", cancel);
+      el.removeEventListener("touchmove", noScroll);
+      el.removeEventListener("contextmenu", noMenu);
     };
   }, [el]);
 }

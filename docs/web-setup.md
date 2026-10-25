@@ -205,7 +205,7 @@ Main process (web, intake, sweeps, reconciler, config watch) plus `workers` work
 13. Effect replay: after a cut, the resumed model may send the exact same tool input again; the effect tool then returns the stored result or the "may already have run" warning. Check the warning is shown and nothing runs twice.
 
 ## Check owner and bot communication (not verified live)
-Settings in `<AGENT_HOME>/config/settings.yaml` (all optional; the example file lists them): `owner.timeZone` (IANA zone; default the machine's zone), `limits.toolSearch` (`on` default, `off`, `auto:<1-100>`), `limits.maxToolCallsPerTurn` (default 0 = no cap), `permissions.autoReview` (default `true`, set by the shipped `settings.yaml`; also a switch in Settings, Approval rules).
+Settings in `<AGENT_HOME>/config/settings.yaml` (all optional; the example file lists them): `owner.timeZone` (IANA zone; default the machine's zone), `limits.toolSearch` (`on` default, `off`, `auto:<1-100>`), `limits.maxToolCallsPerTurn` (default 0 = no cap), `limits.maxParallelSubagents` (default 4), `limits.reactionCooldownMs` (default 30000), `permissions.autoReview` (default `true`, set by the shipped `settings.yaml`; also a switch in Settings, Approval rules).
 1. Progress notes: give a bot a task that takes over a minute with several steps; at most 3 short notes (500 chars) appear in the chat while it works, none in the first 60 s, then one final answer.
 2. `NO_RESPONSE` on a ticket: assign a ticket to a bot; it works and posts nothing in the chat (comments go on the ticket); no unread badge and no finished toast. A message you send is never answered with silence (at worst `done.`).
 3. Nudge: make a bot stop right after a tool result (for example a task that ends on a tool call); the run continues up to 3 times, then shows "The tools finished, but the bot did not write a final answer. Rephrase the request and try again."
@@ -266,6 +266,8 @@ Nothing below is verified live until you tick it.
 - [ ] Approval card: "Allow once" runs the call; "Always allow" does not ask again; "Deny" leaves a one-line receipt. Answer one card from two devices: the second gets a conflict.
 - [ ] Question card from a bot: single choice, multiple choice and free text work; a card never expires (one reminder after 4 h).
 - [ ] Reply to one bot's message in a group: the replied-to bot answers, not the entry bot.
+- [ ] Reactions on the phone: hold a bot message, slide to an emoji and let go; hold and lift without moving, then tap one; the more item opens Reply and Copy; double-tap a message sends 👍; the page does not scroll while the bar is armed (Safari iPhone and Chrome Android).
+- [ ] Reactions: hover a bot message, React, pick 👍; a chip shows under the message and the bot answers only if it has something to say (otherwise nothing is posted); react again within 30 s: no second turn. 👍 on the message of a run waiting on a question answers it "yes".
 - [ ] Upload: an image and a PDF reach the bot; 6 files, or one over 20 MB, are refused by name; a bot's `PostFile` image shows in the gallery and survives a reload.
 - [ ] An image in chat loads from the CDN host (network panel); `curl -sI https://img.example.com/<key>` shows `x-content-type-options: nosniff` and `content-disposition: attachment`. Skip without a CDN.
 - [ ] Ticket page (`/tickets`): create, assign (the assignee wakes), comment, close; the history shows each change.

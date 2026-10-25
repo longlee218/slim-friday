@@ -1,5 +1,6 @@
 import type { BotId } from "../domain/bot";
 import type { Conversation } from "../domain/conversation";
+import { reactionOf } from "../domain/reaction";
 import type { HubContext } from "../hub/hub-context";
 import { hubTargets } from "../hub/hub-targets";
 import type { WakeOpts } from "../hub/hub-types";
@@ -7,6 +8,7 @@ import { sessionScope } from "../hub/session-scope";
 import type { InboundMessage } from "../ports/surface";
 import { createRun } from "./run-create";
 import { answerByText } from "./run-intake-cards";
+import { intakeReaction } from "./run-intake-reaction";
 import { steerIntoBusyScope } from "./run-intake-steer";
 import { ownerRunKey, steeringId, supersede } from "./run-supersede";
 
@@ -55,6 +57,12 @@ export async function intakeOwnerMessage(
   const replied = m.replyTo === undefined ? undefined : await store.messages.get(m.replyTo);
   const quoted = replied?.conversationId === conv.id ? replied : undefined;
   const replyToBot = quoted?.author.kind === "bot" ? quoted.author.botId : undefined;
+  // An emoji-only reply to a message of this conversation is a reaction, not a turn of its own.
+  const emoji = reactionOf(m.text);
+  if (emoji && quoted && !hasFiles) {
+    await intakeReaction(ctx, { conv, messageId: id, emoji, target: quoted });
+    return id;
+  }
   const opts: WakeOpts = {
     ...(quoted && { quote: { author: quoted.author, text: quoted.text } }),
     ...(m.attachments && { attachments: m.attachments }),

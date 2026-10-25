@@ -58,6 +58,7 @@ export async function createRun(ctx: HubContext, r: NewRun): Promise<WakeOutcome
     ...(opts.ticketId && { ticketId: opts.ticketId }),
     ...(opts.rewake && { rewake: true }),
     ...(opts.intro && { intro: true }),
+    ...(opts.reaction && { reaction: opts.reaction }),
     ...(opts.schedule && { scheduleId: opts.schedule.id, scheduleQuiet: opts.schedule.quiet }),
     ...(opts.attachments && { attachments: opts.attachments }),
     ...(opts.chainId && { chainId: opts.chainId }),

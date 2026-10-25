@@ -4,12 +4,13 @@ import { CONTINUATION_KEY } from "./run-steering";
 /**
  * What started a run, which decides its reply guidance, its tool set and whether it may stay silent:
  * `owner` (an owner message, a continuation or a card resume), `bot` (another bot's message), `ticket`
- * (a ticket wake), `intro` (the first hidden run of a new bot) or `schedule` (a run fired by a schedule).
+ * (a ticket wake), `intro` (the first hidden run of a new bot), `schedule` (a run fired by a schedule) or
+ * `reaction` (the owner reacted with an emoji to the bot's message).
  */
-export type RunKind = "owner" | "bot" | "ticket" | "intro" | "schedule";
+export type RunKind = "owner" | "bot" | "ticket" | "intro" | "schedule" | "reaction";
 
 /**
- * The kind of a run: the intro flag first, then the schedule, then the ticket, then a bot sender; everything else is the owner's.
+ * The kind of a run: the intro flag first, then the schedule, then the ticket, then a reaction, then a bot sender; everything else is the owner's.
  * An intro run that parked on its question and was answered (`cardId`) is the owner's run from then on: the answer is
  * the owner's first request, and the bot needs its full tools to act on it (the intro list has only two).
  */
@@ -17,12 +18,13 @@ export function runKindOf(row: WakeRow): RunKind {
   if (row.intro && row.cardId === undefined) return "intro";
   if (row.scheduleId) return "schedule";
   if (row.ticketId) return "ticket";
+  if (row.reaction) return "reaction";
   if (row.sender.kind === "bot") return "bot";
   return "owner";
 }
 
 /**
- * True when the run may end with no reply (`NO_RESPONSE`): a ticket run, or a bot's `fyi` that is not a reply
+ * True when the run may end with no reply (`NO_RESPONSE`): a ticket run, a reaction run, or a bot's `fyi` that is not a reply
  * to a request (no `parentWakeId`). An owner message, a continuation, a card resume and a bot result never may.
  * A row with a `cardId` resumes on the owner's card answer (its turn is not the wake's first), so it is an owner
  * turn whatever started the run (spec §6.3). Decision (spec §6.12 vs §6.3): a ticket run that parked on a card and
@@ -31,7 +33,7 @@ export function runKindOf(row: WakeRow): RunKind {
  */
 export function silenceAllowed(row: WakeRow, kind: RunKind): boolean {
   if (row.cardId !== undefined) return false;
-  if (kind === "ticket") return true;
+  if (kind === "ticket" || kind === "reaction") return true;
   // A schedule run in "only problems" mode may end with NO_RESPONSE.
   if (kind === "schedule") return row.scheduleQuiet === true;
   return kind === "bot" && row.intent === "fyi" && row.parentWakeId === undefined;

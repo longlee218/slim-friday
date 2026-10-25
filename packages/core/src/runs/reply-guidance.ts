@@ -6,6 +6,10 @@ import type { RunKind } from "./run-kind";
 export const TICKET_REPLY_GUIDANCE =
   "Ticket work is reported on the board, not in chat. Put updates and results in TicketComment and keep the ticket status current with TicketUpdate. Use the existing ask or approval mechanism when owner input is needed. Leave the final reply empty.";
 
+/** Reply guidance of a reaction run: reply only when the emoji calls for it (R§6 `REACTION_SILENT_REPLY_GUIDANCE`). */
+export const REACTION_REPLY_GUIDANCE =
+  "The owner reacted with an emoji to your message. Reply only if the reaction calls for it, such as a correction after 👎, a go-ahead on something you proposed, or a question. Otherwise the whole final reply is exactly NO_RESPONSE.";
+
 /** Reply guidance of a schedule run in "only problems" mode (it may end with `NO_RESPONSE`). */
 export const SCHEDULE_QUIET_GUIDANCE =
   "This is a scheduled run; the owner is not waiting in the chat. Reply only if there is a problem or something the owner must act on; otherwise the whole final reply is exactly NO_RESPONSE. You cannot post progress updates in this run.";
@@ -31,6 +35,7 @@ export function replyGuidance(row: WakeRow, kind: RunKind, senderName: string): 
   // A ticket run ends with an empty reply, so it only learns that progress updates are absent.
   if (kind === "ticket")
     return `${TICKET_REPLY_GUIDANCE} You cannot post progress updates in this run.`;
+  if (kind === "reaction") return `${REACTION_REPLY_GUIDANCE} ${NO_PROGRESS_UPDATES_NOTE}`;
   if (kind === "schedule")
     return row.scheduleQuiet === true ? SCHEDULE_QUIET_GUIDANCE : SCHEDULE_REPLY_GUIDANCE;
   if (kind !== "bot" || row.sender.kind !== "bot") return undefined;
