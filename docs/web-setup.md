@@ -248,6 +248,14 @@ For an MCP server that signs in with OAuth (example: `https://db-mcp.example.com
 2. Wait for the tick: the result appears in the same chat. With `notify: problems` a quiet run posts nothing.
 3. Leave a card unanswered while a run waits on it: the next tick is `skipped` and one notice shows (at most one per schedule per local day).
 4. Ask the bot to delete the schedule: it calls `ScheduleDelete` and no further run starts.
+Web (not verified live):
+5. Open Schedules, "New schedule": create a daily one; it is listed with its next run.
+6. Pause it with the switch (the row dims, Run now is disabled); turn it on again.
+7. "Run now": the chat opens and the bot runs. While a run waits (for example on a card) the row says "Still running" with a link to the chat.
+8. Ask a bot in chat for a schedule while Schedules is open: the row appears without a reload.
+9. On the phone: Settings, Schedules lists them and opens a schedule page.
+10. A message a scheduled run posted shows a schedule tag; the tag opens that schedule.
+11. Delete the schedule from its page: it leaves the list; past messages keep the tag.
 Known limits: the once-a-day notice map is in memory (a notice can repeat after an engine restart); a schedule made by a worker bot starts within one 15 s tick.
 
 ## Owner live checklist
