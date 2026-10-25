@@ -6,17 +6,20 @@ import { orpc } from "../../src/api/client";
 import { phoneClient, renderPhone, stubMatchMedia } from "../phone/phone-fixtures";
 import { run, schedule } from "./fixtures";
 
-// The real client, except `schedules.create` (the phone tests need one create).
+// The real client, except `schedules.create` and `schedules.delete`.
 const create = vi.hoisted(() => vi.fn());
+const del = vi.hoisted(() => vi.fn());
 vi.mock("../../src/api/client", async (importOriginal) => {
   const m = await importOriginal<typeof import("../../src/api/client")>();
   const swap = <T extends object>(t: T, key: string, v: unknown) =>
     new Proxy(t, { get: (o, k) => (k === key ? v : Reflect.get(o, k)) });
-  return { ...m, client: swap(m.client, "schedules", swap(m.client.schedules, "create", create)) };
+  const schedules = swap(swap(m.client.schedules, "create", create), "delete", del);
+  return { ...m, client: swap(m.client, "schedules", schedules) };
 });
 
 beforeEach(() => {
   create.mockReset();
+  del.mockReset();
   stubMatchMedia();
   window.innerWidth = 390;
 });
@@ -138,4 +141,20 @@ test("New schedule from another tab (the palette): cancel, then ONE Back returns
   await waitFor(() => expect(backText()).toBe("Chats"));
   back();
   await waitFor(() => expect(router.state.location.pathname).toBe("/"));
+});
+
+test("delete from the schedule page, then ONE Back returns to Settings, never the deleted page", async () => {
+  del.mockResolvedValue({});
+  const { router } = renderPhone(client([news()]), "/settings");
+  fireEvent.click(screen.getByRole("link", { name: /Schedules/ }));
+  await waitFor(() => expect(backText()).toBe("Settings"));
+  fireEvent.click(within(top()).getByRole("link", { name: /Morning news/ }));
+  await waitFor(() => expect(backText()).toBe("Schedules"));
+  fireEvent.click(within(top()).getByRole("button", { name: "Delete schedule" }));
+  const sheet = await screen.findByRole("dialog");
+  fireEvent.click(within(sheet).getByRole("button", { name: "Delete schedule" }));
+  await waitFor(() => expect(router.state.location.pathname).toBe("/schedules"));
+  await waitFor(() => expect(backText()).toBe("Settings"));
+  back();
+  await waitFor(() => expect(router.state.location.pathname).toBe("/settings"));
 });
