@@ -102,6 +102,13 @@ test("group inspector lists members and marks the entry bot", () => {
   expect(screen.getByText("Running tests")).toBeTruthy();
 });
 
+test("group inspector: Stop all stops the group conversation", async () => {
+  stop.mockResolvedValue({ ok: true });
+  renderInspector("group:crew");
+  await userEvent.setup().click(screen.getByRole("button", { name: "Stop all" }));
+  expect(stop).toHaveBeenCalledWith({ conversationId: "group:crew" });
+});
+
 test("bot inspector: memory counts, workspace and open tickets", async () => {
   renderInspector("bot:dev");
   expect(screen.getByText("Notes").nextSibling?.textContent).toBe("2");

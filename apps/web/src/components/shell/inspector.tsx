@@ -68,16 +68,24 @@ function BotInspector({ bot, status }: { bot: BotDto; status?: BotStatusDto }) {
   );
 }
 
-/** Group inspector: name, Edit, and the members with the entry bot marked. */
+/** Group inspector: name, Edit, Stop all, and the members with the entry bot marked. */
 function GroupInspector({ group, status }: { group: GroupDto; status: BotStatusDto[] }) {
   const go = useAppNavigate();
   const dir = useDirectory();
+  const stop = useStopRun();
+  const busy = (id: string) => status.some((s) => s.botId === id && s.working);
   return (
     <>
       <div className="insp-hero">
         <span className="stack">
           {group.members.map((id) => (
-            <Avatar key={id} src={dir.bots.get(id)?.avatarUrl} name={dir.botName(id)} size={40} />
+            <Avatar
+              key={id}
+              src={dir.bots.get(id)?.avatarUrl}
+              name={dir.botName(id)}
+              size={40}
+              working={busy(id)}
+            />
           ))}
         </span>
         <h2 style={{ marginTop: 8 }}>{group.name}</h2>
@@ -86,6 +94,14 @@ function GroupInspector({ group, status }: { group: GroupDto; status: BotStatusD
             <SlidersHorizontal strokeWidth={1.75} />
             Edit
           </Button>
+          <Button
+            variant="danger"
+            disabled={!group.members.some(busy)}
+            onClick={() => void stop({ conversationId: `group:${group.id}` })}
+          >
+            <CircleStop strokeWidth={1.75} />
+            Stop all
+          </Button>
         </div>
       </div>
       <InspectorSection title="Members">
@@ -93,7 +109,12 @@ function GroupInspector({ group, status }: { group: GroupDto; status: BotStatusD
           const s = status.find((b) => b.botId === id);
           return (
             <div key={id} className="member">
-              <Avatar src={dir.bots.get(id)?.avatarUrl} name={dir.botName(id)} size={26} />
+              <Avatar
+                src={dir.bots.get(id)?.avatarUrl}
+                name={dir.botName(id)}
+                size={26}
+                working={s?.working ?? false}
+              />
               <div className="grow">
                 <b>{dir.botName(id)}</b> {id === group.entryBot && <Pill tone="gray">entry</Pill>}
                 <div className="t2">{s?.working ? s.label || "Working" : "Idle"}</div>

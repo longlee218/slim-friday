@@ -108,3 +108,14 @@ test("New chat and the search field open the palette", async () => {
   await userEvent.click(screen.getByPlaceholderText("Search"));
   expect(onPalette).toHaveBeenCalledTimes(2);
 });
+
+test("past seven bots a row says how many more; it shows them", async () => {
+  const many = ["a", "b", "c", "d", "e", "f", "g", "h", "i"].map((x) => bot(x, x.toUpperCase()));
+  renderSidebar({ ...seed, bots: [...many, bot("dev", "Dev")] });
+  // "dev" is open and has an approval, so it stays: H and I are hidden.
+  expect(screen.queryByRole("link", { name: "HH" })).toBeNull();
+  expect(screen.getByRole("link", { name: /Dev/ })).toBeTruthy();
+  await userEvent.click(screen.getByRole("button", { name: "2 more" }));
+  expect(screen.getByRole("link", { name: "HH" })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: /more$/ })).toBeNull();
+});

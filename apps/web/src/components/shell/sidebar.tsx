@@ -1,6 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
-import { Fingerprint, Gauge, Plus, Search, Settings, SquareKanban, SquarePen } from "lucide-react";
-import type { ReactNode } from "react";
+import {
+  Ellipsis,
+  Fingerprint,
+  Gauge,
+  Plus,
+  Search,
+  Settings,
+  SquareKanban,
+  SquarePen,
+} from "lucide-react";
+import { type ReactNode, useState } from "react";
 import { useLocation } from "react-router";
 import { orpc } from "../../api/client";
 import { useDirectory } from "../../api/directory";
@@ -11,6 +20,9 @@ import { IconButton } from "../ui/button";
 import { Kbd } from "../ui/kbd";
 import { SidebarRow, Trailing, trailingMark } from "./sidebar-row";
 import { useAppNavigate } from "./use-app-navigate";
+
+/** Bots listed before the "N more" row; a hidden bot that is open or has a mark still shows. */
+const SHOWN_BOTS = 7;
 
 /** The icon cell of a workspace row. */
 const Ico = ({ children }: { children: ReactNode }) => <span className="sb-ico">{children}</span>;
@@ -46,6 +58,20 @@ export function Sidebar({ onPalette }: { onPalette: () => void }) {
   const working = new Set(status.filter((s) => s.working).map((s) => s.botId));
   const unread = (id: string) => conversations.find((c) => c.id === id)?.unread ?? 0;
   const pending = (id: string) => approvals.filter((a) => a.conversationId === id).length;
+  const [allBots, setAllBots] = useState(false);
+
+  // Each bot row with its mark; past SHOWN_BOTS only the open one or one with a mark stays.
+  const botRows = [...bots.values()].map((b, i) => {
+    const id = `bot:${b.id}`;
+    const mark = trailingMark({
+      approvals: pending(id),
+      unread: unread(id),
+      working: working.has(b.id),
+    });
+    const on = pathname === `/c/${id}`;
+    return { b, id, mark, on, shown: allBots || i < SHOWN_BOTS || on || mark.kind !== "none" };
+  });
+  const hidden = botRows.filter((r) => !r.shown).length;
 
   return (
     <>
@@ -65,21 +91,23 @@ export function Sidebar({ onPalette }: { onPalette: () => void }) {
       </div>
       <div className="sb-scroll">
         <Section title="Bots" add="New bot" onAdd={() => go("/settings/bot/new")} />
-        {[...bots.values()].map((b) => {
-          const id = `bot:${b.id}`;
-          const mark = trailingMark({
-            approvals: pending(id),
-            unread: unread(id),
-            working: working.has(b.id),
-          });
-          return (
-            <SidebarRow key={id} href={`/c/${id}`} on={pathname === `/c/${id}`}>
+        {botRows
+          .filter((r) => r.shown)
+          .map(({ b, id, mark, on }) => (
+            <SidebarRow key={id} href={`/c/${id}`} on={on}>
               <Avatar src={b.avatarUrl} name={b.name} size={22} working={working.has(b.id)} />
               <span className="name">{b.name}</span>
               <Trailing mark={mark} />
             </SidebarRow>
-          );
-        })}
+          ))}
+        {hidden > 0 && (
+          <button type="button" className="sb-row more" onClick={() => setAllBots(true)}>
+            <Ico>
+              <Ellipsis size={16} strokeWidth={1.75} />
+            </Ico>
+            <span className="name">{`${hidden} more`}</span>
+          </button>
+        )}
         <Section title="Groups" add="New group" onAdd={() => go("/settings/group/new")} />
         {[...groups.values()].map((g) => {
           const id = `group:${g.id}`;

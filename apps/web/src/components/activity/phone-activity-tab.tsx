@@ -1,5 +1,11 @@
-import { useRef } from "react";
+import type { ApprovalCardDto } from "@friday/contracts";
+import { useQuery } from "@tanstack/react-query";
+import { ChevronRight } from "lucide-react";
+import { useRef, useState } from "react";
+import { orpc } from "../../api/client";
 import { useDirectory } from "../../api/directory";
+import { ApprovalSheet } from "../chat/approval-sheet";
+import { toolLabel } from "../chat/approval-text";
 import { PhoneNavBar } from "../phone/phone-nav-bar";
 import { useStopRun } from "../shell/use-stop-run";
 import { Avatar } from "../ui/avatar";
@@ -9,13 +15,18 @@ import { wakeTone } from "./activity-math";
 import { SpendChart } from "./spend-chart";
 import { useActivity, useNow } from "./use-activity";
 
-/** `/ops` on the phone: Working now (with Stop), 7 day Spend and the five latest wakes. */
+/**
+ * `/ops` on the phone: Working now (with Stop), Waiting for you (open approvals, each opens the
+ * review sheet), 7 day Spend and the five latest wakes.
+ */
 export function PhoneActivityTab() {
   const scroll = useRef<HTMLDivElement>(null);
   const dir = useDirectory();
   const stop = useStopRun();
   const { sessions, wakes, chart } = useActivity(7, useNow());
   const working = sessions.filter((b) => b.working);
+  const approvals = useQuery(orpc.approvals.pending.queryOptions()).data ?? [];
+  const [review, setReview] = useState<ApprovalCardDto | null>(null);
   return (
     <>
       <PhoneNavBar title="Activity" large scrollRef={scroll} />
@@ -45,6 +56,31 @@ export function PhoneActivityTab() {
             </div>
           )}
         </div>
+        {approvals.length > 0 && (
+          <>
+            <div className="inset-h">Waiting for you</div>
+            <div className="inset">
+              {approvals.map((a) => {
+                const first = Object.values(a.scope)[0];
+                return (
+                  <button
+                    type="button"
+                    className="irow ic"
+                    key={a.cardId}
+                    onClick={() => setReview(a)}
+                  >
+                    <Avatar src={dir.bots.get(a.botId)?.avatarUrl} name={a.botName} size={30} />
+                    <div className="grow">
+                      <div>{first ? `${toolLabel(a.tool)} · ${first}` : toolLabel(a.tool)}</div>
+                      <div className="t2">{a.botName}</div>
+                    </div>
+                    <ChevronRight className="chev" />
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
         <div className="inset-h">Spend, 7 days</div>
         <div className="inset" style={{ padding: "14px 16px" }}>
           <SpendChart days={chart} bare />
@@ -65,6 +101,9 @@ export function PhoneActivityTab() {
           ))}
         </div>
       </div>
+      {review && (
+        <ApprovalSheet card={review} open onOpenChange={(open) => !open && setReview(null)} />
+      )}
     </>
   );
 }

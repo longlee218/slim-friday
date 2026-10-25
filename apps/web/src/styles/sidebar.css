@@ -53,6 +53,8 @@
 /* --- additions for the app (not in the prototype) --- */
 /* Rows are real links: no link colour or underline. */
 a.sb-row, a.me, a.task { color: inherit; text-decoration: none; }
+/* The "N more" bots row (prototype sidebar). */
+button.sb-row.more { width: 100%; border: 0; background: none; font: inherit; text-align: left; color: var(--label-2); }
 /* Base UI positions the wrapper; the prototype's fixed .pop sits inside it. */
 .pop-pos { z-index: 40; }
 .pop-pos .pop { position: relative; }

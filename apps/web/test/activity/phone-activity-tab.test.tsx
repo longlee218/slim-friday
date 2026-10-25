@@ -5,7 +5,7 @@ import { MemoryRouter } from "react-router";
 import { beforeEach, expect, test, vi } from "vitest";
 import { PhoneActivityTab } from "../../src/components/activity/phone-activity-tab";
 
-const api = vi.hoisted(() => ({ stop: vi.fn() }));
+const api = vi.hoisted(() => ({ stop: vi.fn(), pending: vi.fn() }));
 vi.mock("../../src/api/client", async () => {
   const { createTanstackQueryUtils } = await import("@orpc/tanstack-query");
   const empty = async () => [];
@@ -38,6 +38,7 @@ vi.mock("../../src/api/client", async () => {
       ],
     },
     control: { stop: api.stop, status: empty },
+    approvals: { pending: api.pending },
     config: { bots: { list: empty }, groups: { list: empty } },
     conversations: { list: empty },
   };
@@ -48,8 +49,7 @@ beforeEach(() => {
   vi.resetAllMocks();
 });
 
-test("lists working bots with Stop, the spend chart and recent wakes", async () => {
-  api.stop.mockResolvedValue({ ok: true });
+function renderTab() {
   render(
     <QueryClientProvider
       client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
@@ -59,9 +59,36 @@ test("lists working bots with Stop, the spend chart and recent wakes", async () 
       </MemoryRouter>
     </QueryClientProvider>,
   );
+}
+
+test("lists working bots with Stop, the spend chart and recent wakes", async () => {
+  api.stop.mockResolvedValue({ ok: true });
+  api.pending.mockResolvedValue([]);
+  renderTab();
   expect(await screen.findByText("Running tests")).toBeTruthy();
   expect(screen.getByText("No spend yet")).toBeTruthy();
   expect(await screen.findByText("expired")).toBeTruthy();
   await userEvent.click(screen.getByRole("button", { name: "Stop" }));
   expect(api.stop).toHaveBeenCalledWith({ botId: "dev" });
+});
+
+test("Waiting for you lists open approvals; a row opens the review sheet", async () => {
+  api.pending.mockResolvedValue([
+    {
+      cardId: "a1",
+      conversationId: "bot:dev",
+      botId: "dev",
+      botName: "Dev",
+      tool: "Bash",
+      scope: { command: "rm -rf dist" },
+      summary: "Clean the build",
+      input: "{}",
+      inputCut: false,
+      offerAlways: true,
+    },
+  ]);
+  renderTab();
+  expect(await screen.findByText("Waiting for you")).toBeTruthy();
+  await userEvent.click(screen.getByRole("button", { name: /rm -rf dist/ }));
+  expect(await screen.findByRole("button", { name: "Allow once" })).toBeTruthy();
 });
