@@ -22,6 +22,7 @@ export * from "./hub/rules-label";
 export * from "./hub/session-scope";
 export * from "./permission/classify-tool";
 export * from "./permission/decide";
+export { stableJson } from "./permission/input-hash";
 export * from "./permission/match-grant";
 export * from "./permission/permission-gate";
 export * from "./ports/agent-runtime";

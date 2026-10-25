@@ -3,7 +3,8 @@ import type { HubContext } from "../hub/hub-context";
 import type { RuntimeEvent } from "../ports/agent-runtime";
 import { parkNow } from "./run-cards";
 import { abortRun, type RunExec } from "./run-exec";
-import { holdText, releaseHeld, showStep } from "./run-output";
+import { noFinalAnswerError, nudgeOrEnd } from "./run-nudge";
+import { holdText, onAnswerText, releaseHeld, showStep } from "./run-output";
 import { dayOf } from "./run-rules";
 import { answerFirstTurn, answerPushed, deliverSteering } from "./run-steering";
 import type { StreamWatchdog } from "./run-watchdog";
@@ -62,18 +63,21 @@ async function onEvent(
     show(exec.steps.onThinking(now));
   } else if (e.type === "tool_call") {
     exec.turnOpen = true;
+    exec.lastWasToolResult = false;
     // A text held before this call was narration.
     await releaseHeld(ctx, exec, "narration");
     exec.openTools.add(e.toolUseId);
     for (const s of exec.steps.onToolCall(e, now)) show(s);
   } else if (e.type === "tool_result") {
     exec.openTools.delete(e.toolUseId);
+    exec.lastWasToolResult = true;
     show(exec.steps.onToolResult(e, now));
     // This result followed the earlier pushes: the model read them. Then push what came while the tool ran.
     await answerPushed(ctx, exec);
     await deliverSteering(ctx, exec, false);
   } else if (e.type === "text") {
     exec.turnOpen = true;
+    exec.lastWasToolResult = false;
     show(exec.steps.closeThinking(now));
     await holdText(ctx, exec, e.text);
   } else if (e.type === "task_started") {
@@ -88,6 +92,7 @@ async function onEvent(
     show(exec.steps.onTask(e, now));
     const task = exec.tasks.get(e.taskId);
     exec.tasks.delete(e.taskId);
+    exec.lastWasToolResult = false;
     // The result is the bot's next turn; it speaks where the task began. A task that ends after the turn ended
     // gets a follow-up turn of its own, which the run waits for.
     if (task) exec.current = { conversationId: task.conversationId, hop: task.hop };
@@ -108,12 +113,25 @@ async function onEvent(
     await store.spend.add(exec.bot.id, dayOf(now), e.costUsd);
     const taskDoneInTurn = exec.taskDoneInTurn;
     exec.taskDoneInTurn = false;
+    // A background task still runs: the run waits for it, never nudged or failed (spec §6.5).
+    if (exec.tasks.size > 0 || taskDoneInTurn) exec.lastWasToolResult = false;
     if (exec.tasks.size > 0) return undefined;
-    if (!taskDoneInTurn) return { kind: "done" };
+    if (!taskDoneInTurn) {
+      // A turn that ended right after a tool result is nudged to continue, up to 3 times (`run-nudge.ts`).
+      const next = await nudgeOrEnd(ctx, exec);
+      if (next === "nudged") return undefined;
+      if (next === "fail") return { kind: "error", err: noFinalAnswerError() };
+      return { kind: "done" };
+    }
     // A task finished during this turn: its follow-up turn may still come. Wait for it a short grace.
     exec.cancelGrace = clock.setTimer(ctx.limits.followUpGraceMs, () =>
       abortRun(exec, { kind: "followUpOver" }),
     );
+  } else if (e.type === "guard_stop") {
+    // The loop guard or the tool-call cap stopped the run: its text is the final answer.
+    await releaseHeld(ctx, exec, "narration");
+    await onAnswerText(ctx, exec, e.text);
+    return { kind: "done" };
   } else if (e.type === "error") {
     await releaseHeld(ctx, exec, "answer");
     return { kind: "error", err: eventError(e.message, e.retryable) };

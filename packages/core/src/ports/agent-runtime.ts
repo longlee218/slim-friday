@@ -68,7 +68,9 @@ export type RuntimeEvent =
   | { type: "turn_end"; costUsd: number }
   /** The main thread's context was compacted: what the bot was shown earlier may be gone. */
   | { type: "compacted" }
-  | { type: "error"; message: string; retryable: boolean };
+  | { type: "error"; message: string; retryable: boolean }
+  /** The runtime's call guard (loop guard or tool-call cap) stopped the run; `text` is its final answer. */
+  | { type: "guard_stop"; text: string };
 
 /**
  * The call waits for the owner's answer on card `cardId`: the run parks (its session ends, the worker is free)
@@ -117,6 +119,8 @@ export interface BotRuntimeSpec {
    * Unset outside a stored run.
    */
   postUpdate?: (text: string) => Promise<PostUpdateResult>;
+  /** Main-thread tool calls allowed per turn (`limits.maxToolCallsPerTurn`); 0 or unset = no cap. */
+  maxToolCallsPerTurn?: number;
   /** Lets the `SetEffort` tool reach the session; the runtime fills it in. */
   effortControl?: EffortControl;
   /**

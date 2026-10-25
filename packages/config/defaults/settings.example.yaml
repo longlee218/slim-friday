@@ -82,5 +82,7 @@ limits:
   # cardReminderMs: 14400000
   ## How often stale runs are repaired (ms).
   # reconcileMs: 30000
+  ## Tool calls a bot may make in one turn; the next call is denied and the run stops with a note (0 = no cap).
+  # maxToolCallsPerTurn: 0
   ## No new run starts below this much free memory (MB).
   # minFreeMemoryMb: 512

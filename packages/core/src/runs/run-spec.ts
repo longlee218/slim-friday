@@ -52,6 +52,7 @@ export function runSpec(
     },
     // A progress update counts per wake in the store, so a resumed run keeps its budget.
     postUpdate: (text) => postProgress(ctx, exec, text),
+    maxToolCallsPerTurn: ctx.limits.maxToolCallsPerTurn,
     effortControl: {},
     currentConversation: () => (exec.live ? exec.current.conversationId : undefined),
   };

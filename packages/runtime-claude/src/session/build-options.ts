@@ -4,8 +4,10 @@ import { isInside, realOrSame } from "../floor/paths";
 import { sdkEnv } from "../floor/sdk-env";
 import { workerSandbox } from "../floor/worker-sandbox";
 import { askOwner, PARKED_RESULT } from "./ask-question";
+import type { CallGuard } from "./call-guard";
 import { floorCheck } from "./floor-check";
 import { mcpGranted, pickServers, splitTools } from "./mcp-grants";
+import { preToolUseHook } from "./pre-tool-use-hook";
 import { buildSkillsPlugin } from "./skills-plugin";
 import { systemPromptOf } from "./system-prompt";
 
@@ -53,6 +55,10 @@ export interface BuildOptionsInput {
   abort: AbortController;
   /** The bot's scratch dir (always writable, cwd when the bot has no workspace). */
   scratchDir: string;
+  /** Loop guard and tool-call cap of this session, counted in the `PreToolUse` hook. */
+  guard?: CallGuard;
+  /** Told the guard text when the guard stops the run (the session ends it with that text as the final). */
+  onGuardStop?: (text: string) => void;
 }
 
 /**
@@ -134,30 +140,9 @@ export function buildOptions(input: BuildOptionsInput): Options {
       allowInside: [scratchDir, ...extra.write, ...extra.read],
     }),
     // The CLI auto-allows reads inside the cwd and extra dirs without calling `canUseTool`; a hook runs for every call,
-    // so the floor holds there too (and for Glob / Grep with no path).
+    // so the floor holds there too (and for Glob / Grep with no path); the call guard counts there too.
     hooks: {
-      PreToolUse: [
-        {
-          hooks: [
-            async (hook) => {
-              if (hook.hook_event_name !== "PreToolUse") return { continue: true };
-              const reason = floorCheck(
-                { tool: hook.tool_name, input: (hook.tool_input ?? {}) as Record<string, unknown> },
-                floor,
-              );
-              return reason
-                ? {
-                    hookSpecificOutput: {
-                      hookEventName: "PreToolUse" as const,
-                      permissionDecision: "deny" as const,
-                      permissionDecisionReason: reason,
-                    },
-                  }
-                : { continue: true };
-            },
-          ],
-        },
-      ],
+      PreToolUse: [{ hooks: [preToolUseHook(floor, input.guard, input.onGuardStop)] }],
       PostCompact: [
         {
           hooks: [

@@ -8,10 +8,12 @@ const outcome = z.enum(["allow", "ask", "ask_always", "deny"]);
 /** Longest timer the runtime can arm (a larger value fires at once). */
 const MAX_TIMER_MS = 2_147_483_647;
 
-/** One limit: a positive number (`workers` may be 0); counts are whole numbers, `*Ms` fit a 32-bit timer. */
+/** Limits where 0 is a usable value: `workers: 0` runs every run in the main process, `maxToolCallsPerTurn: 0` is no cap. */
+const ZERO_OK = ["workers", "maxToolCallsPerTurn"];
+
+/** One limit: a positive number (see `ZERO_OK` for 0); counts are whole numbers, `*Ms` fit a 32-bit timer. */
 function limitSchema(key: string): z.ZodOptional<z.ZodNumber> {
-  // `workers: 0` runs every run in the main process.
-  if (key === "workers") return z.number().int().min(0).optional();
+  if (ZERO_OK.includes(key)) return z.number().int().min(0).optional();
   const n = z.number().positive();
   if (key.endsWith("Ms")) return n.max(MAX_TIMER_MS).optional();
   return (key.endsWith("Usd") ? n : n.int()).optional();

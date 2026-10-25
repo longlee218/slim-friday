@@ -93,6 +93,10 @@ export interface RunExec {
   oneShot?: { hash: string; cardId: string };
   /** The first text of the run was recorded. */
   firstTextSeen: boolean;
+  /** Continue nudges sent so far (from the row, so a resumed run keeps its count; `run-nudge.ts`). */
+  nudges: number;
+  /** The current turn's last event was a tool result (no text after it): its end may need a nudge. */
+  lastWasToolResult: boolean;
   /** Set once the run is cut short; the first reason wins. */
   stop?: RunStop;
   /** Settles when `stop` is set (a hanging session open or turn build waits on it). */
@@ -140,6 +144,8 @@ export function newRunExec(row: WakeRow, scope: SessionScope, now: number, taint
     tainted,
     asking: false,
     firstTextSeen: false,
+    nudges: row.nudges,
+    lastWasToolResult: false,
   };
   return exec;
 }

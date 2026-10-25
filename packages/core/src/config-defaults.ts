@@ -53,6 +53,8 @@ export const CORE_DEFAULTS = {
   cardReminderMs: 14_400_000,
   /** How often the outcome reconciler returns finished results not yet returned to their sender. */
   reconcileMs: 30_000,
+  /** Main-thread tool calls a bot may make in one turn; the next is denied and the run stops (0 = no cap). */
+  maxToolCallsPerTurn: 0,
   /** A worker claims no new run below this much free memory. */
   minFreeMemoryMb: 512,
 } as const;

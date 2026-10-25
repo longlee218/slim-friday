@@ -91,6 +91,11 @@ test("a settings file parses; bad limits and outcomes are refused", () => {
   expect(ok.limits).toEqual({ maxHops: 3 });
   expect(() => parseSettingsFile("limits:\n  maxHops: 0\n")).toThrow();
   expect(() => parseSettingsFile("limits:\n  nope: 1\n")).toThrow();
+  // The tool-call cap may be 0 (off), never negative.
+  expect(parseSettingsFile("limits:\n  maxToolCallsPerTurn: 0\n").limits).toEqual({
+    maxToolCallsPerTurn: 0,
+  });
+  expect(() => parseSettingsFile("limits:\n  maxToolCallsPerTurn: -1\n")).toThrow();
   expect(() => parseSettingsFile("autonomy:\n  tools: {Bash: maybe}\n")).toThrow();
 });
 
