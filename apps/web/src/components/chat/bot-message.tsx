@@ -5,6 +5,7 @@ import { Avatar } from "../ui/avatar";
 import { FileCard } from "./file-card";
 import { ImageGallery } from "./image-gallery";
 import { MessageActions } from "./message-actions";
+import { MessageScheduleTag } from "./schedule-tag";
 import { useBotFace } from "./use-bot-face";
 import { WorkedDisclosure } from "./worked-disclosure";
 
@@ -17,7 +18,7 @@ export interface BotMessageProps {
   fresh?: boolean;
 }
 
-/** A bot's message: avatar, name and time, text, then images and files, then actions. */
+/** A bot's message: avatar, name, time and schedule tag, text, then images and files, then actions. */
 export function BotMessage({ message, phone, onReply, fresh }: BotMessageProps) {
   const bot = useBotFace(message.author.kind === "bot" ? message.author.botId : undefined);
   const images = message.files.filter((f) => f.kind === "image");
@@ -30,6 +31,7 @@ export function BotMessage({ message, phone, onReply, fresh }: BotMessageProps) 
         <div className="who">
           <b>{bot.name}</b>
           <time>{formatClock(message.at, Date.now())}</time>
+          {message.schedule && <MessageScheduleTag schedule={message.schedule} />}
         </div>
         {message.run && message.run.length > 0 && <WorkedDisclosure steps={message.run} />}
         {message.text && (

@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import {
   Bot,
+  CalendarClock,
   ChevronRight,
   Fingerprint,
   Plug,
@@ -16,6 +17,7 @@ import { Link, Navigate } from "react-router";
 import { orpc } from "../../api/client";
 import { useDirectory } from "../../api/directory";
 import { useIsPhone } from "../../app/use-is-phone";
+import { enabledCount, useSchedules } from "../schedules/use-schedules";
 import { Avatar } from "../ui/avatar";
 import { GroupAvatar } from "./group-avatar";
 import { SettingsPage } from "./settings-page";
@@ -51,11 +53,15 @@ function Row({
 
 const ic = { size: 17, strokeWidth: 1.75 } as const;
 
-/** The phone Settings tab: Bots, Groups, MCP servers, Skills, Approval rules, then the owner files and account. */
+/**
+ * The phone Settings tab: Bots, Groups, MCP servers, Skills, Approval rules; Schedules; then the
+ * owner files and account.
+ */
 export function PhoneSettingsRoot() {
   const dir = useDirectory();
   const skills = useQuery(orpc.config.skills.list.queryOptions()).data;
   const servers = useQuery(orpc.config.mcp.list.queryOptions()).data;
+  const { schedules } = useSchedules();
   return (
     <SettingsPage title="Settings" inset>
       <div className="inset">
@@ -78,6 +84,16 @@ export function PhoneSettingsRoot() {
         </Row>
         <Row to="/settings/approvals" color="#30b0c7" icon={<ShieldCheck {...ic} />}>
           Approval rules
+        </Row>
+      </div>
+      <div className="inset">
+        <Row
+          to="/schedules"
+          color="#ff9500"
+          icon={<CalendarClock {...ic} />}
+          value={`${enabledCount(schedules)} on`}
+        >
+          Schedules
         </Row>
       </div>
       <div className="inset-h">You</div>

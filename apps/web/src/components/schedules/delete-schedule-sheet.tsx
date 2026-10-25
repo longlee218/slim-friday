@@ -1,14 +1,17 @@
 import type { ScheduleDto } from "@friday/contracts";
 import { toast } from "sonner";
+import { useIsPhone } from "../../app/use-is-phone";
 import { saveFailure } from "../settings/field-error";
 import { useAppNavigate } from "../shell/use-app-navigate";
+import { BottomSheet } from "../ui/bottom-sheet";
 import { Button } from "../ui/button";
 import { Sheet } from "../ui/sheet";
 import { useDeleteSchedule } from "./use-schedules";
 
 /**
  * The confirm of Delete (prototype `deleteScheduleSheet`): the schedule and its run history
- * go; the messages it posted stay in the chat. Success returns to the list.
+ * go; the messages it posted stay in the chat. Success returns to the list. A bottom sheet on
+ * the phone, like the other sheets there.
  */
 export function DeleteScheduleSheet({
   schedule: s,
@@ -21,6 +24,7 @@ export function DeleteScheduleSheet({
 }) {
   const del = useDeleteSchedule();
   const go = useAppNavigate();
+  const Shell = useIsPhone() ? BottomSheet : Sheet;
   const remove = () =>
     del.mutate(
       { id: s.id },
@@ -33,7 +37,7 @@ export function DeleteScheduleSheet({
       },
     );
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Shell open={open} onOpenChange={onOpenChange}>
       <h3>Delete {s.name}?</h3>
       <p style={{ color: "var(--label-2)", margin: "6px 0 14px" }}>
         Its run history goes too. Messages it posted stay in the chat.
@@ -44,6 +48,6 @@ export function DeleteScheduleSheet({
           Delete schedule
         </Button>
       </div>
-    </Sheet>
+    </Shell>
   );
 }
