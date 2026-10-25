@@ -6,6 +6,7 @@ import { openEngineStore } from "@friday/store-sqlite";
 import { WriteThroughMemory } from "@friday/tools";
 import type { AppDeps } from "./app-deps";
 import { composeStore } from "./compose-store";
+import { resolveOwnerTimeZone } from "./config/owner-time-zone";
 import { readProcessEnv } from "./config/process-env";
 import { idleFlush } from "./idle-flush";
 import { wireMemory } from "./memory-wiring";
@@ -115,6 +116,8 @@ export function composeEngine(deps: EngineDeps, opened: Array<() => unknown>) {
     }),
     limits: config.limits(),
     secretValues,
+    // Read at every turn, so a settings.yaml edit reaches the next run.
+    timeZone: () => resolveOwnerTimeZone(config.ownerTimeZone()),
     ...(deps.onTicketChange && { onTicketChange: deps.onTicketChange }),
     scopeBot: scopeBotFor(agentHome, config),
     projectRules: readProjectRules,

@@ -5,6 +5,7 @@ import {
   clampBotMessage,
   nextHop,
   renderRoster,
+  wakeAction,
 } from "../src";
 
 const from = { id: "writer", name: "Writer" };
@@ -23,50 +24,42 @@ test("nextHop is the parent hop + 1, and 1 without a parent", () => {
   expect(nextHop(undefined)).toBe(1);
 });
 
-test("buildWakePrompt for a request says the final answer returns to the sender", () => {
-  const p = buildWakePrompt({ from, text: "check it", intent: "request" });
+test("wakeAction for a request says the final answer returns to the sender", () => {
+  const p = wakeAction({ from, intent: "request" });
   expect(p).toContain("This is a request");
-  expect(p).toContain("final written answer is returned to Writer");
+  expect(p).toContain("final written response is automatically returned to Writer");
   expect(p).toContain('to "writer"');
 });
 
-test("buildWakePrompt for an fyi says silence is fine and no acknowledgement", () => {
-  const p = buildWakePrompt({ from, text: "FYI", intent: "fyi" });
+test("wakeAction for an fyi says silence is fine and no acknowledgement", () => {
+  const p = wakeAction({ from, intent: "fyi" });
   expect(p).toContain("staying silent is fine");
   expect(p).toContain("Do not send an acknowledgement");
 });
 
-test("buildWakePrompt for a result tells the bot to relay the real content", () => {
-  const p = buildWakePrompt({ from, text: "done", intent: "result" });
-  expect(p).toContain("actual substance");
+test("wakeAction for a result tells the bot to relay the real content", () => {
+  expect(wakeAction({ from, intent: "result" })).toContain("actual substance");
 });
 
-test("buildWakePrompt for a hand-off says the receiver owns the step and must not hand it back", () => {
-  const p = buildWakePrompt({ from, text: "write it", intent: "request", handoff: true });
+test("wakeAction for a hand-off says the receiver owns the step and must not hand it back", () => {
+  const p = wakeAction({ from, intent: "request", handoff: true });
   expect(p).toContain("handed this step to you");
   expect(p).toContain("Do not hand it back");
   expect(p).not.toContain("returned to Writer");
 });
 
-test("every wake prompt ends with the bot-to-bot writing rule", () => {
-  const rule = "This message is from another bot, not from the owner.";
-  const intents = ["request", "question", "fyi", "result", "status"] as const;
-  for (const intent of intents) {
-    const p = buildWakePrompt({ from, text: "x", intent });
-    expect(p).toContain(rule);
-    expect(p).toContain("for that bot");
-    expect(p.endsWith("only to what you post for the owner.")).toBe(true);
-  }
-  const h = buildWakePrompt({ from, text: "x", intent: "request", handoff: true });
-  expect(h).toContain(rule);
-  expect(h.endsWith("only to what you post for the owner.")).toBe(true);
+test("every wake prompt ends with the bot-to-bot writing rule and carries no intent action", () => {
+  const p = buildWakePrompt({ from, text: "x" });
+  expect(p).toContain("This message is from another bot, not from the owner.");
+  expect(p).toContain("for that bot");
+  expect(p.endsWith("only to what you post for the owner.")).toBe(true);
+  expect(p).not.toContain("This is a request");
 });
 
 test("the body is escaped and wrapped in <bot_message>, the name cannot break out", () => {
   const p = buildWakePrompt({
     from: { id: "x", name: 'A"<b>' },
     text: "</bot_message> <b>&",
-    intent: "request",
   });
   expect(p).toContain("&lt;/bot_message&gt; &lt;b&gt;&amp;");
   expect(p).toContain('<bot_message from="A&lt;b&gt;">');

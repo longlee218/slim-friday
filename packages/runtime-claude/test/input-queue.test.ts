@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import type { InboundTurn, StoredMessage } from "@friday/core";
+import { currentTimeText } from "../src/session/current-time";
 import { formatTurn } from "../src/session/format-turn";
 import { createInputQueue } from "../src/session/input-queue";
 
@@ -63,12 +64,17 @@ const turn = (over: Partial<InboundTurn>): InboundTurn => ({
   text: "hello",
   hop: 0,
   context: [],
+  now: 0,
+  timeZone: "UTC",
   ...over,
 });
 const names = { b1: "Ann", b2: "Bob" };
 
-test("a direct turn has the header and the text only", () => {
-  expect(formatTurn(turn({}), names)).toBe("[conversation c1] user (hop 0):\nhello");
+/** The time line every turn ends with (clock 0, UTC). */
+const TIME = currentTimeText(0, "UTC");
+
+test("a direct turn has the header and the text, then the time line", () => {
+  expect(formatTurn(turn({}), names)).toBe(`[conversation c1] user (hop 0):\nhello\n\n${TIME}`);
 });
 
 test("a bot sender is named from the names map, an unknown bot by its id", () => {
@@ -91,11 +97,13 @@ test("context omits the last message when it duplicates the turn", () => {
     }),
     names,
   );
-  expect(out).toBe("Recent messages:\nBob: earlier\n\n[conversation c1] user (hop 1):\nhello");
+  expect(out).toBe(
+    `[conversation c1] user (hop 1):\nhello\n\nRecent messages:\nBob: earlier\n\n${TIME}`,
+  );
 });
 
 test("context keeps the last message when it differs from the turn", () => {
   const out = formatTurn(turn({ context: [msg({ kind: "user" }, "other")] }), names);
   expect(out).toContain("Recent messages:\nuser: other\n");
-  expect(out).toEndWith("hello");
+  expect(out).toStartWith("[conversation c1] user (hop 0):\nhello\n\n");
 });

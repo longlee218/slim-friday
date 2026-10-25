@@ -31,6 +31,7 @@ function spec(b: Bot, answer: ToolDecision | Error = { behavior: "allow" }) {
   const calls: RuntimeToolCall[] = [];
   const s: BotRuntimeSpec = {
     bot: b,
+    runKind: "owner",
     async decide(call) {
       calls.push(call);
       if (answer instanceof Error) throw answer;
@@ -53,7 +54,7 @@ test("options carry the bot's model, dirs, tools and safe defaults", () => {
   expect(o.tools).toEqual(["Read", "Bash"]);
   expect(o.settingSources).toEqual([]);
   expect(o.permissionMode).toBe("default");
-  expect(o.systemPrompt).toBe("You are Ann, Dev.\n\nBe brief.");
+  expect(o.systemPrompt).toStartWith("You are Ann, Dev.\n\nBe brief.\n\n## How Friday works\n");
   expect(build(spec(bot()).s, "abc").resume).toBe("abc");
 });
 
@@ -255,9 +256,8 @@ test("the bot's memory ends the system prompt", () => {
     abort: new AbortController(),
     scratchDir: scratch,
   });
-  expect(o.systemPrompt).toBe(
-    `You are Ann, Dev.\n\nBe brief.\n\n## Your memory\n${MEMORY_LABEL}\n\n## Facts\n- likes tea`,
-  );
+  expect(o.systemPrompt).toStartWith("You are Ann, Dev.\n\nBe brief.");
+  expect(o.systemPrompt).toEndWith(`\n\n## Your memory\n${MEMORY_LABEL}\n\n## Facts\n- likes tea`);
 });
 
 test("a group session's context and group memory follow the bot memory in the system prompt", () => {
@@ -268,8 +268,8 @@ test("a group session's context and group memory follow the bot memory in the sy
     abort: new AbortController(),
     scratchDir: scratch,
   });
-  expect(o.systemPrompt).toBe(
-    `You are Ann, Dev.\n\nBe brief.\n\n## Your memory\n${MEMORY_LABEL}\n\nB\n\n## Group context\nX\n\n## Group memory\n${MEMORY_LABEL}\n\nM`,
+  expect(o.systemPrompt).toEndWith(
+    `\n\n## Your memory\n${MEMORY_LABEL}\n\nB\n\n## Group context\nX\n\n## Group memory\n${MEMORY_LABEL}\n\nM`,
   );
 });
 

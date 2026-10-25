@@ -28,6 +28,7 @@ const bot = (tools: string[]): Bot =>
   }) as Bot;
 const specOf = (b: Bot, current?: string): BotRuntimeSpec => ({
   bot: b,
+  runKind: "owner",
   decide: async () => ({ behavior: "allow" }),
   currentConversation: () => current,
 });

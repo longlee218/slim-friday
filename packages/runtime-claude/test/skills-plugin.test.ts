@@ -44,7 +44,11 @@ const bot = (over: Partial<Bot> = {}): Bot => ({
   ...over,
 });
 const build = (b: Bot) => {
-  const spec: BotRuntimeSpec = { bot: b, decide: async () => ({ behavior: "allow" }) };
+  const spec: BotRuntimeSpec = {
+    bot: b,
+    runKind: "owner",
+    decide: async () => ({ behavior: "allow" }),
+  };
   return buildOptions({
     spec,
     config: {
@@ -107,6 +111,7 @@ test("the direct and the group session of one bot build their skills plugins in 
     });
     await rt.open({
       bot: bot({ skills: ["tdd"] }),
+      runKind: "owner",
       decide: async () => ({ behavior: "allow" }),
       ...extra,
     });

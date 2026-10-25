@@ -94,6 +94,8 @@ export interface BotHubDeps {
   freeMemoryMb?: () => number;
   /** The secret values (env values the bots are denied) every bot-authored text is cleaned of; unset: only token patterns. */
   secretValues?: () => string[];
+  /** The owner's IANA time zone, read for every turn (the app resolves the default); unset: UTC. */
+  timeZone?: () => string;
   /** Told after every saved ticket create, update and comment (the board never lets it throw). */
   onTicketChange?: (t: Ticket) => void;
 }

@@ -5,6 +5,7 @@ import type { Attachment, Author, StoredMessage } from "../domain/message";
 import type { QuestionAnswer, QuestionCard } from "../domain/question";
 import type { RuntimeToolCall } from "../domain/tool";
 import type { WakeIntent } from "../domain/wake";
+import type { RunKind } from "../runs/run-kind";
 
 /** One message pushed into a bot session. */
 export interface InboundTurn {
@@ -29,6 +30,14 @@ export interface InboundTurn {
   attachments?: Attachment[];
   /** The message this turn replies to: who wrote it and what it said; the runtime shows it as a quote line. */
   quote?: { author: Author; text: string };
+  /** Reply guidance for this run's trigger (`replyGuidance`); shown after the message and context blocks. */
+  guidance?: string;
+  /** The text comes from Friday, not from the sender (continuation, card resume, nudge): labelled as automated. */
+  automated?: boolean;
+  /** When the turn was built (epoch ms): the turn ends with the current time in `timeZone`. */
+  now: number;
+  /** The owner's IANA time zone (`settings.yaml` `owner.timeZone`, default the machine's zone). */
+  timeZone: string;
 }
 
 /** Owner messages pushed into a turn that is already running (steering). */
@@ -81,6 +90,12 @@ export type ToolDecision =
 export interface BotRuntimeSpec {
   /** The bot as shaped for this session's scope (a group session works in the group's workspaces). */
   bot: Bot;
+  /** What started the run this session answers (owner, bot, ticket, intro); the tool set may depend on it. */
+  runKind: RunKind;
+  /** The teammate directory of a direct session (`teammateDirectory`); unset in a group session. */
+  teammates?: string;
+  /** The `<scratchpad_open>` block of the session's scope, read at open; last in the system prompt. */
+  scratchpad?: string;
   /** Key of this session: the bot id (direct) or `<botId>@<groupId>`; the hub always sets it. */
   sessionKey?: string;
   /** The group of a group session; unset for the bot's direct session. */

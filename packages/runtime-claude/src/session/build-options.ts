@@ -105,7 +105,7 @@ export function buildOptions(input: BuildOptionsInput): Options {
   return {
     model: bot.model,
     ...(bot.effort && { effort: bot.effort }),
-    systemPrompt: systemPromptOf(spec),
+    systemPrompt: systemPromptOf(spec, scratchDir),
     cwd,
     additionalDirectories: [...bot.workspaces.slice(1), ...extra.write, ...extra.read],
     tools: skillsPlugin && !builtIn.includes("Skill") ? [...builtIn, "Skill"] : builtIn,

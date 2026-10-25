@@ -26,7 +26,7 @@ const prompt = (
   >,
 ) => {
   const o = buildOptions({
-    spec: { bot, decide: async () => ({ behavior: "allow" }), ...extra },
+    spec: { bot, runKind: "owner", decide: async () => ({ behavior: "allow" }), ...extra },
     config: {
       agentHome: join(scratch, "home"),
       scratchRoot: join(scratch, "home", "runs"),
@@ -43,6 +43,8 @@ const turn: InboundTurn = {
   text: "go",
   hop: 0,
   context: [],
+  now: 0,
+  timeZone: "UTC",
 };
 
 test("system prompt: rules come before memory, with the label", () => {

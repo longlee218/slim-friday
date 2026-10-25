@@ -73,6 +73,8 @@ class ScriptedSession implements BotSession {
       text: input.text,
       hop: 0,
       context: [],
+      now: Date.now(),
+      timeZone: "UTC",
     });
   }
 

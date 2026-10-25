@@ -28,6 +28,10 @@ autonomy:
 ## --- Where CreateProject makes new repos (absolute or ~/) ------------------------
 # projectsDir: ~/friday-projects
 
+## --- The owner's time zone (IANA), stated to every bot turn; default: this machine's zone ---
+# owner:
+#   timeZone: Europe/Paris
+
 ## --- Limits ------------------------------------------------------------------------
 ## A limit line works only under `limits:` (keep its two-space indent). A bad file is refused whole and logged as
 ## `config.problem`.

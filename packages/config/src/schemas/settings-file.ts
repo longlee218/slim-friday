@@ -34,6 +34,16 @@ const limitsSchema = z
   })
   .transform(({ approvalTimeoutMs: _retired, ...limits }) => limits);
 
+/** True when `zone` is an IANA time zone this runtime knows. */
+function isTimeZone(zone: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: zone });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** The content of `settings.yaml`. */
 const settingsSchema = z.strictObject({
   autonomy: z
@@ -48,6 +58,12 @@ const settingsSchema = z.strictObject({
   memory: z
     .strictObject({
       providers: z.array(z.looseObject({ id: z.string().min(1) })).optional(),
+    })
+    .optional(),
+  /** About the owner: `timeZone` is an IANA zone (default: the machine's zone, resolved by the app). */
+  owner: z
+    .strictObject({
+      timeZone: z.string().min(1).refine(isTimeZone, "not a known IANA time zone").optional(),
     })
     .optional(),
   /** Where `CreateProject` makes new repos (absolute or `~/`). */

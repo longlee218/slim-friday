@@ -115,3 +115,10 @@ test("expandServer keeps oauth", () => {
   const r = expandServer({ type: "http", url: "https://x.example.com/mcp", oauth: {} }, {});
   expect(r).toEqual({ server: { type: "http", url: "https://x.example.com/mcp", oauth: {} } });
 });
+
+test("owner.timeZone is unset by default and a user setting sets it", () => {
+  expect(configFor({}).ownerTimeZone()).toBeUndefined();
+  expect(configFor({ "settings.yaml": "owner:\n  timeZone: Europe/Paris\n" }).ownerTimeZone()).toBe(
+    "Europe/Paris",
+  );
+});

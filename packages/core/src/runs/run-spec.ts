@@ -6,6 +6,7 @@ import type { BotRuntimeSpec } from "../ports/agent-runtime";
 import { effectKeyFor } from "./effect-key";
 import { decideInRun } from "./run-cards";
 import type { RunExec } from "./run-exec";
+import { runKindOf } from "./run-kind";
 import { askInRun } from "./run-questions";
 
 /** A stored effort that is a known level, else undefined. */
@@ -13,18 +14,19 @@ const levelOf = (e?: string): EffortLevel | undefined =>
   (EFFORT_LEVELS as readonly string[]).includes(e ?? "") ? (e as EffortLevel) : undefined;
 
 /**
- * The runtime spec of one run's session (without memory: `openRunSession` adds it). Tool decisions and
+ * The runtime spec of one run's session (without memory, teammates and scratchpad: `openRunSession` adds them). Tool decisions and
  * questions become cards in the conversation the run answers, and only while the run is live (`run-cards.ts`); the scope's stored `SetEffort` level is the bot's effort.
  */
 export function runSpec(
   ctx: HubContext,
   exec: RunExec,
   effort?: string,
-): Omit<BotRuntimeSpec, "memory"> {
+): Omit<BotRuntimeSpec, "memory" | "teammates" | "scratchpad"> {
   const level = levelOf(effort);
   const bot: Bot = level ? { ...exec.bot, effort: level } : exec.bot;
   return {
     bot,
+    runKind: runKindOf(exec.row),
     sessionKey: exec.key,
     wakeId: exec.row.id,
     ...(exec.groupId && { groupId: exec.groupId }),
