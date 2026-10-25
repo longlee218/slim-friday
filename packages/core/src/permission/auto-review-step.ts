@@ -18,8 +18,8 @@ const MAX_REASON_CHARS = 300;
 /**
  * The words the judge measures a call against (spec §6.14): the text of the owner message that started the chain;
  * for a chain started by a ticket, the ticket's title and description; for any other chain, its first message.
- * Only the owner's own message counts as the owner's words: a continuation run (sender owner, but Friday's fixed
- * `CONTINUATION_PROMPT`) does not. Undefined when the chain's first wake is gone.
+ * Only the owner's own message, or the task of a schedule, counts as the owner's words: a continuation run (sender
+ * owner, but Friday's fixed `CONTINUATION_PROMPT`) does not. Undefined when the chain's first wake is gone.
  */
 export async function ownerWordsOf(
   store: Pick<Store, "wakes" | "tickets">,
@@ -38,7 +38,8 @@ export async function ownerWordsOf(
   return {
     ownerWords: first.text,
     ownerWordsAreOwner:
-      first.sender.kind === "user" &&
+      // A schedule's task is the owner's words too (spec §6.4), though its run's sender is `system`.
+      (first.sender.kind === "user" || first.scheduleId !== undefined) &&
       first.ticketId === undefined &&
       !first.dedupeKey?.startsWith(CONTINUATION_KEY),
   };
