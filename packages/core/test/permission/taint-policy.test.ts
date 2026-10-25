@@ -52,6 +52,7 @@ test("own-state tools never taint; anything else does", () => {
   expect(taints("mcp__memory__MessageSearch")).toBe(false);
   expect(taints("mcp__chat__PostUpdate")).toBe(false);
   expect(taints("AskUserQuestion")).toBe(false);
+  expect(taints("ToolSearch")).toBe(false);
 });
 
 test("a clean run never gets a taint ask", () => {

@@ -25,7 +25,7 @@ export const PROGRESS_RULE =
 
 /** Tells the bot that deferred tools are found with `ToolSearch` (added when tool search is on). */
 export const TOOL_SEARCH_LINE =
-  "Some of your tools are not listed up front; when you need a capability you do not see, find the tool with ToolSearch before saying you cannot.";
+  "Some of your tools may not be listed up front; when ToolSearch is available and you need a capability you do not see, find the tool with ToolSearch before saying you cannot.";
 
 /**
  * How Friday works, facts only: the session's workspaces (the first is the cwd) and its private scratch dir.

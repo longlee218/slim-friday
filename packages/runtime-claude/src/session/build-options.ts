@@ -12,6 +12,7 @@ import { preToolUseHook } from "./pre-tool-use-hook";
 import { INTRO_TOOLS, introServers } from "./run-kind-tools";
 import { buildSkillsPlugin } from "./skills-plugin";
 import { systemPromptOf } from "./system-prompt";
+import { toolSearchEnv, withToolSearch } from "./tool-search";
 
 /** The SDK `query` signature; tests inject a fake. */
 export type QueryFn = typeof query;
@@ -64,14 +65,6 @@ export interface BuildOptionsInput {
 }
 
 /**
- * The `ENABLE_TOOL_SEARCH` of the SDK child for a `limits.toolSearch` value: `on` leaves it unset (the SDK default,
- * even when the owner's shell sets it), `off` is `false`, `auto:N` passes through.
- */
-function toolSearchEnv(mode: string): Record<string, string | undefined> {
-  return { ENABLE_TOOL_SEARCH: mode === "on" ? undefined : mode === "off" ? "false" : mode };
-}
-
-/**
  * SDK options for one bot session: its model, prompt, tools and background subagents, the OS sandbox around its
  * workspaces, a scrubbed env that lets background tasks run, and a permission callback that applies the hard floor
  * first and then asks `spec.decide` (a throw or a refusal is a deny; a park is a deny that ends the turn).
@@ -100,10 +93,7 @@ export function buildOptions(input: BuildOptionsInput): Options {
   const { builtIn: granted, mcp } = splitTools(intro ? INTRO_TOOLS : bot.tools);
   // Tool search needs the built-in `ToolSearch` listed (spike); an intro run keeps its fixed list as it is.
   const search = spec.toolSearch ?? "on";
-  const builtIn =
-    intro || search === "off" || granted.includes("ToolSearch")
-      ? granted
-      : [...granted, "ToolSearch"];
+  const builtIn = withToolSearch(granted, search, intro);
   const perSession = introServers(intro, config.mcpServersFor?.(spec) ?? {});
   // A function is read at every session build, so an edited config reaches the next session.
   const configured =

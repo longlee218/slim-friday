@@ -37,6 +37,8 @@ export const OWN_STATE_TOOLS: readonly string[] = [
   "mcp__tickets__TicketList",
   "mcp__chat__PostUpdate",
   "AskUserQuestion",
+  // Its output is only the bot's own tool definitions.
+  "ToolSearch",
 ];
 
 /**
