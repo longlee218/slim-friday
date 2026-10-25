@@ -10,6 +10,7 @@ import { abortRun, newRunExec, type RunExec, untilStop } from "./run-exec";
 import { countCut, handleRunError } from "./run-failure";
 import { finishRun } from "./run-finish";
 import type { RunLease } from "./run-lease";
+import { settleOutput } from "./run-output";
 import { type PumpEnd, pumpRun } from "./run-pump";
 import { openRunSession } from "./run-session";
 import { persistEffort, runSpec } from "./run-spec";
@@ -159,7 +160,8 @@ async function settle(ctx: HubContext, exec: RunExec, end: PumpEnd): Promise<voi
     const err = Object.assign(new Error("model stream idle timeout"), { retryable: true });
     return handleRunError(ctx, row, fence, err, bot);
   }
-  const resultText = exec.turnTexts.at(-1);
+  // The final answer: posted already, or silence, or "done." (`run-output.ts`).
+  const resultText = await settleOutput(ctx, exec);
   const done = { status: "done" as const, ...(resultText !== undefined && { resultText }) };
   if (!(await finishRun(ctx, row, fence, done))) return;
   await checkUnfinished(ctx, exec);

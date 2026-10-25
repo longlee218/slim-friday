@@ -19,8 +19,11 @@ export function runKindOf(row: WakeRow): RunKind {
 /**
  * True when the run may end with no reply (`NO_RESPONSE`): a ticket run, or a bot's `fyi` that is not a reply
  * to a request (no `parentWakeId`). An owner message, a continuation, a card resume and a bot result never may.
+ * A row with a `cardId` resumes on the owner's card answer (its turn is not the wake's first), so it is an owner
+ * turn whatever started the run (spec §6.3).
  */
 export function silenceAllowed(row: WakeRow, kind: RunKind): boolean {
+  if (row.cardId !== undefined) return false;
   if (kind === "ticket") return true;
   return kind === "bot" && row.intent === "fyi" && row.parentWakeId === undefined;
 }

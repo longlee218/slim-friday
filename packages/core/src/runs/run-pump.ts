@@ -1,12 +1,9 @@
-import type { Author } from "../domain/message";
 import type { RunStep } from "../domain/run";
 import type { HubContext } from "../hub/hub-context";
-import { errText } from "../hub/hub-types";
-import { postStored } from "../hub/post-stored";
 import type { RuntimeEvent } from "../ports/agent-runtime";
-import { redactStep, secretsFrom } from "../safety/redact-secrets";
 import { parkNow } from "./run-cards";
 import { abortRun, type RunExec } from "./run-exec";
+import { holdText, releaseHeld, showStep } from "./run-output";
 import { dayOf } from "./run-rules";
 import { answerFirstTurn, answerPushed, deliverSteering } from "./run-steering";
 import type { StreamWatchdog } from "./run-watchdog";
@@ -20,7 +17,8 @@ const eventError = (message: string, retryable: boolean) =>
 
 /**
  * Read one run's session events until the run is done: a `turn_end` with no background task open and no
- * follow-up turn of a finished task still to come. Bot text is stored and posted, steps shown, costs added to
+ * follow-up turn of a finished task still to come. Bot text is held until the next event says if it
+ * was narration or an answer (`run-output.ts`), steps shown, costs added to
  * the spend total. Every event re-arms the run's stream watchdog `dog` (armed at the claim, stopped by the
  * executor).
  */
@@ -58,18 +56,14 @@ async function onEvent(
   delete exec.cancelGrace;
   const conversationId = exec.current.conversationId;
   /** Shows a step in the run line of the current conversation. */
-  const show = (step?: RunStep) =>
-    step &&
-    surface.showRun(
-      conversationId,
-      exec.bot.id,
-      redactStep(step, secretsFrom(ctx.deps.secretValues)),
-    );
+  const show = (step?: RunStep) => showStep(ctx, exec, step);
   if (e.type === "thinking") {
     exec.turnOpen = true;
     show(exec.steps.onThinking(now));
   } else if (e.type === "tool_call") {
     exec.turnOpen = true;
+    // A text held before this call was narration.
+    await releaseHeld(ctx, exec, "narration");
     exec.openTools.add(e.toolUseId);
     for (const s of exec.steps.onToolCall(e, now)) show(s);
   } else if (e.type === "tool_result") {
@@ -81,7 +75,7 @@ async function onEvent(
   } else if (e.type === "text") {
     exec.turnOpen = true;
     show(exec.steps.closeThinking(now));
-    await onText(ctx, exec, e.text);
+    await holdText(ctx, exec, e.text);
   } else if (e.type === "task_started") {
     show(exec.steps.onTask(e, now));
     exec.tasks.set(e.taskId, { description: e.description, ...exec.current });
@@ -102,6 +96,8 @@ async function onEvent(
     // The last task ended while a card is still open: the run parks now (spec: subagent exception).
     if (exec.tasks.size === 0 && exec.waiting) parkNow(exec);
   } else if (e.type === "turn_end") {
+    // A text held to the turn's end is an answer.
+    await releaseHeld(ctx, exec, "answer");
     show(exec.steps.endTurn(now));
     exec.turnOpen = false;
     // A steering push still being claimed learns the turn is over before the run is finished.
@@ -119,30 +115,8 @@ async function onEvent(
       abortRun(exec, { kind: "followUpOver" }),
     );
   } else if (e.type === "error") {
+    await releaseHeld(ctx, exec, "answer");
     return { kind: "error", err: eventError(e.message, e.retryable) };
   }
   return undefined;
-}
-
-/** Store and post one bot text with the steps since the previous one; record the run's first text. */
-async function onText(ctx: HubContext, exec: RunExec, text: string): Promise<void> {
-  const { clock, store } = ctx.deps;
-  const author: Author = { kind: "bot", botId: exec.bot.id };
-  const conversationId = exec.current.conversationId;
-  const run = exec.steps.take(clock.now());
-  // Text goes to the channel only; a bot reaches another bot with SendToBot / HandOff.
-  await postStored(ctx.deps, {
-    conversationId,
-    author,
-    text,
-    at: clock.now(),
-    ...(run.length > 0 && { run }),
-  }).catch((err) =>
-    ctx.deps.log?.error({ error: errText(err), conversationId }, "hub.post_failed"),
-  );
-  exec.turnTexts.push(text);
-  if (exec.firstTextSeen) return;
-  exec.firstTextSeen = true;
-  const { id, leaseFence } = exec.row;
-  await store.wakes.transition(id, leaseFence, ["running"], { firstTextAt: clock.now() });
 }

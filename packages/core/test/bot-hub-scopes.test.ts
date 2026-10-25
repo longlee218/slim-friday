@@ -64,6 +64,8 @@ test("both sessions are busy at once and each answer posts in its own conversati
   expect((await h.hub.status()).every((s) => s.busy)).toBe(true);
   direct.emit({ type: "text", text: "direct answer" });
   group.emit({ type: "text", text: "group answer" });
+  direct.emit({ type: "turn_end", costUsd: 0 });
+  group.emit({ type: "turn_end", costUsd: 0 });
   await flush();
   const posted = h.surface.posts.map((p) => `${p.conversationId}:${p.message.text}`);
   expect(posted).toContain("dc:direct answer");

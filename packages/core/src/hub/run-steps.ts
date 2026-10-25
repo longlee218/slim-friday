@@ -18,6 +18,8 @@ export class RunTracker {
   private thinking?: RunStep;
   /** Counter for `think-<n>` ids. */
   private thinkCount = 0;
+  /** Counter for `note-<n>` ids (narration steps). */
+  private noteCount = 0;
 
   /** Opens one thinking step, only when none is open. */
   onThinking(now: number): RunStep | undefined {
@@ -42,6 +44,25 @@ export class RunTracker {
     t.state = "done";
     t.endedAt = now;
     return copy(t);
+  }
+
+  /**
+   * A text the bot wrote just before a tool call (narration): a finished `Note` step whose target is the text,
+   * cut to 120 chars. It is shown live and kept with the next answer's steps, never stored as a message.
+   */
+  onNarration(text: string, now: number): RunStep {
+    const flat = text.trim().replace(/\s+/g, " ");
+    const step: RunStep = {
+      id: `note-${++this.noteCount}`,
+      kind: "tool",
+      label: "Note",
+      target: flat.length > 120 ? `${flat.slice(0, 120)}…` : flat,
+      state: "done",
+      startedAt: now,
+      endedAt: now,
+    };
+    this.add(step);
+    return copy(step);
   }
 
   /** Closes thinking (shown first) and adds the tool step. */

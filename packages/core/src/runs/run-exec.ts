@@ -56,8 +56,10 @@ export interface RunExec {
   openTools: Set<string>;
   /** Run steps (thinking, tools, subagents) since the bot's last text. */
   steps: RunTracker;
-  /** Texts the bot said in this run, in order (the last one is its answer). */
-  turnTexts: string[];
+  /** The last bot text, held until the next event says if it was narration or an answer (`run-output.ts`). */
+  heldText?: string;
+  /** The last answer text of the run (raw, sentinel included): the run's final answer. */
+  finalText?: string;
   /** Sends and effect calls of this execution by content hash: how many identical ones ran so far (key part `n`). */
   sendCounts: Map<string, number>;
   /** A turn was sent (or a follow-up began) and has not ended. */
@@ -124,7 +126,6 @@ export function newRunExec(row: WakeRow, scope: SessionScope, now: number, taint
     tasks: new Map(),
     openTools: new Set(),
     steps: new RunTracker(),
-    turnTexts: [],
     firstRows: [],
     pushed: [],
     sendCounts: new Map(),

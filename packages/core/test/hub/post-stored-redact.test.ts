@@ -49,6 +49,7 @@ test("a bot's text and a shown step never carry the secret", async () => {
     input: { command: `echo ${SECRET}` },
   });
   s.emit({ type: "text", text: `here: ${SECRET}` });
+  s.emit({ type: "turn_end", costUsd: 0 });
   await flush();
   expect(h.surface.runs.some((r) => r.step.target?.includes(SECRET))).toBe(false);
   expect(h.surface.runs.some((r) => r.step.target?.includes("[redacted]"))).toBe(true);

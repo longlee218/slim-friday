@@ -41,6 +41,13 @@ test("silenceAllowed: ticket runs and a bot fyi that answers no request", () => 
   }
 });
 
+test("silenceAllowed: a card resume answers the owner, even of a bot fyi or ticket run", () => {
+  const fyi = row({ sender: ann, intent: "fyi", cardId: "c1" });
+  expect(silenceAllowed(fyi, runKindOf(fyi))).toBe(false);
+  const ticket = row({ ticketId: "FRI-1", cardId: "c1" });
+  expect(silenceAllowed(ticket, runKindOf(ticket))).toBe(false);
+});
+
 test("replyGuidance: an owner message and an intro run get none (the progress rule is in the system prompt)", () => {
   expect(replyGuidance(row({}), "owner", "owner")).toBeUndefined();
   expect(replyGuidance(row({ intro: true }), "intro", "system")).toBeUndefined();
