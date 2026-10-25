@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
 import { Avatar, AvatarStack } from "../../src/components/ui/avatar";
@@ -129,6 +129,17 @@ describe("sheets", () => {
     fireEvent.pointerMove(body, { clientY: 300, pointerId: 1 });
     fireEvent.pointerUp(body, { clientY: 300, pointerId: 1 });
     expect(onOpenChange).not.toHaveBeenCalled();
+  });
+  test("BottomSheet focuses the first field of a form sheet, not the bar's Cancel", async () => {
+    render(
+      <BottomSheet open onOpenChange={() => {}}>
+        <button type="button">Cancel</button>
+        <div className="bs-body">
+          <input aria-label="Name" />
+        </div>
+      </BottomSheet>,
+    );
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText("Name")));
   });
   test("BottomSheet shows a grab handle", () => {
     render(

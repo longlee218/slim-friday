@@ -21,6 +21,15 @@ export function canStartSheetDrag(target: Element | null): boolean {
   return !target?.closest(".bs-body");
 }
 
+/**
+ * Where focus lands when a sheet opens: a form sheet's first field (not the bar's Cancel). A
+ * touch open keeps Base UI's default (the sheet itself), so the keyboard does not pop up.
+ */
+function firstField(popup: HTMLElement | null, openType: string): HTMLElement | true {
+  if (openType === "touch") return true;
+  return popup?.querySelector<HTMLElement>(".bs-body :is(input, textarea, select)") ?? true;
+}
+
 export interface BottomSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -35,6 +44,7 @@ export function BottomSheet({ open, onOpenChange, children }: BottomSheetProps) 
   const startY = useRef<number | null>(null);
   const dy = useRef(0);
   const dim = useRef<HTMLDivElement>(null);
+  const popup = useRef<HTMLDivElement>(null);
 
   const dragging = useRef(false);
 
@@ -79,7 +89,9 @@ export function BottomSheet({ open, onOpenChange, children }: BottomSheetProps) 
       <Dialog.Portal>
         <Dialog.Backdrop className="dim" ref={dim} />
         <Dialog.Popup
+          ref={popup}
           className="bsheet"
+          initialFocus={(openType) => firstField(popup.current, openType)}
           onPointerDown={onDown}
           onPointerMove={onMove}
           onPointerUp={onUp}
