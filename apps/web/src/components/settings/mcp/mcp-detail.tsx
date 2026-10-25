@@ -28,7 +28,9 @@ function Loaded({ server }: { server: McpServerDto }) {
   useSignInResult(server.name);
   // The test runs the saved server, so unsaved URL or OAuth edits are not part of it.
   const untested =
-    form.dirty && (form.value.url !== initial.url || form.value.oauth !== initial.oauth);
+    form.dirty &&
+    form.value.type === "http" &&
+    (form.value.url !== initial.url || form.value.oauth !== initial.oauth);
 
   // Test the saved server when the page opens and again after its spec changes.
   const key = JSON.stringify(initial);

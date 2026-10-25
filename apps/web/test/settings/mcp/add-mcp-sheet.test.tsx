@@ -119,3 +119,14 @@ test("an OAuth server can be added without a test", async () => {
     }),
   );
 });
+
+test("switching back to a local command ends the OAuth bypass", async () => {
+  setup();
+  await fillHttp();
+  await userEvent.click(screen.getByRole("switch", { name: "Sign in with OAuth" }));
+  await userEvent.click(screen.getByRole("button", { name: "Local command" }));
+  await userEvent.type(screen.getByLabelText("Command"), "npx");
+  expect((testBtn() as HTMLButtonElement).disabled).toBe(false);
+  expect(add().disabled).toBe(true);
+  expect(screen.queryByText("Add the server, then sign in from its page.")).toBeNull();
+});

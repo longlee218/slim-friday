@@ -31,7 +31,8 @@ function AddMcpBody({ onClose, onAdded }: { onClose(): void; onAdded(name: strin
   const key = JSON.stringify(value);
   const [testedKey, setTestedKey] = useState("");
   // An OAuth server cannot be tested before it is saved and signed in, so Add skips the test.
-  const tested = value.oauth || (probe.result?.state === "connected" && testedKey === key);
+  const oauth = value.type === "http" && value.oauth;
+  const tested = oauth || (probe.result?.state === "connected" && testedKey === key);
 
   const test = async () => {
     setTestedKey(key);
@@ -59,10 +60,7 @@ function AddMcpBody({ onClose, onAdded }: { onClose(): void; onAdded(name: strin
         />
       </Row>
       <McpForm value={value} errors={form.errors} onChange={form.set} />
-      <Row
-        label="Status"
-        help={value.oauth ? "Add the server, then sign in from its page." : undefined}
-      >
+      <Row label="Status" help={oauth ? "Add the server, then sign in from its page." : undefined}>
         <McpStatusLine probe={probe} />
       </Row>
       {probe.result && probe.result.state !== "connected" && testedKey === key && (
@@ -70,7 +68,7 @@ function AddMcpBody({ onClose, onAdded }: { onClose(): void; onAdded(name: strin
       )}
       <div className="acts">
         <Button onClick={onClose}>Cancel</Button>
-        <Button disabled={!form.valid || probe.running || value.oauth} onClick={() => void test()}>
+        <Button disabled={!form.valid || probe.running || oauth} onClick={() => void test()}>
           Test connection
         </Button>
         <Button variant="primary" disabled={!tested || form.saving} onClick={() => void add()}>
