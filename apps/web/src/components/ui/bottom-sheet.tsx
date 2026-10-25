@@ -13,6 +13,14 @@ export function shouldDismissSheet(dy: number): boolean {
   return dy > DISMISS_PX;
 }
 
+/**
+ * True when a press on `target` may start a drag-to-dismiss: anywhere but the sheet's scrolling
+ * body (`.bs-body`), where a swipe scrolls the form instead.
+ */
+export function canStartSheetDrag(target: Element | null): boolean {
+  return !target?.closest(".bs-body");
+}
+
 export interface BottomSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -33,6 +41,7 @@ export function BottomSheet({ open, onOpenChange, children }: BottomSheetProps) 
   // The pointer is captured only once the press moves down: capturing on press would send the
   // click to the sheet instead of the button under the finger.
   const onDown = (e: PointerEvent<HTMLDivElement>) => {
+    if (!canStartSheetDrag(e.target as Element)) return;
     startY.current = e.clientY;
     dragging.current = false;
   };

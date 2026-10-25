@@ -46,6 +46,9 @@
 /* In the real viewport the bottom sheet pins to the screen, not to the prototype's phone frame. It is portalled
    outside `.ios`, so it sets its own `--safe-b` (unset, the padding shorthand above is invalid and drops to 0). */
 .bsheet { position: fixed; --safe-b: env(safe-area-inset-bottom, 0px); }
+/* A tall sheet stops below the status bar; a form's fields scroll in `.bs-body` (a swipe there scrolls, it never drags). */
+.bsheet { display: flex; flex-direction: column; max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 10px); }
+.bs-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; }
 .badge.red { background: var(--red-dot); color: #fff; }
 kbd { font: 500 11px var(--font); color: var(--label-3); padding: 1px 5px; border-radius: 4px; background: var(--fill); }
 

@@ -4,7 +4,11 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
 import { Avatar, AvatarStack } from "../../src/components/ui/avatar";
 import { Badge } from "../../src/components/ui/badge";
-import { BottomSheet, shouldDismissSheet } from "../../src/components/ui/bottom-sheet";
+import {
+  BottomSheet,
+  canStartSheetDrag,
+  shouldDismissSheet,
+} from "../../src/components/ui/bottom-sheet";
 import { Button, IconButton } from "../../src/components/ui/button";
 import { Kbd } from "../../src/components/ui/kbd";
 import { Pill } from "../../src/components/ui/pill";
@@ -102,6 +106,29 @@ describe("sheets", () => {
       </Sheet>,
     );
     expect(screen.queryByText("x")).toBeNull();
+  });
+  test("canStartSheetDrag is false inside the scrolling body", () => {
+    const body = document.createElement("div");
+    body.className = "bs-body";
+    const input = document.createElement("input");
+    body.append(input);
+    const grab = document.createElement("div");
+    expect(canStartSheetDrag(grab)).toBe(true);
+    expect(canStartSheetDrag(input)).toBe(false);
+    expect(canStartSheetDrag(null)).toBe(true);
+  });
+  test("BottomSheet ignores a drag that starts in the scrolling body", () => {
+    const onOpenChange = vi.fn();
+    render(
+      <BottomSheet open onOpenChange={onOpenChange}>
+        <div className="bs-body">Scroll me</div>
+      </BottomSheet>,
+    );
+    const body = screen.getByText("Scroll me");
+    fireEvent.pointerDown(body, { clientY: 100, pointerId: 1 });
+    fireEvent.pointerMove(body, { clientY: 300, pointerId: 1 });
+    fireEvent.pointerUp(body, { clientY: 300, pointerId: 1 });
+    expect(onOpenChange).not.toHaveBeenCalled();
   });
   test("BottomSheet shows a grab handle", () => {
     render(
