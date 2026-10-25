@@ -7,7 +7,9 @@ import { AutoReviewToggle } from "../../src/components/settings/auto-review-togg
 import { seededClient } from "../shell/fixtures";
 
 const api = vi.hoisted(() => ({ set: vi.fn(), toastError: vi.fn() }));
-vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: api.toastError }) }));
+vi.mock("sonner", () => ({
+  toast: Object.assign(vi.fn(), { error: api.toastError, success: vi.fn() }),
+}));
 vi.mock("../../src/api/client", async (orig) => ({
   ...(await orig<typeof import("../../src/api/client")>()),
   client: { config: { permissions: { setAutoReview: api.set } } },

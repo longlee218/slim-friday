@@ -22,6 +22,7 @@ export function AutoReviewToggle() {
     qc.setQueryData(key, { autoReview: next });
     try {
       await client.config.permissions.setAutoReview({ autoReview: next });
+      toast.success(`Auto Review ${next ? "on" : "off"}.`);
     } catch (e) {
       qc.setQueryData(key, { autoReview: !next });
       toast.error(e instanceof Error && e.message ? e.message : "That did not work. Try again.");

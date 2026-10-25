@@ -64,10 +64,11 @@ export function ApprovalRulesPanel() {
   const refresh = () => qc.invalidateQueries({ queryKey: orpc.config.approvalRules.list.key() });
 
   /** Runs one call; a failure is a toast, a success refreshes the list. */
-  async function run(call: () => Promise<unknown>) {
+  async function run(call: () => Promise<unknown>, done: string) {
     try {
       await call();
       await refresh();
+      toast.success(done);
       return true;
     } catch (e) {
       toast.error(e instanceof Error && e.message ? e.message : "That did not work. Try again.");
@@ -82,7 +83,7 @@ export function ApprovalRulesPanel() {
         ? { botId, effect, match, value: v, scope: parseScope(scope) }
         : { botId, effect, match, value: v }
     ) as ApprovalRuleInput;
-    if (await run(() => client.config.approvalRules.add(input))) {
+    if (await run(() => client.config.approvalRules.add(input), "Rule added.")) {
       setValue("");
       setScope("");
     }
@@ -122,7 +123,9 @@ export function ApprovalRulesPanel() {
             </div>
             <IconButton
               label="Remove rule"
-              onClick={() => void run(() => client.config.approvalRules.remove({ id: r.id }))}
+              onClick={() =>
+                void run(() => client.config.approvalRules.remove({ id: r.id }), "Rule removed.")
+              }
             >
               <Trash2 size={16} strokeWidth={1.75} />
             </IconButton>

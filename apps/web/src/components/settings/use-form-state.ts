@@ -80,6 +80,7 @@ export function useFormState<T extends object>(
       setSaved(sent);
       setTouched(new Set());
       setServer({});
+      toast.success("Saved.");
     } catch (e) {
       const { message, field } = saveFailure(e);
       if (field) setServer({ [field]: message } as FieldErrors<T>);

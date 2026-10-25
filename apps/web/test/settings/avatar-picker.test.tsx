@@ -13,7 +13,7 @@ const m = vi.hoisted(() => ({
   setGroup: vi.fn().mockResolvedValue({}),
   encode: vi.fn(),
 }));
-vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));
+vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn() }) }));
 vi.mock("../../src/components/settings/encode-avatar", async (orig) => ({
   ...(await orig<typeof import("../../src/components/settings/encode-avatar")>()),
   encodeAvatar: m.encode,

@@ -88,6 +88,7 @@ export function RuleList({ owner }: { owner: MemoryOwner }) {
     qc.setQueryData(key, next);
     try {
       await client.memory.rules.save({ owner, rules: next });
+      toast.success("Rules saved.");
     } catch (e) {
       qc.setQueryData(key, prev);
       toast.error(e instanceof Error ? e.message : "Could not save the rules.");

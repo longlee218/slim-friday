@@ -45,6 +45,7 @@ export function MemoryPanel({ owner }: { owner: MemoryOwner }) {
     try {
       await fn();
       await qc.invalidateQueries({ queryKey: orpc.memory.list.key() });
+      toast.success("Memory saved.");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not save the memory.");
     }
