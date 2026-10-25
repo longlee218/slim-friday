@@ -8,9 +8,14 @@ const CONSEQUENTIAL_VERBS: ReadonlySet<string> = new Set([
   "write",
 ]); // biome-ignore format: word list
 
-/** Verbs that only look (spec §6.14; get/list/search/find/read are Rakazo's, fetch/query/describe/show are Friday's addition). */
+/**
+ * Verbs that only look (spec §6.14; get/list/search/find/read are Rakazo's, fetch/query/describe/show are Friday's
+ * addition). The nouns after them (status, health, logs, whoami, whatis, alerts, targets, series, labels, values) are
+ * how monitoring servers name a read (`k8s_pod_status`, `loki_pod_logs`, `prometheus_alerts`).
+ */
 const READ_VERBS: ReadonlySet<string> = new Set([
   "get", "list", "search", "find", "read", "fetch", "query", "describe", "show",
+  "status", "health", "logs", "whoami", "whatis", "alerts", "targets", "series", "labels", "values",
 ]); // biome-ignore format: word list
 
 /** Words that join two actions in one tool (`get_and_delete`): the tool does more than its first verb says. */

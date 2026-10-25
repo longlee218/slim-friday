@@ -8,9 +8,13 @@ import { CONTINUATION_KEY } from "./run-steering";
  */
 export type RunKind = "owner" | "bot" | "ticket" | "intro";
 
-/** The kind of a run: the intro flag first, then the ticket, then a bot sender; everything else is the owner's. */
+/**
+ * The kind of a run: the intro flag first, then the ticket, then a bot sender; everything else is the owner's.
+ * An intro run that parked on its question and was answered (`cardId`) is the owner's run from then on: the answer is
+ * the owner's first request, and the bot needs its full tools to act on it (the intro list has only two).
+ */
 export function runKindOf(row: WakeRow): RunKind {
-  if (row.intro) return "intro";
+  if (row.intro && row.cardId === undefined) return "intro";
   if (row.ticketId) return "ticket";
   if (row.sender.kind === "bot") return "bot";
   return "owner";

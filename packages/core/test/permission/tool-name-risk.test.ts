@@ -9,6 +9,22 @@ test("nameRisk: mutating verb is consequential, read verbs are read, else unknow
   expect(nameRisk("frobnicate")).toBe("unknown");
 });
 
+test("nameRisk: monitoring read names are read, a mutating or unmatched name is not", () => {
+  for (const t of [
+    "whoami",
+    "whatis",
+    "k8s_pod_status",
+    "loki_pod_logs",
+    "prometheus_alerts",
+    "loki_label_values",
+  ])
+    expect(nameRisk(`mcp__apero-devops__${t}`)).toBe("read");
+  // A sensitive word, a mutating verb or no known word still asks.
+  for (const t of ["vibecode_list_secret", "release_apply", "release_rollback"])
+    expect(nameRisk(`mcp__apero-devops__${t}`)).not.toBe("read");
+  expect(nameRisk("mcp__apero-devops__vibecode_set_env")).toBe("consequential");
+});
+
 test("nameRisk: compound names with a verb are consequential", () => {
   expect(nameRisk("get_and_delete")).toBe("consequential");
   expect(nameRisk("get_then_notify")).toBe("consequential");
@@ -33,7 +49,7 @@ test("nameRisk: camelCase, hyphens and the mcp prefix", () => {
 test("nameRisk: a token must equal a verb, a substring is not enough", () => {
   expect(nameRisk("postgres_query")).toBe("read");
   expect(nameRisk("sender_info")).toBe("unknown");
-  expect(nameRisk("setup_status")).toBe("unknown");
+  expect(nameRisk("setup_state")).toBe("unknown");
 });
 
 test("categoryOf: email and purchase", () => {

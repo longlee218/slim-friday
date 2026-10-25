@@ -22,6 +22,11 @@ test("runKindOf: continuations and card resumes are owner runs", () => {
   expect(runKindOf(row({ sender: { kind: "system" } }))).toBe("owner");
 });
 
+test("runKindOf: an intro run answered on its card becomes an owner run (full tools)", () => {
+  const intro = { intro: true, sender: { kind: "system" } } as const;
+  expect(runKindOf(row({ ...intro, cardId: "card1" }))).toBe("owner");
+});
+
 test("silenceAllowed: ticket runs and a bot fyi that answers no request", () => {
   const cases: [Partial<WakeRow>, boolean][] = [
     [{ ticketId: "FRI-1" }, true],
