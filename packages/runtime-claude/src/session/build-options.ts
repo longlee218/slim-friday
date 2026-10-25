@@ -8,6 +8,7 @@ import type { CallGuard } from "./call-guard";
 import { floorCheck } from "./floor-check";
 import { mcpGranted, pickServers, splitTools } from "./mcp-grants";
 import { preToolUseHook } from "./pre-tool-use-hook";
+import { INTRO_TOOLS, introServers } from "./run-kind-tools";
 import { buildSkillsPlugin } from "./skills-plugin";
 import { systemPromptOf } from "./system-prompt";
 
@@ -85,18 +86,21 @@ export function buildOptions(input: BuildOptionsInput): Options {
     cwd,
     allowInside: [scratchDir, ...extra.write, ...extra.read],
   };
-  const { builtIn, mcp } = splitTools(bot.tools);
-  const perSession = config.mcpServersFor?.(spec) ?? {};
+  // An intro run has its own fixed tool list (no bot tools, subagents, skills or other servers).
+  const intro = spec.runKind === "intro";
+  const { builtIn, mcp } = splitTools(intro ? INTRO_TOOLS : bot.tools);
+  const perSession = introServers(intro, config.mcpServersFor?.(spec) ?? {});
   // A function is read at every session build, so an edited config reaches the next session.
   const configured =
     typeof config.mcpServers === "function" ? config.mcpServers() : (config.mcpServers ?? {});
   const mcpServers = pickServers(mcp, configured, perSession);
   // Skills come only from the bot's own list, as a plugin built in its scratch dir (no settings sources are read).
-  const skillsPlugin = bot.skills.length
-    ? buildSkillsPlugin(scratchDir, config.skillDirs ?? [], bot.skills)
-    : undefined;
+  const skillsPlugin =
+    bot.skills.length && !intro
+      ? buildSkillsPlugin(scratchDir, config.skillDirs ?? [], bot.skills)
+      : undefined;
   const agents = Object.fromEntries(
-    bot.subagents.map((s) => [
+    (intro ? [] : bot.subagents).map((s) => [
       s.name,
       {
         description: s.description,
@@ -164,6 +168,8 @@ export function buildOptions(input: BuildOptionsInput): Options {
     async canUseTool(tool, toolInput, opts) {
       // A question for the owner comes first: it is no grant and no file access.
       if (tool === "AskUserQuestion") return askOwner(spec, toolInput);
+      if (intro && !INTRO_TOOLS.includes(tool))
+        return { behavior: "deny", message: "tool not available in this run" };
       if (!mcpGranted(tool, mcp, Object.keys(perSession)))
         return { behavior: "deny", message: "tool not granted to this bot" };
       const denied = floorCheck({ tool, input: toolInput }, floor);

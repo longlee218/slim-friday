@@ -7,17 +7,25 @@ export const TICKET_REPLY_GUIDANCE =
   "Ticket work is reported on the board, not in chat. Put updates and results in TicketComment and keep the ticket status current with TicketUpdate. Use the existing ask or approval mechanism when owner input is needed. Leave the final reply empty.";
 
 /**
+ * One line for runs without `PostUpdate` (the system prompt names it for every kind, kept identical for cache
+ * stability, so the turn says it is absent here).
+ */
+export const NO_PROGRESS_UPDATES_NOTE =
+  "You cannot post progress updates in this run; write your final answer only.";
+
+/**
  * The reply guidance of one run, put at the end of its turn (never in the system prompt, so the cached prefix
  * does not change with the trigger; spec §6.3). An owner run gets none (the progress rule in the system prompt is
  * its guidance), nor does an intro run (its text says what to do); a bot run gets what its intent expects
  * (`wakeAction`, named after `senderName`); a ticket run reports on the board.
  */
 export function replyGuidance(row: WakeRow, kind: RunKind, senderName: string): string | undefined {
-  if (kind === "ticket") return TICKET_REPLY_GUIDANCE;
+  if (kind === "ticket") return `${TICKET_REPLY_GUIDANCE} ${NO_PROGRESS_UPDATES_NOTE}`;
   if (kind !== "bot" || row.sender.kind !== "bot") return undefined;
-  return wakeAction({
+  const action = wakeAction({
     from: { id: row.sender.botId, name: senderName },
     intent: row.intent,
     ...(row.handoff && { handoff: true }),
   });
+  return `${action} ${NO_PROGRESS_UPDATES_NOTE}`;
 }

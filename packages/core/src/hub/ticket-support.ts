@@ -2,9 +2,9 @@ import type { Store } from "../ports/store";
 import { type Ticket, ticketRef } from "../tickets/ticket";
 import { extractTicketRefs, renderTicketContext } from "../tickets/ticket-context";
 
-/** The text a bot wakes on when a ticket is assigned to it. */
+/** The text a bot wakes on when a ticket is assigned to it (R§20, Friday's tool names). */
 export const ticketWakeText = (t: Ticket): string =>
-  `Work on ticket ${ticketRef(t.number)}. Read it with TicketGet. Keep progress in ticket comments and update its status with TicketUpdate. Ask the owner when input is needed.`;
+  `Work on ticket ${ticketRef(t.number)}. Read it with TicketGet. Keep progress in ticket comments and update its status with TicketUpdate. Use ask or approval cards when owner input is needed.`;
 
 /** The text of the one extra wake for a ticket left open after a turn. */
 export const ticketRewakeText = (t: Ticket): string =>

@@ -76,3 +76,21 @@ test("renderRoster lists every member and states the ownership rule", () => {
   expect(out).toContain("- Editor (id: editor) — edits &lt;cuts&gt;");
   expect(out).toContain("One bot owns each step");
 });
+
+test("wakeAction texts equal Rakazo R§19 (owner for user, SendToBot for message_bot)", () => {
+  const w = (intent: "request" | "result" | "status" | "question" | "fyi") =>
+    wakeAction({ from, intent });
+  expect(w("request")).toBe(
+    'This is a request. Complete it. Your final written response is automatically returned to Writer; use SendToBot with to "writer" only for a useful interim question, status, or FYI. Sending does not end your turn: continue independent work after a useful update.',
+  );
+  for (const i of ["result", "status"] as const)
+    expect(w(i)).toBe(
+      `This is a ${i} for work you delegated. Relay it to the owner now, and include the actual substance — the real names, dates, numbers, and details Writer sent — not just a note that a ${i} arrived. A reply like "the summary came through" or "it's done" without repeating what it says is not acceptable. Do not stay silent and do not merely acknowledge it.`,
+    );
+  expect(w("question")).toBe(
+    "This is a question about delegated work. Answer it if you can, then continue the coordination and keep the owner informed.",
+  );
+  expect(w("fyi")).toBe(
+    "This is an FYI. If it changes the owner's outcome, mention it; if there is genuinely nothing to do or report, staying silent is fine. Do not send an acknowledgement.",
+  );
+});

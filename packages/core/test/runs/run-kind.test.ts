@@ -53,6 +53,20 @@ test("replyGuidance: an owner message and an intro run get none (the progress ru
   expect(replyGuidance(row({ intro: true }), "intro", "system")).toBeUndefined();
 });
 
+test("replyGuidance: a bot and a ticket run are told progress updates are not available", () => {
+  const note = "You cannot post progress updates in this run; write your final answer only.";
+  const bot = row({ sender: ann, intent: "request" });
+  expect(replyGuidance(bot, "bot", "Ann")).toContain(note);
+  expect(replyGuidance(row({ ticketId: "FRI-1" }), "ticket", "owner")).toContain(note);
+  expect(replyGuidance(row({}), "owner", "owner") ?? "").not.toContain(note);
+});
+
+test("a ticket run answered through a card posts done. in the direct chat (owner took part; pinned)", () => {
+  const r = row({ ticketId: "FRI-1", cardId: "c1" });
+  expect(runKindOf(r)).toBe("ticket");
+  expect(silenceAllowed(r, "ticket")).toBe(false);
+});
+
 test("replyGuidance: one text per bot intent", () => {
   const g = (over: Partial<WakeRow>) => {
     const r = row({ sender: ann, ...over });
@@ -74,7 +88,7 @@ test("replyGuidance: a ticket run reports on the board and leaves the final repl
   const text = replyGuidance(row({ ticketId: "FRI-1" }), "ticket", "owner") ?? "";
   expect(text).toStartWith("Ticket work is reported on the board, not in chat.");
   expect(text).toContain("TicketComment");
-  expect(text).toEndWith("Leave the final reply empty.");
+  expect(text).toContain("Leave the final reply empty.");
 });
 
 test("isAutomatedTurn: continuations, card resumes and system senders, never an owner or bot message", () => {

@@ -75,6 +75,15 @@ test("NO_RESPONSE on a ticket run posts nothing", async () => {
   expect(botPosts(h)).toEqual([]);
 });
 
+test("an empty final of a ticket run posts nothing at all", async () => {
+  const h = makeHub();
+  const s = await start(h, { kind: "user" }, { ticketId: "FRI-1" });
+  s.emit({ type: "turn_end", costUsd: 0 });
+  await flush();
+  expect(botPosts(h)).toEqual([]);
+  expect(h.surface.posts).toEqual([]);
+});
+
 test("a bot fyi that answers no request may stay silent; an empty final posts nothing", async () => {
   const h = makeHub();
   const s = await start(h, writer, { intent: "fyi" });
