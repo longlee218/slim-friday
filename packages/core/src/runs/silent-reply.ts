@@ -6,11 +6,14 @@ export function isSilent(text: string): boolean {
   return /^(?:NO_RESPONSE\s*)+$/.test(text.trim());
 }
 
-/** The text with a sentinel at its start or end removed and trimmed; a sentinel inside prose stays. */
+/**
+ * The text with a sentinel at its start or end removed and trimmed; a sentinel inside prose, or as part of a
+ * longer word (`FOO_NO_RESPONSE`, `NO_RESPONSES`), stays.
+ */
 export function stripSentinel(text: string): string {
   return text
     .trim()
-    .replace(/^(?:NO_RESPONSE\s*)+/, "")
-    .replace(/(?:\s*NO_RESPONSE)+$/, "")
+    .replace(/^(?:NO_RESPONSE\b\s*)+/, "")
+    .replace(/(?:\s*\bNO_RESPONSE)+$/, "")
     .trim();
 }

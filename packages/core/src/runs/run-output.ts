@@ -51,26 +51,27 @@ export function onNarration(ctx: HubContext, exec: RunExec, text: string): void 
 }
 
 /**
- * An answer text: it becomes the run's final so far. Prose is stored and posted with the steps since the
- * previous text (a sentinel at its edge stripped); the bare sentinel or an empty text is not posted.
+ * An answer text. Prose is stored and posted with the steps since the previous text (a sentinel at its edge
+ * stripped) and becomes the run's final so far; the bare sentinel or an empty text is not posted and keeps
+ * the earlier final.
  */
 export async function onAnswerText(ctx: HubContext, exec: RunExec, text: string): Promise<void> {
-  exec.finalText = text;
   const prose = isSilent(text) ? "" : stripSentinel(text);
-  if (prose) await post(ctx, exec, prose);
+  if (!prose) return;
+  exec.finalText = prose;
+  await post(ctx, exec, prose);
 }
 
 /**
- * The run's output once it is done; returns the result text (returned to a delegating bot): the final's prose,
- * posted already. An empty or silent final returns none (nothing goes back, as before) and posts nothing when
+ * The run's output once it is done; returns the result text (returned to a delegating bot): the last prose
+ * answer of the run, posted already (a later silent or empty turn does not erase it). A run with no prose
+ * answer returns none (nothing goes back, as before) and posts nothing when
  * the run may stay silent (ticket, bot `fyi` that answers no request) or when progress notes were posted in the
  * run (the hollow-final rule, R§4); otherwise it posts "done.".
  */
 export async function settleOutput(ctx: HubContext, exec: RunExec): Promise<string | undefined> {
   await releaseHeld(ctx, exec, "answer");
-  const final = exec.finalText ?? "";
-  const prose = isSilent(final) ? "" : stripSentinel(final);
-  if (prose) return prose;
+  if (exec.finalText) return exec.finalText;
   if (silenceAllowed(exec.row, runKindOf(exec.row))) return undefined;
   if ((await ctx.deps.store.messages.countInterim(exec.row.id)) > 0) return undefined;
   await post(ctx, exec, EMPTY_FINAL);

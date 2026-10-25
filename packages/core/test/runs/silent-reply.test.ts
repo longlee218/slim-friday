@@ -17,4 +17,6 @@ test("stripSentinel: a sentinel at the edge of prose goes, the prose stays", () 
   expect(stripSentinel("Say NO_RESPONSE here")).toBe("Say NO_RESPONSE here");
   expect(stripSentinel("  plain  ")).toBe("plain");
   expect(stripSentinel("NO_RESPONSE")).toBe("");
+  expect(stripSentinel("Set FOO_NO_RESPONSE")).toBe("Set FOO_NO_RESPONSE");
+  expect(stripSentinel("NO_RESPONSES are fine")).toBe("NO_RESPONSES are fine");
 });

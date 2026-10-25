@@ -58,7 +58,10 @@ export interface RunExec {
   steps: RunTracker;
   /** The last bot text, held until the next event says if it was narration or an answer (`run-output.ts`). */
   heldText?: string;
-  /** The last answer text of the run (raw, sentinel included): the run's final answer. */
+  /**
+   * The last answer of the run that had prose (sentinel stripped, as posted): the run's final answer. A later
+   * silent or empty answer never clears it.
+   */
   finalText?: string;
   /** Sends and effect calls of this execution by content hash: how many identical ones ran so far (key part `n`). */
   sendCounts: Map<string, number>;

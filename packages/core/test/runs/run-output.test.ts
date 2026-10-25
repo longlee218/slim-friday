@@ -3,6 +3,7 @@ import type { Author } from "../../src";
 import type { HubContext } from "../../src/hub/hub-context";
 import type { WakeOpts } from "../../src/hub/hub-types";
 import { createRun } from "../../src/runs/run-create";
+import { abortRun } from "../../src/runs/run-exec";
 import { flush, makeHub } from "../bot-hub-harness";
 
 type Hub = ReturnType<typeof makeHub>;
@@ -137,4 +138,45 @@ test("a bot request run with NO_RESPONSE posts done. and returns no result", asy
   await flush();
   expect(botPosts(h)).toEqual(["done."]);
   expect([...h.store.wakeMap.values()][0]?.resultText).toBeUndefined();
+});
+
+test("a silent follow-up turn keeps the earlier prose answer: no done., the prose is the result", async () => {
+  const h = makeHub();
+  const s = await start(h, writer, { intent: "request" });
+  s.emit({ type: "text", text: "Here is the plan." });
+  s.emit({ type: "task_started", taskId: "k1", description: "dig" });
+  s.emit({ type: "turn_end", costUsd: 0 });
+  await flush();
+  s.emit({ type: "task_done", taskId: "k1", status: "completed", summary: "" });
+  s.emit({ type: "text", text: "NO_RESPONSE" });
+  s.emit({ type: "turn_end", costUsd: 0 });
+  await flush();
+  expect(botPosts(h)).toEqual(["Here is the plan."]);
+  expect([...h.store.wakeMap.values()][0]).toMatchObject({
+    status: "done",
+    resultText: "Here is the plan.",
+  });
+});
+
+test("the owner's Stop posts a text still held as the answer", async () => {
+  const h = makeHub();
+  const s = await start(h);
+  s.emit({ type: "text", text: "Partial answer." });
+  await flush();
+  expect(botPosts(h)).toEqual([]);
+  await h.hub.stop("editor");
+  await flush();
+  expect(botPosts(h)).toEqual(["Partial answer."]);
+  expect([...h.store.wakeMap.values()][0]?.status).toBe("cancelled");
+});
+
+test("a lost lease drops a text still held", async () => {
+  const h = makeHub();
+  const s = await start(h);
+  s.emit({ type: "text", text: "Partial answer." });
+  await flush();
+  const exec = [...ctxOf(h).runs.values()][0];
+  if (exec) abortRun(exec, { kind: "lease", why: "renew" });
+  await flush();
+  expect(botPosts(h)).toEqual([]);
 });

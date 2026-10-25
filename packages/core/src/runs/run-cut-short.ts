@@ -2,18 +2,23 @@ import type { WakeRow } from "../domain/wake";
 import type { HubContext } from "../hub/hub-context";
 import { returnOutcomeSafe } from "./outcome-outbox";
 import type { RunExec } from "./run-exec";
+import { releaseHeld } from "./run-output";
 
 /**
  * A run cut short by the owner's stop (`cancelled`), a lost lease or a graceful shutdown of this process.
  * A stop cancels the row. A shutdown puts it back to `queued` (fenced on `running`, due now) so any worker
  * claims it again without counting a cut (spec "Worker shutdown"; restarts must not trip the poison guard).
  * After a lost lease another worker owns the row, so only the attempt is closed. The attempt always ends
- * `interrupted`.
+ * `interrupted`. A text still held when the owner stopped the run is its real final: it is posted as an answer
+ * (a cut, park or lost lease drops it; the run resumes and says it again).
  */
 export async function cutShort(ctx: HubContext, exec: RunExec): Promise<void> {
   const { store, clock } = ctx.deps;
   const { row } = exec;
   const now = clock.now();
+  const stop = exec.stop;
+  const byOwner = stop?.kind === "stopped" || (stop?.kind === "lease" && stop.why === "cancelled");
+  if (byOwner) await releaseHeld(ctx, exec, "answer");
   if (exec.stop?.kind === "stopped") {
     const patch = { status: "cancelled" as const, endedAt: now };
     if (!(await store.wakes.transition(row.id, row.leaseFence, ["running"], patch))) return;
