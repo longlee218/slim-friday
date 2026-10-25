@@ -8,6 +8,7 @@ import { client, orpc } from "../../../api/client";
 import { Button } from "../../ui/button";
 import { saveFailure } from "../field-error";
 import { SaveBar, StaleNotice } from "../form-parts";
+import { PhoneRemoveRow } from "../phone-remove-row";
 import { SettingsPage } from "../settings-page";
 import { useFormState } from "../use-form-state";
 import { McpCalls } from "./mcp-calls";
@@ -97,6 +98,7 @@ function Loaded({ server }: { server: McpServerDto }) {
       )}
       <McpUsedBy name={server.name} usedBy={server.usedBy} />
       <McpCalls server={server.name} />
+      {!readOnly && <PhoneRemoveRow label="Remove this server" onClick={() => void remove()} />}
     </SettingsPage>
   );
 }

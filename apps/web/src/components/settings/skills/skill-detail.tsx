@@ -11,6 +11,7 @@ import { Button } from "../../ui/button";
 import { Sheet } from "../../ui/sheet";
 import { saveFailure } from "../field-error";
 import { Row } from "../form-parts";
+import { PhoneRemoveRow } from "../phone-remove-row";
 import { SettingsPage } from "../settings-page";
 import { refreshSkills } from "./install-skill-sheet";
 import { SkillBanner } from "./skill-banner";
@@ -113,6 +114,9 @@ function Loaded({ skill }: { skill: SkillDto }) {
         {/* Third-party text: BotMarkdown renders no raw HTML. */}
         <BotMarkdown text={skill.body} />
       </div>
+      {!skill.shipped && (
+        <PhoneRemoveRow label="Remove this skill" onClick={() => setRemoving(true)} />
+      )}
       <RemoveSheet skill={skill} open={removing} onOpenChange={setRemoving} />
     </SettingsPage>
   );

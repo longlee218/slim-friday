@@ -119,3 +119,16 @@ test("Remove shows the server's refusal", async () => {
   await userEvent.click(await screen.findByRole("button", { name: "Remove" }));
   await waitFor(() => expect(api.del).toHaveBeenCalledWith({ name: "github" }));
 });
+
+test("on the phone (no page head) a Remove row removes the server", async () => {
+  const width = window.innerWidth;
+  window.innerWidth = 390;
+  try {
+    api.del.mockResolvedValue({ ok: true });
+    setup();
+    await userEvent.click(await screen.findByRole("button", { name: "Remove this server" }));
+    await waitFor(() => expect(api.del).toHaveBeenCalledWith({ name: "github" }));
+  } finally {
+    window.innerWidth = width;
+  }
+});

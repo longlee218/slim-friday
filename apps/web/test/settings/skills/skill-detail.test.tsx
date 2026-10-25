@@ -86,6 +86,19 @@ test("Remove's dialog names the bots that lose the skill", async () => {
   await waitFor(() => expect(api.remove).toHaveBeenCalledWith({ name: "debug" }));
 });
 
+test("on the phone (no page head) a Remove row opens the same dialog", async () => {
+  const width = window.innerWidth;
+  window.innerWidth = 390;
+  try {
+    setup();
+    await userEvent.click(await screen.findByRole("button", { name: "Remove this skill" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Remove skill" }));
+    await waitFor(() => expect(api.remove).toHaveBeenCalledWith({ name: "debug" }));
+  } finally {
+    window.innerWidth = width;
+  }
+});
+
 test("Update runs lookup, shows it, then update with the new lookupId", async () => {
   setup();
   await userEvent.click(await screen.findByRole("button", { name: "Check for updates" }));
@@ -105,6 +118,7 @@ test("a shipped skill can't be removed and has no update check", async () => {
   setup({ ...debug, shipped: true, source: undefined, sha: undefined, installedAt: undefined });
   expect(await screen.findByText(/can't be removed/)).toBeTruthy();
   expect(screen.queryByRole("button", { name: "Remove" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Remove this skill" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Check for updates" })).toBeNull();
 });
 
