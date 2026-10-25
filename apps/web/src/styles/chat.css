@@ -159,7 +159,7 @@ a.sched-tag:focus-visible { border-radius: 10px; }
 .mention-pop .it .av { width: 22px; height: 22px; }
 .mention-pop .it .r { margin-left: auto; font-size: 12px; color: var(--label-2); }
 .composer { position: relative; }
-.route { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px 0 4px; border-radius: 11px; background: var(--fill); font-size: 12px; color: var(--label-2); margin-left: 6px; transition: background var(--t-fast); }
+.route { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px 0 4px; border-radius: 999px; background: var(--fill); font-size: 12px; color: var(--label-2); margin-left: 6px; transition: background var(--t-fast); }
 .route .av { width: 16px; height: 16px; }
 .route b { color: var(--label); font-weight: 600; }
 .route.flash { animation: bump 380ms var(--ease); }
@@ -176,3 +176,20 @@ a.sched-tag:focus-visible { border-radius: 10px; }
 /* Not in the prototype: upload progress and failure note inside a chip. */
 .chip .note { color: var(--label-2); }
 .chip.failed .note { color: var(--red); }
+.msg-reacts { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.react-chip { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: 999px; background: var(--fill); font-size: 13px; line-height: 1; }
+.react-chip b { font-size: 11px; font-weight: 600; color: var(--label-2); }
+.react-row { display: flex; gap: 2px; margin: 0 0 0 4px; padding: 0; border: 0; }
+.react-pick { width: 28px; height: 28px; border: 0; border-radius: 999px; background: transparent; font-size: var(--emoji, 16px); cursor: pointer; }
+.react-pick:hover { background: var(--fill); }
+
+/* Phone reaction bar: a popover over the held message (soft neutral shadow, one elevation), the item under the finger lifts. */
+.rbar-scrim { position: fixed; inset: 0; z-index: 60; touch-action: none; }
+.rbar { position: fixed; z-index: 61; left: 50%; display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: 999px; background: var(--raised); box-shadow: var(--shadow-pop); transform: translateX(-50%); transform-origin: 50% 100%; animation: rbarIn var(--t-mid) var(--ease-sheet); touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.rbar.below { transform-origin: 50% 0; }
+.rbar-item { display: grid; place-items: center; width: clamp(34px, calc((100vw - 32px) / 7), 44px); height: 44px; padding: 0; border: 0; border-radius: 999px; background: transparent; font-size: var(--emoji, 24px); line-height: 1; color: var(--label-2); transition: transform var(--t-fast) var(--ease-sheet), background var(--t-fast); }
+.rbar-item.on { transform: translateY(-8px) scale(1.3); background: var(--fill); }
+.rbar-item.more { font-size: 0; }
+@keyframes rbarIn { from { opacity: 0; transform: translateX(-50%) scale(.88); } to { opacity: 1; transform: translateX(-50%) scale(1); } }
+.msg-reacts .react-chip.pop { animation: chipPop var(--t-mid) var(--ease-sheet); }
+@keyframes chipPop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }

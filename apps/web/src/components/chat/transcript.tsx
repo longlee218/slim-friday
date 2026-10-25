@@ -1,4 +1,4 @@
-import type { ConversationDto, MessageDto } from "@friday/contracts";
+import type { ConversationDto, MessageDto, MessageReaction } from "@friday/contracts";
 import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { type DragEvent, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -9,6 +9,7 @@ import { type LiveRun, liveRunKey, type Receipt, receiptsKey } from "../../event
 import { conversationParts } from "./conversation-parts";
 import { MessageSheet } from "./message-sheet";
 import { usePendingSends } from "./pending-sends";
+import { type BarState, barItemAt, DISMISS_TRAVEL_PX, MORE, ReactionBar } from "./reaction-bar";
 import { useSwipeToReply } from "./swipe-to-reply";
 import { buildTranscriptItems } from "./transcript-items";
 import { TranscriptRow } from "./transcript-row";
@@ -113,13 +114,60 @@ export function Transcript({ conversation, phone, onReply, onDropFiles }: Transc
   const [sheet, setSheet] = useState<MessageDto | null>(null);
   const byId = (id: number) =>
     items.flatMap((i) => (i.kind === "message" && i.message.id === id ? [i.message] : []))[0];
+  // A reaction is an owner reply of one emoji; it wakes no run by itself, so no live run is shown for it.
+  const onReact = (m: MessageDto, emoji: MessageReaction) =>
+    void sender.send({
+      payload: { conversationId: conversation.id, text: emoji, replyTo: m.id },
+      route: { botIds: [], reason: "reply" },
+    });
+
+  const [bar, setBar] = useState<BarState | null>(null);
   useSwipeToReply(phone ? scroller : null, {
     onReply: (id) => {
       const m = byId(id);
       if (m) onReply(m);
     },
-    onHold: (id) => setSheet(byId(id) ?? null),
+    onHold: (id, at) => {
+      const box = scroller?.querySelector(`.msg[data-mi="${id}"]`)?.getBoundingClientRect();
+      if (box) {
+        setBar({
+          messageId: id,
+          top: box.top,
+          bottom: box.bottom,
+          down: true,
+          origin: at,
+          point: at,
+        });
+      }
+    },
+    onHoldMove: (at) => setBar((b) => b && { ...b, point: at }),
+    onHoldEnd: (at) => {
+      // Read from the render, not inside a state updater: React may run an updater twice.
+      if (!bar) return;
+      const item = barItemAt(at);
+      const m = byId(bar.messageId);
+      if (item === MORE) setSheet(m ?? null);
+      else if (item && m) onReact(m, item);
+      // Lifted on nothing: a hold that stayed put leaves the bar open for a tap, a drag away closes it.
+      const travel = Math.hypot(at.x - bar.origin.x, at.y - bar.origin.y);
+      setBar(item || travel > DISMISS_TRAVEL_PX ? null : { ...bar, down: false, point: at });
+    },
+    onDoubleTap: (id) => {
+      const m = byId(id);
+      if (!m) return;
+      navigator.vibrate?.(8);
+      onReact(m, "👍");
+    },
   });
+
+  // The message the bar is for stays marked while the bar is open.
+  const heldId = bar?.messageId;
+  useLayoutEffect(() => {
+    if (heldId === undefined) return;
+    const m = scroller?.querySelector(`.msg[data-mi="${heldId}"]`);
+    m?.classList.add("held");
+    return () => m?.classList.remove("held");
+  }, [scroller, heldId]);
 
   const onDrop = (e: DragEvent) => {
     e.preventDefault();
@@ -164,6 +212,7 @@ export function Transcript({ conversation, phone, onReply, onDropFiles }: Transc
                   routeOf={(id) => pendingSends[id]?.route}
                   isFresh={(m) => m.id > (baseline.current ?? 0)}
                   onReply={onReply}
+                  onReact={onReact}
                   onRetry={(id) => void sender.retry(id)}
                 />
               </div>
@@ -171,6 +220,21 @@ export function Transcript({ conversation, phone, onReply, onDropFiles }: Transc
           })}
         </div>
       </div>
+      {phone && bar && (
+        <ReactionBar
+          state={bar}
+          onPick={(emoji) => {
+            const m = byId(bar.messageId);
+            if (m) onReact(m, emoji);
+            setBar(null);
+          }}
+          onMore={() => {
+            setSheet(byId(bar.messageId) ?? null);
+            setBar(null);
+          }}
+          onDismiss={() => setBar(null)}
+        />
+      )}
       {phone && sheet && (
         <MessageSheet
           message={sheet}

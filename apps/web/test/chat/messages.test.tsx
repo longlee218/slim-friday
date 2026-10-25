@@ -125,6 +125,34 @@ test("message actions are present but hidden until hover", async () => {
   expect(writeText).toHaveBeenCalledWith("copy me");
 });
 
+test("React opens the emoji row and picking one reacts", async () => {
+  const onReact = vi.fn();
+  view(<MessageActions message={msg()} onReply={() => {}} onReact={onReact} />);
+  expect(screen.queryByRole("group", { name: "Reactions" })).toBeNull();
+  await userEvent.click(screen.getByRole("button", { name: "React" }));
+  await userEvent.click(screen.getByRole("button", { name: "React 🎉" }));
+  expect(onReact).toHaveBeenCalledWith("🎉");
+  expect(screen.queryByRole("group", { name: "Reactions" })).toBeNull();
+});
+
+test("without onReact there is no React button", () => {
+  view(<MessageActions message={msg()} onReply={() => {}} />);
+  expect(screen.queryByRole("button", { name: "React" })).toBeNull();
+});
+
+test("a bot message shows its reactions as chips with counts above one", () => {
+  const { container } = view(
+    <BotMessage
+      message={msg()}
+      phone={false}
+      onReply={() => {}}
+      reactions={{ "👍": 2, "🎉": 1 }}
+    />,
+  );
+  const chips = [...container.querySelectorAll(".react-chip")].map((c) => c.textContent);
+  expect(chips).toEqual(["👍2", "🎉"]);
+});
+
 test("file card label", () => {
   view(<FileCard file={doc()} />);
   expect(screen.getByText("notes.md")).toBeTruthy();

@@ -106,3 +106,44 @@ test("pin decisions: open once, follow only at the bottom, stay with no rows", a
   expect(pinAction({ started: true, hasRows: true, following: false })).toBe("stay");
   expect(pinAction({ started: false, hasRows: false, following: true })).toBe("stay");
 });
+
+test("a reaction folds under its target and is no row of its own", () => {
+  const react = (id: number, text: string, to: number) =>
+    msg({
+      id,
+      author: { kind: "user" },
+      text,
+      replyTo: { messageId: to, excerpt: "" },
+    });
+  const items = buildTranscriptItems({
+    ...base,
+    pages: [[react(4, "👍", 1), react(3, "👍", 1), react(2, "🎉", 1), msg({ id: 1 })]],
+  });
+  const rows = items.filter((i) => i.kind === "message");
+  expect(rows.map((i) => i.message.id)).toEqual([1]);
+  expect(rows[0]?.reactions).toEqual({ "👍": 2, "🎉": 1 });
+});
+
+test("a reaction whose target is not loaded, or plain text, stays a row", () => {
+  const items = buildTranscriptItems({
+    ...base,
+    pages: [
+      [
+        msg({
+          id: 3,
+          author: { kind: "user" },
+          text: "👍",
+          replyTo: { messageId: 99, excerpt: "" },
+        }),
+        msg({
+          id: 2,
+          author: { kind: "user" },
+          text: "thanks",
+          replyTo: { messageId: 1, excerpt: "" },
+        }),
+        msg({ id: 1 }),
+      ],
+    ],
+  });
+  expect(items.filter((i) => i.kind === "message").map((i) => i.message.id)).toEqual([1, 2, 3]);
+});

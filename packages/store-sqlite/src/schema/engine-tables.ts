@@ -171,6 +171,8 @@ export const wakes = sqliteTable(
     quote: text("quote"),
     /** The first run of a new bot with the owner. */
     intro: integer("intro", { mode: "boolean" }),
+    /** The emoji the owner reacted with to the bot's message (a reaction run). */
+    reaction: text("reaction"),
     /** The schedule that fired this wake, and whether it stays quiet unless there is a problem. */
     scheduleId: text("schedule_id"),
     scheduleQuiet: integer("schedule_quiet", { mode: "boolean" }),

@@ -147,3 +147,11 @@ test("scheduleId and scheduleQuiet round-trip; absent by default", async () => {
   expect(plain?.scheduleId).toBeUndefined();
   expect(plain?.scheduleQuiet).toBeUndefined();
 });
+
+test("reaction round-trips; absent by default", async () => {
+  const s = openEngineStore(":memory:");
+  await s.wakes.insert({ ...wake("w-react"), reaction: "👍" });
+  await s.wakes.insert(wake("w-plain"));
+  expect(await s.wakes.get("w-react")).toMatchObject({ reaction: "👍" });
+  expect((await s.wakes.get("w-plain"))?.reaction).toBeUndefined();
+});
