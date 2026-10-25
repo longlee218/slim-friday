@@ -1,6 +1,7 @@
 import type { ScheduleDto } from "@friday/contracts";
 import { useState } from "react";
 import { toast } from "sonner";
+import { saveFailure } from "../settings/field-error";
 import { useAppNavigate } from "../shell/use-app-navigate";
 import { useRunScheduleNow, useSetScheduleEnabled } from "./use-schedules";
 
@@ -42,9 +43,6 @@ export function useScheduleSwitch(s: ScheduleDto) {
   const setEnabled = useSetScheduleEnabled();
   const gone = s.disabledReason === "bot_gone" || s.disabledReason === "group_gone";
   const toggle = (on: boolean) =>
-    setEnabled.mutate(
-      { id: s.id, enabled: on },
-      { onError: () => toast("Could not save. Try again.") },
-    );
+    setEnabled.mutate({ id: s.id, enabled: on }, { onError: (e) => toast(saveFailure(e).message) });
   return { toggle, disabled: gone || setEnabled.isPending };
 }
