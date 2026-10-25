@@ -18,6 +18,10 @@ test("buildCsp refuses a missing or non-https origin", () => {
   expect(() => buildCsp({ apiUrl: "not a url", r2Origin: r2 })).toThrow("VITE_API_URL");
 });
 
+test("buildCsp refuses a wildcard host", () => {
+  expect(() => buildCsp({ apiUrl: api, r2Origin: "https://*.example.com" })).toThrow("wildcard");
+});
+
 test("buildCsp allows http only for localhost and 127.0.0.1", () => {
   expect(buildCsp({ apiUrl: "http://127.0.0.1:8787", r2Origin: r2 })).toContain(
     "http://127.0.0.1:8787",

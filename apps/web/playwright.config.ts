@@ -44,7 +44,8 @@ export default defineConfig({
       url: "http://localhost:4174",
       reuseExistingServer: false,
       timeout: 180_000,
-      env: { VITE_API_URL: API },
+      // The fake R2 (files) origin, so the build-time CSP allows presigned uploads and images.
+      env: { VITE_API_URL: API, VITE_R2_ORIGIN: "https://localhost:8788" },
     },
     {
       // HTTPS on 8787 (API), 4173 (web) and 8788 (files) in front of the three above.

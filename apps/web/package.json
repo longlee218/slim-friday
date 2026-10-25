@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && bun csp/check-dist.ts",
     "preview": "vite preview",
     "check:dist": "bun csp/check-dist.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",

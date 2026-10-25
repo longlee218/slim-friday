@@ -7,6 +7,8 @@ function toOrigin(name: string, value: string | undefined): string {
   } catch {
     throw new Error(`${name} must be an origin like https://friday-api.example.com`);
   }
+  // A wildcard host would open the policy to every matching host.
+  if (url.hostname.includes("*")) throw new Error(`${name} must name one host, not a wildcard`);
   const local = url.hostname === "localhost" || url.hostname === "127.0.0.1";
   if (url.protocol === "https:" || (url.protocol === "http:" && local)) return url.origin;
   throw new Error(`${name} must use https (http is allowed only for localhost and 127.0.0.1)`);
