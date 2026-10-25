@@ -23,7 +23,7 @@ export interface ApprovalCardInput {
   /** Secret values hidden on the card. */
   secrets: readonly string[];
   now: number;
-  /** Shown first in the card's text (the Auto Review reason, spec §6.14). */
+  /** Shown first in the card's text as `Auto Review: <lead>` (the judge's reason, spec §6.14). */
   lead?: string;
 }
 
@@ -59,7 +59,7 @@ export function buildApprovalCard(i: ApprovalCardInput): CardRow {
       tool: call.tool,
       input: redactValue(call.input, secrets),
       inputHash: i.hash,
-      summary: i.lead ? `${redactSecrets(i.lead, secrets)} | ${summary}` : summary,
+      summary: i.lead ? `Auto Review: ${redactSecrets(i.lead, secrets)} | ${summary}` : summary,
       scope: shownScope,
       offerAlways,
       ...(offerAlways && alwaysSite && { always: { match: "site" as const, value: alwaysSite } }),

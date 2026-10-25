@@ -8,6 +8,7 @@ import {
 } from "../ports/auto-review";
 import type { Clock } from "../ports/clock";
 import type { AuditEntry, Store } from "../ports/store";
+import { CONTINUATION_KEY } from "../runs/continuation-key";
 import { redactSecrets, redactValue } from "../safety/redact-secrets";
 import type { Decision } from "./decide";
 
@@ -17,7 +18,8 @@ const MAX_REASON_CHARS = 300;
 /**
  * The words the judge measures a call against (spec §6.14): the text of the owner message that started the chain;
  * for a chain started by a ticket, the ticket's title and description; for any other chain, its first message.
- * Only the owner's own message counts as the owner's words. Undefined when the chain's first wake is gone.
+ * Only the owner's own message counts as the owner's words: a continuation run (sender owner, but Friday's fixed
+ * `CONTINUATION_PROMPT`) does not. Undefined when the chain's first wake is gone.
  */
 export async function ownerWordsOf(
   store: Pick<Store, "wakes" | "tickets">,
@@ -35,7 +37,10 @@ export async function ownerWordsOf(
   }
   return {
     ownerWords: first.text,
-    ownerWordsAreOwner: first.sender.kind === "user" && first.ticketId === undefined,
+    ownerWordsAreOwner:
+      first.sender.kind === "user" &&
+      first.ticketId === undefined &&
+      !first.dedupeKey?.startsWith(CONTINUATION_KEY),
   };
 }
 
@@ -79,8 +84,9 @@ export async function reviewCall(
 
 /**
  * The Auto Review verdict of an asked call; undefined when it is not reviewed (spec §6.14): only a `reviewable`
- * plain level ask, only while `settings.autoReview` is on, only with a reviewer and a chain whose first wake exists.
- * The judge gets the input with the configured secret values already hidden (the adapter also hides secret keys).
+ * plain level ask, only while `settings.autoReview` is on, only in a clean call (`tainted`: the run read untrusted
+ * input or the call comes from a subagent, `callTainted`; such a call always gets the card), only with a reviewer and
+ * a chain whose first wake exists. The judge gets the input with the configured secret values already hidden (the adapter also hides secret keys).
  */
 export async function reviewIfAsked(
   deps: {
@@ -93,10 +99,12 @@ export async function reviewIfAsked(
   verdict: Decision,
   settings: PermissionSettings,
   chainId: string | undefined,
+  tainted: boolean,
   secrets: readonly string[],
 ): Promise<AuditEntry["review"]> {
   const reviewer = deps.autoReviewer;
-  if (!verdict.reviewable || verdict.outcome !== "ask" || settings.autoReview !== true) return;
+  if (tainted || !verdict.reviewable || verdict.outcome !== "ask" || settings.autoReview !== true)
+    return;
   if (!reviewer || !chainId) return;
   const words = await ownerWordsOf(deps.store, chainId);
   if (!words) return;

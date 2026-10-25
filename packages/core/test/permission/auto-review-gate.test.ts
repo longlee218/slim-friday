@@ -9,6 +9,7 @@ import type {
 } from "../../src";
 import { decide } from "../../src/permission/decide";
 import { PermissionGate } from "../../src/permission/permission-gate";
+import { CONTINUATION_PROMPT } from "../../src/runs/run-steering";
 import { FakeClock } from "../fakes/fake-clock";
 import { FakeStore } from "../fakes/fake-store";
 import { FakeSurface } from "../fakes/fake-surface";
@@ -140,8 +141,8 @@ test("on + ask: the card's text starts with the reviewer's reason", async () => 
   const { r } = reviewer("ask", "Pushing is not what the owner asked.");
   const { gate, store } = setup(r, true);
   expect((await gate.decide(call("Push", { repo: "a" }), "B", ctx())).behavior).toBe("park");
-  expect(cardOf(store)?.approval?.summary.startsWith("Pushing is not what the owner asked.")).toBe(
-    true,
+  expect(cardOf(store)?.approval?.summary).toBe(
+    "Auto Review: Pushing is not what the owner asked. | Push repo=a",
   );
   expect(store.auditLog.at(-1)).toMatchObject({ outcome: "ask", review: { decision: "ask" } });
 });
@@ -217,6 +218,25 @@ test("ask_always (irreversible, BotDesign), taint asks and require rules never r
   const { gate: g4 } = setup(r, true, { level: "autonomous" });
   expect((await g4.decide(call("Delete"), "B", ctx())).behavior).toBe("park");
   expect(seen).toHaveLength(0);
+});
+
+test("a tainted call is never reviewed: the card, the reviewer not called", async () => {
+  const { r, seen } = reviewer("pass");
+  const { gate, store } = setup(r, true);
+  const d = await gate.decide(call("Push", { repo: "a" }), "B", ctx({ tainted: true }));
+  expect(d.behavior).toBe("park");
+  expect(seen).toHaveLength(0);
+  expect(store.auditLog.at(-1)?.review).toBeUndefined();
+});
+
+test("a continuation run's fixed prompt is not the owner's words", async () => {
+  const { r, seen } = reviewer("ask", "unclear");
+  const { gate, store } = setup(r, true);
+  await store.wakes.insert(
+    ownerWake({ id: "c3", chainId: "c3", text: CONTINUATION_PROMPT, dedupeKey: "cont:w0" }),
+  );
+  await gate.decide(call("Push", { repo: "a" }), "B", ctx({ chainId: "c3" }));
+  expect(seen[0]).toMatchObject({ ownerWords: CONTINUATION_PROMPT, ownerWordsAreOwner: false });
 });
 
 test("a run with no chain is not reviewed", async () => {

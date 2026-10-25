@@ -145,8 +145,17 @@ export class PermissionGate {
       return { behavior: "allow" };
     }
     const secrets = secretsFrom(this.deps.secretValues);
-    // Auto Review (spec §6.14): only a plain level ask of a run with a chain, and only while the setting is on.
-    const review = await reviewIfAsked(this.deps, call, verdict, settings, ctx.chainId, secrets);
+    // Auto Review (spec §6.14): only a plain level ask of a clean run with a chain, only while the setting is on.
+    const { chainId, tainted } = ctx;
+    const review = await reviewIfAsked(
+      this.deps,
+      call,
+      verdict,
+      settings,
+      chainId,
+      tainted,
+      secrets,
+    );
     if (review?.decision === "pass") {
       await audit(`auto review: ${review.reason}`, review, "allow");
       return { behavior: "allow" };

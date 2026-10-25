@@ -1,4 +1,12 @@
-import { existsSync, lstatSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  lstatSync,
+  readFileSync,
+  renameSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { type FileConfig, parseSettingsFile } from "@friday/config";
 import { AdminError, type PermissionsAdmin } from "@friday/core";
@@ -12,30 +20,33 @@ const AUTO_REVIEW_LINE = /^(\s+)autoReview\s*:.*$/;
 
 /**
  * `settings.yaml` text with `permissions.autoReview` set to `on`: the existing line is replaced, or one is added under
- * `permissions:`, or a `permissions:` block is appended. Every other line (comments included) stays. A flow-form
- * `permissions: {...}` is refused (it is edited by hand).
+ * `permissions:`, or a `permissions:` block is appended. Every other line (comments included) stays, and a CRLF file
+ * stays CRLF (lines are matched without their `\r`). A flow-form `permissions: {...}` is refused (edited by hand).
  */
 export function withAutoReview(text: string, on: boolean): string {
+  const cr = text.includes("\r\n") ? "\r" : "";
   const lines = text.split("\n");
-  const head = lines.findIndex((l) => BLOCK_HEAD.test(l));
+  /** A line without its trailing `\r`, for matching. */
+  const bare = (l: string | undefined) => (l ?? "").replace(/\r$/, "");
+  const head = lines.findIndex((l) => BLOCK_HEAD.test(bare(l)));
   if (head < 0) {
-    if (lines.some((l) => ANY_HEAD.test(l)))
+    if (lines.some((l) => ANY_HEAD.test(bare(l))))
       throw new AdminError(
         "BAD_REQUEST",
         "settings.yaml has permissions in a form to edit by hand",
       );
-    const body = text === "" || text.endsWith("\n") ? text : `${text}\n`;
-    return `${body}permissions:\n  autoReview: ${on}\n`;
+    const body = text === "" || text.endsWith("\n") ? text : `${text}${cr}\n`;
+    return `${body}permissions:${cr}\n  autoReview: ${on}${cr}\n`;
   }
   // The block: the lines after the head that are indented, blank or comments.
-  for (let i = head + 1; i < lines.length && /^(\s|#|$)/.test(lines[i] ?? ""); i++) {
-    const m = AUTO_REVIEW_LINE.exec(lines[i] ?? "");
+  for (let i = head + 1; i < lines.length && /^(\s|#|$)/.test(bare(lines[i])); i++) {
+    const m = AUTO_REVIEW_LINE.exec(bare(lines[i]));
     if (m) {
-      lines[i] = `${m[1]}autoReview: ${on}`;
+      lines[i] = `${m[1]}autoReview: ${on}${lines[i]?.endsWith("\r") ? "\r" : ""}`;
       return lines.join("\n");
     }
   }
-  lines.splice(head + 1, 0, `  autoReview: ${on}`);
+  lines.splice(head + 1, 0, `  autoReview: ${on}${cr}`);
   return lines.join("\n");
 }
 
@@ -65,8 +76,11 @@ export function createPermissionsAdmin(config: FileConfig, agentHome: string): P
           "BAD_REQUEST",
           "settings.yaml has permissions in a form to edit by hand",
         );
+      // The new file keeps the old one's mode (a 0600 settings.yaml stays 0600).
+      const mode = existsSync(file) ? statSync(file).mode & 0o7777 : undefined;
       const tmp = `${file}.${process.pid}.tmp`;
-      writeFileSync(tmp, next);
+      writeFileSync(tmp, next, mode === undefined ? undefined : { mode });
+      if (mode !== undefined) chmodSync(tmp, mode);
       renameSync(tmp, file);
     },
   };

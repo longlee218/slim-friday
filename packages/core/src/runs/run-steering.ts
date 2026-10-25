@@ -3,17 +3,14 @@ import type { WakeRow } from "../domain/wake";
 import type { HubContext } from "../hub/hub-context";
 import { errText } from "../hub/hub-types";
 import type { InboundTurn, SteerInput } from "../ports/agent-runtime";
+import { CONTINUATION_KEY, CONTINUATION_PROMPT } from "./continuation-key";
 import { createRun } from "./run-create";
 import type { RunExec } from "./run-exec";
 import { isConversational } from "./run-rules";
 import { addOwnerTexts } from "./run-taint";
 
-/** Dedupe-key prefix that marks a continuation run. */
-export const CONTINUATION_KEY = "cont:";
-
-/** The text of a continuation run (it answers owner messages that came while the bot was busy). */
-export const CONTINUATION_PROMPT =
-  "Respond to the owner's messages that arrived while you were busy.";
+// The continuation constants live in their own file (Auto Review reads them without importing the run code).
+export { CONTINUATION_KEY, CONTINUATION_PROMPT } from "./continuation-key";
 
 /** The line that frames a steering message for the bot. */
 const STEERING_HEADER = "New message from the owner while you work:";
