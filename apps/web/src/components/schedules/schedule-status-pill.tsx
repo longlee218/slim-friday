@@ -43,8 +43,15 @@ export function ScheduleStatusPill({ schedule: s }: { schedule: ScheduleDto }) {
     : s.disabledReason
       ? REASON[s.disabledReason]
       : PAUSED;
-  if (!look) return null;
-  const [tone, Icon, label] = look;
+  return look ? <LookPill look={look} /> : null;
+}
+
+/** The pill of one run's status (the schedule page's Recent runs). */
+export function RunStatusPill({ status }: { status: keyof typeof LAST }) {
+  return <LookPill look={LAST[status]} />;
+}
+
+function LookPill({ look: [tone, Icon, label] }: { look: Look }) {
   return (
     <Pill tone={tone}>
       <Icon strokeWidth={2} aria-hidden />

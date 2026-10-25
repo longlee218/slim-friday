@@ -1,8 +1,6 @@
 import type { ScheduleDto } from "@friday/contracts";
 import { Play, Repeat } from "lucide-react";
-import { useState } from "react";
 import { Link } from "react-router";
-import { toast } from "sonner";
 import { type Directory, useDirectory } from "../../api/directory";
 import { Switch } from "../settings/form-parts";
 import { useAppNavigate } from "../shell/use-app-navigate";
@@ -10,18 +8,14 @@ import { Avatar } from "../ui/avatar";
 import { Button } from "../ui/button";
 import { formatNextRun } from "./format-next-run";
 import { ScheduleStatusPill } from "./schedule-status-pill";
-import { useRunScheduleNow, useSetScheduleEnabled } from "./use-schedules";
-
-/** True for the API's "a run of this schedule is still going" error. */
-const isConflict = (e: unknown): boolean => (e as { code?: string } | null)?.code === "CONFLICT";
+import { conversationName } from "./schedule-target";
+import { useRunNow, useScheduleSwitch } from "./use-schedule-actions";
 
 /** `"Ray · own chat"`, or `"Ray → Crew"` when it posts elsewhere; ids stand in for gone names. */
 function target(s: ScheduleDto, dir: Directory): string {
   const by = dir.botName(s.botId);
   if (s.conversationId === `bot:${s.botId}`) return `${by} · own chat`;
-  const [kind, id = ""] = s.conversationId.split(":");
-  const name = kind === "group" ? dir.groups.get(id)?.name : dir.bots.get(id)?.name;
-  return `${by} → ${name ?? id}`;
+  return `${by} → ${conversationName(s.conversationId, dir)}`;
 }
 
 /**
@@ -33,27 +27,8 @@ function target(s: ScheduleDto, dir: Directory): string {
 export function ScheduleRow({ schedule: s }: { schedule: ScheduleDto }) {
   const dir = useDirectory();
   const go = useAppNavigate();
-  const runNow = useRunScheduleNow();
-  const setEnabled = useSetScheduleEnabled();
-  const [busy, setBusy] = useState(false);
-  const chat = `/c/${s.conversationId}`;
-  const gone = s.disabledReason === "bot_gone" || s.disabledReason === "group_gone";
-
-  const run = () => {
-    setBusy(false);
-    runNow.mutate(
-      { id: s.id },
-      {
-        onSuccess: () => go(chat),
-        onError: (e) => (isConflict(e) ? setBusy(true) : toast("Could not run. Try again.")),
-      },
-    );
-  };
-  const toggle = (on: boolean) =>
-    setEnabled.mutate(
-      { id: s.id, enabled: on },
-      { onError: () => toast("Could not save. Try again.") },
-    );
+  const { run, busy, pending, chat } = useRunNow(s);
+  const onSwitch = useScheduleSwitch(s);
 
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: the name link is the keyboard path
@@ -93,15 +68,15 @@ export function ScheduleRow({ schedule: s }: { schedule: ScheduleDto }) {
           </div>
         )}
       </div>
-      <Button className="s-run" disabled={!s.enabled || runNow.isPending} onClick={run}>
+      <Button className="s-run" disabled={!s.enabled || pending} onClick={run}>
         <Play size={14} strokeWidth={1.75} />
         Run now
       </Button>
       <Switch
         label={`${s.name} on`}
         on={s.enabled}
-        disabled={gone || setEnabled.isPending}
-        onChange={toggle}
+        disabled={onSwitch.disabled}
+        onChange={onSwitch.toggle}
       />
     </div>
   );

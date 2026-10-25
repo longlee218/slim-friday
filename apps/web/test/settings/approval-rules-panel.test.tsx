@@ -111,6 +111,15 @@ test("a refused add shows the server's message", async () => {
   );
 });
 
+test("a note says scheduled runs read without asking", () => {
+  setup([]);
+  expect(
+    screen.getByText(
+      "Scheduled runs read web pages and read-only connector tools without asking, even where a rule says Require approval.",
+    ),
+  ).toBeTruthy();
+});
+
 test("parseScope reads key=value pairs", () => {
   expect(parseScope("")).toEqual({});
   expect(parseScope("repo=friday, branch=*")).toEqual({ repo: "friday", branch: "*" });

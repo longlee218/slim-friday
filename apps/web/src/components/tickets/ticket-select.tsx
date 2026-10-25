@@ -16,6 +16,7 @@ export interface TicketSelectProps<T extends string> {
   /** What the button shows (the chosen option, or "Unassigned"). */
   current: ReactNode;
   onChange: (value: T) => void;
+  disabled?: boolean;
 }
 
 /**
@@ -28,10 +29,12 @@ export function TicketSelect<T extends string>({
   options,
   current,
   onChange,
+  disabled,
 }: TicketSelectProps<T>) {
   return (
     <Select.Root
       value={value}
+      disabled={disabled}
       onValueChange={(v) => {
         if (v && v !== value) onChange(v as T);
       }}

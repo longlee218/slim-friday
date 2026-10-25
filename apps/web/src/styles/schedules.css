@@ -49,3 +49,31 @@
   .sched-row .switch { grid-area: sw; }
   .sched-empty, .sched-note { margin-left: 32px; margin-right: 32px; }
 }
+
+/* Schedule page and form (prototype scheduleView / scheduleForm, round 4). Token colours only. */
+.sched-page { max-width: 760px; }
+.sched-when { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.sched-when .field.num { width: 110px; }
+.sched-when input[type="date"].field { width: 150px; }
+.sched-fixed { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; }
+.sched-fixed svg, .sched-form .popbtn svg.lucide { width: 14px; height: 14px; color: var(--label-2); }
+.sched-form .popbtn:active:not(:disabled) { background: var(--sel); }
+.sched-form .popbtn:disabled, .sched-form .field:disabled, .sched-form .seg button:disabled { opacity: .5; cursor: default; }
+.sched-form-err { margin: -10px 0 18px 2px; font-size: 12px; color: var(--red); }
+.sched-gone { margin: 0 0 18px 2px; }
+.sched-runs-title { font-size: 13px; margin: 0 0 8px; }
+.sched-runs .pill svg { width: 12px; height: 12px; }
+.sched-run { color: inherit; text-decoration: none; }
+.sched-run:active { background: var(--fill-strong); }
+.sched-run-err { color: var(--red); }
+.sched-run-cost { width: 56px; text-align: right; }
+.sched-delete { margin-right: auto; }
+/* Long pickers (time zones) scroll inside the popup. */
+.pop.sel-pop { max-height: min(360px, var(--available-height, 360px)); overflow-y: auto; }
+
+/* The shared .switch has no hover, pressed or disabled look; give it one on the page too. */
+.sched-page .switch { flex: none; cursor: pointer; }
+.sched-page .switch:hover:not(:disabled) { filter: brightness(.95); }
+.sched-page .switch:active:not(:disabled)::after { width: 22px; }
+.sched-page .switch.on:active:not(:disabled)::after { transform: translateX(12px); }
+.sched-page .switch:disabled { opacity: .4; cursor: default; }
