@@ -62,6 +62,8 @@ const settingsSchema = z.strictObject({
     })
     .optional(),
   limits: limitsSchema.optional(),
+  /** Permission switches: `autoReview` lets a model clear a plain level ask (spec §6.14); default off. */
+  permissions: z.strictObject({ autoReview: z.boolean().optional() }).optional(),
   /** Optional memory provider plugins; each entry's keys besides `id` are checked by its plugin. */
   memory: z
     .strictObject({

@@ -18,6 +18,8 @@ export interface AuditEntry {
   outcome: Outcome;
   answer?: ApprovalAnswer;
   reason: string;
+  /** The Auto Review verdict on the call (spec §6.14); unset when it was not reviewed. */
+  review?: { decision: "pass" | "ask"; reason: string };
 }
 
 /** A stored file (an R2 object) that a message can carry. */

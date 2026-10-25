@@ -102,6 +102,8 @@ export const audit = sqliteTable("audit", {
   outcome: text("outcome").notNull(),
   answer: text("answer"),
   reason: text("reason").notNull(),
+  /** The Auto Review verdict as JSON (`{ decision, reason }`); null when the call was not reviewed. */
+  review: text("review"),
 });
 
 /** One row per message sent into a bot session: its chain, intent, state and timings. */

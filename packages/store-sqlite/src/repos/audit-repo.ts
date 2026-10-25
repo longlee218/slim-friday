@@ -15,6 +15,7 @@ export function auditRepo(db: BunSQLiteDatabase): Store["audit"] {
           outcome: e.outcome,
           answer: e.answer ?? null,
           reason: e.reason,
+          review: e.review ? JSON.stringify(e.review) : null,
         })
         .run();
     },
@@ -36,8 +37,22 @@ export function auditRepo(db: BunSQLiteDatabase): Store["audit"] {
           outcome: r.outcome as AuditEntry["outcome"],
           ...(r.answer !== null && { answer: r.answer as AuditEntry["answer"] }),
           reason: r.reason,
+          ...(r.review !== null && { review: parseReview(r.review) }),
         }),
       );
     },
   };
+}
+
+/** A stored review column back as the verdict; an unreadable value reads as an `ask` (never as a pass). */
+function parseReview(text: string): NonNullable<AuditEntry["review"]> {
+  try {
+    const v = JSON.parse(text) as { decision?: unknown; reason?: unknown };
+    return {
+      decision: v.decision === "pass" ? "pass" : "ask",
+      reason: typeof v.reason === "string" ? v.reason : "",
+    };
+  } catch {
+    return { decision: "ask", reason: "" };
+  }
 }

@@ -42,6 +42,7 @@ const rules: ApprovalRuleDto[] = [
 function setup(list: ApprovalRuleDto[]) {
   const qc = seededClient({ bots: [bot("dev", "Dev")] });
   qc.setQueryData(orpc.config.approvalRules.list.queryKey(), list);
+  qc.setQueryData(orpc.config.permissions.get.queryKey(), { autoReview: false });
   render(
     <QueryClientProvider client={qc}>
       <ApprovalRulesPanel />

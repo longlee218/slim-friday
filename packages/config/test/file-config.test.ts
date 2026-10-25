@@ -186,3 +186,13 @@ test("a USER.md or SOUL.md change alone restarts no bot but reaches the snapshot
   );
   expect(config.reload().changedBots).toEqual(["a"]);
 });
+
+test("permissions.autoReview is off by default and a reload turns it on", () => {
+  const dir = newDir();
+  const { config } = make(dir);
+  expect(config.settings().autoReview).toBe(false);
+  writeFileSync(join(dir, "settings.yaml"), "permissions:\n  autoReview: true\n");
+  config.reload();
+  expect(config.settings().autoReview).toBe(true);
+  rmSync(dir, { recursive: true, force: true });
+});

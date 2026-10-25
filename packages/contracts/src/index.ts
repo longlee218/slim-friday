@@ -5,6 +5,7 @@ export * from "./dto/chat";
 export * from "./dto/config";
 export * from "./dto/memory";
 export * from "./dto/ops";
+export * from "./dto/permissions";
 export * from "./dto/scratchpad";
 export * from "./dto/status";
 export * from "./dto/tickets";

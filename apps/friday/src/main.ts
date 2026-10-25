@@ -10,6 +10,7 @@ import { WebSurface } from "@friday/surface-web";
 import { localDay, purgeTrash } from "@friday/tools";
 import { startApiServer } from "./api-server";
 import type { RuntimeParts } from "./app-deps";
+import { appAutoReviewer } from "./auto-reviewer";
 import { claudeRuntimeFactory } from "./claude-runtime-factory";
 import type { AgentConfig } from "./config/agent-config";
 import { HAIKU_SUMMARY_MODEL } from "./config/model-ids";
@@ -114,6 +115,7 @@ async function runEngine(
     agentHome,
     log,
     env,
+    autoReviewer: appAutoReviewer(config),
     flushNotes: (transcript) =>
       extractNotes(transcript, { ...haiku, source: "transcript", today: localDay(new Date()) }),
     consolidate: (memory, notes) =>

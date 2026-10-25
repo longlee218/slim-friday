@@ -14,6 +14,14 @@ autonomy:
   # tools:
   #   GitPush: ask_always
 
+## --- Auto Review: a model may clear an approval ask -------------------------------
+## On: before a card for a call your level would ask about, a quick Haiku check compares the call with your own
+## words that started the work; a clear fit runs without a card, anything else shows the card with its reason.
+## It never denies. Bot config changes, calls that cannot be undone, untrusted-content asks and your "always ask"
+## rules always show a card. Also on the web: Settings, Approval rules.
+# permissions:
+#   autoReview: false
+
 ## --- Memory providers (optional plugins) ----------------------------------------
 ## Without a provider, memory is MEMORY.md + the journal with a local word search (no service needed).
 ## Honcho adds search by meaning (other words, other languages). Setup: docs/honcho-setup.md

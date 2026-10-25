@@ -1,12 +1,14 @@
 import type { PermissionSettings } from "../domain/autonomy";
-import type { CardRow } from "../domain/card";
 import type { ToolCall } from "../domain/tool";
 import type { ToolDecision } from "../ports/agent-runtime";
+import type { AutoReviewer } from "../ports/auto-review";
 import type { Clock } from "../ports/clock";
-import type { Store } from "../ports/store";
+import type { AuditEntry, Store } from "../ports/store";
 import type { Surface } from "../ports/surface";
 import type { ToolCatalog } from "../ports/tool-catalog";
-import { redactSecrets, redactValue, secretsFrom } from "../safety/redact-secrets";
+import { secretsFrom } from "../safety/redact-secrets";
+import { buildApprovalCard } from "./approval-card";
+import { reviewIfAsked } from "./auto-review-step";
 import { scopeOf } from "./classify-tool";
 import { decide } from "./decide";
 import { inputHash } from "./input-hash";
@@ -28,6 +30,10 @@ export interface PermissionGateDeps {
   secretValues?: () => string[];
   /** Registrable domain of a host by the Public Suffix List (the app's); unset: the exact host (`exactHost`). */
   registrableDomain?: RegistrableDomain;
+  /** Auto Review's judge (spec §6.14), asked only while `settings().autoReview` is on; unset: never asked. */
+  autoReviewer?: AutoReviewer;
+  /** How long the judge may take (ms); default `AUTO_REVIEW_TIMEOUT_MS` (10 s). Tests pass a short one. */
+  autoReviewTimeoutMs?: number;
 }
 
 /** The run a call belongs to, as the gate needs it. */
@@ -40,6 +46,8 @@ export interface GateContext {
   tainted: boolean;
   /** The run's owner-named and approved sites and approved MCP servers; unset: none (every taint ask asks). */
   taint?: Omit<TaintRun, "tainted">;
+  /** The run's chain (`row.chainId`): Auto Review reads the owner's words from it; unset: no review. */
+  chainId?: string;
   /** Input hash of the call the owner approved for this resumed run: that exact call is allowed. */
   oneShot?: string;
   /**
@@ -103,32 +111,32 @@ export class PermissionGate {
       this.domainOf,
     );
     const site = call.tool === "WebFetch" ? fetchSiteOf(call, this.domainOf) : undefined;
+    const settings = this.deps.settings();
     const verdict = decide({
       call,
       spec,
       grants: await store.grants.list(call.botId),
-      settings: this.deps.settings(),
+      settings,
       floorDenyReason,
       now: clock.now(),
       ...(taint && { taint }),
       ...(site && { site }),
     });
-    const audit = (reason: string) =>
+    const audit = (reason: string, review?: AuditEntry["review"], outcome = verdict.outcome) =>
       store.audit.append({
         at: clock.now(),
         botId: call.botId,
         tool: call.tool,
-        outcome: verdict.outcome,
+        outcome,
         reason,
+        ...(review && { review }),
       });
 
-    if (verdict.outcome === "allow") {
+    if (verdict.outcome === "allow" || verdict.outcome === "deny") {
       await audit(verdict.reason);
-      return { behavior: "allow" };
-    }
-    if (verdict.outcome === "deny") {
-      await audit(verdict.reason);
-      return { behavior: "deny", reason: verdict.reason };
+      return verdict.outcome === "allow"
+        ? { behavior: "allow" }
+        : { behavior: "deny", reason: verdict.reason };
     }
     const hash = await inputHash(call.tool, call.input);
     // The exact call the owner approved before the run parked; the caller spends the one shot.
@@ -136,44 +144,28 @@ export class PermissionGate {
       await audit("approved by the owner");
       return { behavior: "allow" };
     }
-    // The card shows the call redacted; the hash stays that of the real input (it is what the one shot matches).
     const secrets = secretsFrom(this.deps.secretValues);
-    const shownScope = redactValue(scope, secrets);
-    // "Always allow" only for a tool the catalog knows. A tool rule needs plain scope values (a "*" would become a
-    // wildcard rule) and a scope with no secret in it; a site rule a site with no secret in it.
-    const alwaysSite = verdict.always === "site" ? site : undefined;
-    const offerAlways =
-      spec !== undefined &&
-      (verdict.always === "tool"
-        ? Object.values(scope).every((v) => v !== "*") &&
-          JSON.stringify(shownScope) === JSON.stringify(scope)
-        : alwaysSite !== undefined && redactSecrets(alwaysSite, secrets) === alwaysSite);
-    const card: CardRow = {
-      id: `card-${crypto.randomUUID()}`,
-      kind: "approval",
+    // Auto Review (spec §6.14): only a plain level ask of a run with a chain, and only while the setting is on.
+    const review = await reviewIfAsked(this.deps, call, verdict, settings, ctx.chainId, secrets);
+    if (review?.decision === "pass") {
+      await audit(`auto review: ${review.reason}`, review, "allow");
+      return { behavior: "allow" };
+    }
+    // The card shows the call redacted; the hash stays that of the real input (it is what the one shot matches).
+    const card = buildApprovalCard({
+      call,
+      spec,
+      scope,
+      site,
+      verdict,
+      hash,
       wakeId: ctx.wakeId,
-      botId: call.botId,
-      conversationId: call.conversationId,
       scopeKey: ctx.scopeKey,
-      approval: {
-        tool: call.tool,
-        input: redactValue(call.input, secrets),
-        inputHash: hash,
-        // A taint card says why it asks (spec §6.10).
-        summary: redactSecrets(
-          [call.tool, ...Object.entries(scope).map(([k, v]) => `${k}=${v}`)].join(" ") +
-            (verdict.reason.startsWith("tainted: ") ? ` (${verdict.reason})` : ""),
-          secrets,
-        ),
-        scope: shownScope,
-        offerAlways,
-        ...(offerAlways && alwaysSite && { always: { match: "site" as const, value: alwaysSite } }),
-        // Asked in a tainted run: only such an approval restores a site or server on resume (`restoreTaint`).
-        ...(ctx.tainted && { tainted: true }),
-      },
-      status: "open",
-      createdAt: clock.now(),
-    };
+      tainted: ctx.tainted,
+      secrets,
+      now: clock.now(),
+      ...(review && { lead: review.reason }),
+    });
     // Only the first call of a step gets a card: a pending ask of the run (in this process) or an open card of
     // the run (in the store, checked in the same write as the insert) denies the others.
     if (ctx.reserve && !ctx.reserve()) {
@@ -185,7 +177,7 @@ export class PermissionGate {
       await audit(WAITING_TEXT);
       return { behavior: "deny", reason: WAITING_TEXT };
     }
-    await audit(verdict.reason);
+    await audit(verdict.reason, review);
     // The card is stored first: a surface that fails to show it now shows it after a restart.
     try {
       this.deps.surface.showCard(card, botName);

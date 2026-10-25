@@ -1,6 +1,7 @@
 import type { FileConfig, McpServerSpec } from "@friday/config";
 import type {
   AgentRuntime,
+  AutoReviewer,
   BotMessenger,
   Clock,
   ConsolidateFn,
@@ -63,6 +64,8 @@ export interface AppDeps {
   memoryIndex?: MemoryIndexStore & MessageIndexStore;
   /** Notes worth keeping from the transcript of a session closed for being quiet; without it no idle flush. */
   flushNotes?: (transcript: string) => Promise<string[]>;
+  /** Auto Review's judge (spec §6.14), asked only while `permissions.autoReview` is on; without it never asked. */
+  autoReviewer?: AutoReviewer;
   /** Picks the journal notes to promote into MEMORY.md each day; without it nothing is consolidated. */
   consolidate?: ConsolidateFn;
   /** The owner's env: memory provider plugins read their declared secrets from it (default: none). */

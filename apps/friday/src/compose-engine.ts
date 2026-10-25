@@ -29,6 +29,7 @@ export type EngineDeps = Pick<
   | "memory"
   | "memoryIndex"
   | "flushNotes"
+  | "autoReviewer"
   | "env"
   | "fetch"
   | "log"
@@ -99,6 +100,8 @@ export function composeEngine(deps: EngineDeps, opened: Array<() => unknown>) {
     secretValues,
     // Sites of the taint policy by the Public Suffix List (spec §6.10).
     registrableDomain,
+    // Asked only while `permissions.autoReview` is on: `settings` is read at every call, so a toggle applies at once.
+    ...(deps.autoReviewer && { autoReviewer: deps.autoReviewer }),
   });
   const botHub = new BotHub({
     runtime,

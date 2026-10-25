@@ -16,4 +16,6 @@ export interface PermissionSettings {
   botLevels?: Record<BotId, AutonomyLevel>;
   /** Per-tool outcome overrides. */
   tools?: Record<string, Outcome>;
+  /** Auto Review (spec §6.14): a model may clear a plain level ask; unset or false: off (the default). */
+  autoReview?: boolean;
 }

@@ -214,5 +214,15 @@ export function fakeSettings() {
     probeCalls,
     state,
     memory: new FakeMemoryAdmin(),
+    // Auto Review switch: `setAutoReview` writes it, `get` reads it back.
+    permissions: {
+      autoReview: false,
+      get() {
+        return { autoReview: this.autoReview };
+      },
+      setAutoReview(on: boolean) {
+        this.autoReview = on;
+      },
+    },
   };
 }

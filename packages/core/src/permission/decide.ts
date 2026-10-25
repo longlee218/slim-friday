@@ -54,6 +54,8 @@ export interface Decision {
   outcome: Outcome;
   reason: string;
   always?: "site" | "tool";
+  /** A plain autonomy-level ask (no rule, override, taint or irreversible call): Auto Review may clear it. */
+  reviewable?: true;
 }
 
 /**
@@ -61,7 +63,7 @@ export interface Decision {
  * in a tainted run), the other taint asks (they yield only to an `always_allow` site rule, or for an MCP call a
  * tool or server rule), per-tool override, owner rule (`require_approval` asks, `always_allow` allows), then the
  * autonomy level for the tool's class. An irreversible call is never lifted by an `always_allow` rule (nor
- * does one hide a require rule) and its ask is `ask_always`. Auto Review (Task 17) goes after the level's ask.
+ * does one hide a require rule) and its ask is `ask_always`. Only the level's plain ask is `reviewable` (Auto Review, applied by the gate).
  */
 export function decide(input: DecideInput): Decision {
   const { call, spec, grants, settings, now } = input;
@@ -115,6 +117,8 @@ export function decide(input: DecideInput): Decision {
   if (allowRule) return { outcome: "allow", reason: `rule ${allowRule.id}` };
   const level = settings.botLevels?.[call.botId] ?? settings.level;
   const reason = `${level}: ${cls}`;
-  // Task 17 (Auto Review) adds its step here, for an ask that is not mandatory.
-  return LEVEL_MAP[level][cls] === "ask" ? ask(reason) : { outcome: "allow", reason };
+  if (LEVEL_MAP[level][cls] === "allow") return { outcome: "allow", reason };
+  // Only this ask may go to Auto Review (spec §6.14); an irreversible call's `ask_always` never does.
+  const d = ask(reason);
+  return d.outcome === "ask" ? { ...d, reviewable: true } : d;
 }

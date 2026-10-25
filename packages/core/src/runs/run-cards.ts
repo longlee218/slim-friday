@@ -44,6 +44,7 @@ export async function decideInRun(
     {
       wakeId: row.id,
       scopeKey: row.scopeKey,
+      chainId: row.chainId,
       tainted: callTainted(exec, call),
       taint: exec.taint,
       ...(shot && { oneShot: shot }),

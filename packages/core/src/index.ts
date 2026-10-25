@@ -29,6 +29,7 @@ export * from "./permission/owner-sites";
 export * from "./permission/permission-gate";
 export * from "./permission/taint-policy";
 export * from "./ports/agent-runtime";
+export * from "./ports/auto-review";
 export * from "./ports/clock";
 export * from "./ports/file-store";
 export * from "./ports/insight";

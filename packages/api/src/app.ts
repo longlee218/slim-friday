@@ -5,6 +5,7 @@ import type {
   FileStore,
   McpProbe,
   MemoryAdmin,
+  PermissionsAdmin,
   RegistrableDomain,
   SkillAdmin,
   Store,
@@ -47,8 +48,14 @@ export interface ApiDeps {
   files: FileStore;
   /** Public https origin of the owner's CDN on the bucket (no trailing `/`); images are served from it when set. */
   cdnUrl?: string;
-  /** Admins over the config, skill and memory files, and the MCP connection test. */
-  settings: { config: ConfigAdmin; skills: SkillAdmin; memory: MemoryAdmin; probe: McpProbe };
+  /** Admins over the config, skill and memory files and the permission switches, and the MCP connection test. */
+  settings: {
+    config: ConfigAdmin;
+    skills: SkillAdmin;
+    memory: MemoryAdmin;
+    probe: McpProbe;
+    permissions: PermissionsAdmin;
+  };
   /** OAuth sign-in of MCP servers (status, sign-in url, callback). */
   mcpAuth: McpAuthAdmin;
   /** The spend cap the ops view shows, read on every call (follows a config reload). */

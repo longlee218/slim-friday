@@ -7,6 +7,7 @@ import { client, orpc } from "../../api/client";
 import { useDirectory } from "../../api/directory";
 import { Button, IconButton } from "../ui/button";
 import { Pill } from "../ui/pill";
+import { AutoReviewToggle } from "./auto-review-toggle";
 import { SettingsPage } from "./settings-page";
 
 type Match = ApprovalRuleDto["match"];
@@ -98,6 +99,9 @@ export function ApprovalRulesPanel() {
             config changes and calls that cannot be undone always ask.
           </div>
         </div>
+      </div>
+      <div className="list-panel">
+        <AutoReviewToggle />
       </div>
       <div className="list-panel">
         {rules.map((r) => (
