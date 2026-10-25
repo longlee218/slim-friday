@@ -45,16 +45,23 @@
 .tabbar { position: absolute; z-index: 6; left: 0; right: 0; bottom: 0; height: calc(var(--tab-h) + var(--safe-b)); padding-bottom: var(--safe-b); display: grid; grid-template-columns: repeat(4, 1fr);
   background: var(--toolbar); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); border-top: .5px solid var(--sep-strong); transition: transform var(--t-slow) var(--ease-sheet); }
 .tabbar.hidden { transform: translateY(100%); }
-.tabbar button { border: 0; background: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 10.5px; font-weight: 500; color: var(--label-3); position: relative; }
-.tabbar button svg { width: 25px; height: 25px; stroke-width: 1.75; }
-.tabbar button.on { color: var(--tint); }
-.tabbar .tb { position: absolute; top: 3px; left: calc(50% + 6px); min-width: 18px; height: 18px; border-radius: 9px; background: var(--red-dot); color: #fff; font-size: 12px; font-weight: 600; display: grid; place-items: center; padding: 0 5px; }
+.tabbar button { border: 0; background: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding-top: 2px; font-size: 10px; font-weight: 500; letter-spacing: .01em; color: var(--label-2); position: relative; -webkit-tap-highlight-color: transparent; transition: color var(--t-mid); }
+.tabbar button svg { width: 24px; height: 24px; stroke-width: 1.75; transition: transform var(--t-mid) var(--ease-sheet); }
+.tabbar button:active svg { transform: scale(.88); }
+.tabbar button:focus-visible { outline: 2px solid var(--tint); outline-offset: -6px; border-radius: 12px; }
+.tabbar button.on { color: var(--tint); font-weight: 600; }
+.tabbar button.on svg { stroke-width: 2.1; }
+.tabbar .tb { position: absolute; top: 4px; left: calc(50% + 4px); min-width: 17px; height: 17px; border-radius: 9px; background: var(--red-dot); color: #fff; font-size: 11px; font-weight: 600; line-height: 1; display: grid; place-items: center; padding: 0 5px; box-shadow: 0 0 0 2px var(--ground); }
+@media (prefers-reduced-motion: reduce) { .tabbar button svg { transition: none; } }
 
 /* iOS chat */
 .chat-nav-mid { position: absolute; left: 0; right: 0; top: var(--safe-t); bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
 .chat-nav-mid .av { width: 28px; height: 28px; }
-.chat-nav-mid b { font-size: 12px; font-weight: 600; margin-top: 1px; display: flex; align-items: center; gap: 3px; }
-.chat-nav-mid .st { font-size: 11px; color: var(--label-2); }
+.chat-nav-mid b { position: relative; font-size: 12px; line-height: 15px; font-weight: 600; margin-top: 2px; display: flex; align-items: center; }
+/* The chevron hangs outside the name so the name and the avatar share one centre line. */
+.chat-nav-mid b svg { position: absolute; left: 100%; margin-left: 3px; }
+/* Fixed line heights keep face, name and status (56px with the button padding) inside the 58px bar. */
+.chat-nav-mid .st { font-size: 11px; line-height: 13px; color: var(--label-2); }
 .ios .ios-nav.chatnav { height: calc(var(--safe-t) + 58px); background: var(--toolbar); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); border-bottom-color: var(--sep-strong); }
 .ios .transcript { padding: 12px 12px 8px; }
 .ios .md { font-size: 16px; }
@@ -75,6 +82,10 @@
 /* The connection banner sits under the nav bar. */
 .ios-banner { position: absolute; z-index: 5; left: 0; right: 0; top: calc(var(--safe-t) + 58px); pointer-events: none; }
 .ios-banner .banner { pointer-events: auto; }
+/* On a tab root the nav bar is 44px, not the 58px chat bar: sit right under it. */
+.ios-banner:has(+ .tabbar:not(.hidden)) { top: calc(var(--safe-t) + var(--nav-h)); }
+/* ...and push a tab root's content down by the banner's 30px so it never covers the large title. */
+.ios:has(.ios-banner .banner):has(.tabbar:not(.hidden)) .ios-scroll { padding-top: calc(var(--safe-t) + var(--nav-h) + 30px); }
 /* Rows are links and the live row a button here: neutral their default look. */
 a.crow { color: inherit; text-decoration: none; }
 button.live { border: 0; width: calc(100% - 32px); text-align: left; color: inherit; font: inherit; }
