@@ -60,11 +60,14 @@
 .page-head .grow { flex: 1; }
 .page-head .r { color: var(--label-2); font-size: 13px; }
 .ios .page-head { display: none; }
-.ios .formgroup .frow { grid-template-columns: 1fr; gap: 6px; }
+/* Phone forms stack label over control; form sheets (`.bs-form`) are portalled outside `.ios`, so they are named too. */
+:is(.ios .formgroup, .bs-form) .frow { grid-template-columns: 1fr; gap: 6px; }
 .ios .list-panel, .ios .formgroup { margin-bottom: 18px; }
 /* Phone forms: a segmented control spans the row and its segments share the width. */
-.ios .formgroup .seg { display: flex; width: 100%; }
-.ios .formgroup .seg button { flex: 1 1 0; justify-content: center; padding: 0 4px; }
+:is(.ios .formgroup, .bs-form) .seg { display: flex; width: 100%; }
+:is(.ios .formgroup, .bs-form) .seg button { flex: 1 1 0; justify-content: center; padding: 0 4px; }
+/* Five Repeat choices still fit a 320 px screen. */
+.bs-form .seg button { min-width: 0; padding: 0 2px; font-size: 13px; }
 .av-grid { display: grid; grid-template-columns: repeat(5, 48px); gap: 10px; padding: 8px; }
 .av-grid button { border: 0; padding: 0; background: none; border-radius: 50%; width: 48px; height: 48px; position: relative; transition: transform var(--t-fast) var(--ease); }
 .av-grid button:hover { transform: scale(1.06); }

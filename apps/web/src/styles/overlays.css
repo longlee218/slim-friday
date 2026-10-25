@@ -48,6 +48,17 @@
 .bsheet { position: fixed; --safe-b: env(safe-area-inset-bottom, 0px); }
 /* A tall sheet stops below the status bar; a form's fields scroll in `.bs-body` (a swipe there scrolls, it never drags). */
 .bsheet { display: flex; flex-direction: column; max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 10px); }
+/* Sheet form (sheet-bar.tsx): Cancel | title | action, like the nav bar; the fields scroll under it. */
+.bs-form { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.bs-bar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; min-height: 44px; margin: -8px -6px 4px; }
+.bs-bar h3 { margin: 0; font: 600 17px var(--font); letter-spacing: -0.01em; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bs-bar .bs-bar-r { justify-self: end; }
+.bs-bar .nb { display: inline-flex; align-items: center; height: 44px; padding: 0 6px; border: 0; background: none; color: var(--tint); font-size: 17px; }
+.bs-bar .nb:first-child { justify-self: start; }
+.bs-bar .nb.strong { font-weight: 600; }
+.bs-bar .nb:active:not(:disabled) { opacity: .5; }
+.bs-bar .nb:disabled { color: var(--label-3); }
+.bs-body .acts { flex-direction: column; }
 .bs-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; }
 .badge.red { background: var(--red-dot); color: #fff; }
 kbd { font: 500 11px var(--font); color: var(--label-3); padding: 1px 5px; border-radius: 4px; background: var(--fill); }
