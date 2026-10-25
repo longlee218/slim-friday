@@ -34,6 +34,8 @@ export * from "./memory/rules-file";
 export * from "./memory/tools/MessageSearchTool/constants";
 export type { MessageSearchDeps } from "./memory/tools/MessageSearchTool/message-search-tool";
 export * from "./memory/write-through-memory";
+export * from "./scratchpad/scratchpad-context";
+export * from "./scratchpad/scratchpad-server";
 export * from "./text/redact";
 export * from "./tickets/tickets-context";
 export * from "./tickets/tickets-server";

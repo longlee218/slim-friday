@@ -15,6 +15,7 @@ Risk: **none** = reads or chats only, never asks; **sandboxed** = writes, bounde
 | `TodoWrite`, `TaskCreate`/`TaskGet`/`TaskUpdate`/`TaskList`/`TaskStop` | Own todo list, background tasks | none |
 | `Skill` | Load a listed skill (added by itself when `skills` is set) | none |
 | `mcp__memory` (`MemorySearch`, `MessageSearch`, `MemorySave`, `MemoryEdit`) | The bot's own memory and past messages | none / sandboxed |
+| `mcp__scratchpad` (`ScratchpadList`, `ScratchpadAdd`, `ScratchpadUpdate`, `ScratchpadComplete`, `ScratchpadRemove`) | The bot's open-work list for the session (direct or group), shown at every turn | none / sandboxed |
 | `mcp__chat__SendToBot`, `mcp__chat__HandOff` | Ask another group member / pass ownership | none (hub checks caps) |
 | `mcp__chat__PostFile` | Send a file from its workspace or scratch to the chat | sandboxed |
 | `mcp__chat__PostUpdate` | Short progress note to the owner during long work (owner runs; 500 chars, 3 per run) | none |

@@ -3,6 +3,7 @@ import { groupContextFor } from "../hub/group-context";
 import { groupMemoryFor, promptMemory } from "../hub/group-memory";
 import { errText } from "../hub/hub-types";
 import { readRulesText } from "../hub/rules-text";
+import { scratchpadBlock } from "../hub/scratchpad-block";
 import type { SessionScope } from "../hub/session-scope";
 import { teammateDirectory } from "../hub/teammate-directory";
 import type { AgentRuntime, BotRuntimeSpec, BotSession } from "../ports/agent-runtime";
@@ -68,6 +69,10 @@ export async function openRunSession(
   const teammates = scope.groupId
     ? undefined
     : teammateDirectory(scope.bot.id, await store.bots.list());
+  // The scope's open items (a done one is not injected); each scope has its own list.
+  const scratchpad = scratchpadBlock(
+    (await store.scratchpad.list(scope.key)).filter((i) => i.status !== "done"),
+  );
   const state = await store.scopes.get(scope.key);
   const fresh =
     state?.resetPending === true &&
@@ -83,7 +88,7 @@ export async function openRunSession(
     ...(groupRules && { groupRules }),
     ...(groupMemory && { groupMemory }),
     ...(teammates && { teammates }),
-    // `scratchpad` (the scope's `<scratchpad_open>` block) is filled by Task 9; empty until then.
+    ...(scratchpad && { scratchpad }),
   };
   const stored = fresh ? undefined : await store.sessions.get(scope.key);
   let session: BotSession | undefined;

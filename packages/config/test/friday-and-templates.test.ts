@@ -19,6 +19,7 @@ const ALLOWED = [
   "mcp__chat__HandOff",
   "mcp__tickets",
   "mcp__memory",
+  "mcp__scratchpad",
 ];
 
 test("the shipped Friday bot designs through BotDesign: no write tools, its skills ship, every tool is in the catalog", () => {
@@ -32,6 +33,7 @@ test("the shipped Friday bot designs through BotDesign: no write tools, its skil
     "mcp__design__BotDesign",
     "mcp__design__BotLookup",
     "mcp__memory",
+    "mcp__scratchpad",
     "mcp__chat__PostUpdate",
     "Bash",
     "WebFetch",
@@ -68,6 +70,7 @@ for (const [name, entry] of [
       expect(b.tools).toContain("mcp__chat__HandOff");
       expect(b.tools).toContain("mcp__tickets");
       expect(b.tools).toContain("mcp__memory");
+      expect(b.tools).toContain("mcp__scratchpad");
       for (const t of b.tools) expect(ALLOWED).toContain(t);
       expect(b.workspaces).toEqual([]);
     }

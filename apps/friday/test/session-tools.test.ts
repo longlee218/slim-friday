@@ -63,14 +63,16 @@ function build() {
 
 test("every bot gets the memory server; only a bot that names an effect tool gets effects", () => {
   const { forSpec } = build();
-  expect(Object.keys(forSpec(specOf(bot(["Read"]))))).toEqual(["memory", "chat"]);
+  expect(Object.keys(forSpec(specOf(bot(["Read"]))))).toEqual(["memory", "scratchpad", "chat"]);
   expect(Object.keys(forSpec(specOf(bot(["mcp__effects__GitPush"]))))).toEqual([
     "memory",
+    "scratchpad",
     "chat",
     "effects",
   ]);
   expect(Object.keys(forSpec(specOf(bot(["mcp__effects"]))))).toEqual([
     "memory",
+    "scratchpad",
     "chat",
     "effects",
   ]);

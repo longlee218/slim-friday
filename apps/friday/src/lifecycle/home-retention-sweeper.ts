@@ -98,3 +98,14 @@ export function startHomeRetention(home: string): () => void {
   timer.unref();
   return () => clearInterval(timer);
 }
+
+/** Done scratchpad items are kept this long. */
+const SCRATCHPAD_DONE_KEEP_DAYS = 30;
+
+/** Delete `done` scratchpad items last updated more than 30 days before `now`; returns the count. */
+export function sweepScratchpad(
+  store: { deleteDoneBefore(at: number): Promise<number> },
+  now = Date.now(),
+): Promise<number> {
+  return store.deleteDoneBefore(now - SCRATCHPAD_DONE_KEEP_DAYS * DAY_MS);
+}

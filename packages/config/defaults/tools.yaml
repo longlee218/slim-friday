@@ -32,6 +32,12 @@ tools:
   - { name: mcp__memory__MessageSearch, annotations: { readOnlyHint: true } }
   - { name: mcp__memory__MemorySave, sandboxed: true }
   - { name: mcp__memory__MemoryEdit, sandboxed: true }
+  # The bot's own open-work list per session scope: bounded by the tools' code (limits, scope key), so no card.
+  - { name: mcp__scratchpad__ScratchpadList, annotations: { readOnlyHint: true } }
+  - { name: mcp__scratchpad__ScratchpadAdd, sandboxed: true }
+  - { name: mcp__scratchpad__ScratchpadUpdate, sandboxed: true }
+  - { name: mcp__scratchpad__ScratchpadComplete, sandboxed: true }
+  - { name: mcp__scratchpad__ScratchpadRemove, sandboxed: true }
   # Sending a file to the chat: the tool checks the path itself (workspace or scratch dir only), so no card.
   - { name: mcp__chat__PostFile, sandboxed: true }
   # Changes only the thinking effort of the session, capped by the bot file's maxEffort: no side effect outside the run.
