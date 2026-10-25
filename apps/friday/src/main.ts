@@ -17,7 +17,7 @@ import { readProcessEnv } from "./config/process-env";
 import { acquireMainLock } from "./lifecycle/main-lock";
 import { startMcpProxy } from "./mcp-oauth/mcp-proxy";
 import { McpOAuthManager } from "./mcp-oauth/oauth-manager";
-import { oauthConfs, warnNeedsLogin, withOAuthProxy } from "./mcp-oauth/oauth-servers";
+import { oauthConfs, warnNeedsLogin, withProxiedServers } from "./mcp-oauth/oauth-servers";
 import { logEvent, logger } from "./observability/logger";
 import { need, r2Of } from "./required-config";
 import { createSettings } from "./settings-admin";
@@ -103,10 +103,7 @@ async function runEngine(
   /** The runtime over parts whose MCP servers go through the proxy. */
   const runtime = (parts: RuntimeParts): AgentRuntime => {
     appConfig = parts.config;
-    const proxied = {
-      ...parts,
-      mcpServers: () => withOAuthProxy(parts.mcpServers(), mcpProxy),
-    };
+    const proxied = withProxiedServers(parts, mcpProxy);
     return typeof baseRuntime === "function" ? baseRuntime(proxied) : baseRuntime;
   };
   // A failed start leaves no open db.
@@ -126,7 +123,11 @@ async function runEngine(
     // `limits.workers` worker processes run the runs (0: this process does). An override (the e2e script) runs
     // them in this process: workers would build the real runtime and file store.
     ...(!overrides && {
-      workers: workerLauncher({ bootId: bootId(), config: { ...config, agentHome } }),
+      workers: workerLauncher({
+        bootId: bootId(),
+        config: { ...config, agentHome },
+        mcpProxy: mcpProxy.endpoint,
+      }),
     }),
     // Every saved ticket change goes to the web app with its fresh comment count.
     onTicketChange: ticketChangePublisher({ store: engine, bus: surface.bus, log }),

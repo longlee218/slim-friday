@@ -4,6 +4,8 @@ import { R2FileStore } from "@friday/store-r2";
 import { openEngineStore } from "@friday/store-sqlite";
 import type { RuntimeParts } from "../app-deps";
 import { claudeRuntimeFactory } from "../claude-runtime-factory";
+import { withProxiedServers } from "../mcp-oauth/oauth-servers";
+import { proxyClientConfig } from "../mcp-oauth/proxy-client-config";
 import { composeEngine } from "../compose-engine";
 import type { AgentConfig } from "../config/agent-config";
 import { readProcessEnv } from "../config/process-env";
@@ -18,6 +20,8 @@ import { IpcSurface } from "./ipc-surface";
 export interface WorkerAppDeps {
   /** The config main loaded (sent in `init`). */
   config: AgentConfig;
+  /** The OAuth MCP proxy of main: OAuth servers reach the bot through it, with keys derived from its secret. */
+  mcpProxy?: { port: number; secret: string };
   /** Main's boot id and this worker's index: leases are `<bootId>:w<index>`. */
   bootId: string;
   index: number;
@@ -46,11 +50,16 @@ export function startWorker(d: WorkerAppDeps) {
     const surface = new IpcSurface({ send: d.send, store: engine, files, clock: systemClock, log });
     /** Hints from main, as core hints, for this worker's runner. */
     const incoming = new InProcessHints();
+    const baseRuntime = d.runtime ?? claudeRuntimeFactory(config, agentHome, log);
+    const proxy = d.mcpProxy;
     const parts = composeEngine(
       {
         surface,
         engine,
-        runtime: d.runtime ?? claudeRuntimeFactory(config, agentHome, log),
+        runtime: proxy
+          ? (p) =>
+              baseRuntime(withProxiedServers(p, { configFor: (n) => proxyClientConfig(proxy, n) }))
+          : baseRuntime,
         agentHome,
         log,
         env: readProcessEnv(),

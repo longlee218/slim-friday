@@ -14,7 +14,14 @@ export type HintKind = (typeof HINT_KINDS)[number];
 export type HintMessage = { t: "hint"; kind: HintKind; ids?: string[] };
 
 /** Main to worker: the start values (sent once, first), then hints. */
-export type MainToWorker = { t: "init"; config: AgentConfig } | HintMessage;
+export type MainToWorker =
+  | {
+      t: "init";
+      config: AgentConfig;
+      /** The OAuth MCP proxy in main (port and key secret), when there is one. */
+      mcpProxy?: { port: number; secret: string };
+    }
+  | HintMessage;
 
 /**
  * Worker to main. `ready`: composed and claiming. `post`: a message is stored (main reads it by id and
@@ -41,6 +48,9 @@ const hintSchema = z.strictObject({
 const initSchema = z.strictObject({
   t: z.literal("init"),
   config: z.looseObject({ agentHome: z.string().min(1), r2: z.looseObject({}) }),
+  mcpProxy: z
+    .strictObject({ port: z.number().int().min(1).max(65535), secret: z.string().min(1) })
+    .optional(),
 });
 
 /** Shape check of a live activity. */

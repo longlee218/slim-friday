@@ -49,11 +49,15 @@ let closing = false;
 const keepAlive = setInterval(() => {}, 2 ** 30);
 
 /** Compose the worker once the config arrived; tell main it is ready. */
-async function start(config: Parameters<typeof startWorker>[0]["config"]) {
+async function start(
+  config: Parameters<typeof startWorker>[0]["config"],
+  mcpProxy?: { port: number; secret: string },
+) {
   const seamPath = values["runtime-module"];
   const seam = seamPath ? ((await import(seamPath)) as SeamModule) : undefined;
   const worker = startWorker({
     config,
+    ...(mcpProxy && { mcpProxy }),
     bootId: values.boot ?? "",
     index,
     send,
@@ -103,7 +107,7 @@ process.on("message", (raw) => {
   if (!m) return log.warn({}, "worker.ipc_unknown_message");
   if (m.t === "init") {
     if (starting || closing) return;
-    starting = start(m.config);
+    starting = start(m.config, m.mcpProxy);
     starting.catch((e) => {
       log.error({ err: errText(e) }, "worker.start_failed");
       void shutdown("start failed", 1);

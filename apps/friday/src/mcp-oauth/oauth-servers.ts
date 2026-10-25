@@ -1,5 +1,6 @@
 import { isOAuthServer, type McpServerSpec } from "@friday/config";
 import type { Logger } from "pino";
+import type { RuntimeParts } from "../app-deps";
 import { logEvent } from "../observability/logger";
 import type { McpProxy } from "./mcp-proxy";
 import type { McpOAuthManager, OAuthServerConf } from "./oauth-manager";
@@ -39,4 +40,12 @@ export async function warnNeedsLogin(
     const status = await manager.status(server);
     if (status !== "connected") logEvent(log, "mcp.oauth.needs_login", { server, status }, "warn");
   }
+}
+
+/** The runtime parts with `mcpServers` going through the proxy (main in-process and every worker use this). */
+export function withProxiedServers(
+  parts: RuntimeParts,
+  proxy: Pick<McpProxy, "configFor">,
+): RuntimeParts {
+  return { ...parts, mcpServers: () => withOAuthProxy(parts.mcpServers(), proxy) };
 }

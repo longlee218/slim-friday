@@ -1,6 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 import pino from "pino";
 import { type McpProxy, startMcpProxy } from "../src/mcp-oauth/mcp-proxy";
+import { proxyClientConfig } from "../src/mcp-oauth/proxy-client-config";
 
 const LOGIN_TEXT = "db needs a new login: open Settings → MCP servers → db → Sign in.";
 
@@ -266,4 +267,34 @@ test("offline session id gets 404 after login", async () => {
   );
   expect(res.status).toBe(404);
   expect(up.seen.length).toBe(0);
+});
+
+test("a config built from the endpoint is accepted; another server's key is refused", async () => {
+  const up = fakeUpstream(() => Response.json({ jsonrpc: "2.0", id: 1, result: {} }));
+  cleanups.push(up.stop);
+  const proxy = startMcpProxy({
+    manager: stubManager(["t"]),
+    servers: () => ({ db: { url: up.url }, other: { url: up.url } }),
+    log: pino({ level: "silent" }),
+  });
+  cleanups.push(() => proxy.stop());
+  const db = proxyClientConfig(proxy.endpoint, "db");
+  const other = proxyClientConfig(proxy.endpoint, "other");
+  expect(db).toEqual(proxy.configFor("db"));
+  expect(db.headers["x-friday-mcp-key"]).not.toBe(other.headers["x-friday-mcp-key"]);
+  const post = (url: string, headers: Record<string, string>) =>
+    fetch(url, { method: "POST", headers, body: '{"jsonrpc":"2.0","id":1,"method":"ping"}' });
+  expect((await post(db.url, db.headers)).status).toBe(200);
+  expect((await post(db.url, other.headers)).status).toBe(403);
+});
+
+test("proxyClientConfig is deterministic, differs per server and never carries the secret", () => {
+  const ep = { port: 4321, secret: "s3cret" };
+  const a = proxyClientConfig(ep, "a b");
+  expect(a).toEqual(proxyClientConfig(ep, "a b"));
+  expect(a.url).toBe("http://127.0.0.1:4321/mcp/a%20b");
+  expect(a.headers["x-friday-mcp-key"]).not.toBe(
+    proxyClientConfig(ep, "c").headers["x-friday-mcp-key"],
+  );
+  expect(JSON.stringify(a)).not.toContain("s3cret");
 });

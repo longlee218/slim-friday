@@ -4,8 +4,13 @@ import { logEvent } from "../observability/logger";
 import type { McpOAuthManager, OAuthServerConf } from "./oauth-manager";
 import { OFFLINE_SESSION_PREFIX, offlineReply, rpcMethodOf } from "./offline-replies";
 
-/** Header carrying the per-server key that opens `/mcp/<server>`. */
-const KEY_HEADER = "x-friday-mcp-key";
+import {
+  PROXY_KEY_HEADER as KEY_HEADER,
+  type ProxyClientConfig,
+  type ProxyEndpoint,
+  proxyClientConfig,
+  proxyKey,
+} from "./proxy-client-config";
 
 /** Incoming headers never sent upstream (auth, our key, hop-by-hop, length/encoding). */
 const DROP_REQUEST = new Set([
@@ -29,7 +34,9 @@ const DROP_RESPONSE = new Set([
 /** A running proxy: SDK config per OAuth server, and shutdown. */
 export interface McpProxy {
   /** SDK config for one OAuth server: proxy URL plus its key header. */
-  configFor(server: string): { type: "http"; url: string; headers: Record<string, string> };
+  configFor(server: string): ProxyClientConfig;
+  /** Port and secret the keys derive from; handed to worker processes (never to a bot). */
+  endpoint: ProxyEndpoint;
   /** Stop listening (open streams are closed). */
   stop(): Promise<void>;
 }
@@ -45,9 +52,11 @@ export interface McpProxyDeps {
 }
 
 /** Constant-time compare of the presented key with the expected one. */
-function keyMatches(given: string | null, expected: string | undefined): boolean {
-  if (!given || !expected || given.length !== expected.length) return false;
-  return timingSafeEqual(Buffer.from(given), Buffer.from(expected));
+function keyMatches(given: string | null, expected: string): boolean {
+  if (!given) return false;
+  const a = Buffer.from(given);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 /** Copy `from` without the names in `drop`. */
@@ -65,8 +74,8 @@ function without(from: Headers, drop: Set<string>): Headers {
  * and answers locally (never a 401) when no token is available.
  */
 export function startMcpProxy(deps: McpProxyDeps): McpProxy {
-  /** Random key per server for this start, made on first `configFor`. */
-  const keys = new Map<string, string>();
+  /** Secret of this start; every server's key derives from it, so workers can build the same keys. */
+  const secret = randomBytes(32).toString("hex");
 
   /** Send one request upstream with `token`. */
   const send = (url: string, req: Request, body: ArrayBuffer | undefined, token: string) => {
@@ -117,7 +126,7 @@ export function startMcpProxy(deps: McpProxyDeps): McpProxy {
       const server = match ? decodeURIComponent(match[1] as string) : undefined;
       const conf = server ? deps.servers()[server] : undefined;
       if (!server || !conf) return new Response(null, { status: 404 });
-      if (!keyMatches(req.headers.get(KEY_HEADER), keys.get(server))) {
+      if (!keyMatches(req.headers.get(KEY_HEADER), proxyKey(secret, server))) {
         return new Response(null, { status: 403 });
       }
       // The body is buffered once: it may be sent twice (401 retry); MCP bodies are small.
@@ -147,19 +156,10 @@ export function startMcpProxy(deps: McpProxyDeps): McpProxy {
     },
   });
 
+  const endpoint = { port: http.port as number, secret };
   return {
-    configFor(server) {
-      let key = keys.get(server);
-      if (!key) {
-        key = randomBytes(32).toString("hex");
-        keys.set(server, key);
-      }
-      return {
-        type: "http",
-        url: `http://127.0.0.1:${http.port}/mcp/${encodeURIComponent(server)}`,
-        headers: { [KEY_HEADER]: key },
-      };
-    },
+    configFor: (server) => proxyClientConfig(endpoint, server),
+    endpoint,
     async stop() {
       await http.stop(true);
     },

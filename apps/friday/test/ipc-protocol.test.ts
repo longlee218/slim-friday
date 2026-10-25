@@ -42,3 +42,14 @@ test("ipc-protocol rejects unknown messages", () => {
     { t: "init", config: { agentHome: "/h", r2: {}, apiPort: 1 } } as never,
   );
 });
+
+test("init accepts and omits mcpProxy, and rejects a bad one", () => {
+  const config = { agentHome: "/h", r2: {} };
+  expect(parseMainToWorker({ t: "init", config })).toBeDefined();
+  const withProxy = { t: "init", config, mcpProxy: { port: 4321, secret: "s" } };
+  expect(parseMainToWorker(withProxy)).toEqual(withProxy as never);
+  expect(
+    parseMainToWorker({ t: "init", config, mcpProxy: { port: 0, secret: "s" } }),
+  ).toBeUndefined();
+  expect(parseMainToWorker({ t: "init", config, mcpProxy: { port: 1 } })).toBeUndefined();
+});

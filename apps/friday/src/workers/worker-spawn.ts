@@ -56,6 +56,8 @@ export function spawnInGroup(cmd: string[], onMessage: (m: unknown) => void): Wo
 export function workerLauncher(o: {
   bootId: string;
   config: AgentConfig;
+  /** The OAuth MCP proxy of main, sent to every worker in `init` (the proxy itself stays in main). */
+  mcpProxy?: { port: number; secret: string };
   extraArgs?: string[];
   backoffMs?: (n: number) => number;
 }): WorkerLauncher {
@@ -65,7 +67,11 @@ export function workerLauncher(o: {
     spawn: (i, onMessage) => {
       const args = ["--boot", o.bootId, "--worker", String(i), ...(o.extraArgs ?? [])];
       const handle = spawnInGroup([process.execPath, WORKER_ENTRY, ...args], onMessage);
-      const init: MainToWorker = { t: "init", config: o.config };
+      const init: MainToWorker = {
+        t: "init",
+        config: o.config,
+        ...(o.mcpProxy && { mcpProxy: o.mcpProxy }),
+      };
       handle.send(init);
       return handle;
     },
