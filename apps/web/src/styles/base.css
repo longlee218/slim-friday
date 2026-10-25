@@ -85,5 +85,5 @@ textarea.field.code { font-family: var(--mono); font-size: 12.5px; }
    set a smaller size are raised by name. */
 @media (pointer: coarse) {
   input, textarea, select { font-size: 16px; }
-  :root :is(.sb-search .field, .composer textarea, textarea.field.code) { font-size: 16px; }
+  :root :is(.sb-search .field, .composer textarea, textarea.field.code, .of-edit, .field.mono) { font-size: 16px; }
 }
