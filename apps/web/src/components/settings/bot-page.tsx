@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { MessageCircle } from "lucide-react";
 import { useRef } from "react";
 import { Link, useNavigate, useParams } from "react-router";
+import { toast } from "sonner";
 import { client, orpc } from "../../api/client";
 import { Avatar } from "../ui/avatar";
 import { useSegThumb } from "../ui/use-seg-thumb";
@@ -10,7 +11,6 @@ import { AvatarPicker } from "./avatar-picker";
 import { BotForm } from "./bot-form";
 import { type BotFormValue, NEW_BOT } from "./bot-form-value";
 import { SEG_BUTTON, SEG_GRID } from "./form-parts";
-import { InlineName } from "./inline-name";
 import { MemoryPanel } from "./memory-panel";
 import { RuleList } from "./rule-list";
 import { SettingsPage } from "./settings-page";
@@ -72,17 +72,12 @@ export function BotPage() {
       </SettingsPage>
     );
   }
-  /** The newest bot in the cache, so a save never builds on a stale copy. */
-  const latest = () => qc.getQueryData(orpc.config.bots.get.queryKey({ input: { id } })) ?? bot;
   const shipped = bot.shipped === true;
-  /** Saves the owner's fields; the name always comes from the latest bot (rename has its own door). */
-  const save = async (input: Omit<BotFormValue, "id" | "name">, name?: string) => {
-    await client.config.bots.save({
-      id: bot.id,
-      bot: { ...input, name: name ?? latest().name },
-      mode: "update",
-    });
+  /** Saves the owner's fields; a new name is toasted, since mentions follow it. */
+  const save = async ({ id: _id, ...input }: BotFormValue) => {
+    await client.config.bots.save({ id: bot.id, bot: input, mode: "update" });
     await qc.invalidateQueries({ queryKey: orpc.config.bots.key() });
+    if (input.name !== bot.name) toast(`Mentions use @${input.name} now`);
   };
   const initial: BotFormValue = { ...BotInputDtoSchema.parse(bot), id: bot.id };
   return (
@@ -96,11 +91,7 @@ export function BotPage() {
           </AvatarPicker>
         )}
         <div className="grow">
-          <InlineName
-            value={bot.name}
-            disabled={shipped}
-            onSave={(name) => save(BotInputDtoSchema.parse(latest()), name)}
-          />
+          <h2>{bot.name}</h2>
           <div className="r">{[bot.title, bot.model].filter(Boolean).join(" · ")}</div>
         </div>
         <Link className="btn" to={`/c/bot:${bot.id}`}>
@@ -133,7 +124,7 @@ export function BotPage() {
           mode="update"
           tab={tab}
           shipped={shipped}
-          onSave={({ id: _id, name: _name, ...input }) => save(input)}
+          onSave={save}
         />
       ) : // Memory and rules are the owner's files, so a shipped bot's stay editable.
       tab === "rules" ? (

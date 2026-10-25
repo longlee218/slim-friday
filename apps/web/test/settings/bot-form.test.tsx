@@ -82,3 +82,23 @@ test("a shipped bot is read only: no save bar, inputs disabled", () => {
   expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
   expect((screen.getByLabelText("Title") as HTMLInputElement).disabled).toBe(true);
 });
+
+test("an existing bot is renamed from the Name field and saved with the form; its id stays", async () => {
+  const { onSave } = setup();
+  const name = screen.getByLabelText("Name") as HTMLInputElement;
+  expect(name.value).toBe("Dev");
+  expect(screen.queryByText(/File id/)).toBeNull();
+  await userEvent.clear(name);
+  await userEvent.type(name, "Nhà phát triển");
+  await userEvent.click(save());
+  await waitFor(() =>
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "dev", name: "Nhà phát triển" }),
+    ),
+  );
+});
+
+test("a shipped bot's name is read only", () => {
+  setup({ shipped: true });
+  expect((screen.getByLabelText("Name") as HTMLInputElement).disabled).toBe(true);
+});

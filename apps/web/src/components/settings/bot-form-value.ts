@@ -4,7 +4,7 @@ import type { FieldErrors } from "./use-form-state";
 /** What the bot form edits: the saved fields plus the id (typed once, when the bot is new). */
 export type BotFormValue = BotInputDto & { id: string };
 
-/** The same limit `InlineName` enforces. */
+/** A bot name is 1 to 32 characters. */
 export const NAME_HELP = "Use 1 to 32 characters.";
 
 /** The values of a bot that does not exist yet. */

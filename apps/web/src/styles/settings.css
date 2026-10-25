@@ -31,20 +31,17 @@
 .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .25); transition: transform var(--t-mid) var(--ease); }
 .switch.on { background: var(--green-dot); }
 .switch.on::after { transform: translateX(16px); }
-.savebar { position: sticky; bottom: 0; display: flex; justify-content: flex-end; gap: 8px; padding: 12px 0; background: linear-gradient(to top, var(--ground) 70%, transparent); }
+/* Solid ground and a hairline: no half-covered line of text shows through. */
+.savebar { position: sticky; bottom: 0; display: flex; justify-content: flex-end; gap: 8px; padding: 12px 0; background: var(--ground); box-shadow: 0 -1px 0 var(--sep); }
+/* .set-form's 40px bottom padding would lift the bar off the edge, with content showing below it. */
+.set-form .savebar { bottom: -40px; }
+/* Phone pages without a tab bar: the same for the scroll view's 8px, and the bar clears the home indicator. */
+.ios-scroll.nt .savebar { bottom: -8px; padding-bottom: calc(12px + var(--safe-b)); }
 .av-edit { position: relative; border: 0; padding: 0; background: none; border-radius: 50%; cursor: pointer; }
 .av-edit .av { width: 64px; height: 64px; transition: transform var(--t-mid) var(--ease); }
 .av-edit .ov { position: absolute; inset: 0; border-radius: 50%; display: grid; place-items: center; background: rgba(0, 0, 0, .45); color: #fff; opacity: 0; transition: opacity var(--t-fast); font-size: 11px; font-weight: 600; }
 .av-edit:hover .ov, .av-edit:focus-visible .ov { opacity: 1; }
 .av-edit.popped .av { animation: pop 460ms var(--ease); }
-.name-edit { display: flex; align-items: center; gap: 6px; }
-.name-edit h2 { cursor: text; border-radius: 6px; padding: 0 4px; margin-left: -4px; transition: background var(--t-fast); }
-.name-edit h2:hover { background: var(--fill); }
-.name-edit input { font: 650 20px var(--font-display); letter-spacing: -0.02em; height: 32px; width: 220px; padding: 0 6px; margin-left: -6px; }
-.name-edit .ib { opacity: 0; transition: opacity var(--t-fast); }
-.name-edit:hover .ib { opacity: 1; }
-.shake { animation: shake 360ms var(--ease); }
-@keyframes shake { 20%, 60% { transform: translateX(-5px); } 40%, 80% { transform: translateX(5px); } }
 .tabs { margin-bottom: 18px; }
 .list-panel { border-radius: 12px; background: var(--well); overflow: hidden; margin-bottom: 18px; }
 :root[data-theme="dark"] .list-panel { background: #252528; }
@@ -65,7 +62,6 @@
 .ios .page-head { display: none; }
 .ios .formgroup .frow { grid-template-columns: 1fr; gap: 6px; }
 .ios .list-panel, .ios .formgroup { margin-bottom: 18px; }
-.name-edit .help.err { color: var(--red); font-size: 12px; margin-top: 2px; }
 /* Phone forms: a segmented control spans the row and its segments share the width. */
 .ios .formgroup .seg { display: flex; width: 100%; }
 .ios .formgroup .seg button { flex: 1 1 0; justify-content: center; padding: 0 4px; }
