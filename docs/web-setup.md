@@ -4,7 +4,7 @@ Friday is a team engine ([design](superpowers/specs/2026-10-23-friday-team-engin
 
 ## Prerequisites
 - Bun, and `claude setup-token` completed (`CLAUDE_CODE_OAUTH_TOKEN` in `.env`; Anthropic is the only LLM provider)
-- `.env` in the project root (copy from `.env.example`)
+- `bun install` in the repo root, and `.env` in the project root (copy from `.env.example`)
 - `AGENT_HOME`: a real directory outside every git repo (for example `~/.friday`)
 - A domain whose DNS is on Cloudflare (below: `example.com`)
 - A Vercel account
@@ -15,7 +15,7 @@ Friday is a team engine ([design](superpowers/specs/2026-10-23-friday-team-engin
 - `friday.example.com`: the web app (Vercel)
 - `friday-api.example.com`: the API (Cloudflare Tunnel to the engine)
 - Both must share the parent domain (`example.com`): the session cookie is `SameSite=Lax` and Safari drops it across sites.
-- Passkeys are bound to the web origin's domain. Changing the domain makes every passkey invalid.
+- Passkeys are bound to the parent domain (`example.com`). Changing it makes every passkey invalid.
 
 ## Cloudflare Tunnel
 1. `cloudflared tunnel login` (pick the zone).
@@ -49,7 +49,6 @@ Friday is a team engine ([design](superpowers/specs/2026-10-23-friday-team-engin
      }
    ]
    ```
-   The same policy works from the CLI with the wrangler format: `npx wrangler r2 bucket cors set friday-files --file cors.json`.
 5. No lifecycle rule. The engine's sweeper deletes unused uploads itself (a pending one after 1 day, a claimed one after 2 days; at start and every 6 hours). A rule on `uploads/`, `files/` or `avatars/` would delete files still shown in history.
 6. Presign host: the engine uses the path-style S3 endpoint, so `VITE_R2_ORIGIN=https://<ACCOUNT_ID>.r2.cloudflarestorage.com` (origin only, no bucket, no path). Presigned URLs look like `https://<ACCOUNT_ID>.r2.cloudflarestorage.com/friday-files/<key>?...`.
 7. Optional check of the credentials: `bun scripts/smoke-r2.ts` (live; needs the four `R2_*` values in the shell env; prints step names and `ok`).
@@ -77,14 +76,14 @@ Start:
 ```bash
 bun run start
 ```
-- Logs go to stdout (pretty) and `$AGENT_HOME/logs/app.<date>.<n>.jsonl`.
+- Logs go to stdout (pretty) only in a terminal; always to `$AGENT_HOME/logs/app.<date>.<n>.jsonl`. Under `nohup` or launchd there is no stdout: a failed start is logged in that file.
 - A missing or placeholder (`REPLACE_ME`) required value stops the start before any network call, naming the variable: `<NAME> missing` (the OAuth token: `CLAUDE_CODE_OAUTH_TOKEN missing or placeholder`). A malformed value logs `Invalid environment variables: <NAMES>` (names only).
 - The first start deletes old Discord-keyed conversations and their messages. Each bot and group gets one fixed conversation (`bot:<id>`, `group:<id>`).
 - Engine db: `<AGENT_HOME>/data/engine.db`. Bot scratch dirs: `<AGENT_HOME>/scratch/<botId>/`.
 
 ## Vercel
-1. New Project from the repo. Root Directory `apps/web`, framework Vite.
-2. Environment variables (Production and Preview; also in `apps/web/.env.example`):
+1. New Project from the repo. Root Directory `apps/web`, framework Vite. Install Command `bun install` (the workspace package `@friday/contracts` needs the install from the repo root `bun.lock`; the build runs `bun csp/check-dist.ts`, so Bun must be in the build image). Check the first deploy log: it must show Bun and a passing `check-dist`.
+2. Environment variables (Production; Preview deploys run on `*.vercel.app`, which is not the API's parent domain, so they show only the shell: sign-in and API calls fail there; run the header and cache checks on the production domain. Also in `apps/web/.env.example`):
    - `VITE_API_URL=https://friday-api.example.com`
    - `VITE_R2_ORIGIN=https://<ACCOUNT_ID>.r2.cloudflarestorage.com`
    - `VITE_CDN_ORIGIN=https://img.example.com` (only with a CDN)
@@ -95,11 +94,11 @@ bun run start
    curl -sI https://friday.example.com/ | grep -iE 'content-security|strict-transport|referrer|permissions|x-frame|cache-control'
    ```
    Expect HSTS, `Referrer-Policy: no-referrer`, `Permissions-Policy`, `X-Frame-Options: DENY` and a short CSP header (`frame-ancestors`, `object-src`, `base-uri`, `form-action`). The full CSP is in a `<meta>` tag at the top of the page source (`view-source:`).
-6. `cache-control` of `/` and of a deep route such as `/c/bot:friday` must not be a long `max-age`. If it is, add a `no-cache` header rule for the shell.
+6. `cache-control` of `/` and of a deep route such as `/c/bot:friday` must be `no-cache` (`vercel.json` sets it for every path except `/assets/`).
 
 ## First login
 1. Open `https://friday.example.com/login`, choose "Get a sign-in link", enter `OWNER_EMAIL`, press "Send link".
-2. On the engine machine, or over SSH: `ssh <host> 'tail -n 1 "$AGENT_HOME"/logs/owner-links.log'`. The file is mode 0600. Never paste the link anywhere.
+2. On the engine machine, or over SSH: `ssh <host> 'tail -n 1 ~/.friday/logs/owner-links.log'` (replace `~/.friday` if your `AGENT_HOME` differs; a non-interactive SSH shell does not load the project `.env`). The file is mode 0600. Never paste the link anywhere.
 3. Open the link on the same device within 5 minutes. It works once.
 4. `/setup-passkey` opens: press "Create passkey" (Face ID or Touch ID). You land on `/welcome`.
 5. Next time use "Sign in with passkey" on `/login`.
@@ -150,14 +149,14 @@ Checks:
 - Ask Friday for a new project: `CreateProject` asks (careful), the repo appears under `~/friday-projects/<name>`, and Friday may put that path in a bot's `workspaces`.
 
 ## Old data
-Older builds kept `<AGENT_HOME>/data/agent.db`, `workspaces/` and `goals/`. The engine never opens or deletes them. Delete them by hand when you no longer need them (stop the engine first; check `echo "$AGENT_HOME"` before any `rm`). The engine db is `data/engine.db`; a db with tables but no migration log is refused at start. Discord-era conversations and messages inside the engine db are deleted at the first start of this version.
+Older builds kept `<AGENT_HOME>/data/agent.db`, `workspaces/` and `goals/`. The engine never opens or deletes them. Delete them by hand when you no longer need them (stop the engine first; check the path before any `rm`; replace `~/.friday` below if your `AGENT_HOME` differs: `ls ~/.friday`). The engine db is `data/engine.db`; a db with tables but no migration log is refused at start. Discord-era conversations and messages inside the engine db are deleted at the first start of this version.
 
 ## Skills and shared folders (owner live checklist, nothing verified live yet)
 - Put a skill in `<AGENT_HOME>/config/skills/<name>/SKILL.md` (frontmatter `name`, `description`, then the instructions), add `skills: [<name>]` to a bot file (or pick it in Settings, bot, Tools & skills), and send a message. The bot should list the skill and use it when it fits; the log has no error. A typo in the name refuses the session with `skill not found: <name>`.
 - In a group, ask one bot to write a file into the shared folder and hand off to another bot: the second bot can read it.
 
 ## Files in chat and PostFile (owner live checklist, nothing verified live yet)
-- Attach a PNG to a message with a question: the bot describes it (an image up to 5 MB goes inline). The file is saved under `<AGENT_HOME>/inbox/<conversation id>/<epoch>/1-<name>`.
+- Attach a PNG to a message with a question: the bot describes it (an image up to 5 MB goes inline). The file is saved under `<AGENT_HOME>/inbox/<conversation id>/<epoch>-<id>/1-<name>`.
 - Attach a PDF or a text file: the bot reads it with `Read` from `<AGENT_HOME>/scratch/<botId>/inbox/` (the reply names the path).
 - Attach 6 files, or one over 20 MB: the app names what was refused; the rest still goes through.
 - Ask a bot to write a report into its scratch dir and post it: a file appears under the bot's name. A path in `config/` or `memory/`, a `.env` file or a link is refused with a reason.
@@ -165,8 +164,8 @@ Older builds kept `<AGENT_HOME>/data/agent.db`, `workspaces/` and `goals/`. The 
 
 ## Logs
 - App log: `$AGENT_HOME/logs/app.<date>.<n>.jsonl` (daily, 14 days; lines carry `module`)
-- Sign-in links: `$AGENT_HOME/logs/owner-links.log` (mode 0600)
-- Example: `tail -f "$AGENT_HOME"/logs/app.$(date +%F).*.jsonl | jq 'select(.module=="engine")'`
+- Sign-in links: `$AGENT_HOME/logs/owner-links.log` (mode 0600). Over SSH use the literal path `~/.friday/logs/...` (replace `~/.friday` if your `AGENT_HOME` differs).
+- Example: `tail -f ~/.friday/logs/app.$(date +%F).*.jsonl | jq 'select(.module=="engine")'`
 
 ## Check bot collaboration (not verified live)
 1. In a group, ask the entry bot to get a teammate to do a small task: it must call `SendToBot`; the group conversation shows the request.
@@ -209,7 +208,14 @@ Nothing below is verified live until you tick it.
 - [ ] Offline and reconnect: stop `cloudflared`; the app shows "Can't reach Friday. Reconnecting…". Start it; the stream resumes with no lost message. Restart the engine: open cards are denied and the app refetches.
 - [ ] Markdown with a table, a code block and a Mermaid diagram renders; the browser console has no CSP error.
 - [ ] Headers: the `curl -sI` check of the Vercel section shows CSP, HSTS, Referrer-Policy and Permissions-Policy.
-- [ ] First deploy: `curl -sI https://friday.example.com/` and a deep route show a `cache-control` that is not a long `max-age`; if it is, add a `no-cache` header rule for the shell.
+- [ ] First deploy: the Vercel log shows Bun and `check-dist` passing; `curl -sI https://friday.example.com/` and a deep route (`/c/bot:friday`) show `cache-control: no-cache`; an `/assets/` file shows `immutable`. The console has no Permissions-Policy warning.
 - [ ] Safari and WebKit: login, upload and live updates on iPhone Safari and as an installed PWA.
 - [ ] Activity page (`/ops`): sessions with stop, wakes, spend per bot per day.
 - [ ] Status and stop: the sidebar shows which bots are busy; "Stop" in a chat stops that conversation's run.
+- [ ] Sign-in link is single use: open it a second time and it fails; one older than 5 minutes fails ("Get a sign-in link" again gives a new one).
+- [ ] "Send link" on `/login` with an email that is not `OWNER_EMAIL`: no new line in `owner-links.log`.
+- [ ] Settings, MCP servers, "Add server", then "Test again" on its page: the banner shows the tools count or the error (the server process starts on the host).
+- [ ] Settings, "New group": create a group; it shows under Groups in the sidebar.
+- [ ] Leave a chat open for more than 2 minutes with no traffic, then send a message from another device: the live update arrives (the tunnel may drop an idle stream).
+- [ ] Wrong R2 credentials (change one in `.env`, restart): text chat still works and avatars show the default face. Restore the value.
+- [ ] Settings, Account: "Add passkey" from a signed-in device adds a row; "Remove" on a passkey removes it.

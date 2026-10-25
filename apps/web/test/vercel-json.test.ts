@@ -28,7 +28,7 @@ test("vercel.json sends the security headers on every path", () => {
   expect(h["x-content-type-options"]).toBe("nosniff");
   expect(h["x-frame-options"]).toBe("DENY");
   expect(h["permissions-policy"]).toBe(
-    "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()",
+    "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
   );
   expect(h["content-security-policy"]).toBe(
     "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'",
@@ -39,5 +39,10 @@ test("vercel.json sends the security headers on every path", () => {
 test("vercel.json never caches the service worker or index.html and caches hashed assets", () => {
   expect(headersFor("/sw.js")["cache-control"]).toBe("no-cache");
   expect(headersFor("/index.html")["cache-control"]).toBe("no-cache");
+  // The shell and SPA routes (everything but /assets/) are never cached.
+  expect(headersFor("/((?!assets/).*)")["cache-control"]).toBe("no-cache");
+  // No path may match two rules that set Cache-Control: the assets path must not match the shell rule.
+  expect(new RegExp("^/((?!assets/).*)$").test("/assets/index-abc.js")).toBe(false);
+  expect(new RegExp("^/((?!assets/).*)$").test("/c/bot:friday")).toBe(true);
   expect(headersFor("/assets/(.*)")["cache-control"]).toBe("public, max-age=31536000, immutable");
 });

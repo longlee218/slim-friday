@@ -18,7 +18,7 @@ Quality over speed: research before you propose. A weak request must become a fe
 6. **Pick tools and model** with `references/tools-guide.md`: start from the role's tool set, remove what the role does not need, pick model and effort by the work.
 7. **Propose** one summary per bot: id, name, title, model + effort (why), tools (why for each non-obvious one), skills (source, stars), subagents, workspaces, autonomy, the full instructions, and the sources you drew on. For a group: members, entry bot, workspaces, instructions.
 8. **Write** after the owner says yes: new skills first (`skill-install`), then `BotDesign` `write_bot` for each bot, then `write_group`. A refusal is a real rule: read it, fix the input, never look for another way.
-9. **Test.** Tell the owner the channel appears in the `Friday` category in a few seconds, and give 3 test messages to send there: a normal task, a task outside the role (it should refuse or pass it on), and a case where it must ask first. A wrong answer is a reason to tune the instructions.
+9. **Test.** Tell the owner the bot appears in the web app sidebar in a few seconds, and give 3 test messages to send there: a normal task, a task outside the role (it should refuse or pass it on), and a case where it must ask first. A wrong answer is a reason to tune the instructions.
 
 ## Field choices
 | Field | Rule |
@@ -29,7 +29,7 @@ Quality over speed: research before you propose. A weak request must become a fe
 | autonomy | `careful` (asks before effects) by default; `balanced` when the owner asks. `autonomous` is refused: only the owner sets it by hand. |
 
 ## Subagents
-- A subagent is a background helper inside one bot's job: no channel, no memory, started by the bot with the `Agent` tool, many can run at once. Use one for parallel or long side work (search many sources, scan a codebase, run checks) whose result the bot uses.
+- A subagent is a background helper inside one bot's job: no conversation, no memory, started by the bot with the `Agent` tool, many can run at once. Use one for parallel or long side work (search many sources, scan a codebase, run checks) whose result the bot uses.
 - Need a role the owner talks to, its own memory, or work handed between roles: make another bot, not a subagent.
 - Each subagent: `name` (lowercase id), `description` (when the bot should start it), `prompt` (its instructions, same shape as a bot's), `tools` (a subset of the bot's tools; fewest that do the job), optional `model` (`haiku` for simple scans) and `effort`.
 - The bot needs `Agent` in `tools`. Passing `subagents` replaces the whole list (`[]` removes all); leaving it out keeps the current ones.
