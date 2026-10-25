@@ -3,7 +3,8 @@ import type { VitePWAOptions } from "vite-plugin-pwa";
 // Installable app shell only. The API lives on another origin (VITE_API_URL) and file
 // URLs are presigned, so nothing but the built assets is ever cached.
 export const pwaOptions: Partial<VitePWAOptions> = {
-  registerType: "autoUpdate",
+  // "prompt": a new version waits for src/app/app-update.ts to reload at a safe moment (no draft lost).
+  registerType: "prompt",
   manifest: {
     name: "Friday",
     short_name: "Friday",

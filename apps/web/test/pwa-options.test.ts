@@ -17,3 +17,7 @@ test("manifest is standalone with three icons", () => {
   expect(pwaOptions.manifest).toMatchObject({ display: "standalone", name: "Friday" });
   expect(pwaOptions.manifest).toMatchObject({ icons: [{}, {}, { purpose: "maskable" }] });
 });
+
+test("a new version waits for the app to reload into it", () => {
+  expect(pwaOptions.registerType).toBe("prompt");
+});
