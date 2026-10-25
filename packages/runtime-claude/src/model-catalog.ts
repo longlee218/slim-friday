@@ -1,5 +1,34 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import type { ModelCatalog } from "@friday/core";
+import type { ModelCatalog, ModelEntry } from "@friday/core";
+
+/** Anthropic's current models (id, name, context window); the SDK list alone omits most of them. */
+const KNOWN_MODELS: [string, string, string][] = [
+  ["claude-fable-5-1", "Claude Fable 5.1", "1M"],
+  ["claude-fable-5", "Claude Fable 5", "1M"],
+  ["claude-opus-5-5", "Claude Opus 5.5", "1M"],
+  ["claude-opus-5", "Claude Opus 5", "1M"],
+  ["claude-opus-4-8", "Claude Opus 4.8", "1M"],
+  ["claude-opus-4-7", "Claude Opus 4.7", "1M"],
+  ["claude-opus-4-6", "Claude Opus 4.6", "1M"],
+  ["claude-sonnet-5-5", "Claude Sonnet 5.5", "1M"],
+  ["claude-sonnet-5", "Claude Sonnet 5", "1M"],
+  ["claude-sonnet-4-6", "Claude Sonnet 4.6", "1M"],
+  ["claude-haiku-5-5", "Claude Haiku 5.5", "1M"],
+  ["claude-haiku-4-5", "Claude Haiku 4.5", "200K"],
+];
+
+/** Appends the known models the SDK list lacks (matched by value, resolved id or the `[1m]`-less value). */
+function withKnownModels(list: ModelEntry[]): ModelEntry[] {
+  const have = new Set(
+    list.flatMap((m) => [m.value, m.value.replace(/\[1m\]$/, ""), m.resolvedModel]),
+  );
+  const extra = KNOWN_MODELS.filter(([id]) => !have.has(id)).map(([value, displayName, ctx]) => ({
+    value,
+    displayName,
+    description: `${ctx} context`,
+  }));
+  return [...list, ...extra];
+}
 
 /** Default wait for the SDK to answer. */
 const DEFAULT_TIMEOUT_MS = 20_000;
@@ -50,13 +79,15 @@ export function createModelCatalog(deps: {
         timer = setTimeout(() => reject(new Error("model list timed out")), timeoutMs);
       });
       const list = await Promise.race([q.supportedModels(), timeout]);
-      return list.map((m) => ({
-        value: m.value,
-        displayName: m.displayName,
-        description: m.description,
-        ...(m.resolvedModel && { resolvedModel: m.resolvedModel }),
-        ...(m.supportedEffortLevels && { efforts: [...m.supportedEffortLevels] }),
-      }));
+      return withKnownModels(
+        list.map((m) => ({
+          value: m.value,
+          displayName: m.displayName,
+          description: m.description,
+          ...(m.resolvedModel && { resolvedModel: m.resolvedModel }),
+          ...(m.supportedEffortLevels && { efforts: [...m.supportedEffortLevels] }),
+        })),
+      );
     } finally {
       clearTimeout(timer);
       // Close the input first; interrupt and close are fired, never awaited (they may hang).
