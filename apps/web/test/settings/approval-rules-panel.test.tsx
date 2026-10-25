@@ -12,7 +12,9 @@ const api = vi.hoisted(() => ({
   remove: vi.fn().mockResolvedValue({ ok: true }),
   toastError: vi.fn(),
 }));
-vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: api.toastError }) }));
+vi.mock("sonner", () => ({
+  toast: Object.assign(vi.fn(), { error: api.toastError, success: vi.fn() }),
+}));
 vi.mock("../../src/api/client", async (orig) => ({
   ...(await orig<typeof import("../../src/api/client")>()),
   client: { config: { approvalRules: { add: api.add, remove: api.remove } } },

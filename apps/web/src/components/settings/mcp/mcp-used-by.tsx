@@ -39,6 +39,7 @@ export function McpUsedBy({ name, usedBy }: { name: string; usedBy: string[] }) 
         qc.invalidateQueries({ queryKey: orpc.config.mcp.key() }),
         qc.invalidateQueries({ queryKey: orpc.config.bots.key() }),
       ]);
+      toast.success("Saved.");
     } catch (e) {
       toast.error(saveFailure(e).message);
     } finally {

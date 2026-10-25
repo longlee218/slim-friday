@@ -36,6 +36,7 @@ function NewTicketForm({ onOpenChange, onCreated }: Omit<NewTicketSheetProps, "o
       }),
     onSuccess: (ticket) => {
       patchTicket(qc, ticket);
+      toast.success("Ticket created.");
       onOpenChange(false);
       onCreated?.(ticket);
     },

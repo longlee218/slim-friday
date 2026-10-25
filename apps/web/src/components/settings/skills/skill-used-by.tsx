@@ -19,6 +19,7 @@ export function SkillUsedBy({ name, usedBy }: { name: string; usedBy: string[] }
       const botIds = on ? [...usedBy.filter((b) => b !== id), id] : usedBy.filter((b) => b !== id);
       await client.config.skills.setUsedBy({ name, botIds });
       await refreshSkills(qc);
+      toast.success("Saved.");
     } catch (e) {
       toast.error(saveFailure(e).message);
     } finally {

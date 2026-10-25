@@ -94,6 +94,7 @@ function PickerBody({ target, current, onDone }: Omit<AvatarPickerProps, "childr
       qc.invalidateQueries({ queryKey: orpc.config.groups.key() }),
       qc.invalidateQueries({ queryKey: orpc.conversations.key() }),
     ]);
+    toast.success("Avatar saved.");
     onDone();
   };
   /** Runs one change and turns a failure into the state line. */
