@@ -170,3 +170,9 @@ test("limits.toolSearch accepts on, off and auto:<1-100>; anything else is refus
   for (const v of ["auto:0", "auto:101", "auto:", "maybe", "true", "5"])
     expect(() => parseSettingsFile(`limits:\n  toolSearch: ${v}\n`)).toThrow();
 });
+
+test("a bot title loads up to 200 chars (old owner files keep loading); longer is refused", () => {
+  const text = (title: string) => `---\nname: Ann\ntitle: ${title}\nmodel: m\n---\nBe brief.\n`;
+  expect(parseBotFile("ann", text("x".repeat(200))).title).toHaveLength(200);
+  expect(() => parseBotFile("ann", text("x".repeat(201)))).toThrow();
+});

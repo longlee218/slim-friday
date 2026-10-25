@@ -31,11 +31,19 @@ export function silenceAllowed(row: WakeRow, kind: RunKind): boolean {
 }
 
 /**
- * True when the run's answer is for the owner: an owner run, or a run resumed by the owner's card answer
- * (`cardId`). Ticket, intro and bot-to-bot runs are not, so they raise no finished notice and no unread.
+ * True when the run's answer is for the owner: an owner run, a run resumed by the owner's card answer
+ * (`cardId`), or a bot-sent run that must reach the owner: a `result` / `status` (relayed to the owner, spec
+ * §6.3) or a hand-off (the receiver posts the stage's result in the group). Ticket, intro and bot-to-bot
+ * `request` / `question` / `fyi` runs are not, so they raise no finished notice and no unread. The store's unread
+ * query (`readRepo`, `quietWakes`) applies the same rule in SQL; a store test keeps both in agreement.
  */
 export function talksToOwner(row: WakeRow): boolean {
-  return row.cardId !== undefined || runKindOf(row) === "owner";
+  if (row.cardId !== undefined) return true;
+  const kind = runKindOf(row);
+  if (kind === "owner") return true;
+  return (
+    kind === "bot" && (row.handoff === true || row.intent === "result" || row.intent === "status")
+  );
 }
 
 /**

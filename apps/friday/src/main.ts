@@ -23,6 +23,7 @@ import { oauthConfs, withProxiedServers } from "./mcp-oauth/oauth-servers";
 import { logEvent, logger } from "./observability/logger";
 import { registrableDomain } from "./registrable-domain";
 import { need, r2Of } from "./required-config";
+import { deniedEnvValues } from "./secret-values";
 import { createSettings } from "./settings-admin";
 import { startApp } from "./start-app";
 import { systemClock } from "./system-clock";
@@ -169,6 +170,8 @@ async function runEngine(
       }),
       mcpAuth: mcpAuthAdmin(oauth, engine.mcpOAuth, web.publicApiUrl),
       registrableDomain,
+      // The same denied env values the engine hides from bot text (read at each call).
+      secretValues: () => deniedEnvValues(),
       limits: () => app.config.limits(),
     },
   }).catch(async (err) => {

@@ -54,7 +54,7 @@ export type { PostUpdateResult } from "./runs/progress-budget";
 export * from "./runs/run-card-answer";
 export type { ConfigChange } from "./runs/run-config-change";
 export * from "./runs/run-hints";
-export type { RunKind } from "./runs/run-kind";
+export { type RunKind, talksToOwner } from "./runs/run-kind";
 export * from "./runs/run-rules";
 export * from "./safety/redact-secrets";
 export * from "./tickets/ticket";

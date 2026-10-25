@@ -25,15 +25,17 @@ test("owner: every chat tool as configured", () => {
   );
 });
 
-test("bot: no PostUpdate, bot messaging stays", () => {
+test("bot: no PostUpdate and no UpdateProfile, bot messaging stays", () => {
   const n = names("bot");
   expect(n).not.toContain("PostUpdate");
+  expect(n).not.toContain("UpdateProfile");
   expect(n).toEqual(expect.arrayContaining(["SendToBot", "HandOff"]));
 });
 
-test("ticket: no PostUpdate, SendToBot or HandOff", () => {
+test("ticket: no PostUpdate, SendToBot, HandOff or UpdateProfile", () => {
   const n = names("ticket");
-  for (const t of ["PostUpdate", "SendToBot", "HandOff"]) expect(n).not.toContain(t);
+  for (const t of ["PostUpdate", "SendToBot", "HandOff", "UpdateProfile"])
+    expect(n).not.toContain(t);
   expect(n).toContain("PostFile");
 });
 

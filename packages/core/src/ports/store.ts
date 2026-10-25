@@ -140,6 +140,8 @@ export interface Store {
     recent(c: ConversationId, limit: number): Promise<StoredMessage[]>;
     /** Progress messages (`kind: "progress"`) already stored for a wake. */
     countInterim(wakeId: string): Promise<number>;
+    /** The newest bot text message (`kind: "text"`) stored for a wake: an answer an earlier attempt already posted. */
+    lastText(wakeId: string): Promise<string | undefined>;
     /** Messages with an id above `afterId`, oldest first, at most `limit` (feeds the message index). */
     after(afterId: number, limit: number): Promise<IndexedMessage[]>;
   };

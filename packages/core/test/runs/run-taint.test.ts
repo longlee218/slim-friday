@@ -141,3 +141,63 @@ test("an approval asked while the run was clean is no taint approval on resume",
   const card2 = h.store.cardMap.get(d2.behavior === "park" ? d2.cardId : "");
   expect(card2?.approval).toMatchObject({ tainted: true });
 });
+
+const UPDATE_PROFILE = "mcp__chat__UpdateProfile";
+
+test("an intro run (system sender) starts clean: UpdateProfile needs no card", async () => {
+  const h = hub();
+  h.catalog.tools.push({ name: UPDATE_PROFILE, annotations: { readOnlyHint: true } });
+  await h.hub.queueIntroRun("editor");
+  await flush();
+  const s = h.runtime.last();
+  expect(only(h)).toMatchObject({ intro: true });
+  expect(only(h).tainted).toBeUndefined();
+  expect(await s.spec.decide({ tool: UPDATE_PROFILE, input: { title: "Editor" } })).toEqual({
+    behavior: "allow",
+  });
+});
+
+test("an intro run resumed after its question card and a cut is still clean", async () => {
+  const h = hub();
+  h.catalog.tools.push({ name: UPDATE_PROFILE, annotations: { readOnlyHint: true } });
+  await h.store.wakes.insert({
+    id: "w1",
+    chainId: "w1",
+    conversationId: "dc",
+    targetBot: "editor",
+    sender: { kind: "system" },
+    intent: "request",
+    hop: 0,
+    text: "intro",
+    status: "queued",
+    attempts: 1,
+    createdAt: 0,
+    scopeKey: "editor",
+    priority: "interactive",
+    leaseFence: 1,
+    intro: true,
+    cardId: "card-x.0",
+    cuts: 1,
+    transientRetries: 0,
+    setupFailures: 0,
+    nudges: 0,
+  });
+  await h.hub.recover();
+  await flush();
+  const s = h.runtime.last();
+  expect(only(h).status).toBe("running");
+  expect(only(h).tainted).toBeUndefined();
+  expect(await s.spec.decide({ tool: UPDATE_PROFILE, input: { title: "Editor" } })).toEqual({
+    behavior: "allow",
+  });
+});
+
+test("an owner run tainted by a tool result asks a card for UpdateProfile", async () => {
+  const h = hub();
+  h.catalog.tools.push({ name: UPDATE_PROFILE, annotations: { readOnlyHint: true } });
+  const s = await ownerRunAfter(h, "read the page and update your profile", "Read");
+  expect(only(h).tainted).toBe(true);
+  expect((await s.spec.decide({ tool: UPDATE_PROFILE, input: { title: "X" } })).behavior).toBe(
+    "park",
+  );
+});

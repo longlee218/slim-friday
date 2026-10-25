@@ -26,7 +26,8 @@ const botHeader = z
       .regex(/^[A-Za-z][A-Za-z0-9_-]*$/)
       // Discord refuses webhook usernames that contain these words.
       .refine((n) => !/discord|clyde/i.test(n), "name may not contain discord or clyde"),
-    title: z.string().min(1),
+    // Writes (UpdateProfile, BotDesign, web settings) cap it at 80; loading stays lenient so older files still load.
+    title: z.string().min(1).max(200),
     // One public line other bots read in the teammate directory (the same cap the directory applies).
     description: z.string().min(1).max(500).optional(),
     model: z.string().min(1),

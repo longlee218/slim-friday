@@ -25,14 +25,14 @@ test("an external MCP result over the limit is replaced by the clipped text", as
   const out = await run("mcp__github__list", big, "user");
   const text = out.hookSpecificOutput?.updatedMCPToolOutput ?? "";
   expect(text.startsWith("z".repeat(12_000))).toBe(true);
-  expect(text).toContain("8000 more characters");
+  expect(text.slice(12_000)).toBe("\n[cut: 8000 more chars; narrow the request]");
 });
 
 test("an isError result delivered to PostToolUse (unverified live) and a string result are clipped", async () => {
   const err = await run("mcp__github__list", { ...big, isError: true }, "user");
-  expect(err.hookSpecificOutput?.updatedMCPToolOutput).toContain("output cut");
+  expect(err.hookSpecificOutput?.updatedMCPToolOutput).toContain("[cut: 8000 more chars;");
   const str = await run("mcp__github__list", "q".repeat(13_000), "user");
-  expect(str.hookSpecificOutput?.updatedMCPToolOutput).toContain("1000 more characters");
+  expect(str.hookSpecificOutput?.updatedMCPToolOutput).toContain("[cut: 1000 more chars;");
 });
 
 test("a short external result and a non-MCP tool are untouched", async () => {
@@ -59,7 +59,7 @@ test("the surrogate boundary matches the tools-side clip", async () => {
   const text = `${"a".repeat(11_999)}😀${"b".repeat(100)}`;
   const out = (await run("mcp__github__list", text, "user")).hookSpecificOutput;
   expect(out?.updatedMCPToolOutput?.slice(0, 11_999)).toBe("a".repeat(11_999));
-  expect(out?.updatedMCPToolOutput).toContain("102 more characters");
+  expect(out?.updatedMCPToolOutput).toContain("\n[cut: 102 more chars; narrow the request]");
 });
 
 test("a throwing hook input passes through instead of failing the call", async () => {

@@ -51,6 +51,7 @@ test("own-state tools never taint; anything else does", () => {
   expect(taints("mcp__tickets__TicketGet")).toBe(false);
   expect(taints("mcp__memory__MessageSearch")).toBe(false);
   expect(taints("mcp__chat__PostUpdate")).toBe(false);
+  expect(taints("mcp__chat__UpdateProfile")).toBe(false);
   expect(taints("AskUserQuestion")).toBe(false);
   expect(taints("ToolSearch")).toBe(false);
 });
@@ -77,7 +78,8 @@ test("tainted: instruction changes and the first external MCP call ask; Friday t
   expect(taintAsk(call(EXT), r, rd)).toContain("ext");
   noteTaintAllowed(call(EXT), r, rd);
   expect(taintAsk(call(EXT, { q: "other" }), r, rd)).toBeUndefined();
-  expect(taintAsk(call(UPDATE_PROFILE), run(), rd)).toBeUndefined();
+  expect(taintAsk(call(UPDATE_PROFILE), run(), rd)).toBeDefined();
+  expect(taintAsk(call(UPDATE_PROFILE), run({ tainted: false }), rd)).toBeUndefined();
   expect(taintAsk(call("mcp__memory__MemorySave"), run(), rd)).toBeUndefined();
   expect(taintAsk(call("Bash"), run(), rd)).toBeUndefined();
 });
@@ -149,10 +151,14 @@ test("gate: a grant still allows a tainted external MCP call", async () => {
   expect(store.cardMap.size).toBe(1);
 });
 
-test("gate: a tainted UpdateProfile gets no card", async () => {
+test("gate: a tainted UpdateProfile asks (its title is a line of the bot's prompt); a clean one does not", async () => {
   const { gate, store } = gateSetup();
-  expect(await gate.decide(call(UPDATE_PROFILE), "B", ctx(run()))).toEqual({ behavior: "allow" });
-  expect(store.cardMap.size).toBe(0);
+  expect((await gate.decide(call(UPDATE_PROFILE), "B", ctx(run()))).behavior).toBe("park");
+  expect(store.cardMap.size).toBe(1);
+  const { gate: g2 } = gateSetup();
+  expect(await g2.decide(call(UPDATE_PROFILE), "B", ctx(run({ tainted: false })))).toEqual({
+    behavior: "allow",
+  });
 });
 
 test("gate: a tool override allow does not skip a taint ask", async () => {

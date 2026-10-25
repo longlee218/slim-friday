@@ -16,7 +16,7 @@ export function clipText(text: string, max = RESULT_MAX_CHARS): string {
   let cut = max;
   const last = text.charCodeAt(cut - 1);
   if (last >= 0xd800 && last <= 0xdbff) cut -= 1;
-  return `${text.slice(0, cut)}\n…[output cut: ${text.length - cut} more characters not shown]`;
+  return `${text.slice(0, cut)}\n[cut: ${text.length - cut} more chars; narrow the request]`;
 }
 
 /** The text of an MCP tool response: a string, or `{ content: [{ type: "text", text }] }` / the bare block array. */

@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { profileLimitError } from "../../profile-limits";
 import type { DesignArgs } from "../design-args";
 import type { DesignContext } from "../design-context";
 import {
@@ -35,6 +36,10 @@ export function buildBotFile(
   if (ctx.reservedBotIds.includes(id)) throw new Refused(`bot id "${id}" is reserved.`, "id");
   const name = need(a.name, "name");
   const body = need(a.instructions, "instructions");
+  const title = need(a.title, "title");
+  // The title is a trusted line of the bot's system prompt: a write keeps it short (the parser loads up to 200).
+  const titleTooLong = profileLimitError("title", title);
+  if (titleTooLong) throw new Refused(titleTooLong, "title");
   // Autonomy `autonomous` runs write and external tools without asking and beats settings.yaml: the owner sets it by hand.
   if (a.autonomy === "autonomous" && by === "bot")
     throw new Refused("autonomy autonomous is for the owner to set by hand.", "autonomy");
@@ -79,7 +84,7 @@ export function buildBotFile(
     a.description?.trim() || (a.overwrite ? existingDescription(file) : undefined);
   const header = {
     name,
-    title: need(a.title, "title"),
+    title,
     ...(description && { description }),
     model: need(a.model, "model"),
     tools: a.tools ?? [],

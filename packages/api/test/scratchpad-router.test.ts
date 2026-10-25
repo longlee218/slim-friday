@@ -32,3 +32,23 @@ test("scratchpad of an unknown bot is NOT_FOUND; an empty one is []", async () =
   h.addBot("a", "A");
   expect(await h.client.config.bots.scratchpad({ id: "a" })).toEqual([]);
 });
+
+test("scratchpad titles and notes are shown with secrets redacted", async () => {
+  const h = engineHarness();
+  (h.deps as { secretValues?: () => string[] }).secretValues = () => ["supersecretvalue1"];
+  h.addBot("a", "A");
+  await h.store.scratchpad.add(
+    {
+      scopeKey: "a",
+      botId: "a",
+      title: "token supersecretvalue1",
+      status: "open",
+      notes: "key sk-abcdefghijklmnopqrstuvwx and supersecretvalue1",
+    },
+    1,
+  );
+  const [item] = (await h.client.config.bots.scratchpad({ id: "a" }))[0]?.items ?? [];
+  expect(item?.title).toBe("token [redacted]");
+  expect(item?.notes).not.toContain("supersecretvalue1");
+  expect(item?.notes).not.toContain("sk-abcdefghijklmnopqrstuvwx");
+});

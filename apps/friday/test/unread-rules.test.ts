@@ -73,9 +73,11 @@ test("finals of ticket, intro and bot-to-bot runs are not unread; an owner final
   const team = await h.store.messages.page("group:team", { limit: 50 });
   const bobFinal = team.find((m) => m.author.kind === "bot" && m.author.botId === "bob");
   expect((await h.store.wakes.get(bobFinal?.wakeId ?? ""))?.sender.kind).toBe("bot");
-  // Counted: the "Group ready" notice, ann's answer to the owner and her relay line. Not counted: bob's
-  // answer to ann, and ann's follow-up run that receives bob's result (both runs started by a bot).
-  expect(await h.store.reads.unread("group:team")).toBe(3);
+  // Counted: the "Group ready" notice, ann's answer to the owner, her relay line and her follow-up run that
+  // receives bob's result (a `result` run relays to the owner, spec §6.3). Not counted: bob's answer to ann
+  // (a bot `request` run).
+  for (let i = 0; i < 300 && (await botFinals(h, "group:team")) < 3; i++) await Bun.sleep(10);
+  expect(await h.store.reads.unread("group:team")).toBe(4);
   // An owner run: its final counts, and the owner's own message does not.
   await h.client.chat.send({ conversationId: "bot:ann", text: "hi" });
   await waitFinals(h, "bot:ann", 1);

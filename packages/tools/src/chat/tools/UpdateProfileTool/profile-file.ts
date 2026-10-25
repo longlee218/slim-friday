@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { profileLimitError } from "../../../profile-limits";
 
 /** What `UpdateProfile` needs from the app: the owner's config dir and the app's own bot parser. */
 export interface ProfileFiles {
@@ -59,6 +60,8 @@ export function updateProfile(files: ProfileFiles, botId: string, patch: Profile
     if (v === undefined) continue;
     if (!v.trim()) throw new ProfileRefused(`${key} must not be empty.`);
     if (/[\r\n]/.test(v.trim())) throw new ProfileRefused(`${key} must be one line.`);
+    const tooLong = profileLimitError(key, v.trim());
+    if (tooLong) throw new ProfileRefused(tooLong);
     fields[key] = v.trim();
   }
   if (Object.keys(fields).length === 0)

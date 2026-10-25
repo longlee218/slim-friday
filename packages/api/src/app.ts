@@ -64,6 +64,8 @@ export interface ApiDeps {
   purge: () => number;
   /** Registrable domain of a host (the engine's Public Suffix List); unset: the exact host. Checks site rules. */
   registrableDomain?: RegistrableDomain;
+  /** The secret values hidden from bot-written text the API shows (scratchpad items); read at each call. */
+  secretValues?: () => string[];
 }
 
 /** The fields the engine adds to `ApiDeps` (plan 2). */
@@ -78,6 +80,7 @@ export type EngineDeps = Pick<
   | "mcpAuth"
   | "limits"
   | "registrableDomain"
+  | "secretValues"
 >;
 
 /** Build the HTTP app: log, CORS, Origin check, then health, auth and the owner-only RPC. */

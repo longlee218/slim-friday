@@ -23,9 +23,12 @@ export function newRunTaint(): RunTaint {
 
 /**
  * Whether a claimed run starts tainted (spec §6.10): not started by the owner, resumes a cut or parked run, a
- * second attempt, or stored as tainted by an earlier attempt.
+ * second attempt, or stored as tainted by an earlier attempt. An intro run is the exception: its sender is
+ * Friday (system) with Friday's fixed text and its only tools are `AskUserQuestion` (own state) and
+ * `UpdateProfile`, so nothing outside reaches it; it is tainted only when an attempt stored it so.
  */
 export function taintedAtClaim(row: WakeRow, fence: number): boolean {
+  if (row.intro) return row.tainted === true;
   return (
     row.sender.kind !== "user" ||
     row.cuts > 0 ||

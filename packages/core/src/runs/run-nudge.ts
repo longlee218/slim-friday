@@ -10,10 +10,6 @@ export const MAX_NUDGES = 3;
 export const NUDGE_TEXT =
   "Your last turn ended right after a tool result, without a reply. Continue the original task from the latest tool result. If you need information or a decision from the owner, ask them instead of guessing; otherwise use any remaining tools needed, then give the owner the final answer.";
 
-/** Rakazo's continue nudge for a run that may stay silent (R§8). */
-export const NUDGE_SILENT_TEXT =
-  "Your last turn ended right after a tool result, without a reply. Continue the original task from the latest tool result. If you need information or a decision from the owner, ask them instead of guessing, even if you were told to stay silent. Otherwise, if you were instructed to stay silent when there is nothing to report, follow that instruction for the entire final assistant reply; if not, use any remaining tools needed, then give the owner the final answer.";
-
 /** Why a run fails after its nudges are used up; the owner is told exactly this. */
 export const NO_FINAL_ANSWER =
   "The tools finished, but the bot did not write a final answer. Rephrase the request and try again.";
@@ -25,11 +21,10 @@ export function noFinalAnswerError(): Error {
 
 /** The automated turn that carries a nudge, in the conversation the run answers now. */
 function nudgeTurn(ctx: HubContext, exec: RunExec): InboundTurn {
-  const silent = silenceAllowed(exec.row, runKindOf(exec.row));
   return {
     conversationId: exec.current.conversationId,
     from: { kind: "system" },
-    text: silent ? NUDGE_SILENT_TEXT : NUDGE_TEXT,
+    text: NUDGE_TEXT,
     hop: exec.current.hop,
     context: [],
     automated: true,
@@ -43,7 +38,8 @@ function nudgeTurn(ctx: HubContext, exec: RunExec): InboundTurn {
  * nudged). A turn whose last event was a tool result, with no text after it, gets a nudge pushed as an automated
  * turn while `exec.nudges < MAX_NUDGES` ("nudged"; the count is stored on the row, so a resumed run keeps it);
  * past that the run fails ("fail"). Any other turn end is "done", also one with unread steering pushes or a lost
- * lease.
+ * lease, and one of a run that may stay silent (`silenceAllowed`: a ticket, a bot `fyi` that answers no request):
+ * such a run may end right after a tool result, so a nudge would only buy an extra turn that ends silently.
  */
 export async function nudgeOrEnd(
   ctx: HubContext,
@@ -53,6 +49,7 @@ export async function nudgeOrEnd(
   // Steering pushed after the last tool result was not read: the run ends and a continuation run carries those
   // messages (a nudge would answer them too, and the continuation again).
   if (exec.pushed.length > 0) return "done";
+  if (silenceAllowed(exec.row, runKindOf(exec.row))) return "done";
   if (exec.nudges >= MAX_NUDGES) return "fail";
   exec.lastWasToolResult = false;
   const { id, leaseFence } = exec.row;

@@ -72,16 +72,19 @@ export async function onAnswerText(ctx: HubContext, exec: RunExec, text: string)
 
 /**
  * The run's output once it is done; returns the result text (returned to a delegating bot): the last prose
- * answer of the run, posted already (a later silent or empty turn does not erase it). A run with no prose
+ * answer of the run, posted already (a later silent or empty turn does not erase it). An answer an earlier
+ * attempt stored before a cut counts too (`exec.finalText` lives only in this attempt's memory), so a resumed
+ * run that ends with no text neither posts "done." after it nor returns nothing. A run with no prose
  * answer returns none (nothing goes back, as before) and posts nothing when
  * the run may stay silent (ticket, bot `fyi` that answers no request) or when progress notes were posted in the
  * run (the hollow-final rule, R§4); otherwise it posts "done.".
  */
 export async function settleOutput(ctx: HubContext, exec: RunExec): Promise<string | undefined> {
   await releaseHeld(ctx, exec, "answer");
-  if (exec.finalText) {
-    exec.announceText = exec.finalText;
-    return exec.finalText;
+  const answer = exec.finalText || (await ctx.deps.store.messages.lastText(exec.row.id));
+  if (answer) {
+    exec.announceText = answer;
+    return answer;
   }
   if (silenceAllowed(exec.row, runKindOf(exec.row))) return undefined;
   if ((await ctx.deps.store.messages.countInterim(exec.row.id)) > 0) return undefined;

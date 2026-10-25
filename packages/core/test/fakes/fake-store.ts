@@ -85,6 +85,10 @@ export class FakeStore implements Store {
       this.msgs.filter((m) => m?.conversationId === c).slice(-limit),
     countInterim: async (wakeId: string) =>
       this.msgs.filter((m) => m?.wakeId === wakeId && m.kind === "progress").length,
+    lastText: async (wakeId: string) =>
+      this.msgs.findLast(
+        (m) => m?.wakeId === wakeId && (m.kind ?? "text") === "text" && m.author.kind === "bot",
+      )?.text,
     after: async (afterId: number, limit: number) =>
       this.live()
         .filter((m) => m.id > afterId)

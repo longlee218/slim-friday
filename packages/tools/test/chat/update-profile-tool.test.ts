@@ -67,3 +67,13 @@ test("a shipped bot (no file of its own) is refused", async () => {
   expect(r.isError).toBe(true);
   void tool;
 });
+
+test("a title over 80 chars is refused and nothing changes; 80 is fine", async () => {
+  const { tool, read } = make();
+  const before = read("ann");
+  const r = await call(tool, { title: "x".repeat(81) });
+  expect(r.isError).toBe(true);
+  expect(textOf(r)).toContain("80");
+  expect(read("ann")).toBe(before);
+  expect((await call(tool, { title: "y".repeat(80) })).isError).toBeUndefined();
+});

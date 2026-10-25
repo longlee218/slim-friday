@@ -166,3 +166,26 @@ test("C2: object scope values are told apart", () => {
     scopeOf(call({ repo: { name: "b" } }), spec),
   );
 });
+
+test("a require_approval rule beats a per-tool allow override; an override deny still wins first", () => {
+  const require: Grant = {
+    id: "r1",
+    botId: "*",
+    effect: "require_approval",
+    match: "tool",
+    tool: "T",
+    scope: {},
+    createdAt: 0,
+  };
+  const base = { call: call(), spec: WRITE, grants: [require], now: 10 };
+  const allowOverride = { level: "autonomous" as const, tools: { T: "allow" as const } };
+  expect(decide({ ...base, settings: allowOverride })).toMatchObject({
+    outcome: "ask",
+    reason: "rule r1: require approval",
+  });
+  expect(decide({ ...base, settings: { level: "autonomous", tools: { T: "deny" } } }).outcome).toBe(
+    "deny",
+  );
+  // Without the rule the override still allows.
+  expect(decide({ ...base, grants: [], settings: allowOverride }).outcome).toBe("allow");
+});

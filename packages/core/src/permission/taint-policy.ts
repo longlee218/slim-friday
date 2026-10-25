@@ -36,6 +36,8 @@ export const OWN_STATE_TOOLS: readonly string[] = [
   "mcp__tickets__TicketGet",
   "mcp__tickets__TicketList",
   "mcp__chat__PostUpdate",
+  // Its result is Friday's own fixed text, so a second call in an intro run does not ask.
+  "mcp__chat__UpdateProfile",
   "AskUserQuestion",
   // Its output is only the bot's own tool definitions.
   "ToolSearch",
@@ -44,9 +46,13 @@ export const OWN_STATE_TOOLS: readonly string[] = [
 /**
  * Tools that change a bot's instructions (config, lessons in memory): asked when tainted even over a grant.
  * Bots have no tool that edits RULES.md (only the owner does, through the API); `BotDesign` covers bot config
- * and `add_lesson`.
+ * and `add_lesson`; `UpdateProfile` writes the bot's title, a trusted line of its own system prompt (an intro
+ * run starts clean, so the profile set from the owner's answer needs no card; see `taintedAtClaim`).
  */
-export const INSTRUCTION_CHANGE_TOOLS: readonly string[] = ["mcp__design__BotDesign"];
+export const INSTRUCTION_CHANGE_TOOLS: readonly string[] = [
+  "mcp__design__BotDesign",
+  "mcp__chat__UpdateProfile",
+];
 
 /** What the taint policy reads of a run. */
 export interface TaintRun {

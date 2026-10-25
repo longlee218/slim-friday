@@ -61,8 +61,8 @@ export interface Decision {
 /**
  * Decide one tool call (spec §6.14). Order: hard floor (deny), per-tool deny, mandatory asks (instruction change
  * in a tainted run), the other taint asks (they yield only to an `always_allow` site rule, or for an MCP call a
- * tool or server rule), per-tool override, owner rule (`require_approval` asks, `always_allow` allows), then the
- * autonomy level for the tool's class. An irreversible call is never lifted by an `always_allow` rule (nor
+ * tool or server rule), per-tool `ask` override, a `require_approval` rule, per-tool `allow` override, an
+ * `always_allow` rule, then the autonomy level for the tool's class. An irreversible call is never lifted by an `always_allow` rule (nor
  * does one hide a require rule) and its ask is `ask_always`. Only the level's plain ask is `reviewable` (Auto Review, applied by the gate).
  */
 export function decide(input: DecideInput): Decision {
@@ -112,8 +112,9 @@ export function decide(input: DecideInput): Decision {
       };
   }
   if (override === "ask") return ask("tool override");
-  if (override) return { outcome: override, reason: "tool override" };
+  // A require rule the owner added on the web beats a settings.yaml `allow` override (only `deny` wins first).
   if (rule?.effect === "require_approval") return ask(`rule ${rule.id}: require approval`);
+  if (override) return { outcome: override, reason: "tool override" };
   if (allowRule) return { outcome: "allow", reason: `rule ${allowRule.id}` };
   const level = settings.botLevels?.[call.botId] ?? settings.level;
   const reason = `${level}: ${cls}`;

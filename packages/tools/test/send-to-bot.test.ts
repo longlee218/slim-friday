@@ -51,13 +51,8 @@ test("HandOff calls the messenger with handoff: true and intent request", async 
 });
 
 test("a bot without a messenger (in no group) is not offered SendToBot or HandOff", () => {
-  const names = (ctx: Partial<ChatContext>) => chatTools(ctx as ChatContext).map((t) => t.name);
-  expect(names({})).toEqual(["UpdateProfile", "PostFile", "SetEffort"]);
-  expect(names(fake().ctx)).toEqual([
-    "UpdateProfile",
-    "PostFile",
-    "SetEffort",
-    "SendToBot",
-    "HandOff",
-  ]);
+  const names = (ctx: Partial<ChatContext>) =>
+    chatTools({ runKind: "bot", ...ctx } as ChatContext).map((t) => t.name);
+  expect(names({})).toEqual(["PostFile", "SetEffort"]);
+  expect(names(fake().ctx)).toEqual(["PostFile", "SetEffort", "SendToBot", "HandOff"]);
 });

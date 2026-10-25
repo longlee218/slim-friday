@@ -4,12 +4,7 @@ import type { HubContext } from "../../src/hub/hub-context";
 import type { WakeOpts } from "../../src/hub/hub-types";
 import { createRun } from "../../src/runs/run-create";
 import { newRunExec } from "../../src/runs/run-exec";
-import {
-  NO_FINAL_ANSWER,
-  NUDGE_SILENT_TEXT,
-  NUDGE_TEXT,
-  nudgeOrEnd,
-} from "../../src/runs/run-nudge";
+import { NO_FINAL_ANSWER, NUDGE_TEXT, nudgeOrEnd } from "../../src/runs/run-nudge";
 import { flush, makeHub } from "../bot-hub-harness";
 import type { FakeSession } from "../fakes/fake-runtime";
 
@@ -104,11 +99,17 @@ test("a nudged run that then answers is done with that answer", async () => {
   expect(row(h)).toMatchObject({ status: "done", resultText: "Here you go.", nudges: 1 });
 });
 
-test("a run that may stay silent gets the silence variant of the nudge", async () => {
-  const h = makeHub();
-  const s = await start(h, { kind: "bot", botId: "writer" }, { intent: "fyi" });
-  await silentToolTurn(s, "t1");
-  expect(s.sent[1]?.text).toBe(NUDGE_SILENT_TEXT);
+test("a run that may stay silent (bot fyi, ticket) is not nudged: it ends silently after a tool result", async () => {
+  for (const [sender, opts] of [
+    [{ kind: "bot", botId: "writer" }, { intent: "fyi" }],
+    [{ kind: "user" }, { ticketId: "FRI-1" }],
+  ] as const) {
+    const h = makeHub();
+    const s = await start(h, sender, opts);
+    await silentToolTurn(s, "t1");
+    expect(s.sent).toHaveLength(1);
+    expect(row(h)).toMatchObject({ status: "done", nudges: 0 });
+  }
 });
 
 test("a resumed run keeps its nudge count from the row", async () => {

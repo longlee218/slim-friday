@@ -68,3 +68,15 @@ test("wakeId round-trips and countInterim counts only progress rows of that wake
   expect((await s.messages.get(final))?.wakeId).toBe("w1");
   expect((await s.messages.get(final + 1))?.wakeId).toBeUndefined();
 });
+
+test("lastText is the newest plain text message of a wake; progress, relay and other wakes are skipped", async () => {
+  const s = fresh();
+  const base = { conversationId: "bot:a", author: { kind: "bot", botId: "a" } as const, at: 1 };
+  expect(await s.messages.lastText("w1")).toBeUndefined();
+  await s.messages.append({ ...base, text: "first", wakeId: "w1" });
+  await s.messages.append({ ...base, text: "second", wakeId: "w1" });
+  await s.messages.append({ ...base, text: "note", kind: "progress", wakeId: "w1" });
+  await s.messages.append({ ...base, text: "other", wakeId: "w2" });
+  await s.messages.append({ ...base, text: "owner", author: { kind: "user" }, wakeId: "w1" });
+  expect(await s.messages.lastText("w1")).toBe("second");
+});

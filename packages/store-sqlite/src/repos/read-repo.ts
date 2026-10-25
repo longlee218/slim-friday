@@ -11,14 +11,23 @@ export function readRepo(db: BunSQLiteDatabase): Store["reads"] {
       .from(conversationReads)
       .where(eq(conversationReads.conversationId, c))
       .get()?.id ?? 0;
-  // Ids of the wakes whose messages never count as unread.
+  // Ids of the wakes whose messages never count as unread (core's `talksToOwner` is false): not resumed by a card,
+  // and an intro, a ticket, or a bot-sent run that is no relay (`result` / `status`) and no hand-off.
   const quietWakes = db
     .select({ id: wakes.id })
     .from(wakes)
     .where(
       and(
         isNull(wakes.cardId),
-        or(eq(wakes.intro, true), isNotNull(wakes.ticketId), eq(wakes.senderKind, "bot")),
+        or(
+          eq(wakes.intro, true),
+          isNotNull(wakes.ticketId),
+          and(
+            eq(wakes.senderKind, "bot"),
+            notInArray(wakes.intent, ["result", "status"]),
+            or(isNull(wakes.handoff), eq(wakes.handoff, false)),
+          ),
+        ),
       ),
     );
   return {
@@ -44,8 +53,7 @@ export function readRepo(db: BunSQLiteDatabase): Store["reads"] {
             eq(messages.conversationId, c),
             gt(messages.id, position(c)),
             ne(messages.authorKind, "user"),
-            // Not for runs that do not talk to the owner: intro, ticket, bot-to-bot (same rule as core's
-            // `talksToOwner`: a run resumed by a card answer is the owner's).
+            // Not for runs that do not talk to the owner (same rule as core's `talksToOwner`).
             or(isNull(messages.wakeId), notInArray(messages.wakeId, quietWakes)),
           ),
         )

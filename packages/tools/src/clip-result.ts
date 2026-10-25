@@ -2,8 +2,8 @@
 export const RESULT_MAX_CHARS = 12_000;
 
 /**
- * Cut `text` to `max` chars and append a marker line saying how many chars were cut, so the model knows the
- * output is incomplete. The cut never splits a surrogate pair. Short text is returned unchanged.
+ * Cut `text` to `max` chars and append the marker line `[cut: N more chars; narrow the request]` (spec §6.6), so
+ * the model knows the output is incomplete. The cut never splits a surrogate pair. Short text is returned unchanged.
  * NOTE: `packages/runtime-claude/src/session/post-tool-use-hook.ts` keeps a copy of this (same marker) because
  * runtime-claude may not import this package; keep them in step.
  */
@@ -13,5 +13,5 @@ export function clipResult(text: string, max = RESULT_MAX_CHARS): string {
   // A high surrogate at the last kept unit would lose its low half: drop it too.
   const last = text.charCodeAt(cut - 1);
   if (last >= 0xd800 && last <= 0xdbff) cut -= 1;
-  return `${text.slice(0, cut)}\n…[output cut: ${text.length - cut} more characters not shown]`;
+  return `${text.slice(0, cut)}\n[cut: ${text.length - cut} more chars; narrow the request]`;
 }

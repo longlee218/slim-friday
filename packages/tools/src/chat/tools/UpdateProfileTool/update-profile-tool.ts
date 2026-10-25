@@ -8,7 +8,7 @@ import { UPDATE_PROFILE_DESCRIPTION } from "./prompt";
 
 /** Input the model sees; there is no bot id: the tool acts for the calling bot only. */
 const SHAPE = {
-  title: z.string().optional().describe("A short role, e.g. Code reviewer."),
+  title: z.string().optional().describe("A short role (at most 80 chars), e.g. Code reviewer."),
   description: z
     .string()
     .optional()

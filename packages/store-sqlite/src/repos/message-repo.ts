@@ -75,6 +75,21 @@ export function messageRepo(db: BunSQLiteDatabase): Store["messages"] {
           .get()?.n ?? 0
       );
     },
+    async lastText(wakeId) {
+      return db
+        .select({ text: messages.text })
+        .from(messages)
+        .where(
+          and(
+            eq(messages.wakeId, wakeId),
+            eq(messages.kind, "text"),
+            eq(messages.authorKind, "bot"),
+          ),
+        )
+        .orderBy(desc(messages.id))
+        .limit(1)
+        .get()?.text;
+    },
     async after(afterId, limit) {
       return db
         .select()

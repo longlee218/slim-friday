@@ -1,4 +1,4 @@
-import type { ScratchpadItem } from "@friday/core";
+import { redactSecrets, type ScratchpadItem, secretsFrom } from "@friday/core";
 import type { ApiDeps } from "../../app";
 import { avatarUrlOf } from "../../avatar-url";
 import { authed } from "../../rpc/implementer";
@@ -32,15 +32,17 @@ async function scratchpadOf(deps: ApiDeps, botId: string) {
       items: (await store.scratchpad.list(s.key)).filter(shown),
     })),
   );
+  // Items are bot-written text: secrets are hidden as in everything else a bot posts (spec §6.11).
+  const secrets = secretsFrom(deps.secretValues);
   return lists
     .filter((l) => l.items.length > 0)
     .map((l) => ({
       scope: l.scope,
       items: l.items.map(({ id, title, status, notes, updatedAt }) => ({
         id,
-        title,
+        title: redactSecrets(title, secrets),
         status,
-        notes,
+        notes: redactSecrets(notes, secrets),
         updatedAt,
       })),
     }));
