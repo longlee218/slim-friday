@@ -18,6 +18,7 @@ const implemented = [
   "control.",
   "events.",
   "tickets.",
+  "schedules.",
   "ops.",
   "config.bots.list",
   "config.bots.get",
@@ -46,9 +47,7 @@ const expected = listProcedurePaths(contract)
 test("every procedure but the implemented ones is still a stub", () =>
   expect(stubbedProcedures()).toEqual(expected));
 
-// schedules.* stays stubbed until its handlers land (plan 02 task 3).
-test("no procedure is a stub any more", () =>
-  expect(stubbedProcedures().filter((p) => !p.startsWith("schedules."))).toEqual([]));
+test("no procedure is a stub any more", () => expect(stubbedProcedures()).toEqual([]));
 
 test("input is validated before the stub", async () =>
   await expect(

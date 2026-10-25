@@ -9,6 +9,7 @@ import { FakeFileStore } from "../../../core/test/fakes/fake-file-store";
 import { FakeRuntime } from "../../../core/test/fakes/fake-runtime";
 import { FakeStore } from "../../../core/test/fakes/fake-store";
 import { FakeToolCatalog } from "../../../core/test/fakes/fake-tool-catalog";
+import { fakeNextRunAt } from "../../../core/test/schedules/schedule-harness";
 import type { ApiDeps, EngineDeps } from "../../src/index";
 import { appRouter } from "../../src/index";
 import { ticketChangePublisher } from "../../src/routers/tickets/ticket-publish";
@@ -55,6 +56,7 @@ export function engineHarness() {
     clock,
     gate,
     onTicketChange: ticketChangePublisher({ store, bus: surface.bus, log }),
+    nextRunAt: fakeNextRunAt,
   });
   hub.start();
   const settings = fakeSettings();

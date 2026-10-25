@@ -63,6 +63,5 @@ test("save, edit, journal and rules round trip through the admin", async () => {
 
 test("no stub is left", async () => {
   const { stubbedProcedures } = await import("../src/index");
-  // schedules.* stays stubbed until its handlers land (plan 02 task 3).
-  expect(stubbedProcedures().filter((p) => !p.startsWith("schedules."))).toEqual([]);
+  expect(stubbedProcedures()).toEqual([]);
 });

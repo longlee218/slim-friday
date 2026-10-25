@@ -79,3 +79,10 @@ test("run and relay pass through; toFileRef maps a row", () => {
     height: 2,
   });
 });
+
+test("schedule tag: set when both id and name exist, absent otherwise", () => {
+  const tagged = toMessageDto({ ...base, scheduleId: "s1", scheduleName: "Morning" });
+  expect(tagged.schedule).toEqual({ id: "s1", name: "Morning" });
+  expect(toMessageDto({ ...base, scheduleId: "s1" }).schedule).toBeUndefined();
+  expect(toMessageDto(base).schedule).toBeUndefined();
+});

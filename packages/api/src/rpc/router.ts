@@ -14,6 +14,7 @@ import { conversationsRouter } from "../routers/conversations-router";
 import { eventsRouter } from "../routers/events-router";
 import { memoryRouter } from "../routers/memory-router";
 import { opsRouter } from "../routers/ops/ops-router";
+import { schedulesRouter } from "../routers/schedules/schedules-router";
 import { ticketsRouter } from "../routers/tickets/tickets-router";
 import { authed } from "./implementer";
 import { type AppRouterInput, type LooseNode, stubHandlers, stubRouter } from "./stub-router";
@@ -45,6 +46,7 @@ export const appRouter = authed.router({
   events: eventsRouter,
   memory: memoryRouter,
   tickets: ticketsRouter,
+  schedules: schedulesRouter,
   ops: opsRouter,
 });
 

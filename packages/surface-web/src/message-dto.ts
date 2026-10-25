@@ -47,6 +47,8 @@ export function toMessageDto(m: IndexedMessage, replied?: IndexedMessage): Messa
     }),
     ...(m.run && { run: m.run }),
     ...(m.relay && { relay: m.relay }),
+    // A message whose schedule was already gone at run start has no name, so no tag.
+    ...(m.scheduleId && m.scheduleName && { schedule: { id: m.scheduleId, name: m.scheduleName } }),
   };
 }
 
