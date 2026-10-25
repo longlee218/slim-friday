@@ -223,3 +223,19 @@ test("ticket, intro and bot-to-bot runs raise no finished notice; a silent owner
     expect(h.surface.finished).toEqual([]);
   }
 });
+
+test("a progress message raises no finished notice; the final raises exactly one", async () => {
+  const h = makeHub();
+  const s = await start(h);
+  h.clock.advance(61_000);
+  s.emit({ type: "text", text: "Still working on it." });
+  s.emit({ type: "tool_call", toolUseId: "t1", tool: "Read", input: { file_path: "/a" } });
+  await flush();
+  expect(botPosts(h)).toEqual(["Still working on it."]);
+  expect(h.surface.finished).toEqual([]);
+  s.emit({ type: "tool_result", toolUseId: "t1", ok: true });
+  s.emit({ type: "text", text: "All done." });
+  s.emit({ type: "turn_end", costUsd: 0 });
+  await flush();
+  expect(h.surface.finished.map((f) => f.preview)).toEqual(["All done."]);
+});

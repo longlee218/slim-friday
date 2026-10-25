@@ -58,7 +58,7 @@ export const FridayEventSchema = z.discriminatedUnion("type", [
     type: z.literal("run.finished"),
     conversationId: ConversationIdSchema,
     botId: z.string(),
-    preview: z.string(),
+    preview: z.string().max(400),
   }),
   // reserved: the v1 engine sends none, the web refetches control.status
   z.object({ type: z.literal("status"), bots: z.array(BotStatusDtoSchema) }),

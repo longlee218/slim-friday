@@ -64,6 +64,8 @@ export interface RunExec {
    * silent or empty answer never clears it.
    */
   finalText?: string;
+  /** The final text to announce to the owner once the run is committed as done (set by `settleOutput`). */
+  announceText?: string;
   /** Sends and effect calls of this execution by content hash: how many identical ones ran so far (key part `n`). */
   sendCounts: Map<string, number>;
   /** A turn was sent (or a follow-up began) and has not ended. */

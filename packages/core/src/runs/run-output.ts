@@ -80,13 +80,13 @@ export async function onAnswerText(ctx: HubContext, exec: RunExec, text: string)
 export async function settleOutput(ctx: HubContext, exec: RunExec): Promise<string | undefined> {
   await releaseHeld(ctx, exec, "answer");
   if (exec.finalText) {
-    notifyFinished(ctx, exec, exec.finalText);
+    exec.announceText = exec.finalText;
     return exec.finalText;
   }
   if (silenceAllowed(exec.row, runKindOf(exec.row))) return undefined;
   if ((await ctx.deps.store.messages.countInterim(exec.row.id)) > 0) return undefined;
   await post(ctx, exec, EMPTY_FINAL);
-  notifyFinished(ctx, exec, EMPTY_FINAL);
+  exec.announceText = EMPTY_FINAL;
   return undefined;
 }
 
@@ -96,10 +96,12 @@ export const FINISHED_PREVIEW_CHARS = 180;
 /**
  * Tell the surface the run's final answer was posted to the owner: redacted, newlines collapsed to spaces,
  * cut to 180 code points. Nothing for a run that does not talk to the owner (ticket, intro, bot-to-bot).
- * A surface failure never fails the run.
+ * A surface failure never fails the run. Called by the executor once `finishRun` committed (a run that lost
+ * its lease announces nothing; the new holder does).
  */
-function notifyFinished(ctx: HubContext, exec: RunExec, text: string): void {
-  if (!talksToOwner(exec.row)) return;
+export function announceFinished(ctx: HubContext, exec: RunExec): void {
+  const text = exec.announceText;
+  if (text === undefined || !talksToOwner(exec.row)) return;
   const flat = redactSecrets(text, secretsFrom(ctx.deps.secretValues)).replace(/\s+/g, " ").trim();
   const points = [...flat];
   const preview =
@@ -132,6 +134,8 @@ async function post(ctx: HubContext, exec: RunExec, text: string): Promise<void>
     author,
     text,
     at: clock.now(),
+    // Ties the message to its run: the unread count skips runs that do not talk to the owner.
+    wakeId: exec.row.id,
     ...(run.length > 0 && { run }),
   }).catch((err) =>
     ctx.deps.log?.error({ error: errText(err), conversationId }, "hub.post_failed"),
