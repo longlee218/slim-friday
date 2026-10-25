@@ -150,6 +150,37 @@ test("typed text answers an open question card and requeues its run", async () =
   expect(seen).toEqual([{ kind: "cardAnswered", cardId: "q1" }]);
 });
 
+test("a bot message after the question makes the card stale: typed text is not its answer", async () => {
+  const { hub, store } = setup();
+  await store.wakes.insert(storedRun({ id: "asker", scopeKey: "editor", status: "waiting_input" }));
+  await store.cards.insert({ ...openCard("q1", "asker", "question"), createdAt: 100 });
+  await store.messages.append({
+    conversationId: "dc",
+    author: { kind: "bot", botId: "writer" },
+    text: "done",
+    at: 200,
+  });
+  await hub.handle({ conversationId: "dc", text: "something else" });
+  expect(store.cardMap.get("q1")?.status).toBe("open");
+  expect(store.wakeMap.get("asker")?.status).toBe("waiting_input");
+  const fresh = runs(store.wakeMap).filter((w) => w.id !== "asker");
+  expect(fresh.map((w) => [w.status, w.text])).toEqual([["queued", "something else"]]);
+});
+
+test("a bot message before the question leaves the card answerable by typing", async () => {
+  const { hub, store } = setup();
+  await store.wakes.insert(storedRun({ id: "asker", scopeKey: "editor", status: "waiting_input" }));
+  await store.cards.insert({ ...openCard("q1", "asker", "question"), createdAt: 100 });
+  await store.messages.append({
+    conversationId: "dc",
+    author: { kind: "bot", botId: "writer" },
+    text: "earlier",
+    at: 50,
+  });
+  await hub.handle({ conversationId: "dc", text: "the blue one" });
+  expect(store.cardMap.get("q1")?.status).toBe("answered");
+});
+
 test("open approval card: message becomes a new run, card stays open", async () => {
   const { hub, store } = setup();
   await store.wakes.insert(storedRun({ id: "asker", scopeKey: "editor", status: "waiting_input" }));
