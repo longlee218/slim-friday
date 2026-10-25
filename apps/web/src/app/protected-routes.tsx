@@ -1,10 +1,12 @@
 import { Link, Navigate, type RouteObject } from "react-router";
+import { ActivityRoute } from "../components/activity/activity-route";
 import { ChatView } from "../components/chat/chat-view";
 import { ChatsList } from "../components/phone/chats-list";
 import { PhoneChat } from "../components/phone/phone-chat";
-import { PhonePlaceholder } from "../components/phone/phone-placeholder";
+import { settingsRoutes } from "../components/settings/settings-routes";
 import { navHistory } from "../components/shell/nav-history";
-import { RoutePlaceholder } from "../components/shell/route-placeholder";
+import { TicketPageRoute } from "../components/tickets/ticket-page-route";
+import { TicketsRoute } from "../components/tickets/tickets-route";
 import { RouteError } from "./route-error";
 import { useConnection } from "./shell-context";
 import { useIsPhone } from "./use-is-phone";
@@ -19,11 +21,6 @@ function ChatRoute() {
 /** `/`: the Chats list on the phone; on desktop it opens the last visited chat. */
 function HomeRoute() {
   return useIsPhone() ? <ChatsList /> : <Navigate to={navHistory.lastChat} replace />;
-}
-
-/** Placeholder of a screen a later plan builds, in the layout of the current mode. */
-function Placeholder({ title }: { title: string }) {
-  return useIsPhone() ? <PhonePlaceholder title={title} /> : <RoutePlaceholder title={title} />;
 }
 
 /** Any other path: a small not-found page (not the session error). */
@@ -46,9 +43,9 @@ function NotFound() {
 export const protectedChildren: RouteObject[] = [
   { path: "/", element: <HomeRoute /> },
   { path: "/c/:conversationId", element: <ChatRoute /> },
-  { path: "/tickets", element: <Placeholder title="Tickets" /> },
-  { path: "/tickets/:ref", element: <Placeholder title="Ticket" /> },
-  { path: "/ops", element: <Placeholder title="Ops" /> },
-  { path: "/settings/*", element: <Placeholder title="Settings" /> },
+  { path: "/tickets", element: <TicketsRoute /> },
+  { path: "/tickets/:ref", element: <TicketPageRoute /> },
+  { path: "/ops", element: <ActivityRoute /> },
+  ...settingsRoutes,
   { path: "*", element: <NotFound /> },
 ].map((r) => ({ ...r, errorElement: <RouteError /> }));

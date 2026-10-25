@@ -1,5 +1,5 @@
 import type { Author, Store, WakeRow } from "@friday/core";
-import { and, asc, eq, gte, inArray, lt, notInArray, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lt, notInArray, or, sql } from "drizzle-orm";
 import type { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import { wakes } from "../schema/engine-tables";
 import { runClaim } from "./run-claim";
@@ -140,6 +140,18 @@ export function wakeRepo(db: BunSQLiteDatabase): Store["wakes"] {
       return { inserted: false as const, existing: fromRow(existing) };
     },
     ...runClaim(db),
+    async list(f) {
+      return db
+        .select()
+        .from(wakes)
+        .where(
+          and(gte(wakes.createdAt, f.since), f.status ? eq(wakes.status, f.status) : undefined),
+        )
+        .orderBy(desc(wakes.createdAt), desc(wakes.id))
+        .limit(f.limit)
+        .all()
+        .map(fromRow);
+    },
     async botSentSince(conversationId, since) {
       return db
         .select()

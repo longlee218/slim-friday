@@ -3,6 +3,8 @@ import { Fragment } from "react";
 import { useDirectory } from "../../api/directory";
 import { formatClock } from "../../lib/format";
 import { Avatar } from "../ui/avatar";
+import { FileCard } from "./file-card";
+import { ImageGallery } from "./image-gallery";
 import { ROUTE_SUFFIX, type RouteInfo } from "./route-info";
 import { useBotFace } from "./use-bot-face";
 
@@ -65,17 +67,29 @@ function AtText({ text, names }: { text: string; names: Set<string> }) {
   );
 }
 
-/** The owner's message: right-aligned bubble, optional reply quote, time and route line. */
+/**
+ * The owner's message: right-aligned bubble, optional reply quote, the files sent with it
+ * (images as a gallery, others as file cards; no empty bubble for a files-only message), time
+ * and route line.
+ */
 export function OwnerBubble({ message, route, pending, onRetry, members = [] }: OwnerBubbleProps) {
   const dir = useDirectory();
   const names = new Set(members.map((id) => dir.botName(id).toLowerCase()));
+  const images = message.files.filter((f) => f.kind === "image");
+  const others = message.files.filter((f) => f.kind !== "image");
   return (
     <div className="msg owner">
       <div>
         {message.replyTo && <ReplyQuote reply={message.replyTo} />}
-        <div className="bubble">
-          <AtText text={message.text} names={names} />
-        </div>
+        {message.text && (
+          <div className="bubble">
+            <AtText text={message.text} names={names} />
+          </div>
+        )}
+        {images.length > 0 && <ImageGallery files={images} message={message} />}
+        {others.map((f) => (
+          <FileCard key={f.id} file={f} />
+        ))}
         <div className="owner-meta">
           {pending === "failed" ? (
             <>

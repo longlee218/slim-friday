@@ -5,15 +5,19 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && bun csp/check-dist.ts",
     "preview": "vite preview",
+    "check:dist": "bun csp/check-dist.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "e2e": "playwright test"
+    "e2e": "playwright test --project=chromium && playwright test --project=webkit"
   },
   "dependencies": {
     "@base-ui/react": "1.9.0",
     "@better-auth/passkey": "1.7.12",
+    "@dnd-kit/core": "6.3.1",
+    "@dnd-kit/sortable": "10.0.0",
+    "@dnd-kit/utilities": "3.2.2",
     "@friday/contracts": "workspace:*",
     "@orpc/client": "1.16.1",
     "@orpc/contract": "1.16.1",

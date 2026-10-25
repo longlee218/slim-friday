@@ -8,7 +8,7 @@ import { Composer, type ComposerHandle } from "../chat/composer";
 import { conversationParts } from "../chat/conversation-parts";
 import { EmptyConversation } from "../chat/empty-conversation";
 import { Transcript } from "../chat/transcript";
-import { useConversationMessages } from "../chat/use-conversation-messages";
+import { useConversationEmpty } from "../chat/use-conversation-empty";
 import { useDraft, useReplyTarget } from "../chat/use-drafts";
 import { ChatTitleButton } from "./chat-title-button";
 import { PhoneNavBar } from "./phone-nav-bar";
@@ -27,7 +27,7 @@ export function PhoneChat() {
   const dir = useDirectory();
   const listed = useQuery(orpc.conversations.list.queryOptions()).isSuccess;
   const conversation = dir.conversations.find((c) => c.id === conversationId);
-  const messages = useConversationMessages(conversationId, conversation !== undefined);
+  const empty = useConversationEmpty(conversationId, conversation !== undefined);
   const composer = useRef<ComposerHandle>(null);
   const scroll = useRef<HTMLDivElement>(null);
   const [draft, setDraft] = useDraft(conversationId);
@@ -50,7 +50,6 @@ export function PhoneChat() {
   }
 
   const { bot, group } = conversationParts(dir, conversation);
-  const empty = messages.isSuccess && messages.data.pages.every((p) => p.length === 0);
   const onReply = (m: MessageDto) => {
     if (m.author.kind !== "bot") return;
     setReply({ messageId: m.id, botId: m.author.botId, excerpt: m.text.slice(0, EXCERPT_CHARS) });

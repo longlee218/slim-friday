@@ -2,6 +2,7 @@ import type { CoreLimits } from "../config-defaults";
 import { groupContextFor } from "../hub/group-context";
 import { groupMemoryFor, promptMemory } from "../hub/group-memory";
 import { errText } from "../hub/hub-types";
+import { readRulesText } from "../hub/rules-text";
 import type { SessionScope } from "../hub/session-scope";
 import type { AgentRuntime, BotRuntimeSpec, BotSession } from "../ports/agent-runtime";
 import type { Log } from "../ports/log";
@@ -28,8 +29,9 @@ export interface OpenedRunSession {
 }
 
 /**
- * Open the scope's session for one run. What goes into the system prompt is read fresh: the bot memory (a
- * group scope gets only the bot's preferences and lessons) and, for a group scope, the group context and memory. The stored session id is resumed, else a new session opens; a stored id that will
+ * Open the scope's session for one run. What goes into the system prompt is read fresh: the owner's rules for
+ * the bot, the bot memory (a group scope gets only the bot's preferences and lessons) and, for a group scope, the
+ * group context, the group's rules and the group memory. The stored session id is resumed, else a new session opens; a stored id that will
  * not resume is cleared. A scope marked `resetPending` gets a fresh session, unless it has an open card or the run resumes a card's answer (a parked
  * approval keeps its own session until it is resolved and resumed); the mark and the stored effort are cleared then. A session that will not open
  * (workspace, MCP server, runtime start) throws `SetupError`, so the run is retried as a setup failure.
@@ -51,6 +53,11 @@ export async function openRunSession(
     // A group session gets only the bot's rules and lessons: its facts may come from the owner's direct chat.
     scope.groupId ? GROUP_SESSION_KINDS : undefined,
   );
+  // The owner's rules are whole (never cut by the memory cap) and read at every open, so an edit reaches the next run.
+  const rules = await readRulesText(d.memory, { kind: "bot", botId: scope.bot.id }, d.log);
+  const groupRules = scope.groupId
+    ? await readRulesText(d.memory, { kind: "group", groupId: scope.groupId }, d.log)
+    : "";
   const group = scope.groupId ? await store.groups.get(scope.groupId) : undefined;
   const groupContext = group ? await groupContextFor(group, d.projectRules) : undefined;
   const groupMemory = scope.groupId
@@ -65,8 +72,10 @@ export async function openRunSession(
     ...spec,
     // A fresh session starts at the bot's own effort, not the old session's SetEffort level.
     ...(fresh && { bot: scope.bot }),
+    ...(rules && { rules }),
     ...(memory.trim() && { memory }),
     ...(groupContext && { groupContext }),
+    ...(groupRules && { groupRules }),
     ...(groupMemory && { groupMemory }),
   };
   const stored = fresh ? undefined : await store.sessions.get(scope.key);

@@ -43,8 +43,9 @@
 .sheet.wide { width: min(760px, calc(100vw - 32px)); max-height: 86vh; overflow: auto; }
 .pop[data-ending-style] { animation: popOut 140ms ease-in forwards; }
 .bsheet[data-ending-style] { transition: transform 280ms var(--ease-sheet); transform: translateY(100%) !important; }
-/* In the real viewport the bottom sheet pins to the screen, not to the prototype's phone frame. */
-.bsheet { position: fixed; }
+/* In the real viewport the bottom sheet pins to the screen, not to the prototype's phone frame. It is portalled
+   outside `.ios`, so it sets its own `--safe-b` (unset, the padding shorthand above is invalid and drops to 0). */
+.bsheet { position: fixed; --safe-b: env(safe-area-inset-bottom, 0px); }
 .badge.red { background: var(--red-dot); color: #fff; }
 kbd { font: 500 11px var(--font); color: var(--label-3); padding: 1px 5px; border-radius: 4px; background: var(--fill); }
 

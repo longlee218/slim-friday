@@ -5,7 +5,7 @@ import type { Grant } from "../domain/grant";
 import type { Group, GroupId } from "../domain/group";
 import type { IndexedMessage, StoredMessage } from "../domain/message";
 import type { WakeRow, WakeStatus } from "../domain/wake";
-import type { Ticket, TicketComment, TicketStatus } from "../tickets/ticket";
+import type { Ticket, TicketComment, TicketEvent, TicketStatus } from "../tickets/ticket";
 import type { CardPort, EffectPort, ScopePort, SteeringPort } from "./run-state-ports";
 import type { ApprovalAnswer } from "./surface";
 
@@ -76,8 +76,14 @@ export interface Store {
   };
   /** The shared ticket board. */
   tickets: {
-    /** Allocates the next number in the same step, so two creates never share one. */
-    create(t: Omit<Ticket, "id" | "number" | "updatedAt" | "completedAt">): Promise<Ticket>;
+    /**
+     * Allocates the next number in the same step, so two creates never share one.
+     * `events` builds history rows from the saved ticket; they are written in the same transaction.
+     */
+    create(
+      t: Omit<Ticket, "id" | "number" | "updatedAt" | "completedAt">,
+      opts?: { events?: (next: Ticket) => TicketEvent[] },
+    ): Promise<Ticket>;
     get(id: string): Promise<Ticket | undefined>;
     getByNumber(n: number): Promise<Ticket | undefined>;
     /** Newest first. `before` is the (createdAt, id) of the last ticket of the previous page. */
@@ -88,18 +94,34 @@ export interface Store {
       before?: { createdAt: number; id: string };
       limit: number;
     }): Promise<Ticket[]>;
-    /** `completedAt` follows `status` (set for done/closed and kept if set, cleared otherwise). */
+    /**
+     * `completedAt` follows `status` (set for done/closed and kept if set, cleared otherwise);
+     * `blockedReason` is cleared whenever the resulting status is not `blocked` (`null` clears it too).
+     * `updatedAt` becomes `max(now, previous + 1)`, so it moves even within one millisecond.
+     * With `ifUpdatedAt` the write happens only when the stored `updatedAt` equals it, else `"conflict"`.
+     * `events` builds history rows from the ticket before and after; they are written in the same
+     * transaction, so a conflict writes neither the change nor any event.
+     */
     update(
       id: string,
       patch: Partial<
         Pick<Ticket, "title" | "description" | "status" | "priority" | "assigneeBotId">
-      >,
+      > & { conversationId?: ConversationId; blockedReason?: string | null },
       now: number,
-    ): Promise<Ticket | undefined>;
-    /** Also bumps the ticket's `updatedAt`. */
+      opts?: { ifUpdatedAt?: number; events?: (prev: Ticket, next: Ticket) => TicketEvent[] },
+    ): Promise<Ticket | "conflict" | undefined>;
+    /** Also moves the ticket's `updatedAt` to `max(updatedAt + 1, createdAt)`. */
     addComment(c: Omit<TicketComment, "id">): Promise<TicketComment>;
     /** Oldest first. */
     comments(ticketId: string): Promise<TicketComment[]>;
+    /** Comment count per ticket id; every asked id is present (0 when none). */
+    commentCounts(ids: string[]): Promise<Map<string, number>>;
+  };
+  /** The history of ticket changes. */
+  ticketEvents: {
+    append(e: TicketEvent): Promise<void>;
+    /** Oldest first; rows of the same millisecond keep their insert order. */
+    list(ticketId: string): Promise<TicketEvent[]>;
   };
   messages: {
     /** Returns the id of the new message (ids grow with time). */
@@ -166,8 +188,14 @@ export interface Store {
   spend: {
     add(botId: BotId, day: string, usd: number): Promise<void>;
     total(botId: BotId, day: string): Promise<number>;
+    /** Rows from day `from` to day `to` (`YYYY-MM-DD`, both included), ordered by day then bot. */
+    range(from: string, to: string): Promise<{ botId: BotId; day: string; usd: number }[]>;
   };
-  audit: { append(e: AuditEntry): Promise<void> };
+  audit: {
+    append(e: AuditEntry): Promise<void>;
+    /** Newest first; `toolPrefix` matches the start of the tool name exactly (not a pattern); `limit` is clamped to 1..100. */
+    recent(f: { toolPrefix: string; limit: number }): Promise<AuditEntry[]>;
+  };
   /** Every message sent into a bot session, with its life and timings. */
   wakes: {
     insert(w: WakeRow): Promise<void>;
@@ -177,6 +205,8 @@ export interface Store {
     open(): Promise<WakeRow[]>;
     /** Rows parked on a card (`waiting_input`), oldest first. */
     waiting(): Promise<WakeRow[]>;
+    /** Wakes created at or after `since`, newest first, optionally of one status. */
+    list(f: { status?: WakeStatus; since: number; limit: number }): Promise<WakeRow[]>;
     /** Wakes sent by a bot in a conversation created at or after `since`, oldest first. */
     botSentSince(conversationId: ConversationId, since: number): Promise<WakeRow[]>;
     /** Delete rows that ended before `at` (any status but queued, leased, running and waiting_input); returns the count. */

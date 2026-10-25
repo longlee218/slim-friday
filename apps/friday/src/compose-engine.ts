@@ -27,6 +27,7 @@ export type EngineDeps = Pick<
   | "env"
   | "fetch"
   | "log"
+  | "onTicketChange"
 > & {
   /** How the hub's hints travel and whether it runs runs here; read after the config is loaded. */
   hubRuns?: (config: FileConfig) => Pick<BotHubDeps, "hints" | "runner">;
@@ -106,6 +107,7 @@ export function composeEngine(deps: EngineDeps, opened: Array<() => unknown>) {
       }),
     }),
     limits: config.limits(),
+    ...(deps.onTicketChange && { onTicketChange: deps.onTicketChange }),
     scopeBot: scopeBotFor(agentHome, config),
     projectRules: readProjectRules,
     log,

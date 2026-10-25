@@ -47,7 +47,7 @@ test("back label reads Chat under a chat", () => {
   expect(backLabel(["/", "/c/bot:dev", "/settings/bot/dev"])).toBe("Chat");
   expect(backLabel(["/", "/c/bot:dev"])).toBe("Chats");
   expect(backLabel(["/settings", "/settings/bot/dev"])).toBe("Settings");
-  expect(backLabel(["/tickets", "/tickets/FRI-1"])).toBe("Back");
+  expect(backLabel(["/tickets", "/tickets/FRI-1"])).toBe("Tickets");
 });
 
 test("edge swipe thresholds", () => {

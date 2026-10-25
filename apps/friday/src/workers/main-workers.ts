@@ -1,4 +1,4 @@
-import type { Clock, Log, Store, Surface } from "@friday/core";
+import type { Clock, Log, Store, Surface, Ticket } from "@friday/core";
 import { workerOwner } from "./boot-id";
 import { IpcHints } from "./ipc-hints";
 import { parseWorkerToMain } from "./ipc-protocol";
@@ -26,7 +26,9 @@ export interface MainWorkersDeps {
 /** What main's relay reads and publishes on. */
 export interface RelayTarget {
   surface: Surface;
-  store: Pick<Store, "messages" | "cards" | "bots" | "wakes">;
+  store: Pick<Store, "messages" | "cards" | "bots" | "wakes" | "tickets">;
+  /** Told about every ticket a worker saved (the web's ticket events). */
+  onTicketChange?: (t: Ticket) => void;
 }
 
 /**
@@ -59,7 +61,7 @@ export function mainWorkers(d: MainWorkersDeps) {
           return;
         }
         const next = (chains.get(i) ?? Promise.resolve())
-          .then(() => relayWorkerEvents(m, t.surface, t.store))
+          .then(() => relayWorkerEvents(m, t.surface, t.store, t.onTicketChange))
           .catch((e) => d.log.error({ worker: i, t: m.t, err: String(e) }, "worker.relay_failed"));
         chains.set(i, next);
       };

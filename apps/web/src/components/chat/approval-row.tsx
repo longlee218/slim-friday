@@ -5,7 +5,7 @@ import { Avatar } from "../ui/avatar";
 import { Button } from "../ui/button";
 import { ApprovalReceipt } from "./approval-receipt";
 import { ApprovalSheet } from "./approval-sheet";
-import { approvalTitle } from "./approval-text";
+import { approvalTitle, toolLabel } from "./approval-text";
 import { useBotFace } from "./use-bot-face";
 import { useReceipt } from "./use-receipt";
 
@@ -21,7 +21,7 @@ export function ApprovalRow({ card, receipt }: { card: ApprovalCardDto; receipt?
       <Avatar src={face.src} name={card.botName} size={34} />
       <div className="grow">
         <b>{approvalTitle(card)}</b>
-        <span>{card.tool}</span>
+        <span>{toolLabel(card.tool)}</span>
       </div>
       <Button variant="primary" onClick={() => setOpen(true)}>
         Review

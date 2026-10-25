@@ -103,6 +103,46 @@ describe("applyEffects", () => {
     expect(qc.getQueryData(liveRunKey("bot:dev"))).toEqual({});
   });
 
+  test("refetchStatus also invalidates ops.sessions after the status fetch", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => Response.json({ json: [] }));
+    const spy = vi.spyOn(qc, "invalidateQueries");
+    applyEffects(qc, [{ op: "refetchStatus" }], noop);
+    await vi.advanceTimersByTimeAsync(1100);
+    expect(spy).toHaveBeenCalledWith({ queryKey: orpc.ops.sessions.key() });
+  });
+
+  test("setStatus ends the runs of bots absent from the list (stopped session)", () => {
+    const start = (botId: string, c = "bot:dev"): CacheEffect => ({
+      op: "startRun",
+      conversationId: c,
+      botId,
+      at: 1,
+    });
+    applyEffects(qc, [start("dev"), start("pia", "group:crew")], noop);
+    const pia = { botId: "pia", name: "Pia", working: true, tasks: [], spendToday: 0 };
+    applyEffects(qc, [{ op: "setStatus", bots: [pia] }], noop);
+    expect(qc.getQueryData(liveRunKey("bot:dev"))).toEqual({});
+    expect(Object.keys(qc.getQueryData(liveRunKey("group:crew"))!)).toEqual(["pia"]);
+  });
+
+  test("tickets and config invalidate their keys; config also the conversation list", () => {
+    const spy = vi.spyOn(qc, "invalidateQueries");
+    applyEffects(qc, [{ op: "invalidate", scope: "tickets" }], noop);
+    expect(spy).toHaveBeenCalledWith({ queryKey: orpc.tickets.key() });
+    spy.mockClear();
+    applyEffects(qc, [{ op: "invalidate", scope: "config" }], noop);
+    expect(spy).toHaveBeenCalledWith({ queryKey: orpc.config.key() });
+    expect(spy).toHaveBeenCalledWith({ queryKey: orpc.conversations.list.key() });
+  });
+
+  test("patchTicket invalidates the ticket list when no page holds the ticket", () => {
+    const spy = vi.spyOn(qc, "invalidateQueries");
+    const ticket = { id: "1", ref: "FRI-1", status: "todo", updatedAt: 1 } as never;
+    applyEffects(qc, [{ op: "patchTicket", ticket }], noop);
+    expect(spy).toHaveBeenCalledWith({ queryKey: orpc.tickets.list.key() });
+  });
+
   test("resync invalidates everything", () => {
     const spy = vi.spyOn(qc, "invalidateQueries");
     applyEffects(qc, [{ op: "invalidate", scope: "all" }], noop);

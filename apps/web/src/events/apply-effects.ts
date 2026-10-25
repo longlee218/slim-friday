@@ -1,10 +1,11 @@
 import type { BotStatusDto } from "@friday/contracts";
 import type { QueryClient } from "@tanstack/react-query";
 import { orpc } from "../api/client";
+import { patchTicket } from "../components/tickets/ticket-cache";
 import { closeApproval, closeQuestion, openApproval, openQuestion } from "./apply-cards";
 import { appendMessage, setUnread } from "./apply-messages";
-import { endRun, runStep, runTail, startRun } from "./apply-runs";
-import { type CacheEffect, idleEndRuns } from "./event-reducer";
+import { endRun, endRunsExcept, runStep, runTail, startRun } from "./apply-runs";
+import type { CacheEffect } from "./event-reducer";
 
 /** Toast callback type. */
 export type Notify = (n: Extract<CacheEffect, { op: "notify" }>) => void;
@@ -22,12 +23,10 @@ export function resetStatusDebounce(qc: QueryClient): void {
   statusTimers.delete(qc);
 }
 
-/** Writes a status list into the cache and ends the runs of idle bots. */
+/** Writes a status list into the cache and ends the runs of bots that are not working. */
 function setStatus(qc: QueryClient, bots: BotStatusDto[]): void {
   qc.setQueryData(orpc.control.status.queryKey(), bots);
-  for (const e of idleEndRuns(bots)) {
-    if (e.op === "endRun") endRun(qc, e.conversationId, e.botId);
-  }
+  endRunsExcept(qc, new Set(bots.filter((b) => b.working).map((b) => b.botId)));
 }
 
 /** Schedules one `control.status` fetch for the burst, then applies it like a `status` event. */
@@ -38,7 +37,11 @@ export function refetchStatus(qc: QueryClient): void {
     setTimeout(() => {
       statusTimers.delete(qc);
       qc.fetchQuery(orpc.control.status.queryOptions({ staleTime: 0 }))
-        .then((bots) => setStatus(qc, bots))
+        .then((bots) => {
+          setStatus(qc, bots);
+          // The Activity page's session table reads `ops.sessions`; refresh it on the same burst.
+          void qc.invalidateQueries({ queryKey: orpc.ops.sessions.key() });
+        })
         // A failed refetch leaves the old status; the next event retries.
         .catch(() => {});
     }, STATUS_DEBOUNCE_MS),
@@ -56,7 +59,7 @@ export function applyEffects(qc: QueryClient, effects: CacheEffect[], notify: No
         endRun(qc, e.conversationId, e.botId);
         break;
       case "startRun":
-        startRun(qc, e.conversationId, e.botId, e.at);
+        startRun(qc, e.conversationId, e.botId, e.at, true);
         break;
       case "runStep":
         runStep(qc, e.conversationId, e.botId, e.step);
@@ -85,10 +88,17 @@ export function applyEffects(qc: QueryClient, effects: CacheEffect[], notify: No
       case "refetchStatus":
         refetchStatus(qc);
         break;
+      case "patchTicket":
+        patchTicket(qc, e.ticket);
+        break;
       case "invalidate":
         if (e.scope === "all") void qc.invalidateQueries();
         else if (e.scope === "tickets") void qc.invalidateQueries({ queryKey: orpc.tickets.key() });
-        else void qc.invalidateQueries({ queryKey: orpc.config.key() });
+        else {
+          void qc.invalidateQueries({ queryKey: orpc.config.key() });
+          // The engine syncs conversations before it sends config.changed (new or removed bots).
+          void qc.invalidateQueries({ queryKey: orpc.conversations.list.key() });
+        }
         break;
       case "notify":
         notify(e);

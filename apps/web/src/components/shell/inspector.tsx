@@ -38,7 +38,7 @@ function BotInspector({ bot, status }: { bot: BotDto; status?: BotStatusDto }) {
   return (
     <>
       <div className="insp-hero">
-        <Avatar src={bot.avatarUrl} name={bot.name} size={72} />
+        <Avatar src={bot.avatarUrl} name={bot.name} size={72} working={working} />
         <h2>{bot.name}</h2>
         <div className="r">{`${bot.title} · ${bot.model}`}</div>
         <div className="insp-actions">

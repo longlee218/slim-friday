@@ -1,8 +1,11 @@
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test, vi } from "vitest";
+import { orpc } from "../../src/api/client";
 import { setPending } from "../../src/components/chat/pending-sends";
 import { applyEffects, resetStatusDebounce } from "../../src/events/apply-effects";
+import { startRun } from "../../src/events/apply-runs";
+import { approval } from "../shell/fixtures";
 import { renderChat, setup, stubMatchMedia } from "./chat-view-fixtures";
 import { msg } from "./fixtures";
 
@@ -49,6 +52,28 @@ test("a group's empty state names the entry bot", () => {
   // Group toolbar: member count and how many work.
   expect(screen.getByText("2 members · 1 working")).toBeTruthy();
   expect(screen.getByRole("button", { name: "Stop the group" })).toBeTruthy();
+});
+
+test("no messages but an open approval shows the card, not the empty state", () => {
+  const qc = setup([[]]);
+  qc.setQueryData(orpc.approvals.pending.queryKey(), [approval("a1", "dev")]);
+  renderChat(qc);
+  expect(screen.getByText("Dev wants to use Bash")).toBeTruthy();
+  expect(screen.queryByRole("heading", { name: "Chat with Dev" })).toBeNull();
+});
+
+test("no messages but a live run shows the run, not the empty state", () => {
+  const qc = setup([[]]);
+  startRun(qc, "bot:dev", "dev", Date.now());
+  renderChat(qc);
+  expect(screen.queryByRole("heading", { name: "Chat with Dev" })).toBeNull();
+});
+
+test("an approval of another conversation keeps the empty state", () => {
+  const qc = setup([[]]);
+  qc.setQueryData(orpc.approvals.pending.queryKey(), [approval("a1", "pia")]);
+  renderChat(qc);
+  expect(screen.getByRole("heading", { name: "Chat with Dev" })).toBeTruthy();
 });
 
 test("an unknown conversation says so", () => {

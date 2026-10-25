@@ -102,11 +102,52 @@ describe("unfinished tickets", () => {
     expect(after?.status).toBe("blocked");
     const comments = await h.store.tickets.comments(t.id);
     expect(comments.at(-1)?.body).toBe("Left open after two turns; blocked automatically.");
+    expect(after?.blockedReason).toBe("Left open after two turns; blocked automatically.");
+    expect((await h.store.ticketEvents.list(t.id)).at(-1)).toMatchObject({
+      kind: "status",
+      from: "todo",
+      to: "blocked",
+      actor: { kind: "system" },
+    });
     expect(
       h.surface.posts.some(
         (p) => p.conversationId === "dc" && p.message.text.includes(`FRI-${t.number}`),
       ),
     ).toBe(true);
+  });
+
+  test("a refused auto-block posts no comment and no notice", async () => {
+    const h = makeHub();
+    const t = await assigned(h);
+    const ed = h.runtime.nth(0);
+    ed.emit({ type: "turn_end", costUsd: 0 });
+    await flush();
+    // The board refuses the system's block: the ticket is gone from its point of view.
+    h.hub.tickets.update = async () => ({ ok: false, code: "conflict", error: "x" });
+    const posts = h.surface.posts.length;
+    // The re-wake is a new run with its own session.
+    h.runtime.last().emit({ type: "turn_end", costUsd: 0 });
+    await flush();
+    expect(await h.store.tickets.comments(t.id)).toEqual([]);
+    expect(h.surface.posts).toHaveLength(posts);
+  });
+
+  test("the auto comment goes through the board, so onChange sees its count", async () => {
+    const seen: number[] = [];
+    const h = makeHub();
+    const t = await assigned(h);
+    const orig = h.hub.tickets.comment.bind(h.hub.tickets);
+    h.hub.tickets.comment = async (a, i) => {
+      const r = await orig(a, i);
+      seen.push((await h.store.tickets.comments(t.id)).length);
+      return r;
+    };
+    h.runtime.nth(0).emit({ type: "turn_end", costUsd: 0 });
+    await flush();
+    // The re-wake is a new run with its own session.
+    h.runtime.last().emit({ type: "turn_end", costUsd: 0 });
+    await flush();
+    expect(seen).toEqual([1]);
   });
 
   test("an errored turn gets no re-wake", async () => {

@@ -3,9 +3,14 @@ import { authClient } from "../api/auth-client";
 import { LoginCard } from "../components/auth/login-card";
 import { Button } from "../components/ui/button";
 
-/** Route loader: no session means the sign-in screen. */
+/**
+ * Route loader: no session means the sign-in screen. better-auth resolves (not throws) on an
+ * HTTP error, so a non-401 error (e.g. a tunnel 502 while the engine is down) is thrown to
+ * show "Can't reach Friday." instead of the passkey screen.
+ */
 export async function requireSession(): Promise<null> {
-  const { data } = await authClient.getSession();
+  const { data, error } = await authClient.getSession();
+  if (error && error.status !== 401) throw error;
   if (!data) throw redirect("/login");
   return null;
 }

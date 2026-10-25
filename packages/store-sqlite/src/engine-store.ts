@@ -15,6 +15,7 @@ import { scopeRepo } from "./repos/scope-repo";
 import { sessionRepo } from "./repos/session-repo";
 import { spendRepo } from "./repos/spend-repo";
 import { steeringRepo } from "./repos/steering-repo";
+import { ticketEventRepo } from "./repos/ticket-event-repo";
 import { ticketRepo } from "./repos/ticket-repo";
 import { uploadRepo } from "./repos/upload-repo";
 import { wakeRepo } from "./repos/wake-repo";
@@ -49,6 +50,7 @@ export function openEngineStore(file: string): EngineStore {
     effects: effectCallRepo(db),
     scopes: scopeRepo(db),
     tickets: ticketRepo(db),
+    ticketEvents: ticketEventRepo(db),
     insight: insightRepo(db),
     close: () => client.close(),
   };

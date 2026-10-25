@@ -110,3 +110,17 @@ test("deleteFinishedBefore keeps leased and waiting_input rows", async () => {
   expect(await s.wakes.get("l")).toBeDefined();
   expect(await s.wakes.get("w")).toBeDefined();
 });
+
+test("list filters by status and since, newest first, honours limit", async () => {
+  const s = openEngineStore(":memory:");
+  await s.wakes.insert(wake("w1", { createdAt: 10 }));
+  await s.wakes.insert(wake("w2", { createdAt: 20, status: "done" }));
+  await s.wakes.insert(wake("w3", { createdAt: 30 }));
+  await s.wakes.insert(wake("w4", { createdAt: 40, status: "done" }));
+  const ids = async (f: Parameters<typeof s.wakes.list>[0]) =>
+    (await s.wakes.list(f)).map((w) => w.id);
+  expect(await ids({ since: 0, limit: 10 })).toEqual(["w4", "w3", "w2", "w1"]);
+  expect(await ids({ since: 20, limit: 10 })).toEqual(["w4", "w3", "w2"]);
+  expect(await ids({ since: 0, limit: 10, status: "done" })).toEqual(["w4", "w2"]);
+  expect(await ids({ since: 0, limit: 2 })).toEqual(["w4", "w3"]);
+});

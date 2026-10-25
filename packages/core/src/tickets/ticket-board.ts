@@ -1,53 +1,57 @@
 import type { BotId } from "../domain/bot";
+import type { ConversationId } from "../domain/conversation";
 import type { Author } from "../domain/message";
 import type { Clock } from "../ports/clock";
 import type { Store } from "../ports/store";
+import type { Ticket, TicketComment, TicketPriority, TicketStatus } from "./ticket";
 import {
-  parseTicketRef,
-  TICKET_PRIORITIES,
-  TICKET_STATUSES,
-  type Ticket,
-  type TicketComment,
-  type TicketPriority,
-  type TicketStatus,
-} from "./ticket";
+  BAD_STATUS,
+  BLOCKED_REASON_MAX,
+  COMMENT_MAX,
+  CONFLICT,
+  DESCRIPTION_MAX,
+  finished,
+  INVALID,
+  NOT_FOUND,
+  PRIORITIES,
+  REASON_REQUIRED,
+  STATUSES,
+  TITLE_MAX,
+  type TicketResult,
+  UNKNOWN_BOT,
+} from "./ticket-board-rules";
+import { createdEvent, ticketChangeEvents } from "./ticket-change-events";
+import { type TicketDetail, TicketReads } from "./ticket-reads";
 
-/** Success with a payload, or a short reason a bot can read. */
-export type TicketResult<T> = ({ ok: true } & T) | { ok: false; error: string };
-
-const STATUSES: readonly TicketStatus[] = TICKET_STATUSES;
-const PRIORITIES: readonly TicketPriority[] = TICKET_PRIORITIES;
-const TITLE_MAX = 200;
-const DESCRIPTION_MAX = 20_000;
-const COMMENT_MAX = 10_000;
-const PAGE_SIZE = 50;
-/** Longest description in a list row (the full text comes with `get`). */
-const LIST_DESCRIPTION_MAX = 200;
-
-const INVALID = { ok: false, error: "Invalid ticket." } as const;
-const UNKNOWN_BOT = { ok: false, error: "Unknown bot." } as const;
-const BAD_STATUS = {
-  ok: false,
-  error: `status must be one of ${STATUSES.join(", ")}.`,
-} as const;
-
-/** A finished ticket is never woken. */
-const finished = (s: TicketStatus) => s === "done" || s === "closed";
+export type { TicketErrorCode, TicketResult } from "./ticket-board-rules";
 
 /** The shared board: the rules for creating, listing, changing and commenting on tickets. */
 export class TicketBoard {
+  /** Reads (one ticket, its timeline, list pages) live in their own class. */
+  private reads: TicketReads;
+
   constructor(
     private deps: {
-      store: Pick<Store, "tickets" | "bots">;
+      store: Pick<Store, "tickets" | "bots" | "ticketEvents">;
       clock: Clock;
       /** Called when a ticket is assigned to a bot other than the one who did it. */
       wake: (ticket: Ticket, botId: BotId, actor: Author) => Promise<void>;
+      /** Told after every saved create, update and comment; whatever it throws stays here. */
+      onChange?: (t: Ticket) => void;
     },
-  ) {}
+  ) {
+    this.reads = new TicketReads(deps.store);
+  }
 
   async create(
     actor: Author,
-    i: { title: string; description?: string; priority?: TicketPriority; assigneeBotId?: BotId },
+    i: {
+      title: string;
+      description?: string;
+      priority?: TicketPriority;
+      assigneeBotId?: BotId;
+      conversationId?: ConversationId;
+    },
   ): Promise<TicketResult<{ ticket: Ticket }>> {
     const title = i.title.trim();
     if (!title || title.length > TITLE_MAX) return INVALID;
@@ -55,51 +59,43 @@ export class TicketBoard {
     if (i.priority !== undefined && !PRIORITIES.includes(i.priority)) return INVALID;
     const assigneeBotId = i.assigneeBotId ?? (actor.kind === "bot" ? actor.botId : undefined);
     if (assigneeBotId && !(await this.deps.store.bots.get(assigneeBotId))) return UNKNOWN_BOT;
-    const ticket = await this.deps.store.tickets.create({
-      title,
-      ...(i.description && { description: i.description }),
-      status: "todo",
-      priority: i.priority ?? "normal",
-      ...(assigneeBotId && { assigneeBotId }),
-      createdBy: actor,
-      createdAt: this.deps.clock.now(),
-    });
+    // The created event is written in the same transaction as the ticket.
+    const ticket = await this.deps.store.tickets.create(
+      {
+        title,
+        ...(i.description && { description: i.description }),
+        status: "todo",
+        priority: i.priority ?? "normal",
+        ...(assigneeBotId && { assigneeBotId }),
+        ...(i.conversationId && { conversationId: i.conversationId }),
+        createdBy: actor,
+        createdAt: this.deps.clock.now(),
+      },
+      { events: (t) => [createdEvent(t, actor, t.createdAt)] },
+    );
+    this.changed(ticket);
     if (assigneeBotId && !(actor.kind === "bot" && actor.botId === assigneeBotId))
       await this.deps.wake(ticket, assigneeBotId, actor);
     return { ok: true, ticket };
   }
 
-  async get(ref: string): Promise<TicketResult<{ ticket: Ticket; comments: TicketComment[] }>> {
-    const ticket = await this.find(ref);
-    if (!ticket) return { ok: false, error: `Ticket ${ref} not found.` };
-    return { ok: true, ticket, comments: await this.deps.store.tickets.comments(ticket.id) };
+  /** A ticket with its comments. */
+  get(ref: string): Promise<TicketResult<{ ticket: Ticket; comments: TicketComment[] }>> {
+    return this.reads.get(ref);
   }
 
-  async list(i: {
+  /** A ticket with its merged timeline, the tickets it names and its comment count. */
+  detail(ref: string): Promise<TicketResult<TicketDetail>> {
+    return this.reads.detail(ref);
+  }
+
+  /** A page of tickets, newest first. */
+  list(i: {
     status?: TicketStatus;
     assigneeBotId?: BotId;
     cursor?: string;
   }): Promise<TicketResult<{ tickets: Ticket[]; nextCursor?: string }>> {
-    if (i.status !== undefined && !STATUSES.includes(i.status)) return BAD_STATUS;
-    let before: { createdAt: number; id: string } | undefined;
-    if (i.cursor !== undefined) {
-      before = decodeCursor(i.cursor);
-      if (!before) return { ok: false, error: "cursor is invalid." };
-    }
-    // One extra row tells whether another page follows.
-    const rows = await this.deps.store.tickets.list({
-      ...(i.status ? { status: i.status } : { excludeClosed: true }),
-      ...(i.assigneeBotId && { assigneeBotId: i.assigneeBotId }),
-      ...(before && { before }),
-      limit: PAGE_SIZE + 1,
-    });
-    const page = rows.slice(0, PAGE_SIZE).map(shortDescription);
-    const last = page[page.length - 1];
-    return {
-      ok: true,
-      tickets: page,
-      ...(rows.length > PAGE_SIZE && last && { nextCursor: encodeCursor(last) }),
-    };
+    return this.reads.list(i);
   }
 
   async update(
@@ -111,74 +107,86 @@ export class TicketBoard {
       priority?: TicketPriority;
       status?: TicketStatus;
       assigneeBotId?: BotId;
+      /** Required when the ticket moves into `blocked`; refused for any other result status. */
+      blockedReason?: string;
+      /** The `updatedAt` the caller read; another value means the ticket changed since. */
+      expectedUpdatedAt?: number;
+      conversationId?: ConversationId;
     },
   ): Promise<TicketResult<{ ticket: Ticket }>> {
-    const cur = await this.find(i.id);
-    if (!cur) return { ok: false, error: "Ticket not found." };
+    const cur = await this.reads.find(i.id);
+    if (!cur) return NOT_FOUND;
     if (i.status !== undefined && !STATUSES.includes(i.status)) return BAD_STATUS;
     const title = i.title?.trim();
     if (title !== undefined && (!title || title.length > TITLE_MAX)) return INVALID;
     if (i.description && i.description.length > DESCRIPTION_MAX) return INVALID;
     if (i.priority !== undefined && !PRIORITIES.includes(i.priority)) return INVALID;
     if (i.assigneeBotId && !(await this.deps.store.bots.get(i.assigneeBotId))) return UNKNOWN_BOT;
+    const reason = i.blockedReason?.trim();
+    const blocks = (i.status ?? cur.status) === "blocked";
+    if (reason !== undefined && (!blocks || reason.length > BLOCKED_REASON_MAX)) return INVALID;
+    // A ticket already blocked keeps its reason; moving into blocked needs one.
+    if (blocks && cur.status !== "blocked" && !reason) return REASON_REQUIRED;
+    const now = this.deps.clock.now();
     const ticket = await this.deps.store.tickets.update(
       cur.id,
       {
         ...(title !== undefined && { title }),
+        // `null` clears the description.
         ...(i.description !== undefined && { description: i.description ?? undefined }),
         ...(i.priority && { priority: i.priority }),
         ...(i.status && { status: i.status }),
         ...(i.assigneeBotId && { assigneeBotId: i.assigneeBotId }),
+        ...(reason && { blockedReason: reason }),
+        // A bot's conversation is the ticket's "last worked" one; the owner's is ignored.
+        ...(actor.kind === "bot" && i.conversationId && { conversationId: i.conversationId }),
       },
-      this.deps.clock.now(),
+      now,
+      {
+        ...(i.expectedUpdatedAt !== undefined && { ifUpdatedAt: i.expectedUpdatedAt }),
+        // Written in the same transaction, so a conflict leaves no event behind.
+        events: (prev, next) => ticketChangeEvents(prev, next, actor, now),
+      },
     );
-    if (!ticket) return { ok: false, error: "Ticket not found." };
-    const changed = i.assigneeBotId && i.assigneeBotId !== cur.assigneeBotId;
-    const byActor = actor.kind === "bot" && actor.botId === i.assigneeBotId;
-    if (changed && i.assigneeBotId && !byActor && !finished(ticket.status))
-      await this.deps.wake(ticket, i.assigneeBotId, actor);
+    if (ticket === "conflict") return CONFLICT;
+    if (!ticket) return NOT_FOUND;
+    this.changed(ticket);
+    const to = i.assigneeBotId;
+    const byActor = actor.kind === "bot" && actor.botId === to;
+    if (to && to !== cur.assigneeBotId && !byActor && !finished(ticket.status))
+      await this.deps.wake(ticket, to, actor);
     return { ok: true, ticket };
   }
 
   async comment(
     actor: Author,
-    i: { id: string; body: string },
+    i: { id: string; body: string; conversationId?: ConversationId },
   ): Promise<TicketResult<{ comment: TicketComment }>> {
     const body = i.body.trim();
     if (!body || body.length > COMMENT_MAX) return INVALID;
-    const ticket = await this.find(i.id);
-    if (!ticket) return { ok: false, error: "Ticket not found." };
-    const comment = await this.deps.store.tickets.addComment({
+    const ticket = await this.reads.find(i.id);
+    if (!ticket) return NOT_FOUND;
+    const { store, clock } = this.deps;
+    const comment = await store.tickets.addComment({
       ticketId: ticket.id,
       author: actor,
       body,
-      createdAt: this.deps.clock.now(),
+      createdAt: clock.now(),
     });
+    // A bot commenting from another conversation becomes the ticket's "last worked" one.
+    if (actor.kind === "bot" && i.conversationId && i.conversationId !== ticket.conversationId)
+      await store.tickets.update(ticket.id, { conversationId: i.conversationId }, clock.now());
+    const saved = await store.tickets.get(ticket.id);
+    if (saved) this.changed(saved);
     return { ok: true, comment };
   }
 
-  /** A ticket by ref (`fri-3`, any case) or by id. A ref of another prefix is not a ticket. */
-  private async find(refOrId: string): Promise<Ticket | undefined> {
-    const n = parseTicketRef(refOrId);
-    if (n !== undefined) return this.deps.store.tickets.getByNumber(n);
-    if (/^[A-Za-z]+-\d+$/.test(refOrId.trim())) return undefined;
-    return this.deps.store.tickets.get(refOrId.trim());
+  /** Tell `onChange`; a failing listener must never fail the change that was already saved. */
+  private changed(t: Ticket): void {
+    try {
+      this.deps.onChange?.(t);
+    } catch {
+      // The app logs its own listener failures.
+    }
   }
-}
-
-/** Description cut for a list row. */
-function shortDescription(t: Ticket): Ticket {
-  if (!t.description || t.description.length <= LIST_DESCRIPTION_MAX) return t;
-  return { ...t, description: `${t.description.slice(0, LIST_DESCRIPTION_MAX)}…` };
-}
-
-/** Position after a ticket; `createdAt` and `id` never change, so an edited or deleted ticket cannot break paging. */
-const encodeCursor = (t: Ticket): string =>
-  Buffer.from(`${t.createdAt}|${t.id}`).toString("base64url");
-
-function decodeCursor(c: string): { createdAt: number; id: string } | undefined {
-  const [at, ...rest] = Buffer.from(c, "base64url").toString().split("|");
-  const createdAt = Number(at);
-  const id = rest.join("|");
-  return Number.isFinite(createdAt) && at !== "" && id ? { createdAt, id } : undefined;
 }

@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 import {
   fileTypeLabel,
+  formatAge,
   formatClock,
   formatCost,
   formatDuration,
@@ -17,6 +18,11 @@ test("formatCost", () => {
 
 test("formatDuration", () => {
   expect([41_000, 520_000, 60_000].map(formatDuration)).toEqual(["41s", "8m 40s", "1m 0s"]);
+  expect([3_599_000, 3_600_000, 8_040_000].map(formatDuration)).toEqual([
+    "59m 59s",
+    "1h 0m",
+    "2h 14m",
+  ]);
 });
 
 test("formatSize", () => {
@@ -42,4 +48,12 @@ test("fileTypeLabel", () => {
   expect(fileTypeLabel("image/png", "shot.png")).toBe("PNG image");
   expect(fileTypeLabel("application/zip", "bundle.tar.gz")).toBe("GZ");
   expect(fileTypeLabel("application/octet-stream", "noext")).toBe("File");
+});
+
+test("formatAge: now, minutes, hours, days", () => {
+  const now = 10 * 86_400_000;
+  expect(formatAge(now - 20_000, now)).toBe("now");
+  expect(formatAge(now - 5 * 60_000, now)).toBe("5m");
+  expect(formatAge(now - 3 * 3_600_000, now)).toBe("3h");
+  expect(formatAge(now - 2 * 86_400_000, now)).toBe("2d");
 });

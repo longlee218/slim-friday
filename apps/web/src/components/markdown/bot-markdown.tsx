@@ -1,5 +1,5 @@
 import { Check } from "lucide-react";
-import type { ComponentProps, ReactNode } from "react";
+import { type ComponentProps, createContext, type ReactNode, useContext } from "react";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Callout } from "./callout";
@@ -16,8 +16,22 @@ interface HastNode {
   value?: string;
   properties?: Record<string, unknown>;
   data?: { meta?: string | null };
+  position?: { start: { line: number } };
   children?: HastNode[];
 }
+
+/** Task-box click handling of a caller: the toggle and which source lines hold a counted task. */
+interface TaskToggleProps {
+  onToggle: (line: number) => void;
+  /** False for a box that maps to no counted task; it then stays disabled. */
+  isTask: (line: number) => boolean;
+}
+
+/** Set by a caller that lets the reader tick task boxes: gets the 0-based source line of the box. */
+const TaskToggle = createContext<TaskToggleProps | undefined>(undefined);
+
+/** Source line (1-based) of the task item being rendered; the `input` node carries no position. */
+const TaskLine = createContext<number | undefined>(undefined);
 
 const TICKET_HREF = /^\/tickets\/(FRI-\d+)$/;
 
@@ -57,6 +71,38 @@ function Link({ href, children }: ComponentProps<"a"> & { node?: unknown }) {
   return <a href={href}>{children}</a>;
 }
 
+/**
+ * Task-list box: a real checkbox for assistive tech (hidden visually) and the drawn box. Read-only
+ * unless the page gave a `TaskToggle`; then a click on the box reports its source line.
+ */
+function TaskBox({ type, checked }: ComponentProps<"input"> & { node?: unknown }) {
+  const toggle = useContext(TaskToggle);
+  const line = useContext(TaskLine);
+  if (type !== "checkbox") return null;
+  const click =
+    toggle && line && toggle.isTask(line - 1) ? () => toggle.onToggle(line - 1) : undefined;
+  return (
+    <>
+      <input
+        type="checkbox"
+        className="cb-input"
+        checked={!!checked}
+        disabled={!click}
+        onChange={click}
+        readOnly={!click}
+      />
+      <span
+        className={checked ? "cb on" : "cb"}
+        data-chk={click ? "" : undefined}
+        aria-hidden
+        onClick={click}
+      >
+        {checked && <Check strokeWidth={3} />}
+      </span>
+    </>
+  );
+}
+
 /** Renderers: every other element uses react-markdown's safe default. */
 const components: Components = {
   pre: Pre,
@@ -79,33 +125,41 @@ const components: Components = {
   li: ({ node, className, children }) => {
     const input = (node as HastNode | undefined)?.children?.find((c) => c.tagName === "input");
     const done = className?.includes("task-list-item") && input?.properties?.checked === true;
-    return <li className={done ? "done" : className}>{children}</li>;
+    const line = node?.position?.start.line;
+    return (
+      <li className={done ? "done" : className}>
+        <TaskLine.Provider value={line}>{children}</TaskLine.Provider>
+      </li>
+    );
   },
-  // A real (disabled) checkbox for assistive tech, hidden visually; the span is the drawn box.
-  input: ({ node: _n, type, checked }) =>
-    type === "checkbox" ? (
-      <>
-        <input type="checkbox" className="cb-input" checked={!!checked} disabled readOnly />
-        <span className={checked ? "cb on" : "cb"} aria-hidden>
-          {checked && <Check strokeWidth={3} />}
-        </span>
-      </>
-    ) : null,
+  input: TaskBox,
 };
 
 /**
  * Renders untrusted bot text. No raw HTML (no rehype-raw), react-markdown's default
  * `urlTransform` drops `javascript:` / `data:` URLs; the only injected HTML is shiki / mermaid output.
  */
-export function BotMarkdown({ text }: { text: string }) {
+export function BotMarkdown({
+  text,
+  onToggleTask,
+  isTaskLine = () => true,
+}: {
+  text: string;
+  /** Makes task boxes clickable; called with the 0-based source line of the box. */
+  onToggleTask?: (line: number) => void;
+  /** Tells which 0-based source lines are counted tasks; other boxes stay disabled. */
+  isTaskLine?: (line: number) => boolean;
+}) {
   return (
     <div className="md">
-      <Markdown
-        remarkPlugins={[remarkGfm, remarkTicketRefs, remarkCallouts]}
-        components={components}
-      >
-        {text}
-      </Markdown>
+      <TaskToggle.Provider value={onToggleTask && { onToggle: onToggleTask, isTask: isTaskLine }}>
+        <Markdown
+          remarkPlugins={[remarkGfm, remarkTicketRefs, remarkCallouts]}
+          components={components}
+        >
+          {text}
+        </Markdown>
+      </TaskToggle.Provider>
     </div>
   );
 }

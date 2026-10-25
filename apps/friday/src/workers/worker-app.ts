@@ -54,6 +54,8 @@ export function startWorker(d: WorkerAppDeps) {
         agentHome,
         log,
         env: readProcessEnv(),
+        // A ticket a bot saved here reaches the web through main.
+        onTicketChange: (t) => d.send({ t: "ticket", ticketId: t.id }),
         hubRuns: () => ({
           hints: new IpcHints(d.send),
           runner: { hints: incoming, bootId: d.bootId, name: workerName(d.index) },

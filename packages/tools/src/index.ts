@@ -1,5 +1,8 @@
 /** Built-in tools: file memory, memory tools, effect tools. */
 
+export * from "./admin/config-admin";
+export * from "./admin/memory-admin";
+export * from "./admin/skill-admin";
 export * from "./chat/chat-context";
 export * from "./chat/chat-server";
 export * from "./design/design-context";
@@ -17,6 +20,7 @@ export * from "./mcp-server-names";
 export * from "./memory/consolidate";
 export * from "./memory/file-memory";
 export * from "./memory/journal";
+export * from "./memory/journal-read";
 export * from "./memory/memory-owner";
 export * from "./memory/memory-server";
 export * from "./memory/recall/builtin-source";
@@ -26,6 +30,7 @@ export * from "./memory/recall/live-notes-only";
 export * from "./memory/recall/memory-recall";
 export * from "./memory/recall/message-catch-up";
 export * from "./memory/recall/rrf";
+export * from "./memory/rules-file";
 export * from "./memory/tools/MessageSearchTool/constants";
 export type { MessageSearchDeps } from "./memory/tools/MessageSearchTool/message-search-tool";
 export * from "./memory/write-through-memory";

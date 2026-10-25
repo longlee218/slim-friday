@@ -19,7 +19,7 @@ export type MainToWorker = { t: "init"; config: AgentConfig } | HintMessage;
 /**
  * Worker to main. `ready`: composed and claiming. `post`: a message is stored (main reads it by id and
  * publishes it). `activity` / `run_step`: live only. `card`: a card row changed (main shows or closes it from
- * the row). `hint`: rows this worker wrote.
+ * the row). `ticket`: a ticket was saved (main reads it by id and tells the web). `hint`: rows this worker wrote.
  */
 export type WorkerToMain =
   | { t: "ready" }
@@ -27,6 +27,7 @@ export type WorkerToMain =
   | { t: "activity"; conversationId: string; activity: Activity }
   | { t: "run_step"; conversationId: string; botId: string; step: RunStep }
   | { t: "card"; cardId: string }
+  | { t: "ticket"; ticketId: string }
   | HintMessage;
 
 /** Shape check of a hint. */
@@ -74,6 +75,7 @@ const workerSchema = z.discriminatedUnion("t", [
     step: stepSchema,
   }),
   z.strictObject({ t: z.literal("card"), cardId: z.string() }),
+  z.strictObject({ t: z.literal("ticket"), ticketId: z.string() }),
   hintSchema,
 ]);
 

@@ -6,7 +6,7 @@ import { Glob } from "bun";
 const FORBIDDEN: RegExp[] = [
   /\.(query|prepare)\s*[<(]/, // bun:sqlite statements (also `.query<Row, [string]>(`)
   /\bdb\s*\.\s*(exec|run|select|insert|update|delete)\s*[<(]/, // direct db handle use, drizzle included
-  /["'`]\s*(SELECT|INSERT|UPDATE|DELETE)\b/, // a SQL statement string
+  /["'`]\s*(SELECT|INSERT|UPDATE|DELETE)\s/, // a SQL statement string (not the bare "SELECT" tag name)
 ];
 
 /** The only package that may hold SQL. */

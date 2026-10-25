@@ -34,7 +34,7 @@ export async function checkSendInput(
   for (const id of ids) {
     const u = await deps.store.uploads.get(id);
     // One answer for unknown, avatar and foreign ids: nothing leaks about other conversations.
-    if (!u || u.purpose !== "chat" || u.conversationId !== i.conversationId) {
+    if (u?.purpose !== "chat" || u.conversationId !== i.conversationId) {
       throw new SurfaceError("NOT_FOUND", "upload not found");
     }
     if (u.state !== "pending") throw new SurfaceError("CONFLICT", "upload already used");

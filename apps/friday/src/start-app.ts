@@ -89,7 +89,11 @@ async function composeApp(deps: AppDeps, opened: Array<() => unknown>) {
   // The workers start once the rows of the last boot are checked; main stops them before it closes the db.
   if (workers) {
     const pool = workers;
-    pool.start({ surface, store });
+    pool.start({
+      surface,
+      store,
+      ...(deps.onTicketChange && { onTicketChange: deps.onTicketChange }),
+    });
     opened.push(() => pool.stop());
   }
 
@@ -118,6 +122,8 @@ async function composeApp(deps: AppDeps, opened: Array<() => unknown>) {
   return {
     hub: botHub,
     config,
+    /** The app's memory files (the settings admins write through it, so the index follows). */
+    memory,
     /** The composed store (engine db + config bots and groups), for the web API. */
     store,
     /** The worker pool; unset in in-process mode. */

@@ -23,8 +23,11 @@ export function ApprovalSheet({ card, open, onOpenChange }: ApprovalSheetProps) 
   const busy = answer.isPending;
   return (
     <BottomSheet open={open} onOpenChange={onOpenChange}>
-      <Avatar src={face.src} name={card.botName} size={40} />
-      <Dialog.Title render={(props) => <h3 {...props}>{approvalTitle(card)}</h3>} />
+      {/* Face beside the title, as the prototype's review sheet (durable cards have no countdown). */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+        <Avatar src={face.src} name={card.botName} size={40} />
+        <Dialog.Title render={(props) => <h3 {...props}>{approvalTitle(card)}</h3>} />
+      </div>
       <ApprovalDetail card={card} />
       {!card.inputCut && (
         <Button variant="primary" disabled={busy} onClick={() => send("once")}>

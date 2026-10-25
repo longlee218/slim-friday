@@ -12,4 +12,6 @@ export interface Group {
   workspaces: string[];
   /** Text about the group's project, given to every member (empty: none). */
   instructions: string;
+  /** A preset name or `upload:<id>`; unset = the default avatar. */
+  avatar?: string;
 }

@@ -2,6 +2,7 @@ import type { Bot } from "@friday/core";
 import { EFFORT_LEVELS, effortAtMost } from "@friday/core";
 import { z } from "zod";
 import { splitFrontMatter } from "../parse/front-matter";
+import { avatarSchema } from "./avatar";
 import { assertId, idSchema, pathSchema } from "./ids";
 
 /** One background helper of a bot. */
@@ -39,11 +40,8 @@ const botHeader = z
     // The ceiling of a self-raise (`SetEffort`); it must not lie under the start level.
     maxEffort: z.enum(EFFORT_LEVELS).optional(),
     autonomy: z.enum(["careful", "balanced", "autonomous"]).optional(),
-    // A name, not a path: the app maps it to `<name>.png` in its avatar dirs.
-    avatar: z
-      .string()
-      .regex(/^[A-Za-z][A-Za-z0-9_-]*$/)
-      .optional(),
+    // A preset name or `upload:<uuid>`, never a path.
+    avatar: avatarSchema.optional(),
   })
   .refine(
     (h) => !h.effort || !h.maxEffort || effortAtMost(h.effort, h.maxEffort),

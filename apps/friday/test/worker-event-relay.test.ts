@@ -80,3 +80,22 @@ test("activity and run steps go on as they are", async () => {
   ]);
   expect(surface.runs).toEqual([{ conversationId: "c1", botId: "b1", step }]);
 });
+
+test("a ticket a worker saved is read by id and given to main's listener; a gone one is skipped", async () => {
+  const store = new FakeStore();
+  const surface = new FakeSurface();
+  const t = await store.tickets.create({
+    title: "Fix",
+    status: "todo",
+    priority: "normal",
+    createdBy: { kind: "system" },
+    createdAt: 1,
+  });
+  const seen: string[] = [];
+  await relayWorkerEvents({ t: "ticket", ticketId: t.id }, surface, store, (x) => seen.push(x.id));
+  await relayWorkerEvents({ t: "ticket", ticketId: "gone" }, surface, store, (x) =>
+    seen.push(x.id),
+  );
+  await relayWorkerEvents({ t: "ticket", ticketId: t.id }, surface, store);
+  expect(seen).toEqual([t.id]);
+});

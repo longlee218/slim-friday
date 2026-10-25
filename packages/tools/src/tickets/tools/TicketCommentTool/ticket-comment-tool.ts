@@ -14,7 +14,11 @@ const SHAPE = {
 /** `TicketComment` for one session: the author is the session's bot. */
 export function createTicketCommentTool(ctx: TicketsContext) {
   return tool(TICKET_COMMENT_TOOL, TICKET_COMMENT_DESCRIPTION, SHAPE, async ({ id, body }) => {
-    const r = await ctx.board.comment({ kind: "bot", botId: ctx.botId }, { id, body });
+    const conversationId = ctx.conversation?.();
+    const r = await ctx.board.comment(
+      { kind: "bot", botId: ctx.botId },
+      { id, body, ...(conversationId && { conversationId }) },
+    );
     return r.ok ? textResult("Comment added.") : textResult(r.error, true);
   });
 }

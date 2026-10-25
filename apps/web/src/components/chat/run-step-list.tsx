@@ -1,33 +1,8 @@
 import type { RunStepDto } from "@friday/contracts";
-import {
-  Bot,
-  Check,
-  FilePen,
-  LoaderCircle,
-  type LucideIcon,
-  PenLine,
-  Plug,
-  Sparkle,
-  Sparkles,
-  Terminal,
-  Wrench,
-  X,
-} from "lucide-react";
-import { stepDelta, stepIcon, visibleSteps } from "./run-steps";
+import { Check, LoaderCircle, X } from "lucide-react";
+import { stepDelta, visibleSteps } from "./run-steps";
 
-/** Maps the lucide names from `stepIcon` to components. */
-const ICONS: Record<string, LucideIcon> = {
-  sparkles: Sparkles,
-  plug: Plug,
-  bot: Bot,
-  terminal: Terminal,
-  "pen-line": PenLine,
-  sparkle: Sparkle,
-  "file-pen": FilePen,
-  wrench: Wrench,
-};
-
-/** The state glyph after the step icon: spinner, check or x. */
+/** The state glyph that leads a step (prototype `stepHTML`): spinner, check or x. */
 function StateIcon({ state }: { state: RunStepDto["state"] }) {
   if (state === "running") return <LoaderCircle className="spin" />;
   return state === "failed" ? <X /> : <Check />;
@@ -38,21 +13,20 @@ export function RunStepList({ steps }: { steps: RunStepDto[] }) {
   return (
     <ul className="run-steps">
       {visibleSteps(steps).map((s) => {
-        const Icon = ICONS[stepIcon(s)] ?? Wrench;
         const delta = stepDelta(s);
         const cls = s.state === "running" ? "active" : s.state === "failed" ? "failed" : "done";
         return (
           <li key={s.id} className={cls} data-state={s.state}>
-            <Icon />
+            <StateIcon state={s.state} />
             <span>{s.label}</span>
             {s.target && <span className="mono">{s.target}</span>}
             {delta && (
               <span className="delta">
-                <span className="add">{`+${delta.added}`}</span>{" "}
-                <span className="del">{`−${delta.removed}`}</span>
+                {delta.added !== undefined && <span className="add">{`+${delta.added}`}</span>}
+                {delta.added !== undefined && delta.removed !== undefined && " "}
+                {delta.removed !== undefined && <span className="del">{`−${delta.removed}`}</span>}
               </span>
             )}
-            <StateIcon state={s.state} />
           </li>
         );
       })}

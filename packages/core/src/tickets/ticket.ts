@@ -1,4 +1,5 @@
 import type { BotId } from "../domain/bot";
+import type { ConversationId } from "../domain/conversation";
 import type { Author } from "../domain/message";
 
 /** Every status, in life order. */
@@ -26,6 +27,24 @@ export interface Ticket {
   updatedAt: number;
   /** Set while the ticket is `done` or `closed`. */
   completedAt?: number;
+  /** The conversation the ticket was raised in. */
+  conversationId?: ConversationId;
+  /** Why the ticket is `blocked`; cleared when it leaves `blocked`. */
+  blockedReason?: string;
+}
+
+/** What a history entry of a ticket records. */
+export type TicketEventKind = "created" | "status" | "assignee" | "priority" | "handoff";
+
+/** One change of a ticket; `from` / `to` are a status, a priority or a bot id. */
+export interface TicketEvent {
+  id: string;
+  ticketId: string;
+  kind: TicketEventKind;
+  from?: string;
+  to?: string;
+  actor: Author;
+  at: number;
 }
 
 /** A note on a ticket (progress, a question, a result). */

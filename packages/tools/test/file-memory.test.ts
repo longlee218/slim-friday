@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { FileMemory, type MemoryError } from "../src/memory/file-memory";
+import { writeRules } from "../src/memory/rules-file";
 
 const bot = { kind: "bot", botId: "ann" } as const;
 const group = { kind: "group", groupId: "team" } as const;
@@ -95,4 +96,15 @@ test("an edit or a save never makes two bullets with one id", async () => {
   expect((await code(mem.save(bot, "alpha", "lesson"))).code).toBe("duplicate");
   const ids = mem.listBullets(bot).map((b) => b.id);
   expect(new Set(ids).size).toBe(ids.length);
+});
+
+test("readRules gives the on rules as prompt lines, none when there is no RULES.md", async () => {
+  const { root, mem } = fresh();
+  expect(await mem.readRules(bot)).toBe("");
+  writeRules(root, bot, [
+    { text: "Never push to main.", on: true },
+    { text: "Off rule.", on: false },
+  ]);
+  expect(await mem.readRules(bot)).toBe("- Never push to main.");
+  expect(await mem.readRules(group)).toBe("");
 });

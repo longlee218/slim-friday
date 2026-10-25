@@ -17,11 +17,14 @@ export function RunBlock({ run, now }: { run: LiveRun; now?: number }) {
       <div className="run-h">
         <Icon className={phase === "doing" ? "spin" : undefined} />
         <span className="run-label">{LABEL[phase]}</span>
-        <span className="dots" aria-hidden="true">
-          <i />
-          <i />
-          <i />
-        </span>
+        {/* Typing dots only while the reply is written (prototype: "Writing" + dots). */}
+        {phase === "writing" && (
+          <span className="dots" aria-hidden="true">
+            <i />
+            <i />
+            <i />
+          </span>
+        )}
         <span className="run-time num">{formatDuration(clock - run.startedAt)}</span>
       </div>
       <RunStepList steps={run.steps} />

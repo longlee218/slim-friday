@@ -44,6 +44,11 @@ export interface Memory {
     maxChars: number,
     kinds?: readonly string[],
   ): Promise<{ text: string; hidden: number; chars: number }>;
+  /**
+   * The owner's on rules as `- <text>` lines for a prompt ("" when none is on). They are not memory notes and not
+   * counted against the memory cap.
+   */
+  readRules?(owner: MemoryOwner): Promise<string>;
   /** Add one note; `kind` is the adapter's note kind (for example "fact"), default chosen by the adapter. */
   save(owner: MemoryOwner, note: string, kind?: string): Promise<void>;
   /** Replace one note by id; `null` deletes it. */

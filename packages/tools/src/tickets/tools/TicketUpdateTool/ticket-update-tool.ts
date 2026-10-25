@@ -14,6 +14,7 @@ const SHAPE = {
   priority: z.enum(TICKET_PRIORITIES).optional(),
   status: z.enum(TICKET_STATUSES).optional(),
   assignee: z.string().optional().describe("A bot id or exact name."),
+  blockedReason: z.string().max(500).optional().describe("Required when status is blocked: why."),
 };
 
 /** `TicketUpdate` for one session: the actor is the session's bot. */
@@ -24,6 +25,7 @@ export function createTicketUpdateTool(ctx: TicketsContext) {
       assigneeBotId = await resolveBot(ctx, i.assignee);
       if (!assigneeBotId) return textResult("Unknown bot.", true);
     }
+    const conversationId = ctx.conversation?.();
     const r = await ctx.board.update(
       { kind: "bot", botId: ctx.botId },
       {
@@ -33,6 +35,8 @@ export function createTicketUpdateTool(ctx: TicketsContext) {
         ...(i.priority && { priority: i.priority }),
         ...(i.status && { status: i.status }),
         ...(assigneeBotId && { assigneeBotId }),
+        ...(i.blockedReason !== undefined && { blockedReason: i.blockedReason }),
+        ...(conversationId && { conversationId }),
       },
     );
     return r.ok ? textResult(JSON.stringify(ticketView(r.ticket))) : textResult(r.error, true);

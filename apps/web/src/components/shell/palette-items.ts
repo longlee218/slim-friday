@@ -4,6 +4,8 @@ import type { Directory } from "../../api/directory";
 export interface PaletteContext {
   navigate(to: string): void;
   stopAll(): Promise<void>;
+  /** Opens the new-ticket sheet. */
+  newTicket(): void;
 }
 
 /** One row of the command palette. `icon` is a key of the icon map in `command-palette.tsx`. */
@@ -30,7 +32,15 @@ const go = (
 ): PaletteItem => ({ group, label, icon, shortcut, run: (ctx) => ctx.navigate(to) });
 
 /** Extra rows other plans append (plan 4 adds "New ticket" `⌘N`); listed after the built-in actions. */
-export const EXTRA_PALETTE_ITEMS: PaletteItem[] = [];
+export const EXTRA_PALETTE_ITEMS: PaletteItem[] = [
+  {
+    group: "Actions",
+    label: "New ticket",
+    icon: "plus",
+    shortcut: "⌘N",
+    run: (ctx) => ctx.newTicket(),
+  },
+];
 
 /** Every palette row for the current bots and groups: Bots, Groups, Actions, Settings. */
 export function paletteItems(dir: Directory): PaletteItem[] {

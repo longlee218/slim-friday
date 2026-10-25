@@ -44,6 +44,18 @@ export function routeOf(s: {
   return { botIds: [s.group.entryBot], reason: "entry" };
 }
 
+/** The composer's route: a group routes by `routeOf`, a direct chat goes to its bot. */
+export function composerRoute(s: {
+  text: string;
+  replyToBotId?: string;
+  group?: GroupDto;
+  botId?: string;
+  names: Map<string, string>;
+}): RouteInfo | null {
+  if (s.group) return routeOf({ ...s, group: s.group });
+  return s.botId ? { botIds: [s.botId], reason: "direct" } : null;
+}
+
 /** The chip copy: "To Pia · entry", "To Tess, Dev", "To Dev · reply". */
 export function routeChipText(r: RouteInfo, names: Map<string, string>): string {
   return `To ${r.botIds.map((id) => names.get(id) ?? id).join(", ")}${ROUTE_SUFFIX[r.reason]}`;

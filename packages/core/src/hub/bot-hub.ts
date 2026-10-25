@@ -42,6 +42,12 @@ export class BotHub implements BotMessenger {
   private runner?: LocalRunner;
 
   constructor(private deps: BotHubDeps) {
+    this.tickets = new TicketBoard({
+      store: deps.store,
+      clock: deps.clock,
+      wake: (t, botId, actor) => this.wakeForTicket(t, botId, false, actor),
+      ...(deps.onTicketChange && { onChange: deps.onTicketChange }),
+    });
     const limits = deps.limits ?? CORE_DEFAULTS;
     const local = deps.hints ? undefined : new InProcessHints();
     this.ctx = {
@@ -51,6 +57,7 @@ export class BotHub implements BotMessenger {
       guard: new ChainGuard(deps.store, deps.clock, limits),
       wakeLog: new WakeLog(deps.store, deps.clock, deps.log),
       hints: deps.hints ?? (local as InProcessHints),
+      tickets: this.tickets,
       noticed: new Set(),
       admit: (row, bot, opts) => admit(this.ctx, row, bot, opts),
       wake: (botId, conversationId, sender, text, hop, opts) =>
@@ -59,11 +66,6 @@ export class BotHub implements BotMessenger {
     if (local) this.runner = new LocalRunner(this.ctx, local, deps.freeMemoryMb);
     else if (deps.runner)
       this.runner = new LocalRunner(this.ctx, deps.runner.hints, deps.freeMemoryMb, deps.runner);
-    this.tickets = new TicketBoard({
-      store: deps.store,
-      clock: deps.clock,
-      wake: (t, botId, actor) => this.wakeForTicket(t, botId, false, actor),
-    });
   }
 
   /** Start listening to the surface. */

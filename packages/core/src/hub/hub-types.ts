@@ -13,6 +13,7 @@ import type { Store } from "../ports/store";
 import type { Surface } from "../ports/surface";
 import type { ProjectRulesReader } from "../routing/group-context";
 import type { HintSource, RunHints, RunnerIdentity } from "../runs/run-hints";
+import type { Ticket } from "../tickets/ticket";
 import type { IdleCloseHook } from "./idle-close";
 import type { ScopeBot } from "./session-scope";
 
@@ -91,4 +92,6 @@ export interface BotHubDeps {
   runner?: RunnerIdentity & { hints: HintSource };
   /** Free memory of the machine in MB, for the claimer's memory floor; unset: never short. */
   freeMemoryMb?: () => number;
+  /** Told after every saved ticket create, update and comment (the board never lets it throw). */
+  onTicketChange?: (t: Ticket) => void;
 }

@@ -6,6 +6,7 @@ import type {
   QuestionAnswerDto,
   QuestionCardDto,
   RunStepDto,
+  TicketDto,
 } from "@friday/contracts";
 
 /** One cache change (or side effect) derived from a server event. */
@@ -23,6 +24,7 @@ export type CacheEffect =
   | { op: "setUnread"; conversationId: string; unread: number }
   | { op: "setStatus"; bots: BotStatusDto[] }
   | { op: "refetchStatus" }
+  | { op: "patchTicket"; ticket: TicketDto }
   | { op: "invalidate"; scope: "tickets" | "config" | "all" }
   | { op: "notify"; conversationId: string; botId?: string; title: string; text: string };
 
@@ -32,13 +34,6 @@ export interface ReducerView {
   /** The tab is visible. */
   visible: boolean;
   now: number;
-}
-
-/** Idle bots of a status list end their runs everywhere. */
-export function idleEndRuns(bots: BotStatusDto[]): CacheEffect[] {
-  return bots
-    .filter((b) => !b.working)
-    .map((b) => ({ op: "endRun", conversationId: "*", botId: b.botId }));
 }
 
 /**
@@ -111,9 +106,10 @@ export function reduceEvent(e: FridayEvent, view: ReducerView): CacheEffect[] {
     case "unread":
       return [{ op: "setUnread", conversationId: e.conversationId, unread: e.unread }];
     case "status":
-      return [{ op: "setStatus", bots: e.bots }, ...idleEndRuns(e.bots)];
+      // setStatus also ends the runs of every bot the list does not show as working.
+      return [{ op: "setStatus", bots: e.bots }];
     case "ticket":
-      return [{ op: "invalidate", scope: "tickets" }];
+      return [{ op: "patchTicket", ticket: e.ticket }];
     case "config.changed":
       return [{ op: "invalidate", scope: "config" }];
     case "resync":

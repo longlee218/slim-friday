@@ -6,7 +6,7 @@ import { orpc } from "../../src/api/client";
 import { ApprovalCard } from "../../src/components/chat/approval-card";
 import { ApprovalReceipt } from "../../src/components/chat/approval-receipt";
 import { ApprovalRow } from "../../src/components/chat/approval-row";
-import { approvalTitle, scopeLine } from "../../src/components/chat/approval-text";
+import { approvalTitle, scopeLine, toolLabel } from "../../src/components/chat/approval-text";
 import type { Receipt } from "../../src/events/client-keys";
 import { receiptsKey } from "../../src/events/client-keys";
 import { apprCard, cardClient } from "./cards-fixtures";
@@ -194,4 +194,19 @@ test("a withdrawn approval shows a neutral receipt, not a denial", () => {
   );
   expect(screen.getByText("Withdrawn by the bot")).toBeTruthy();
   expect(screen.queryByText(/denied/i)).toBeNull();
+});
+
+test("MCP tool ids show as their short name in titles, rows and receipts", () => {
+  expect(toolLabel("mcp__effects__GitPush")).toBe("GitPush");
+  expect(toolLabel("mcp__my_server__Do__It")).toBe("Do__It");
+  expect(toolLabel("Bash")).toBe("Bash");
+  const mcp = apprCard({ tool: "mcp__effects__GitPush" });
+  expect(approvalTitle(mcp)).toBe("Dev wants to use GitPush");
+  view(<ApprovalRow card={mcp} />, cardClient(mcp));
+  expect(screen.getByText("GitPush")).toBeTruthy();
+  view(<ApprovalReceipt receipt={r("deny", "mcp__effects__MergeBranch")} />);
+  expect(screen.getByText("Denied: MergeBranch")).toBeTruthy();
+  view(<ApprovalCard card={mcp} receipt={r("once", "mcp__effects__GitPush")} />);
+  expect(screen.getByText(/You allowed once:/).textContent).toContain("GitPush");
+  expect(screen.getByText(/You allowed once:/).textContent).not.toContain("mcp__");
 });

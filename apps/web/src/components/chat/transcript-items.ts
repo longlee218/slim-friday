@@ -27,8 +27,9 @@ const dayStart = (t: number): number => new Date(t).setHours(0, 0, 0, 0);
 
 /**
  * Flattens the query pages into the transcript: messages oldest first with a day line before
- * the first message of each local day, then this conversation's cards (receipts in arrival
- * order, then the still-open ones), then the live runs. Keys are stable across renders.
+ * the first message of each local day, then the live runs, then this conversation's cards
+ * (receipts in arrival order, then the still-open ones): a card sits under the run block that
+ * raised it, as in the prototype. Keys are stable across renders.
  */
 export function buildTranscriptItems(input: BuildInput): TranscriptItem[] {
   const items: TranscriptItem[] = [];
@@ -54,6 +55,10 @@ export function buildTranscriptItems(input: BuildInput): TranscriptItem[] {
     }
   }
 
+  for (const run of Object.values(input.runs)) {
+    items.push({ kind: "run", key: `r:${run.botId}`, run });
+  }
+
   const here = (c: { conversationId: string }) => c.conversationId === input.conversationId;
   const cards = new Map<string, TranscriptItem>();
   for (const [cardId, r] of Object.entries(input.receipts)) {
@@ -76,9 +81,5 @@ export function buildTranscriptItems(input: BuildInput): TranscriptItem[] {
     }
   }
   items.push(...cards.values());
-
-  for (const run of Object.values(input.runs)) {
-    items.push({ kind: "run", key: `r:${run.botId}`, run });
-  }
   return items;
 }

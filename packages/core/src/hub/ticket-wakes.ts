@@ -58,17 +58,19 @@ export async function checkUnfinished(ctx: HubContext, e: RunExec): Promise<void
   const cur = e.row.ticketId ? { id: e.row.ticketId, rewake: e.row.rewake === true } : undefined;
   if (!cur) return;
   try {
-    const { store, clock } = ctx.deps;
+    const { store } = ctx.deps;
     const t = await store.tickets.get(cur.id);
     if (!t || t.assigneeBotId !== e.bot.id || !isOpenWork(t)) return;
     if (!cur.rewake) return await wakeForTicket(ctx, t, e.bot.id, true);
-    await store.tickets.update(t.id, { status: "blocked" }, clock.now());
-    await store.tickets.addComment({
-      ticketId: t.id,
-      author: { kind: "system" },
-      body: AUTO_BLOCK_COMMENT,
-      createdAt: clock.now(),
-    });
+    // Through the board: it records a status change by the system and keeps the reason on the ticket.
+    const blocked = await ctx.tickets.update(
+      { kind: "system" },
+      { id: t.id, status: "blocked", blockedReason: AUTO_BLOCK_COMMENT },
+    );
+    // A refused block (the ticket changed or vanished) leaves no comment and no notice.
+    if (!blocked.ok) return;
+    // The board's own comment, so `onChange` carries the right comment count.
+    await ctx.tickets.comment({ kind: "system" }, { id: t.id, body: AUTO_BLOCK_COMMENT });
     await tell(
       ctx,
       e.current.conversationId,

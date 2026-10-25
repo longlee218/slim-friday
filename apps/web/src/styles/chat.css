@@ -100,10 +100,8 @@
 .run-steps li svg { width: 14px; height: 14px; }
 .run-steps li.done > svg { color: var(--green); }
 .run-steps li.active > svg { color: var(--tint); }
-/* App addition: the step icon stays neutral; only the trailing state glyph is coloured. */
-.run-steps li > svg:first-child { color: var(--label-2); }
-.run-steps li > svg:last-child { margin-left: auto; }
-.run-steps li.failed > svg:last-child { color: var(--red); }
+/* App addition: a failed step (the prototype has none) shows a red x in the glyph's place. */
+.run-steps li.failed > svg { color: var(--red); }
 .run-steps .delta { font: 11.5px var(--mono); }
 .run-steps .delta .add { color: var(--green); } .run-steps .delta .del { color: var(--red); }
 .tail { margin: 2px 0 2px 22px; font: 11.5px/1.5 var(--mono); color: var(--label-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

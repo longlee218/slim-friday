@@ -17,8 +17,23 @@ const implemented = [
   "questions.",
   "control.",
   "events.",
+  "tickets.",
+  "ops.",
   "config.bots.list",
+  "config.bots.get",
+  "config.bots.save",
+  "config.bots.delete",
+  "config.bots.setAvatar",
+  "config.avatars.",
   "config.groups.list",
+  "config.groups.get",
+  "config.groups.save",
+  "config.groups.delete",
+  "config.groups.setAvatar",
+  "config.skills.",
+  "config.mcp.",
+  "config.owner.",
+  "memory.",
 ];
 const expected = listProcedurePaths(contract)
   .filter((p) => !implemented.some((i) => p.startsWith(i)))
@@ -27,18 +42,7 @@ const expected = listProcedurePaths(contract)
 test("every procedure but the implemented ones is still a stub", () =>
   expect(stubbedProcedures()).toEqual(expected));
 
-test("39 stubs left (55 procedures; conversations, chat, cards, control, events and the two config reads are real)", () =>
-  expect(stubbedProcedures()).toHaveLength(39));
-
-test("a stub throws the typed NOT_IMPLEMENTED error", async () => {
-  await expect(client.ops.sessions()).rejects.toMatchObject({
-    code: "NOT_IMPLEMENTED",
-    status: 501,
-  });
-  await expect(client.tickets.list({} as never)).rejects.toMatchObject({
-    code: "NOT_IMPLEMENTED",
-  });
-});
+test("no procedure is a stub any more", () => expect(stubbedProcedures()).toEqual([]));
 
 test("input is validated before the stub", async () =>
   await expect(

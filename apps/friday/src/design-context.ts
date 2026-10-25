@@ -1,3 +1,4 @@
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   DEFAULTS_DIR,
@@ -10,6 +11,7 @@ import {
 import type { BotRuntimeSpec } from "@friday/core";
 import { isChildEnvDenied } from "@friday/runtime-claude";
 import { type DesignContext, type EffectsContext, GIT_HARDEN, GIT_RUN_ENV } from "@friday/tools";
+import { AVATARS_DIR } from "./avatars";
 import { sessionScratchDir } from "./session-tools";
 import { skillDirs } from "./skills-dirs";
 
@@ -27,13 +29,41 @@ export interface DesignDeps {
  * the app's own parsers decide whether a bot, group or MCP file is valid. `run` is the effect tools' command runner.
  */
 export function designContextFor(deps: DesignDeps) {
+  return (spec: BotRuntimeSpec, run: EffectsContext["run"]): DesignContextBase =>
+    // The session's own scratch dir (a group session has its own), as the runtime and the chat tools use.
+    designContextOf(deps, spec.bot.id, sessionScratchDir(deps.agentHome, spec), run);
+}
+
+/** Id of the owner in a design context made for the settings admins (no bot holds those tools). */
+export const OWNER_DESIGN_ID = "owner";
+
+/** The design context of the owner's settings admins: `botId: "owner"`; `scratchDir` is never used. */
+export function ownerDesignContext(
+  deps: DesignDeps,
+  run: EffectsContext["run"],
+): DesignContextBase {
+  return designContextOf(
+    deps,
+    OWNER_DESIGN_ID,
+    join(deps.agentHome, "scratch", OWNER_DESIGN_ID),
+    run,
+  );
+}
+
+/** The shared body of both contexts: the config dir, the parsers and the lookups over the live config. */
+function designContextOf(
+  deps: DesignDeps,
+  botId: string,
+  scratchDir: string,
+  run: EffectsContext["run"],
+): DesignContextBase {
   const { config, agentHome } = deps;
-  return (spec: BotRuntimeSpec, run: EffectsContext["run"]): DesignContextBase => ({
-    botId: spec.bot.id,
+  return {
+    botId,
     agentHome,
     configDir: join(agentHome, "config"),
-    // The session's own scratch dir (a group session has its own), as the runtime and the chat tools use.
-    scratchDir: sessionScratchDir(agentHome, spec),
+    scratchDir,
+    defaultsDir: DEFAULTS_DIR,
     botDirs: [join(agentHome, "config", "bots"), join(DEFAULTS_DIR, "bots")],
     skillDirs: skillDirs(agentHome),
     reservedBotIds: RESERVED_BOT_IDS,
@@ -42,6 +72,24 @@ export function designContextFor(deps: DesignDeps) {
     botSummaries: config.botSummaries,
     groupSummaries: config.groupSummaries,
     nameTaken: config.nameTaken,
+    // The shipped avatars and the owner's own (`config/avatars/<name>.png`).
+    presetAvatars: () => [
+      ...new Set(
+        [AVATARS_DIR, join(agentHome, "config", "avatars")].flatMap((d) =>
+          existsSync(d)
+            ? readdirSync(d)
+                .filter((f) => f.endsWith(".png"))
+                .map((f) => f.slice(0, -4))
+            : [],
+        ),
+      ),
+    ],
+    // The owner's bot file first, then the shipped one.
+    readBotFile: (id) => {
+      const dirs = [join(agentHome, "config", "bots"), join(DEFAULTS_DIR, "bots")];
+      const file = dirs.map((d) => join(d, `${id}.md`)).find((f) => existsSync(f));
+      return file ? readFileSync(file, "utf8") : undefined;
+    },
     checkBot: (id, text) => void parseBotFile(id, text),
     checkGroup: (id, text) => void parseGroupFile(id, text),
     checkMcp: (text) => void parseMcpFile(text),
@@ -52,5 +100,5 @@ export function designContextFor(deps: DesignDeps) {
       const r = await run(["git", ...GIT_HARDEN, "rev-parse", "HEAD"], dir, GIT_RUN_ENV);
       return r.code === 0 ? r.out.trim() || undefined : undefined;
     },
-  });
+  };
 }

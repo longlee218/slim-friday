@@ -1,6 +1,8 @@
 import { expect, test } from "bun:test";
 import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { checkMcpEntry } from "../src/design/actions/set-mcp";
+import type { Refused } from "../src/design/design-util";
 import { createBotDesignTool } from "../src/design/tools/BotDesignTool/bot-design-tool";
 import { call, putSkill, setup, textOf } from "./design-fixture";
 
@@ -236,4 +238,29 @@ test("write_skill cannot replace a shipped skill, even with overwrite", async ()
   const files = [{ path: "SKILL.md", content: skill("shipped-one") }];
   const r = await call(t, { action: "write_skill", id: "shipped-one", files, overwrite: true });
   expect(r.isError).toBe(true);
+});
+
+test("set_mcp refusals name the web form field", async () => {
+  const { ctx } = setup();
+  const stdio = { type: "stdio" as const, command: "npx" };
+  const fieldOf = (id: string, server: Parameters<typeof checkMcpEntry>[2]) => {
+    try {
+      checkMcpEntry(ctx, id, server);
+    } catch (e) {
+      return (e as Refused).field;
+    }
+  };
+  expect(fieldOf("x", { ...stdio, env: { K: "plain" } })).toBe("env");
+  expect(fieldOf("x", { type: "http", url: "https://a.example", headers: { A: "Bearer x" } })).toBe(
+    "headers",
+  );
+  expect(fieldOf("x", { ...stdio, env: { K: "••••" } })).toBe("env");
+  expect(fieldOf("x", { ...stdio, args: ["--token", "ghp_abcdefghijklmnopqrstuvwxyz0123"] })).toBe(
+    "args",
+  );
+  expect(fieldOf("x", { ...stdio, args: ["$" + "{K}"] })).toBe("args");
+  expect(fieldOf("Bad Name", stdio)).toBe("name");
+  expect(fieldOf("memory", stdio)).toBe("name");
+  expect(fieldOf("x", { type: "stdio" })).toBe("command");
+  expect(fieldOf("x", { type: "http" })).toBe("url");
 });

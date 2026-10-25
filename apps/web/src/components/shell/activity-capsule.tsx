@@ -114,7 +114,7 @@ export function ActivityCapsule() {
         <span className="stack">
           {faces.length ? (
             faces.map((f) => (
-              <Avatar key={f.botId} src={avatarOf(f.botId)} name={f.name} size={20} />
+              <Avatar key={f.botId} src={avatarOf(f.botId)} name={f.name} size={20} working />
             ))
           ) : (
             <Avatar name="Friday" size={20} />

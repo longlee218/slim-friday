@@ -5,6 +5,7 @@ import type { WakeRow } from "../domain/wake";
 import type { ChainGuard } from "../routing/chain-guard";
 import type { RunExec } from "../runs/run-exec";
 import type { RunHints } from "../runs/run-hints";
+import type { TicketBoard } from "../tickets/ticket-board";
 import { type BotHubDeps, errText, type WakeOpts, type WakeOutcome } from "./hub-types";
 import { postStored } from "./post-stored";
 import type { WakeLog } from "./wake-log";
@@ -21,6 +22,8 @@ export interface HubContext {
   wakeLog: WakeLog;
   /** Tells the workers that runs, steering or cards were written. */
   hints: RunHints;
+  /** The shared board; the hub changes tickets through it so history and listeners stay right. */
+  tickets: TicketBoard;
   /** Caps already announced; cleared when the user writes again in that conversation. */
   noticed: Set<string>;
   /** Check the caps for a stored (recovered) run, give it its scope and hint the workers (late-bound: the parts call each other). */

@@ -12,7 +12,7 @@ import { Composer, type ComposerHandle } from "./composer";
 import { conversationParts } from "./conversation-parts";
 import { EmptyConversation } from "./empty-conversation";
 import { Transcript } from "./transcript";
-import { useConversationMessages } from "./use-conversation-messages";
+import { useConversationEmpty } from "./use-conversation-empty";
 import { useDraft, useReplyTarget } from "./use-drafts";
 
 /** Characters of the quoted message kept in the reply bar. */
@@ -30,7 +30,7 @@ export function ChatView({ connection = "live" }: { connection?: ConnectionState
   const listed = useQuery(orpc.conversations.list.queryOptions()).isSuccess;
   const status = useQuery(orpc.control.status.queryOptions()).data ?? [];
   const conversation = dir.conversations.find((c) => c.id === conversationId);
-  const messages = useConversationMessages(conversationId, conversation !== undefined);
+  const empty = useConversationEmpty(conversationId, conversation !== undefined);
   const composer = useRef<ComposerHandle>(null);
   // Draft and reply target live in the query cache, so they survive this view unmounting.
   const [draft, setDraft] = useDraft(conversationId);
@@ -52,7 +52,6 @@ export function ChatView({ connection = "live" }: { connection?: ConnectionState
   }
 
   const { bot, group } = conversationParts(dir, conversation);
-  const empty = messages.isSuccess && messages.data.pages.every((p) => p.length === 0);
 
   const onReply = (m: MessageDto) => {
     if (m.author.kind !== "bot") return;

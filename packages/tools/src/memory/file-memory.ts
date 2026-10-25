@@ -12,6 +12,7 @@ import {
   type MemoryKind,
   stripDateSuffix,
 } from "./memory-sections";
+import { readRules, rulesForPrompt } from "./rules-file";
 import { MEMORY_NOTE_MAX_CHARS, sanitizeBullet } from "./sanitize-bullet";
 import { backupFile } from "./stamped-backup";
 
@@ -34,6 +35,8 @@ export interface MemoryBullet {
   id: string;
   kind: MemoryKind;
   text: string;
+  /** The date stamp of the note (`YYYY-MM-DD`), when it has one. */
+  day?: string;
 }
 
 /** Bot and group ids double as dir names: the core id pattern keeps them inside the root. */
@@ -95,6 +98,11 @@ export class FileMemory implements Memory {
     );
   }
 
+  /** The owner's on rules as prompt lines (see `rulesForPrompt`); "" when none is on. */
+  async readRules(owner: MemoryOwner): Promise<string> {
+    return rulesForPrompt(readRules(this.root, owner));
+  }
+
   async save(owner: MemoryOwner, note: string, kind = "fact"): Promise<void> {
     if (!MEMORY_FILE_KINDS.includes(kind as MemoryKind)) throw new Error(`unknown kind: ${kind}`);
     const text = cleanNote(note);
@@ -120,6 +128,7 @@ export class FileMemory implements Memory {
       id: bulletHash(line),
       kind,
       text: stripDateSuffix(line.trim()).replace(/^- /, ""),
+      day: /\((\d{4}-\d{2}-\d{2})\)$/.exec(line.trim())?.[1],
     }));
   }
 

@@ -9,9 +9,10 @@ export {
   loadConfig,
   RESERVED_BOT_IDS,
 } from "./load-config";
+export { avatarSchema, isUploadAvatar } from "./schemas/avatar";
 export { parseBotFile } from "./schemas/bot-file";
 export { parseGroupFile } from "./schemas/group-file";
-export { type McpServerSpec, parseMcpFile } from "./schemas/mcp-file";
+export { expandServer, type McpServerSpec, parseMcpFile } from "./schemas/mcp-file";
 export { parseSettingsFile, type SettingsFile } from "./schemas/settings-file";
 export { parseToolsFile } from "./schemas/tools-file";
 export { loadTemplate, TEMPLATES_DIR } from "./templates";

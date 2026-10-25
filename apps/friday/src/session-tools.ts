@@ -265,7 +265,12 @@ export function sessionTools(deps: SessionToolsDeps) {
     const board = deps.tickets?.();
     if (board && wantsServer(spec.bot.tools, TICKETS_MCP_SERVER))
       servers[TICKETS_MCP_SERVER] = ticketsServer(
-        { botId: spec.bot.id, board, bots: deps.store.bots },
+        {
+          botId: spec.bot.id,
+          board,
+          bots: deps.store.bots,
+          conversation: () => spec.currentConversation?.(),
+        },
         spec.bot.tools,
       );
     // The design tools are the Friday bot\'s alone, whatever another bot file names.

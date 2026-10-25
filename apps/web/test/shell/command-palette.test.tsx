@@ -86,10 +86,18 @@ test("items carry the destinations and hints", () => {
   expect(by("Open tickets")?.shortcut).toBe("⌘2");
   expect(by("Open activity")?.shortcut).toBe("⌘3");
   const go = vi.fn();
-  by("Core team")?.run({ navigate: go, stopAll: async () => {} });
-  by("Skills & plugins")?.run({ navigate: go, stopAll: async () => {} });
-  by("Open activity")?.run({ navigate: go, stopAll: async () => {} });
+  by("Core team")?.run({ navigate: go, stopAll: async () => {}, newTicket: () => {} });
+  by("Skills & plugins")?.run({ navigate: go, stopAll: async () => {}, newTicket: () => {} });
+  by("Open activity")?.run({ navigate: go, stopAll: async () => {}, newTicket: () => {} });
   expect(go.mock.calls).toEqual([["/c/group:core"], ["/settings/skills"], ["/ops"]]);
+});
+
+test("New ticket (⌘N) opens the new-ticket sheet through the context", () => {
+  const newTicket = vi.fn();
+  const item = paletteItems(dir).find((i) => i.label === "New ticket");
+  expect(item?.shortcut).toBe("⌘N");
+  item?.run({ navigate: vi.fn(), stopAll: async () => {}, newTicket });
+  expect(newTicket).toHaveBeenCalledOnce();
 });
 
 test("Stop every bot stops each working bot and toasts once", async () => {

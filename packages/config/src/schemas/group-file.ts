@@ -1,5 +1,6 @@
 import type { Group } from "@friday/core";
 import { z } from "zod";
+import { avatarSchema } from "./avatar";
 import { assertId, idSchema, pathSchema } from "./ids";
 
 /** The content of `groups/<id>.yaml`. */
@@ -17,6 +18,8 @@ const groupSchema = z
       .default([])
       .refine((w) => new Set(w).size === w.length, "duplicate workspace"),
     instructions: z.string().default(""),
+    // A preset name or `upload:<uuid>`.
+    avatar: avatarSchema.optional(),
   })
   .refine((g) => g.members.includes(g.entryBot), "entryBot must be one of the members");
 
@@ -31,5 +34,6 @@ export function parseGroupFile(id: string, text: string): Group {
     entryBot: g.entryBot,
     workspaces: g.workspaces,
     instructions: g.instructions,
+    ...(g.avatar && { avatar: g.avatar }),
   };
 }

@@ -39,11 +39,17 @@ export function ChatTitleButton({ conversation, bot, group }: ChatTitleButtonPro
       items={group.members.slice(0, 3).map((id) => ({
         src: dir.bots.get(id)?.avatarUrl,
         name: dir.botName(id),
+        working: status.some((s) => s.botId === id && s.working),
       }))}
       size={22}
     />
   ) : (
-    <Avatar src={bot?.avatarUrl ?? conversation.avatarUrl} name={name} size={22} />
+    <Avatar
+      src={bot?.avatarUrl ?? conversation.avatarUrl}
+      name={name}
+      size={22}
+      working={state !== "Idle"}
+    />
   );
   const details = bot ? `/settings/bot/${bot.id}` : group ? `/settings/group/${group.id}` : null;
 

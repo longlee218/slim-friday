@@ -99,3 +99,35 @@ test("a bot gets only the ticket tools it names", () => {
   expect(ticketTools(ctx, ["mcp__tickets__TicketGet"]).map((t) => t.name)).toEqual(["TicketGet"]);
   expect(ticketTools(ctx, [])).toEqual([]);
 });
+
+test("TicketUpdate blocked needs a reason; with one the view carries it", async () => {
+  const { ctx } = setup();
+  await call(createTicketCreateTool(ctx), { title: "a" });
+  const bad = await call(createTicketUpdateTool(ctx), { id: "FRI-1", status: "blocked" });
+  expect(bad.isError).toBe(true);
+  expect(textOf(bad)).toBe("blockedReason is required when status is blocked.");
+  const ok = await call(createTicketUpdateTool(ctx), {
+    id: "FRI-1",
+    status: "blocked",
+    blockedReason: "waiting for vault",
+  });
+  expect(JSON.parse(textOf(ok))).toMatchObject({
+    status: "blocked",
+    blockedReason: "waiting for vault",
+  });
+});
+
+test("create, update and comment record the working conversation", async () => {
+  const { ctx, store } = setup();
+  const withConv = { ...ctx, conversation: () => "group:crew" };
+  const made = JSON.parse(textOf(await call(createTicketCreateTool(withConv), { title: "a" })));
+  expect(made.conversationId).toBe("group:crew");
+  store.ticketMap.get(made.id)!.conversationId = undefined;
+  await call(createTicketUpdateTool(withConv), { id: made.id, status: "doing" });
+  expect(store.ticketMap.get(made.id)?.conversationId).toBe("group:crew");
+  store.ticketMap.get(made.id)!.conversationId = undefined;
+  await call(createTicketCommentTool(withConv), { id: made.id, body: "hi" });
+  expect(store.ticketMap.get(made.id)?.conversationId).toBe("group:crew");
+  expect(store.ticketEventList.length).toBeGreaterThan(0);
+  for (const e of store.ticketEventList) expect(e.actor).toEqual({ kind: "bot", botId: "writer" });
+});

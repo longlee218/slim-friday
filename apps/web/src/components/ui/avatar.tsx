@@ -20,7 +20,8 @@ export function Avatar({ src, name, size = 32, working }: AvatarProps) {
 }
 
 export interface AvatarStackProps {
-  items: { src?: string; name: string }[];
+  /** `working` draws the rotating arc on that face, as `Avatar` does. */
+  items: { src?: string; name: string; working?: boolean }[];
   size?: number;
   /** Faces shown before the rest are cut (default 4). */
   max?: number;
@@ -32,7 +33,7 @@ export function AvatarStack({ items, size = 24, max = 4 }: AvatarStackProps) {
     <span className="stack">
       {items.slice(0, max).map((item, i) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: names can repeat; the list is static
-        <Avatar key={`${i}-${item.name}`} src={item.src} name={item.name} size={size} />
+        <Avatar key={`${i}-${item.name}`} {...item} size={size} />
       ))}
     </span>
   );

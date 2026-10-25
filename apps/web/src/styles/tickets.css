@@ -1,0 +1,92 @@
+/* Tickets board, table, drawer and new-ticket form: prototype app.css, copied verbatim (select menu rows at the end are app-only). Biome skips this folder. */
+.board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(250px, 1fr); gap: 14px; padding: 18px 20px 24px; min-height: 100%; overflow-x: auto; align-items: start; }
+.col { border-radius: 12px; background: var(--well); padding: 8px; }
+:root[data-theme="dark"] .col { background: #222225; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .col { background: #222225; } }
+.col-h { display: flex; align-items: center; gap: 7px; padding: 4px 6px 10px; font-weight: 600; font-size: 12.5px; }
+.col-h .c { color: var(--label-3); font-weight: 500; }
+.tcard { background: var(--raised); border-radius: 10px; padding: 10px 11px; margin-bottom: 8px; box-shadow: var(--shadow-card); transition: transform var(--t-fast) var(--ease), box-shadow var(--t-mid); }
+:root:not([data-theme="dark"]) .tcard { box-shadow: 0 0 0 1px var(--sep), 0 1px 2px rgba(0, 0, 0, .05); }
+.tcard:hover { box-shadow: 0 0 0 1px var(--sep-strong), 0 4px 12px -4px rgba(0, 0, 0, .14); }
+.col .tcard.on { box-shadow: 0 0 0 2px var(--tint); }
+.tcard .ref { font: 600 11.5px var(--mono); color: var(--label-2); }
+.tcard .tt { font-weight: 550; margin: 3px 0 9px; font-size: 13px; line-height: 1.35; }
+.tcard .meta { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--label-2); }
+.tcard .meta .av { width: 18px; height: 18px; }
+.tcard .meta .grow { flex: 1; }
+.tlist { padding: 8px 20px 24px; }
+.trow { display: grid; grid-template-columns: 80px 1fr 120px 140px 80px; align-items: center; gap: 12px; height: 40px; padding: 0 10px; border-radius: 8px; }
+.trow:nth-child(even) { background: var(--well); }
+.trow.h { height: 30px; font-size: 11.5px; font-weight: 600; color: var(--label-2); background: none !important; }
+.trow .av { width: 20px; height: 20px; }
+.who-cell { display: flex; align-items: center; gap: 7px; }
+.td-ref { font: 600 12px var(--mono); color: var(--label-2); }
+.td-title { font: 650 17px/1.3 var(--font-display); margin: 4px 0 12px; letter-spacing: -0.015em; }
+.popbtn { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 6px 0 8px; border-radius: 6px; border: 0; background: var(--fill); font-size: 12.5px; font-weight: 500; }
+.popbtn:hover { background: var(--fill-strong); }
+.popbtn .av { width: 16px; height: 16px; }
+.popbtn svg.lucide { width: 13px; height: 13px; color: var(--label-2); }
+.comment { display: flex; gap: 9px; padding: 8px 0; font-size: 13px; }
+.comment .av { width: 24px; height: 24px; }
+.comment .t2 { font-size: 11.5px; color: var(--label-3); }
+.frow { display: grid; grid-template-columns: 150px 1fr; gap: 14px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--sep); }
+.frow:last-child { border-bottom: 0; }
+.frow > label { font-weight: 500; }
+.frow .help { font-size: 11.5px; color: var(--label-2); margin-top: 4px; }
+.frow .help.err { color: var(--red); }
+.frow.top { align-items: start; }
+.sheet .frow { grid-template-columns: 100px 1fr; }
+.sheet .acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.insp-close { position: absolute; top: 60px; right: 10px; z-index: 2; }
+.comment .initial { flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--tint-fill); color: #fff; display: grid; place-items: center; font-weight: 600; font-size: 12px; }
+.insp-open { position: absolute; top: 60px; right: 44px; z-index: 2; }
+.td-desc.clamp { max-height: 168px; overflow: hidden; -webkit-mask-image: linear-gradient(#000 70%, transparent); mask-image: linear-gradient(#000 70%, transparent); font-size: 13px; }
+.inspector { position: relative; }
+
+/* app-only: select menu rows, nested markdown size, fresh card entry, card focus ring */
+.sel-pop { width: 200px; }
+.sel-pop .sel-it { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px; border-radius: 8px; font-size: 13px; cursor: default; }
+.sel-pop .sel-it[data-highlighted] { background: var(--tint-fill); color: #fff; }
+.sel-pop .sel-it .av { width: 18px; height: 18px; }
+.td-desc .md { font-size: inherit; }
+.tcard { cursor: pointer; }
+.tcard.fresh { animation: msgIn 340ms var(--ease); }
+.tcard:focus-visible { outline: 2px solid var(--tint); outline-offset: 1px; }
+.trow[data-tsel] { cursor: pointer; }
+.trow.on { background: var(--tint-soft) !important; }
+
+/* Ticket page, history rail and hover card: prototype app.css .meter, .hovercard, .crumb, .tpage... */
+.meter { height: 6px; border-radius: 3px; background: var(--fill); overflow: hidden; }
+.meter i { display: block; height: 100%; border-radius: 3px; background: var(--tint); }
+.hovercard { position: fixed; z-index: 60; width: 280px; background: var(--raised); border-radius: 10px; box-shadow: var(--shadow-pop); padding: 10px 12px; animation: popIn 160ms var(--ease); pointer-events: none; }
+.hovercard .hc-t { font-weight: 600; font-size: 13px; margin: 3px 0 8px; line-height: 1.35; }
+.hovercard .hc-m { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--label-2); }
+.hovercard .hc-m .grow { flex: 1; }
+.crumb { display: inline-flex; align-items: center; gap: 2px; font-weight: 600; }
+.crumb .linkbtn { color: var(--label-2); font-weight: 600; }
+.crumb svg { width: 14px; height: 14px; color: var(--label-3); }
+.tpage { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 36px; max-width: 1120px; margin: 0 auto; padding: 28px 32px 48px; }
+.tp-title { font: 650 24px/1.25 var(--font-display); letter-spacing: -0.02em; margin: 6px 0 14px; }
+.tp-progress { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--label-2); margin-bottom: 16px; }
+.tp-progress .meter { flex: 1; max-width: 240px; }
+.tp-desc { font-size: 14px; }
+.md .cb[data-chk] { cursor: pointer; transition: transform var(--t-fast) var(--ease); }
+.md .cb[data-chk]:active { transform: scale(.85); }
+.tp-h { font-size: 13px; margin: 26px 0 8px; }
+.tlog { border-left: 1px solid var(--sep); margin-left: 11px; padding-left: 16px; }
+.tlog .comment { position: relative; background: var(--raised); box-shadow: 0 0 0 1px var(--sep); border-radius: 10px; padding: 10px 12px; margin: 8px 0; }
+.tev { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--label-2); padding: 6px 0; }
+.tev svg { width: 14px; height: 14px; color: var(--label-3); }
+.tev time { margin-left: auto; font-size: 11.5px; color: var(--label-3); }
+.tp-comment { margin-top: 14px; }
+.tp-comment .acts { display: flex; justify-content: flex-end; margin-top: 8px; }
+.tside .panel { padding: 4px 14px; }
+.tside .tp-h:first-of-type { margin-top: 18px; }
+.tlink { display: flex; align-items: center; gap: 8px; padding: 9px 0; cursor: pointer; font-size: 13px; }
+.panel.tlink { padding: 10px 14px; }
+.tlink + .tlink { border-top: 1px solid var(--sep); }
+.tlink .grow { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tlink svg { width: 15px; height: 15px; color: var(--label-2); }
+.tlink:hover { color: var(--tint-text); }
+/* Base UI positions the popup; the prototype's fixed placement does not apply. */
+.hovercard { position: static; }

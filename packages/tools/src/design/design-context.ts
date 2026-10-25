@@ -10,6 +10,8 @@ export interface DesignContext {
   configDir: string;
   /** The bot's own scratch dir: a skill to install must lie inside it. */
   scratchDir: string;
+  /** The shipped defaults dir (`SOUL.md`, `mcp.yaml`, ...); read only. */
+  defaultsDir: string;
   /** Where bot files are read: the owner's `bots/` dir first, then the shipped one. */
   botDirs: string[];
   /** Where skills are read: the owner's `skills/` dir first, then the shipped one. */
@@ -26,6 +28,10 @@ export interface DesignContext {
   groupSummaries(): { id: string; name: string; members: string[] }[];
   /** True when another bot (not `exceptId`) already uses this display name, any case. */
   nameTaken(name: string, exceptId: string): boolean;
+  /** Names of the avatar presets the app ships (the owner may pick one). */
+  presetAvatars(): string[];
+  /** The text of `bots/<id>.md` (the owner's dir first, then the shipped one); undefined when no such bot. */
+  readBotFile(id: string): string | undefined;
   /** The app's own parsers: each throws a readable error when the file text is not valid. */
   checkBot(id: string, text: string): void;
   checkGroup(id: string, text: string): void;

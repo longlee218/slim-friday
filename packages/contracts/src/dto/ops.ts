@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { AuthorDtoSchema } from "./chat";
 
-/** Wake states. */
+/** Wake states (a wake is also a stored run: leased, waiting on a card, failed or cancelled). */
 export const WakeStatusSchema = z.enum([
   "queued",
   "running",
@@ -10,6 +10,10 @@ export const WakeStatusSchema = z.enum([
   "interrupted",
   "expired",
   "dropped",
+  "leased",
+  "waiting_input",
+  "failed",
+  "cancelled",
 ]);
 export type WakeStatus = z.infer<typeof WakeStatusSchema>;
 

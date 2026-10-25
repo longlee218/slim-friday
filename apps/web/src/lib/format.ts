@@ -3,10 +3,11 @@ export function formatCost(usd: number): string {
   return `$${usd.toFixed(2)}`;
 }
 
-/** A run length: `41_000` -> `"41s"`, `520_000` -> `"8m 40s"`. */
+/** A run length: `41_000` -> `"41s"`, `520_000` -> `"8m 40s"`, `8_040_000` -> `"2h 14m"`. */
 export function formatDuration(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));
   if (total < 60) return `${total}s`;
+  if (total >= 3600) return `${Math.floor(total / 3600)}h ${Math.floor((total % 3600) / 60)}m`;
   return `${Math.floor(total / 60)}m ${total % 60}s`;
 }
 
@@ -48,4 +49,13 @@ export function fileTypeLabel(mime: string, name: string): string {
   if (mime === "application/pdf" || ext === "pdf") return "PDF";
   if (mime === "image/png" || ext === "png") return "PNG image";
   return ext ? ext.toUpperCase() : "File";
+}
+
+/** Short age of a ticket: `"now"` under a minute, then `"5m"`, `"3h"` or `"2d"`. */
+export function formatAge(at: number, now: number): string {
+  const min = Math.floor(Math.max(0, now - at) / 60_000);
+  if (min < 1) return "now";
+  if (min < 60) return `${min}m`;
+  if (min < 1440) return `${Math.floor(min / 60)}h`;
+  return `${Math.floor(min / 1440)}d`;
 }

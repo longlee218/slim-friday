@@ -67,7 +67,7 @@ const purge = (app: Fresh["app"], headers: Record<string, string>) =>
   app.request(`${API}/rpc/ops/sessions`, {
     method: "POST",
     headers: { "content-type": "application/json", ...headers },
-    body: "{}",
+    body: JSON.stringify({}),
   });
 
 test("POST /rpc with the right origin but no cookie -> 401", async () => {
@@ -100,7 +100,7 @@ test("magic-link request without Origin -> 403 and nothing written", async () =>
 test("a session of a user who is no longer the owner -> 401", async () => {
   const t = await fresh({ ownerEmail: "owner@example.com" });
   const { cookie } = await login(t);
-  expect((await purge(t.app, { origin: ORIGIN, cookie })).status).toBe(501);
+  expect((await purge(t.app, { origin: ORIGIN, cookie })).status).toBe(200);
   const other = t.make("new-owner@example.com");
   expect((await purge(other, { origin: ORIGIN, cookie })).status).toBe(401);
 });
@@ -127,15 +127,13 @@ test("GET /health", async () => {
   expect(await res2.json()).toEqual({ ok: false, db: false });
 });
 
-test("login end to end reaches the stub, and the token never reaches a log", async () => {
+test("login end to end reaches a real procedure, and the token never reaches a log", async () => {
   const t = await fresh();
   const { cookie, token } = await login(t);
   expect(cookie).not.toBe("");
   const res = await purge(t.app, { origin: ORIGIN, cookie });
-  expect(res.status).toBe(501);
-  expect((await res.json()) as { json: { code: string } }).toMatchObject({
-    json: { code: "NOT_IMPLEMENTED" },
-  });
+  expect(res.status).toBe(200);
+  expect((await res.json()) as { json: unknown[] }).toMatchObject({ json: [] });
   const line = t.logs.find(
     (l) => (l as { route?: string }).route === "/api/auth/magic-link/verify",
   );
@@ -216,7 +214,7 @@ test("an RPC call after updateAge returns the refreshed session cookie", async (
   raw.run("UPDATE auth_session SET expires_at = expires_at - 2*86400000");
   raw.close();
   const res = await purge(t.app, { origin: ORIGIN, cookie });
-  expect(res.status).toBe(501);
+  expect(res.status).toBe(200);
   expect(res.headers.getSetCookie().some((c) => c.includes("Max-Age=2592000"))).toBe(true);
 });
 

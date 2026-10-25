@@ -1,7 +1,8 @@
 import type { Author, Store, Ticket, TicketComment } from "@friday/core";
-import { and, asc, desc, eq, lt, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, lt, ne, or, sql } from "drizzle-orm";
 import type { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import { ticketComments, ticketCounter, tickets } from "../schema/engine-tables";
+import { insertTicketEvent } from "./ticket-event-repo";
 
 type Row = typeof tickets.$inferSelect;
 
@@ -25,13 +26,15 @@ const fromRow = (r: Row): Ticket => ({
   createdAt: r.createdAt,
   updatedAt: r.updatedAt,
   ...(r.completedAt != null && { completedAt: r.completedAt }),
+  ...(r.conversationId && { conversationId: r.conversationId }),
+  ...(r.blockedReason && { blockedReason: r.blockedReason }),
 });
 
 /** The ticket board: tickets, their comments and the number counter. */
 export function ticketRepo(db: BunSQLiteDatabase): Store["tickets"] {
   const byId = (id: string) => db.select().from(tickets).where(eq(tickets.id, id)).get();
   return {
-    async create(t) {
+    async create(t, opts) {
       // The counter is read and bumped in one transaction, so two creates never get the same number.
       return db.transaction((tx) => {
         const row = tx.select().from(ticketCounter).get();
@@ -57,7 +60,9 @@ export function ticketRepo(db: BunSQLiteDatabase): Store["tickets"] {
             completedAt: FINISHED.includes(t.status) ? t.createdAt : null,
           })
           .run();
-        return fromRow(tx.select().from(tickets).where(eq(tickets.id, id)).get() as Row);
+        const next = fromRow(tx.select().from(tickets).where(eq(tickets.id, id)).get() as Row);
+        for (const e of opts?.events?.(next) ?? []) insertTicketEvent(tx, e);
+        return next;
       });
     },
     async get(id) {
@@ -89,23 +94,37 @@ export function ticketRepo(db: BunSQLiteDatabase): Store["tickets"] {
         .all()
         .map(fromRow);
     },
-    async update(id, patch, now) {
-      const cur = byId(id);
-      if (!cur) return undefined;
-      const status = patch.status ?? cur.status;
-      db.update(tickets)
-        .set({
-          ...(patch.title !== undefined && { title: patch.title }),
-          ...(patch.description !== undefined && { description: patch.description }),
-          ...(patch.priority !== undefined && { priority: patch.priority }),
-          ...(patch.assigneeBotId !== undefined && { assigneeBotId: patch.assigneeBotId }),
-          status,
-          updatedAt: now,
-          completedAt: FINISHED.includes(status) ? (cur.completedAt ?? now) : null,
-        })
-        .where(eq(tickets.id, id))
-        .run();
-      return fromRow(byId(id) as Row);
+    async update(id, patch, now, opts) {
+      // Read, compare and write in one transaction, so a stale `ifUpdatedAt` can never overwrite.
+      return db.transaction((tx) => {
+        const cur = tx.select().from(tickets).where(eq(tickets.id, id)).get();
+        if (!cur) return undefined;
+        const prev = fromRow(cur);
+        if (opts?.ifUpdatedAt !== undefined && opts.ifUpdatedAt !== cur.updatedAt)
+          return "conflict" as const;
+        const status = patch.status ?? cur.status;
+        // The reason lives only while blocked; a patch value wins over the stored one.
+        const reason = patch.blockedReason === undefined ? cur.blockedReason : patch.blockedReason;
+        tx.update(tickets)
+          .set({
+            ...(patch.title !== undefined && { title: patch.title }),
+            ...(patch.description !== undefined && { description: patch.description }),
+            ...(patch.priority !== undefined && { priority: patch.priority }),
+            ...(patch.assigneeBotId !== undefined && { assigneeBotId: patch.assigneeBotId }),
+            ...(patch.conversationId !== undefined && { conversationId: patch.conversationId }),
+            status,
+            blockedReason: status === "blocked" ? reason : null,
+            // Always moves forward, even for two writes in the same millisecond.
+            updatedAt: Math.max(now, cur.updatedAt + 1),
+            completedAt: FINISHED.includes(status) ? (cur.completedAt ?? now) : null,
+          })
+          .where(eq(tickets.id, id))
+          .run();
+        const next = fromRow(tx.select().from(tickets).where(eq(tickets.id, id)).get() as Row);
+        // Same transaction as the change: both land or neither does.
+        for (const e of opts?.events?.(prev, next) ?? []) insertTicketEvent(tx, e);
+        return next;
+      });
     },
     async addComment(c) {
       const id = crypto.randomUUID();
@@ -121,7 +140,7 @@ export function ticketRepo(db: BunSQLiteDatabase): Store["tickets"] {
           })
           .run();
         tx.update(tickets)
-          .set({ updatedAt: sql`max(${tickets.updatedAt}, ${c.createdAt})` })
+          .set({ updatedAt: sql`max(${tickets.updatedAt} + 1, ${c.createdAt})` })
           .where(eq(tickets.id, c.ticketId))
           .run();
       });
@@ -143,6 +162,18 @@ export function ticketRepo(db: BunSQLiteDatabase): Store["tickets"] {
             createdAt: r.createdAt,
           }),
         );
+    },
+    async commentCounts(ids) {
+      const out = new Map<string, number>(ids.map((id) => [id, 0]));
+      if (!ids.length) return out;
+      const rows = db
+        .select({ ticketId: ticketComments.ticketId, n: sql<number>`count(*)` })
+        .from(ticketComments)
+        .where(inArray(ticketComments.ticketId, ids))
+        .groupBy(ticketComments.ticketId)
+        .all();
+      for (const r of rows) out.set(r.ticketId, r.n);
+      return out;
     },
   };
 }

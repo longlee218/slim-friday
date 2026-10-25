@@ -7,6 +7,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { client } from "../../src/api/client";
 import { messagesKey } from "../../src/events/apply-messages";
 import { nextBackoff } from "../../src/events/backoff";
+import { liveRunKey } from "../../src/events/client-keys";
 import { type ConnectionState, useEventStream } from "../../src/events/use-event-stream";
 import { botMsg } from "./fixtures";
 
@@ -133,6 +134,58 @@ test("resync refetches active queries", async () => {
   await waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
   expect(spy).toHaveBeenCalledWith({ type: "active" });
   await waitFor(() => expect(result.current).not.toBe("resyncing"));
+});
+
+test("resync clears stale live runs before it refetches", async () => {
+  qc.setQueryData(liveRunKey("bot:dev"), { dev: { botId: "dev", startedAt: 1, steps: [] } });
+  let runsAtRefetch: unknown = "unset";
+  vi.spyOn(qc, "refetchQueries").mockImplementation(async () => {
+    runsAtRefetch = qc.getQueryData(liveRunKey("bot:dev"));
+  });
+  const { subscribe } = fake([
+    async function* () {
+      yield evt({ type: "resync" }, 3);
+      yield* hang();
+    },
+  ]);
+  renderHook(
+    () => useEventStream({ activeConversationId: null, notify: () => {}, subscribe, sleep }),
+    { wrapper },
+  );
+  await waitFor(() => expect(runsAtRefetch).not.toBe("unset"));
+  expect(runsAtRefetch).toEqual({});
+});
+
+test("a reconnect with no event id yet resyncs (the gap is unknown)", async () => {
+  const spy = vi.spyOn(qc, "refetchQueries").mockResolvedValue();
+  qc.setQueryData(liveRunKey("bot:dev"), { dev: { botId: "dev", startedAt: 1, steps: [] } });
+  const { calls, subscribe } = fake([dropping]);
+  renderHook(
+    () => useEventStream({ activeConversationId: null, notify: () => {}, subscribe, sleep }),
+    { wrapper },
+  );
+  await waitFor(() => expect(calls).toHaveLength(2));
+  expect(calls[1]).toEqual({});
+  await waitFor(() => expect(spy).toHaveBeenCalledWith({ type: "active" }));
+  expect(spy).toHaveBeenCalledTimes(1);
+  expect(qc.getQueryData(liveRunKey("bot:dev"))).toEqual({});
+});
+
+test("the first open and a reconnect with an event id do not resync", async () => {
+  const spy = vi.spyOn(qc, "refetchQueries").mockResolvedValue();
+  const { calls, subscribe } = fake([
+    async function* () {
+      yield evt({ type: "status", bots: [] }, 1);
+      throw new Error("drop");
+    },
+  ]);
+  renderHook(
+    () => useEventStream({ activeConversationId: null, notify: () => {}, subscribe, sleep }),
+    { wrapper },
+  );
+  await waitFor(() => expect(calls).toHaveLength(2));
+  await sleep();
+  expect(spy).not.toHaveBeenCalled();
 });
 
 test("changing the active conversation does not restart the stream", async () => {

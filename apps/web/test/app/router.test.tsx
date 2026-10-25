@@ -9,12 +9,13 @@ const mocks = vi.hoisted(() => ({
   passkey: vi.fn(),
   magicLink: vi.fn(),
   addPasskey: vi.fn(),
+  listPasskeys: vi.fn(),
 }));
 vi.mock("../../src/api/auth-client", () => ({
   authClient: {
     getSession: mocks.getSession,
     signIn: { passkey: mocks.passkey, magicLink: mocks.magicLink },
-    passkey: { addPasskey: mocks.addPasskey },
+    passkey: { addPasskey: mocks.addPasskey, listUserPasskeys: mocks.listPasskeys },
   },
 }));
 
@@ -93,26 +94,53 @@ test("/login?expired=1 stays on the sign-in screen even if the session still rea
   expect(router.state.location.pathname).toBe("/login");
 });
 
-test("every contract path is routed (placeholder pages)", async () => {
+test("/tickets is the board, not a placeholder", async () => {
   mocks.getSession.mockResolvedValue({ data: { user: { id: "u" } } });
-  for (const [path, title] of [
-    ["/tickets", "Tickets"],
-    ["/tickets/FRI-1", "Ticket"],
-    ["/ops", "Ops"],
-    ["/settings/bot/dev/tools", "Settings"],
-  ]) {
-    const router = createMemoryRouter(appRoutes, { initialEntries: [path] });
-    const { unmount } = renderApp(router);
-    expect(await screen.findByText(`${title} is not built yet.`)).toBeTruthy();
-    unmount();
-  }
+  const router = createMemoryRouter(appRoutes, { initialEntries: ["/tickets"] });
+  renderApp(router);
+  expect(await screen.findByRole("button", { name: "New ticket" })).toBeTruthy();
+  expect(screen.queryByText("Tickets is not built yet.")).toBeNull();
+});
+
+test("/tickets/:ref is the ticket page, not a placeholder", async () => {
+  mocks.getSession.mockResolvedValue({ data: { user: { id: "u" } } });
+  const router = createMemoryRouter(appRoutes, { initialEntries: ["/tickets/FRI-1"] });
+  renderApp(router);
+  expect(await screen.findByRole("button", { name: "Tickets" })).toBeTruthy();
+  expect(screen.queryByText("Ticket is not built yet.")).toBeNull();
+});
+
+test("/settings/skills is the skill list, not a placeholder", async () => {
+  mocks.getSession.mockResolvedValue({ data: { user: { id: "u" } } });
+  const router = createMemoryRouter(appRoutes, { initialEntries: ["/settings/skills"] });
+  renderApp(router);
+  expect(await screen.findByRole("button", { name: "Install skill" })).toBeTruthy();
+  expect(screen.queryByText("Skills & plugins is not built yet.")).toBeNull();
+});
+
+test("/settings/account is the account page, not a placeholder", async () => {
+  mocks.getSession.mockResolvedValue({ data: { user: { id: "u", email: "owner@example.com" } } });
+  mocks.listPasskeys.mockResolvedValue({ data: [] });
+  const router = createMemoryRouter(appRoutes, { initialEntries: ["/settings/account"] });
+  renderApp(router);
+  expect(await screen.findByRole("button", { name: "Add passkey" })).toBeTruthy();
+  expect(screen.queryByText("Account is not built yet.")).toBeNull();
+});
+
+test("/settings/owner/user is the file editor, not a placeholder", async () => {
+  mocks.getSession.mockResolvedValue({ data: { user: { id: "u" } } });
+  const router = createMemoryRouter(appRoutes, { initialEntries: ["/settings/owner/user"] });
+  renderApp(router);
+  // The file is not seeded, so the editor shows its loading state.
+  expect(await screen.findByText(/Loading|Could not load the file/)).toBeTruthy();
+  expect(screen.queryByText("About you is not built yet.")).toBeNull();
 });
 
 test("unauthorized rpc sends the owner to /login", async () => {
   mocks.getSession.mockResolvedValue({ data: { user: { id: "u" } } });
-  const router = createMemoryRouter(appRoutes, { initialEntries: ["/ops"] });
+  const router = createMemoryRouter(appRoutes, { initialEntries: ["/settings"] });
   renderApp(router);
-  await screen.findByText("Ops is not built yet.");
+  await screen.findByText("No bots yet.");
   wireUnauthorized(router);
   // The session is gone, so the sign-in screen stays.
   mocks.getSession.mockResolvedValue({ data: null });
@@ -121,12 +149,27 @@ test("unauthorized rpc sends the owner to /login", async () => {
   expect(router.state.location.search).toBe("?expired=1");
 });
 
-test("an unreachable API shows Can't reach Friday and Retry loads the route", async () => {
-  mocks.getSession.mockRejectedValueOnce(new Error("network"));
-  mocks.getSession.mockResolvedValue({ data: { user: { id: "u" } } });
+test("a 502 from the session check (tunnel error page) shows Can't reach Friday, not sign-in", async () => {
+  mocks.getSession.mockResolvedValue({ data: null, error: { status: 502, statusText: "" } });
   const router = createMemoryRouter(appRoutes, { initialEntries: ["/ops"] });
   renderApp(router);
   expect(await screen.findByText("Can't reach Friday.")).toBeTruthy();
+  expect(router.state.location.pathname).toBe("/ops");
+});
+
+test("a 401 from the session check goes to sign-in", async () => {
+  mocks.getSession.mockResolvedValue({ data: null, error: { status: 401, statusText: "" } });
+  const router = createMemoryRouter(appRoutes, { initialEntries: ["/ops"] });
+  renderApp(router);
+  expect(await screen.findByText("Sign in to Friday")).toBeTruthy();
+});
+
+test("an unreachable API shows Can't reach Friday and Retry loads the route", async () => {
+  mocks.getSession.mockRejectedValueOnce(new Error("network"));
+  mocks.getSession.mockResolvedValue({ data: { user: { id: "u" } } });
+  const router = createMemoryRouter(appRoutes, { initialEntries: ["/settings"] });
+  renderApp(router);
+  expect(await screen.findByText("Can't reach Friday.")).toBeTruthy();
   await userEvent.click(screen.getByRole("button", { name: "Retry" }));
-  expect(await screen.findByText("Ops is not built yet.")).toBeTruthy();
+  expect(await screen.findByText("No bots yet.")).toBeTruthy();
 });

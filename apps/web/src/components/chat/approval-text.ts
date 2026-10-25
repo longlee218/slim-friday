@@ -1,8 +1,13 @@
 import type { ApprovalCardDto } from "@friday/contracts";
 
+/** A tool's display name: MCP ids `mcp__<server>__<Name>` show as `<Name>`. */
+export function toolLabel(tool: string): string {
+  return tool.replace(/^mcp__.+?__/, "");
+}
+
 /** The card has no title field; the UI words it: `"Dev wants to use GitPush"`. */
 export function approvalTitle(card: ApprovalCardDto): string {
-  return `${card.botName} wants to use ${card.tool}`;
+  return `${card.botName} wants to use ${toolLabel(card.tool)}`;
 }
 
 /** The scope value shown in receipts: the second one (the prototype's pick), else the first. */

@@ -1,6 +1,6 @@
 import type { RunStepDto } from "@friday/contracts";
 import { expect, test } from "vitest";
-import { runPhase, stepDelta, stepIcon, workedSummary } from "../../src/components/chat/run-steps";
+import { runPhase, stepDelta, workedSummary } from "../../src/components/chat/run-steps";
 import type { LiveRun } from "../../src/events/client-keys";
 import { step } from "./run-fixtures";
 
@@ -15,20 +15,10 @@ test("phase", () => {
   expect(runPhase(run([step("tool", "done"), step("writing", "running")]))).toBe("writing");
 });
 
-test("icons by kind", () => {
-  expect(stepIcon(step("skill"))).toBe("sparkles");
-  expect(stepIcon({ ...step("tool"), added: 42, removed: 3 })).toBe("file-pen");
-  expect(stepIcon(step("mcp"))).toBe("plug");
-  expect(stepIcon(step("subagent"))).toBe("bot");
-  expect(stepIcon(step("command"))).toBe("terminal");
-  expect(stepIcon(step("writing"))).toBe("pen-line");
-  expect(stepIcon(step("thinking"))).toBe("sparkle");
-  expect(stepIcon(step("tool"))).toBe("wrench");
-});
-
 test("delta only when a count exists", () => {
   expect(stepDelta(step("tool"))).toBeNull();
-  expect(stepDelta({ ...step("tool"), added: 4 })).toEqual({ added: 4, removed: 0 });
+  expect(stepDelta({ ...step("tool"), added: 4 })).toEqual({ added: 4 });
+  expect(stepDelta({ ...step("tool"), removed: 2 })).toEqual({ removed: 2 });
 });
 
 test("worked summary", () => {

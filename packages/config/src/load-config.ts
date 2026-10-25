@@ -20,8 +20,11 @@ export const DEFAULTS_DIR = join(import.meta.dir, "..", "defaults");
 /** The skills shipped with the repo (`<name>/SKILL.md`; none of them is read from `.agents/skills`). */
 export const DEFAULT_SKILLS_DIR = join(DEFAULTS_DIR, "skills");
 
-/** Bot ids only the shipped defaults may define. */
-export const RESERVED_BOT_IDS = ["friday"];
+/**
+ * Bot ids no user file may define: `friday` is the shipped bot; `owner` names the owner in the settings admins
+ * (`trash/owner/`, `scratch/owner`), so no bot may share it.
+ */
+export const RESERVED_BOT_IDS = ["friday", "owner"];
 
 /** Everything the engine reads from config at one point in time. */
 export interface ConfigSnapshot {
@@ -85,7 +88,11 @@ export function loadConfig(
     bots.set(
       id,
       preface
-        ? { ...entry.bot, instructions: `${preface}\n\n${entry.bot.instructions}` }
+        ? {
+            ...entry.bot,
+            instructions: `${preface}\n\n${entry.bot.instructions}`,
+            ownerPreface: preface,
+          }
         : entry.bot,
     );
   }

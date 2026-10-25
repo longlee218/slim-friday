@@ -1,4 +1,13 @@
-import type { BotHub, FileStore, Group, Store } from "@friday/core";
+import type {
+  BotHub,
+  ConfigAdmin,
+  CoreLimits,
+  FileStore,
+  McpProbe,
+  MemoryAdmin,
+  SkillAdmin,
+  Store,
+} from "@friday/core";
 import type { WebSurface } from "@friday/surface-web";
 import { ORPCError, onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
@@ -32,8 +41,10 @@ export interface ApiDeps {
   files: FileStore;
   /** Public https origin of the owner's CDN on the bucket (no trailing `/`); images are served from it when set. */
   cdnUrl?: string;
-  /** Every group in the config files (core `Store.groups` has no `list`). */
-  listGroups: () => Promise<Group[]>;
+  /** Admins over the config, skill and memory files, and the MCP connection test. */
+  settings: { config: ConfigAdmin; skills: SkillAdmin; memory: MemoryAdmin; probe: McpProbe };
+  /** The spend cap the ops view shows, read on every call (follows a config reload). */
+  limits: () => Pick<CoreLimits, "maxSpendPerBotPerDayUsd">;
   /** Empty the trash; returns how many entries were removed. */
   purge: () => number;
 }
@@ -41,7 +52,7 @@ export interface ApiDeps {
 /** The fields the engine adds to `ApiDeps` (plan 2). */
 export type EngineDeps = Pick<
   ApiDeps,
-  "hub" | "store" | "surface" | "files" | "purge" | "listGroups"
+  "hub" | "store" | "surface" | "files" | "purge" | "settings" | "limits"
 >;
 
 /** Build the HTTP app: log, CORS, Origin check, then health, auth and the owner-only RPC. */

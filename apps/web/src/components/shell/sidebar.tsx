@@ -1,18 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import {
-  Fingerprint,
-  Gauge,
-  Plus,
-  Search,
-  Settings,
-  SquareKanban,
-  SquarePen,
-  Users,
-} from "lucide-react";
+import { Fingerprint, Gauge, Plus, Search, Settings, SquareKanban, SquarePen } from "lucide-react";
 import type { ReactNode } from "react";
 import { useLocation } from "react-router";
 import { orpc } from "../../api/client";
 import { useDirectory } from "../../api/directory";
+import { GroupAvatar } from "../settings/group-avatar";
+import { openCount, useAllTickets } from "../tickets/use-tickets";
 import { Avatar } from "../ui/avatar";
 import { IconButton } from "../ui/button";
 import { Kbd } from "../ui/kbd";
@@ -48,6 +41,8 @@ export function Sidebar({ onPalette }: { onPalette: () => void }) {
   const status = useQuery(orpc.control.status.queryOptions()).data ?? [];
   const approvals = useQuery(orpc.approvals.pending.queryOptions()).data ?? [];
 
+  const { tickets } = useAllTickets();
+  const open = openCount(tickets);
   const working = new Set(status.filter((s) => s.working).map((s) => s.botId));
   const unread = (id: string) => conversations.find((c) => c.id === id)?.unread ?? 0;
   const pending = (id: string) => approvals.filter((a) => a.conversationId === id).length;
@@ -79,7 +74,7 @@ export function Sidebar({ onPalette }: { onPalette: () => void }) {
           });
           return (
             <SidebarRow key={id} href={`/c/${id}`} on={pathname === `/c/${id}`}>
-              <Avatar src={b.avatarUrl} name={b.name} size={22} />
+              <Avatar src={b.avatarUrl} name={b.name} size={22} working={working.has(b.id)} />
               <span className="name">{b.name}</span>
               <Trailing mark={mark} />
             </SidebarRow>
@@ -96,25 +91,19 @@ export function Sidebar({ onPalette }: { onPalette: () => void }) {
           });
           return (
             <SidebarRow key={id} href={`/c/${id}`} on={pathname === `/c/${id}`}>
-              {g.avatarUrl ? (
-                <Avatar src={g.avatarUrl} name={g.name} size={22} />
-              ) : (
-                <Ico>
-                  <Users size={16} strokeWidth={1.75} />
-                </Ico>
-              )}
+              <GroupAvatar {...g} bots={bots} size={22} />
               <span className="name">{g.name}</span>
               <Trailing mark={mark} workingLabel={`${busy} working`} />
             </SidebarRow>
           );
         })}
         <Section title="Workspace" />
-        {/* Open-ticket count arrives with plan 4. */}
         <SidebarRow href="/tickets" on={pathname.startsWith("/tickets")}>
           <Ico>
             <SquareKanban size={16} strokeWidth={1.75} />
           </Ico>
           <span className="name">Tickets</span>
+          <span className="sub num">{open}</span>
         </SidebarRow>
         <SidebarRow href="/ops" on={pathname.startsWith("/ops")}>
           <Ico>

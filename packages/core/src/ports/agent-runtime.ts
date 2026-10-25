@@ -98,10 +98,17 @@ export interface BotRuntimeSpec {
   effectKey?: (tool: string, input: Record<string, unknown>) => Promise<string>;
   /** Lets the `SetEffort` tool reach the session; the runtime fills it in. */
   effortControl?: EffortControl;
+  /**
+   * The owner's on rules for the bot, read at every open (each run), so a change reaches the next run and a
+   * compaction keeps them; the runtime puts them before the memory.
+   */
+  rules?: string;
   /** The bot's own memory, read when the session opens; the runtime adds it to the system prompt. */
   memory?: string;
   /** A group session's group instructions, working dirs and project rules, read at open; added to the system prompt. */
   groupContext?: string;
+  /** A group session's on group rules, read at open; added to the system prompt after the group context. */
+  groupRules?: string;
   /** A group session's group memory, read at open; added to the system prompt. */
   groupMemory?: string;
   /**

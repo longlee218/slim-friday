@@ -10,3 +10,8 @@ export const ConnectionContext = createContext<ConnectionState>("live");
 export const useOpenPalette = (): (() => void) => useContext(PaletteContext);
 /** State of the event stream, for the connection banners. */
 export const useConnection = (): ConnectionState => useContext(ConnectionContext);
+
+/** Opens the new-ticket sheet (toolbar button, palette "New ticket"). */
+export const NewTicketContext = createContext<() => void>(() => {});
+/** The opener of the new-ticket sheet. */
+export const useOpenNewTicket = (): (() => void) => useContext(NewTicketContext);
