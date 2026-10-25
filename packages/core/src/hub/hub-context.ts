@@ -26,6 +26,8 @@ export interface HubContext {
   tickets: TicketBoard;
   /** Caps already announced; cleared when the user writes again in that conversation. */
   noticed: Set<string>;
+  /** When each scope was last woken by an owner reaction (the cooldown; lost on restart, which is harmless). */
+  reactedAt: Map<string, number>;
   /** Check the caps for a stored (recovered) run, give it its scope and hint the workers (late-bound: the parts call each other). */
   admit: (row: WakeRow, bot: Bot, opts?: AdmitOpts) => Promise<WakeOutcome>;
   /** Store one message to one bot as a queued run (blocked when a cap says stop). */

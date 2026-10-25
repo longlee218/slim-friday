@@ -65,6 +65,7 @@ export class BotHub implements BotMessenger {
       hints: deps.hints ?? (local as InProcessHints),
       tickets: this.tickets,
       noticed: new Set(),
+      reactedAt: new Map(),
       admit: (row, bot, opts) => admit(this.ctx, row, bot, opts),
       wake: (botId, conversationId, sender, text, hop, opts) =>
         wake(this.ctx, botId, conversationId, sender, text, hop, opts),

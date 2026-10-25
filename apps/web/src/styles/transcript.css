@@ -18,4 +18,7 @@
 /* The transition lives on the resting state too, so a released press eases back instead of snapping. */
 .ios .msg[data-mi] .body { transition: transform 200ms var(--ease); }
 .ios .msg.holding .body { transition-duration: 450ms; transform: scale(.98); }
+/* The message the reaction bar is open for. */
+.ios .msg.held .body { transform: scale(1.02); transition: transform var(--t-fast) var(--ease-sheet); }
+.ios .msg.held { border-radius: 14px; background: var(--fill); transition: background var(--t-fast); }
 .msg-peek { font-size: 14px !important; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
