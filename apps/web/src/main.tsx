@@ -4,11 +4,13 @@ import { createRoot } from "react-dom/client";
 import { RouterProvider } from "react-router/dom";
 import { Toaster } from "sonner";
 import { queryClient } from "./api/query-client";
+import { registerAppUpdate } from "./app/register-app-update";
 import { createAppRouter, wireUnauthorized } from "./app/router";
 import "./styles/app.css";
 
 const router = createAppRouter();
 wireUnauthorized(router);
+registerAppUpdate();
 
 createRoot(document.getElementById("root") as HTMLElement).render(
   <StrictMode>
