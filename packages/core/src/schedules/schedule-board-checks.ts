@@ -1,3 +1,6 @@
+import type { BotId } from "../domain/bot";
+import type { ConversationId } from "../domain/conversation";
+import type { Store } from "../ports/store";
 import type { RepeatRule } from "./schedule";
 import { NAME_MAX, NOTIFY_MODES, type SchedulePatch, TASK_MAX } from "./schedule-board-types";
 import { ruleError } from "./schedule-rules";
@@ -28,4 +31,18 @@ function dateExists(date: string): boolean {
   const [y, m, d] = date.split("-").map(Number);
   const at = new Date(Date.UTC(y ?? 0, (m ?? 1) - 1, d ?? 1));
   return at.getUTCFullYear() === y && at.getUTCMonth() + 1 === m && at.getUTCDate() === d;
+}
+
+/** Why the bot or conversation cannot take the schedule: the bot must exist and own or belong to the chat. */
+export async function targetError(
+  store: Pick<Store, "bots" | "groups" | "conversations">,
+  i: { botId: BotId; conversationId: ConversationId },
+): Promise<string | undefined> {
+  if (!(await store.bots.get(i.botId))) return `unknown bot "${i.botId}"`;
+  const conv = await store.conversations.get(i.conversationId);
+  if (!conv) return `unknown conversation "${i.conversationId}"`;
+  if (conv.kind === "direct")
+    return conv.botId === i.botId ? undefined : "a direct chat must be the bot's own";
+  const group = await store.groups.get(conv.groupId);
+  return group?.members.includes(i.botId) ? undefined : "the bot is not a member of that group";
 }

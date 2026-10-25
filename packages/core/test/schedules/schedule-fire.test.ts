@@ -115,6 +115,13 @@ test("group gone: disabled, a failed row, one notice in the bot's direct chat", 
   expect(h.tells).toEqual([
     { conversationId: "dc", text: 'Schedule "Brief" is off: its group is gone.' },
   ]);
+  expect(h.surface.finished).toEqual([
+    {
+      conversationId: "dc",
+      botId: "editor",
+      preview: 'Schedule "Brief" is off: its group is gone.',
+    },
+  ]);
   expect(h.runsMade).toHaveLength(0);
 });
 
@@ -140,7 +147,7 @@ test("left group: two gone outcomes on one day give two failed rows and one noti
   expect(h.surface.finished).toEqual([{ conversationId: "gc", botId: "editor", preview: text }]);
 });
 
-test("a cap block fails the row with the stop text and adds no second notice", async () => {
+test("a cap block fails the row, posts no second message, but toasts once a day", async () => {
   const h = makeBoard();
   const s = await addSchedule(h);
   h.outcomes.push({ ok: false, reason: "spend" });
@@ -150,7 +157,15 @@ test("a cap block fails the row with the stop text and adds no second notice", a
     status: "failed",
     error: "Stopped: spend limit reached.",
   });
+  // createRun already posted "Stopped: spend limit reached." in the chat; the schedule only toasts.
   expect(h.tells).toEqual([]);
+  expect(h.surface.finished).toEqual([
+    {
+      conversationId: "dc",
+      botId: "editor",
+      preview: 'Schedule "Brief" failed: Stopped: spend limit reached.',
+    },
+  ]);
   expect(h.log.of("schedule.failed")[0]?.fields).toMatchObject({ reason: "spend" });
 });
 
