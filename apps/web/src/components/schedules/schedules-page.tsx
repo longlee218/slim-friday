@@ -1,11 +1,10 @@
 import { CalendarClock, Plus } from "lucide-react";
 import { useIsPhone } from "../../app/use-is-phone";
 import { Toolbar } from "../shell/toolbar";
-import { useAppNavigate } from "../shell/use-app-navigate";
 import { Button } from "../ui/button";
-import { NEW_SCHEDULE } from "./new-schedule-sheet";
 import { PhoneSchedules } from "./phone-schedules";
 import { ScheduleRow } from "./schedule-row";
+import { useOpenNewSchedule } from "./use-open-new-schedule";
 import { enabledCount, useSchedules } from "./use-schedules";
 
 /** The rows (or the empty state) and the footnote. */
@@ -41,7 +40,7 @@ function SchedulesBody() {
  */
 export function SchedulesPage() {
   const { schedules } = useSchedules();
-  const go = useAppNavigate();
+  const openNew = useOpenNewSchedule();
   if (useIsPhone()) return <PhoneSchedules />;
   return (
     <section className="pane">
@@ -58,7 +57,7 @@ export function SchedulesPage() {
           </>
         }
         actions={
-          <Button variant="primary" onClick={() => go(NEW_SCHEDULE)}>
+          <Button variant="primary" onClick={() => openNew()}>
             <Plus size={14} strokeWidth={1.75} />
             New schedule
           </Button>

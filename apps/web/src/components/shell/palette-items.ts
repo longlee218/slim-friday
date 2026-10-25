@@ -6,10 +6,7 @@ export interface PaletteContext {
   stopAll(): Promise<void>;
   /** Opens the new-ticket sheet. */
   newTicket(): void;
-  /**
-   * Opens the new-schedule sheet. Until that sheet exists it navigates to `/schedules?new=1`, which
-   * the sheet will read to open itself (so the palette keeps working from any route).
-   */
+  /** Opens the new-schedule sheet (`/schedules?new=1`, so it works from any route). */
   newSchedule(): void;
 }
 

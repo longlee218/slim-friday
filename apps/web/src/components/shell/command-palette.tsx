@@ -22,6 +22,7 @@ import { client, orpc } from "../../api/client";
 import { useDirectory } from "../../api/directory";
 import { useOpenNewTicket } from "../../app/shell-context";
 import { refetchStatus } from "../../events/apply-effects";
+import { useOpenNewSchedule } from "../schedules/use-open-new-schedule";
 import { Avatar } from "../ui/avatar";
 import { BottomSheet } from "../ui/bottom-sheet";
 import { type PaletteContext, type PaletteItem, paletteItems } from "./palette-items";
@@ -67,6 +68,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
   const status = useQuery(orpc.control.status.queryOptions()).data;
   const newTicket = useOpenNewTicket();
+  const newSchedule = useOpenNewSchedule();
   const items = useMemo(() => paletteItems(dir), [dir]);
 
   // `control.stop` takes a botId, so stop each working bot; one toast for the batch. Every stop
@@ -74,8 +76,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
   const ctx: PaletteContext = {
     navigate,
     newTicket,
-    // Opens the schedules page with the new-schedule request; the sheet (Task 6) reads `?new=1`.
-    newSchedule: () => navigate("/schedules?new=1"),
+    newSchedule,
     stopAll: async () => {
       const working = (status ?? []).filter((s) => s.working);
       if (working.length === 0) {

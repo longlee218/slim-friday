@@ -11,13 +11,16 @@ function useTransitions(): boolean {
   return !reduced && width >= PANEL_MIN.phone;
 }
 
-/** Navigate with the macOS view transition; `AppShell` syncs `navHistory` from the URL. */
-export function useAppNavigate(): (to: string) => void {
+/**
+ * Navigate with the macOS view transition; `AppShell` syncs `navHistory` from the URL.
+ * `replace` swaps the current history entry instead of adding one.
+ */
+export function useAppNavigate(): (to: string, opts?: { replace?: boolean }) => void {
   const navigate = useNavigate();
   const viewTransition = useTransitions();
   return useCallback(
-    (to) => {
-      void navigate(to, { viewTransition });
+    (to, opts) => {
+      void navigate(to, { viewTransition, replace: opts?.replace });
     },
     [navigate, viewTransition],
   );

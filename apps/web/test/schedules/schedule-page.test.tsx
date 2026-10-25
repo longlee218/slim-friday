@@ -95,3 +95,13 @@ test("recent runs open the result message's chat and load more by nextBefore", a
     expect.anything(),
   );
 });
+
+test("the header says paused only for an owner-paused schedule", async () => {
+  await open({ enabled: false, disabledReason: "done" });
+  expect(screen.getByText(/posts to Ray$/)).toBeTruthy();
+});
+
+test("the header of an owner-paused schedule says paused", async () => {
+  await open({ enabled: false });
+  expect(screen.getByText(/posts to Ray · paused$/)).toBeTruthy();
+});

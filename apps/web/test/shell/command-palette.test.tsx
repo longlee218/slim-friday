@@ -1,6 +1,7 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router";
 import { beforeEach, expect, test, vi } from "vitest";
 import type { Directory } from "../../src/api/directory";
 import { CommandPalette } from "../../src/components/shell/command-palette";
@@ -42,7 +43,10 @@ function renderPalette(workingIds: string[] = []) {
   const onOpenChange = vi.fn();
   render(
     <QueryClientProvider client={qc}>
-      <CommandPalette open onOpenChange={onOpenChange} />
+      {/* New schedule reads the current path. */}
+      <MemoryRouter>
+        <CommandPalette open onOpenChange={onOpenChange} />
+      </MemoryRouter>
     </QueryClientProvider>,
   );
   return onOpenChange;

@@ -2,11 +2,10 @@ import { ChevronRight, Plus } from "lucide-react";
 import { Link } from "react-router";
 import { useDirectory } from "../../api/directory";
 import { SettingsPage } from "../settings/settings-page";
-import { useAppNavigate } from "../shell/use-app-navigate";
 import { Avatar } from "../ui/avatar";
 import { nextRunNote } from "./format-next-run";
-import { NEW_SCHEDULE } from "./new-schedule-sheet";
 import { ScheduleStatusPill } from "./schedule-status-pill";
+import { useOpenNewSchedule } from "./use-open-new-schedule";
 import { useSchedules } from "./use-schedules";
 
 /**
@@ -16,11 +15,11 @@ import { useSchedules } from "./use-schedules";
  */
 export function PhoneSchedules() {
   const dir = useDirectory();
-  const go = useAppNavigate();
+  const openNew = useOpenNewSchedule();
   const { schedules, isLoading } = useSchedules();
   const now = Date.now();
   const add = (
-    <button type="button" className="nb" aria-label="New schedule" onClick={() => go(NEW_SCHEDULE)}>
+    <button type="button" className="nb" aria-label="New schedule" onClick={() => openNew()}>
       <Plus strokeWidth={1.75} />
     </button>
   );
