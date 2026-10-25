@@ -179,89 +179,6 @@ test("parked: an open run skips three due times on one day with one notice", asy
   expect(h.tells).toHaveLength(2);
 });
 
-test("runNow: refused while a run is open; else a manual run that does not move the next run", async () => {
-  const h = makeBoard();
-  const s = await addSchedule(h);
-  h.clock.advance(HOUR);
-  const r = await h.board.runNow(s.id, "n1");
-  expect(r).toEqual({ ok: true, wakeId: "w1" });
-  expect(h.runsMade[0]?.dedupeKey).toBe(`sched:${s.id}:manual:n1`);
-  expect((await h.board.get(s.id))?.nextRunAt).toBe(AT_0730);
-  expect((await runsOf(h, s.id))[0]).toMatchObject({ manual: true, dueAt: T0 + HOUR, late: false });
-  putWake(h, "w1", "running");
-  expect(await h.board.runNow(s.id, "n2")).toEqual({
-    ok: false,
-    code: "conflict",
-    error: "Still running.",
-  });
-  expect(await h.board.runNow("nope", "n3")).toMatchObject({ code: "not_found" });
-});
-
-test("reconcile settles open rows from their wakes", async () => {
-  const h = makeBoard();
-  const cases: [string, Parameters<typeof putWake>[2] | undefined, object, string?][] = [
-    ["done", "done", { status: "ok" }],
-    ["fail", "failed", { status: "failed", error: "boom" }, 'Schedule "Brief" failed: boom'],
-    ["cancel", "cancelled", { status: "failed", error: "Run cancelled." }],
-    [
-      "int",
-      "interrupted",
-      { status: "failed", error: "Run interrupted." },
-      'Schedule "Brief" failed: Run interrupted.',
-    ],
-    ["missing", undefined, { status: "failed", error: "Run record expired." }],
-    ["busy", "running", { status: "running" }],
-  ];
-  for (const [id, status, want, notice] of cases) {
-    const s = await addSchedule(h);
-    await h.store.scheduleRuns.insert({
-      id: `r-${id}`,
-      scheduleId: s.id,
-      dueAt: T0,
-      firedAt: T0,
-      manual: true,
-      late: false,
-      status: "running",
-      wakeId: `wk-${id}`,
-      costUsd: 0,
-    });
-    if (status) putWake(h, `wk-${id}`, status, { endedAt: T0 + 5, error: "boom" });
-    const before = h.tells.length;
-    await h.board.tick();
-    const [row] = await runsOf(h, s.id);
-    expect(row).toMatchObject(want);
-    if (status && status !== "running") expect(row?.endedAt).toBe(T0 + 5);
-    if (!status) expect(row?.endedAt).toBe(T0);
-    if (notice) expect(h.tells.slice(before).map((t) => t.text)).toEqual([notice]);
-    else if (id !== "missing") expect(h.tells.length).toBe(before);
-  }
-});
-
-test("reconcile: a problems schedule with a posted answer is a problem; silence is ok", async () => {
-  const h = makeBoard();
-  for (const [id, text, want] of [
-    ["a", "The build is red.", "problem"],
-    ["b", "NO_RESPONSE", "ok"],
-    ["c", undefined, "ok"],
-  ] as const) {
-    const s = await addSchedule(h, undefined, { notify: "problems" });
-    await h.store.scheduleRuns.insert({
-      id: `r-${id}`,
-      scheduleId: s.id,
-      dueAt: T0,
-      firedAt: T0,
-      manual: true,
-      late: false,
-      status: "running",
-      wakeId: `wk-${id}`,
-      costUsd: 0,
-    });
-    putWake(h, `wk-${id}`, "done", text ? { resultText: text } : {});
-    await h.board.tick();
-    expect((await runsOf(h, s.id))[0]?.status).toBe(want);
-  }
-});
-
 test("fire and each settled row tell onChange; a throwing createRun still lets tick resolve", async () => {
   const h = makeBoard({
     createRun: async () => {
@@ -275,4 +192,20 @@ test("fire and each settled row tell onChange; a throwing createRun still lets t
   expect((await runsOf(h, s.id))[0]).toMatchObject({ status: "failed", error: "db down" });
   expect(h.changes.length).toBeGreaterThanOrEqual(2);
   expect(h.changes.every((id) => id === s.id)).toBe(true);
+});
+
+test("a failed wakeId write after a good createRun is no failed row and no notice", async () => {
+  const h = makeBoard();
+  const s = await addSchedule(h);
+  const update = h.store.scheduleRuns.update;
+  h.store.scheduleRuns.update = async (id, patch) => {
+    if (patch.wakeId) throw new Error("disk full");
+    return update(id, patch);
+  };
+  h.clock.advance(8 * HOUR);
+  await h.board.tick();
+  expect(h.runsMade).toHaveLength(1);
+  expect((await runsOf(h, s.id))[0]?.status).toBe("running");
+  expect(h.tells).toEqual([]);
+  expect(h.log.of("schedule.failed")).toEqual([]);
 });

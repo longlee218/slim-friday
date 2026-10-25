@@ -1,4 +1,4 @@
-import { errText } from "../hub/hub-types";
+import { errText, type WakeOutcome } from "../hub/hub-types";
 import type { NextRunAt } from "../ports/next-run";
 import type { Schedule, ScheduleRun } from "./schedule";
 import { changed, LATE_MS, type ScheduleBoardDeps } from "./schedule-board-types";
@@ -63,6 +63,7 @@ export async function fireDue(f: FireCtx, s: Schedule, now: number): Promise<voi
 /**
  * Insert a `running` history row and create the run; `ok` stores the wake, `gone` and a cap block fail the row
  * (createRun already posted the cap notice). Returns the outcome; a thrown createRun fails the row too.
+ * A failed `wakeId` write throws out and leaves the row open (the reconcile sweep fails it after 5 min).
  */
 export async function startRun(
   f: FireCtx,
@@ -77,10 +78,13 @@ export async function startRun(
     { event: "schedule.fired", scheduleId: s.id, botId: s.botId, lateMs: now - due, manual },
     "schedule.fired",
   );
-  let error: string;
-  let reason: string;
+  // Overwritten below when createRun answers with a refusal.
+  let reason = "create_failed";
+  let error = "";
+  // Only createRun is caught: a failed wakeId write after a good run leaves the row open for the reconcile sweep.
+  let out: WakeOutcome | undefined;
   try {
-    const out = await f.deps.createRun({
+    out = await f.deps.createRun({
       botId: s.botId,
       conversationId: s.conversationId,
       sender: { kind: "system" },
@@ -89,16 +93,17 @@ export async function startRun(
       dedupeKey,
       opts: { schedule: { id: s.id, quiet: s.notify === "problems" } },
     });
-    if (out.ok) {
-      await f.deps.store.scheduleRuns.update(row.id, { wakeId: out.wakeId });
-      changed(f.deps, s.id);
-      return { wakeId: out.wakeId };
-    }
+  } catch (err) {
+    error = errText(err);
+  }
+  if (out?.ok) {
+    await f.deps.store.scheduleRuns.update(row.id, { wakeId: out.wakeId });
+    changed(f.deps, s.id);
+    return { wakeId: out.wakeId };
+  }
+  if (out) {
     reason = out.reason === "gone" ? "not_member" : out.reason;
     error = out.reason === "gone" ? NOT_MEMBER : `Stopped: ${out.reason} limit reached.`;
-  } catch (err) {
-    reason = "create_failed";
-    error = errText(err);
   }
   await settle(f.deps, s.id, row.id, { status: "failed", endedAt: f.deps.clock.now(), error });
   f.deps.log?.warn(
