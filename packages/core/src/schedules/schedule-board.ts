@@ -1,7 +1,7 @@
 import type { Author } from "../domain/message";
 import { errText } from "../hub/hub-types";
 import type { Schedule, ScheduleRun } from "./schedule";
-import { fieldError, noNextRun } from "./schedule-board-checks";
+import { fieldError, noNextRun, targetError } from "./schedule-board-checks";
 import {
   changed,
   inScope,
@@ -42,7 +42,8 @@ export class ScheduleBoard {
     const { nextRunAt } = this.deps;
     if (!nextRunAt) return UNAVAILABLE;
     const timeZone = input.timeZone ?? this.deps.timeZone();
-    const why = fieldError(input) ?? timeZoneError(timeZone) ?? (await this.targetError(input));
+    const why =
+      fieldError(input) ?? timeZoneError(timeZone) ?? (await targetError(this.deps.store, input));
     if (why) return invalid(why);
     const now = this.deps.clock.now();
     const next = nextRunAt(input.rule, timeZone, now);
@@ -67,7 +68,10 @@ export class ScheduleBoard {
     return { ok: true, schedule };
   }
 
-  /** A new rule or `enabled: true` recomputes the next run from now; `enabled: false` clears it. */
+  /**
+   * A new rule, or `enabled: true` on a disabled schedule, recomputes the next run from now (turning on also needs the
+   * bot and chat to exist); `enabled: false` clears it.
+   */
   async update(
     id: string,
     patch: SchedulePatch,
@@ -89,14 +93,18 @@ export class ScheduleBoard {
       ...(patch.enabled !== undefined && { enabled }),
       updatedAt: now,
     };
-    if (patch.rule || patch.enabled === true) {
+    // Turning on a disabled schedule needs its bot and chat back; an enabled one keeps its phase.
+    const turningOn = patch.enabled === true && !cur.enabled;
+    const gone = turningOn ? await targetError(this.deps.store, cur) : undefined;
+    if (gone) return invalid(gone);
+    if (patch.rule || turningOn) {
       if (!this.deps.nextRunAt) return UNAVAILABLE;
       const at = this.deps.nextRunAt(rule, cur.timeZone, now);
       if (at === undefined) return invalid(noNextRun(rule));
       if (enabled) next.nextRunAt = at;
     }
     // An explicit undefined clears the stored value.
-    if (patch.enabled === true) next.disabledReason = undefined;
+    if (turningOn) next.disabledReason = undefined;
     if (patch.enabled === false) next.nextRunAt = undefined;
     const schedule = await this.deps.store.schedules.update(id, next);
     if (!schedule) return NOT_FOUND;
@@ -175,17 +183,5 @@ export class ScheduleBoard {
   private fireCtx(): FireCtx | undefined {
     const { nextRunAt } = this.deps;
     return nextRunAt && { deps: this.deps, nextRunAt, notices: this.notices };
-  }
-
-  /** Why the bot or conversation cannot take the schedule: the bot must exist and own or belong to the chat. */
-  private async targetError(i: NewSchedule): Promise<string | undefined> {
-    const { store } = this.deps;
-    if (!(await store.bots.get(i.botId))) return `unknown bot "${i.botId}"`;
-    const conv = await store.conversations.get(i.conversationId);
-    if (!conv) return `unknown conversation "${i.conversationId}"`;
-    if (conv.kind === "direct")
-      return conv.botId === i.botId ? undefined : "a direct chat must be the bot's own";
-    const group = await store.groups.get(conv.groupId);
-    return group?.members.includes(i.botId) ? undefined : "the bot is not a member of that group";
   }
 }

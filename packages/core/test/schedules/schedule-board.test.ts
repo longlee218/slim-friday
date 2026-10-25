@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import type { NewSchedule } from "../../src/schedules/schedule-board";
-import { makeHub } from "../bot-hub-harness";
+import { bot, makeHub } from "../bot-hub-harness";
 import { addSchedule, DAY, fakeNextRunAt, HOUR, MIN, makeBoard, T0 } from "./schedule-harness";
 
 const input = (over: Partial<NewSchedule> = {}): NewSchedule => ({
@@ -175,4 +175,36 @@ test("a hub with nextRunAt creates schedules and tells onScheduleChange", async 
   const r = await h.hub.schedules.create(input(), { kind: "user" });
   expect(r.ok).toBe(true);
   expect(seen).toEqual([r.ok ? r.schedule.id : ""]);
+});
+
+test("enable refuses while the bot or the group is still gone", async () => {
+  const h = makeBoard();
+  const s = await addSchedule(h, undefined, { conversationId: "gc" });
+  await h.store.schedules.update(s.id, {
+    enabled: false,
+    disabledReason: "bot_gone",
+    nextRunAt: undefined,
+  });
+  h.store.botMap.delete("editor");
+  expect(await h.board.update(s.id, { enabled: true })).toEqual({
+    ok: false,
+    code: "invalid",
+    error: 'unknown bot "editor"',
+  });
+  h.store.botMap.set("editor", bot("editor", "editor"));
+  h.store.groupMap.delete("g");
+  expect(await h.board.update(s.id, { enabled: true })).toEqual({
+    ok: false,
+    code: "invalid",
+    error: "the bot is not a member of that group",
+  });
+  expect((await h.board.get(s.id))?.enabled).toBe(false);
+});
+
+test("enable on an already enabled schedule keeps its next run (the interval phase)", async () => {
+  const h = makeBoard();
+  const s = await addSchedule(h, { kind: "interval", every: 1, unit: "hours" });
+  h.clock.advance(20 * MIN);
+  const r = await h.board.update(s.id, { enabled: true });
+  expect(r.ok && r.schedule.nextRunAt).toBe(T0 + HOUR);
 });

@@ -38,7 +38,8 @@ export async function fireDue(f: FireCtx, s: Schedule, now: number): Promise<voi
   if (!conv || (conv.kind === "group" && !(await store.groups.get(conv.groupId)))) {
     await switchOff(f, s, now, "group_gone", "The group is gone.");
     const direct = await store.conversations.direct(s.botId);
-    if (direct) await f.deps.tell(direct.id, `Schedule "${s.name}" is off: its group is gone.`);
+    const text = `Schedule "${s.name}" is off: its group is gone.`;
+    if (direct) await f.notices.post(direct.id, s.botId, text);
     return;
   }
   const open = await hasOpenRun(f.deps, s.id);
@@ -110,8 +111,10 @@ export async function startRun(
     { event: "schedule.failed", scheduleId: s.id, botId: s.botId, reason },
     "schedule.failed",
   );
-  // A cap block already has its "Stopped" notice from createRun.
-  if (reason === "not_member" || reason === "create_failed") await f.notices.failed(s, error);
+  // A cap block already has its "Stopped" message from createRun (no toast): the schedule only toasts.
+  await f.notices.failed(s, error, {
+    toastOnly: reason !== "not_member" && reason !== "create_failed",
+  });
   return { error };
 }
 
