@@ -16,14 +16,15 @@ const SIGN_IN_ERRORS: Record<string, string> = {
 
 /**
  * Reads the `?signin=` result the API callback put on the URL, shows one toast for it, then
- * removes the param so a reload does not repeat the toast.
+ * removes the param so a reload does not repeat the toast. Success lands on the server page
+ * (`server` names it); failures land on the list, where no name is known.
  */
-export function useSignInResult(server: string): void {
+export function useSignInResult(server?: string): void {
   const [params, setParams] = useSearchParams();
   const result = params.get("signin");
   useEffect(() => {
     if (!result) return;
-    if (result === "ok") toast.success(`Signed in to ${server}`);
+    if (result === "ok") toast.success(server ? `Signed in to ${server}` : "Signed in");
     else toast.error(SIGN_IN_ERRORS[result] ?? SIGN_IN_ERRORS.failed ?? "Sign-in failed");
     setParams(
       (p) => {

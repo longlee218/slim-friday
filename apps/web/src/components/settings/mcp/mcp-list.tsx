@@ -9,12 +9,14 @@ import { Button } from "../../ui/button";
 import { Pill } from "../../ui/pill";
 import { SettingsPage } from "../settings-page";
 import { AddMcpSheet } from "./add-mcp-sheet";
+import { useSignInResult } from "./mcp-sign-in";
 
 /** Chip text per OAuth sign-in state. */
 const LABEL = { connected: "signed in", needs_login: "needs sign-in", never: "not signed in" };
 
 /** `/settings/mcp`: every MCP server with the bots that use it, and "Add server". */
 export function McpList() {
+  useSignInResult();
   const dir = useDirectory();
   const navigate = useNavigate();
   const [adding, setAdding] = useState(false);

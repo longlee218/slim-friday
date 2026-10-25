@@ -206,7 +206,7 @@ Main process (web, intake, sweeps, reconciler, config watch) plus `workers` work
 
 ## Check OAuth MCP servers (not verified live)
 For an MCP server that signs in with OAuth (example: `https://db-mcp.example.com/mcp`).
-1. Settings, MCP servers, Add server: choose HTTP, enter the https URL, turn **Sign in with OAuth** on (scopes optional), test, add. Do not add an `Authorization` header.
+1. Settings, MCP servers, Add server: choose HTTP, enter the https URL, turn **Sign in with OAuth** on (scopes optional) and add it (an OAuth server is not tested before it is added). Do not add an `Authorization` header.
 2. Open the server page, press **Sign in**, accept at the provider; you return to the server page with a "Signed in" toast and the banner turns green (`Connected · last refresh ...`).
 3. Turn the server on for a bot (Used by) and ask it to call a read tool. To skip approval cards annotate the read tools `readOnlyHint: true` in `<AGENT_HOME>/config/tools.yaml`.
 4. Restart the engine and call the tool again without signing in: it works (the login is kept).

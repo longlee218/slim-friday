@@ -2,10 +2,11 @@ import type { McpServerDto } from "@friday/contracts";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { orpc } from "../../../src/api/client";
 import { McpDetail } from "../../../src/components/settings/mcp/mcp-detail";
+import { McpList } from "../../../src/components/settings/mcp/mcp-list";
 import { applyEffects } from "../../../src/events/apply-effects";
 import { reduceEvent } from "../../../src/events/event-reducer";
 import { seededClient } from "../../shell/fixtures";
@@ -28,7 +29,12 @@ const oauthServer = (auth?: McpServerDto["auth"], shipped = false): McpServerDto
   usedBy: [],
 });
 
-function setup(server: McpServerDto, search = "") {
+/** Shows the router's location so a test can read the search string. */
+function Where() {
+  return <div data-testid="where">{useLocation().search}</div>;
+}
+
+function setup(server: McpServerDto, search = "", path = `/settings/mcp/${server.name}`) {
   const qc = seededClient({});
   qc.setQueryData(orpc.config.mcp.list.queryKey(), [server]);
   qc.setQueryData(
@@ -37,10 +43,12 @@ function setup(server: McpServerDto, search = "") {
   );
   render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={[`/settings/mcp/${server.name}${search}`]}>
+      <MemoryRouter initialEntries={[`${path}${search}`]}>
         <Routes>
           <Route path="/settings/mcp/:name" element={<McpDetail />} />
+          <Route path="/settings/mcp" element={<McpList />} />
         </Routes>
+        <Where />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -90,7 +98,28 @@ test("a shipped OAuth server is read only but keeps Sign in", async () => {
 test("signin=ok shows a toast and clears the param", async () => {
   setup(oauthServer({ status: "connected" }), "?signin=ok");
   await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Signed in to db"));
-  expect(window.location.search).toBe("");
+  await waitFor(() => expect(screen.getByTestId("where").textContent).toBe(""));
+});
+
+test("a failure lands on the list: toast and cleared param there", async () => {
+  setup(oauthServer({ status: "never" }), "?signin=expired", "/settings/mcp");
+  await waitFor(() =>
+    expect(toast.error).toHaveBeenCalledWith("The sign-in link expired, try again"),
+  );
+  await waitFor(() => expect(screen.getByTestId("where").textContent).toBe(""));
+});
+
+test("the unsaved-edits hint shows after editing the URL or OAuth, not on a clean form", async () => {
+  setup(oauthServer({ status: "connected" }));
+  const hint = () => screen.queryByText("The test uses the saved settings.");
+  await screen.findByText("Connected");
+  expect(hint()).toBeNull();
+  await userEvent.type(screen.getByLabelText("URL"), "x");
+  expect(hint()).toBeTruthy();
+  await userEvent.type(screen.getByLabelText("URL"), "{Backspace}");
+  expect(hint()).toBeNull();
+  await userEvent.click(screen.getByRole("switch", { name: "Sign in with OAuth" }));
+  expect(hint()).toBeTruthy();
 });
 
 test("signin=denied shows an error toast", async () => {

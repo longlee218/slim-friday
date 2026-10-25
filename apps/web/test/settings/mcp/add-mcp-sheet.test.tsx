@@ -102,3 +102,20 @@ test("a refused env value is shown under the env rows", async () => {
   await userEvent.click(add());
   expect(await screen.findByText("env needs a reference")).toBeTruthy();
 });
+
+test("an OAuth server can be added without a test", async () => {
+  api.save.mockResolvedValue({});
+  setup();
+  await fillHttp();
+  await userEvent.click(screen.getByRole("switch", { name: "Sign in with OAuth" }));
+  expect((testBtn() as HTMLButtonElement).disabled).toBe(true);
+  expect(add().disabled).toBe(false);
+  await userEvent.click(add());
+  await waitFor(() =>
+    expect(api.save).toHaveBeenCalledWith({
+      name: "sentry",
+      server: { type: "http", url: "https://mcp.example.com/mcp", oauth: {} },
+      mode: "create",
+    }),
+  );
+});
