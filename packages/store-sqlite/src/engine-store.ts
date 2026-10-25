@@ -1,4 +1,4 @@
-import type { Conversation, InsightStore, Store } from "@friday/core";
+import type { Conversation, InsightStore, McpOAuthStore, Store } from "@friday/core";
 import { drizzle } from "drizzle-orm/bun-sqlite";
 import { openEngineDb } from "./open-engine-db";
 import { attemptRepo } from "./repos/attempt-repo";
@@ -9,6 +9,7 @@ import { effectCallRepo } from "./repos/effect-call-repo";
 import { fileRepo } from "./repos/file-repo";
 import { grantRepo } from "./repos/grant-repo";
 import { insightRepo } from "./repos/insight-repo";
+import { mcpOAuthRepo } from "./repos/mcp-oauth-repo";
 import { messageRepo } from "./repos/message-repo";
 import { readRepo } from "./repos/read-repo";
 import { scopeRepo } from "./repos/scope-repo";
@@ -25,6 +26,8 @@ export type EngineStore = Omit<Store, "bots" | "groups" | "conversations"> & {
   conversations: Store["conversations"] & { put(c: Conversation): Promise<void> };
   /** Read-only views for reviewing bots (`BotInsight`). */
   insight: InsightStore;
+  /** OAuth logins of MCP servers (not part of the core `Store`). */
+  mcpOAuth: McpOAuthStore;
   /** Close the db. */
   close(): void;
 };
@@ -52,6 +55,7 @@ export function openEngineStore(file: string): EngineStore {
     tickets: ticketRepo(db),
     ticketEvents: ticketEventRepo(db),
     insight: insightRepo(db),
+    mcpOAuth: mcpOAuthRepo(db),
     close: () => client.close(),
   };
 }

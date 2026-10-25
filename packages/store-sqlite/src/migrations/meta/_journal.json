@@ -71,6 +71,13 @@
       "when": 1792879523981,
       "tag": "0009_outcome_returned_backfill",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1792906574623,
+      "tag": "0010_exotic_thunderbolt",
+      "breakpoints": true
     }
   ]
 }

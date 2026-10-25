@@ -380,3 +380,22 @@ export const scopes = sqliteTable("scopes", {
   /** Epoch ms of the last memory flush. */
   lastFlushedAt: integer("last_flushed_at"),
 });
+
+/** OAuth login of an MCP server (tokens are secrets: never logged). */
+export const mcpOAuth = sqliteTable("mcp_oauth", {
+  /** Server name as in the MCP config. */
+  server: text("server").primaryKey(),
+  serverUrl: text("server_url").notNull(),
+  clientId: text("client_id").notNull(),
+  refreshToken: text("refresh_token").notNull(),
+  accessToken: text("access_token"),
+  /** Epoch milliseconds. */
+  accessExpiresAt: integer("access_expires_at"),
+  /** `connected` or `needs_login`. */
+  status: text("status").notNull(),
+  /** Epoch milliseconds. */
+  lastRefreshAt: integer("last_refresh_at"),
+  lastError: text("last_error"),
+  /** Epoch milliseconds. */
+  updatedAt: integer("updated_at").notNull(),
+});
