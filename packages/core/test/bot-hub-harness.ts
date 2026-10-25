@@ -3,6 +3,7 @@ import { BotHub, type BotHubDeps } from "../src/hub/bot-hub";
 import { PermissionGate } from "../src/permission/permission-gate";
 import { FakeClock } from "./fakes/fake-clock";
 import { FakeLog } from "./fakes/fake-log";
+import { fakeRegistrableDomain } from "./fakes/fake-registrable-domain";
 import { FakeRuntime } from "./fakes/fake-runtime";
 import { FakeStore } from "./fakes/fake-store";
 import { FakeSurface } from "./fakes/fake-surface";
@@ -54,6 +55,7 @@ export function makeHub(memory?: Memory, extra: Partial<BotHubDeps> = {}) {
     clock,
     catalog,
     settings: () => ({ level: "balanced" }),
+    registrableDomain: fakeRegistrableDomain,
   });
   const hub = new BotHub({
     runtime,

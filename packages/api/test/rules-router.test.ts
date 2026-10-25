@@ -1,0 +1,100 @@
+import { expect, test } from "bun:test";
+import { createRouterClient } from "@orpc/server";
+import { fakeRegistrableDomain } from "../../core/test/fakes/fake-registrable-domain";
+import { appRouter } from "../src/index";
+import { engineHarness } from "./helpers/engine-deps";
+
+/** The harness with the fake Public Suffix List wired like the app's. */
+function harness() {
+  const h = engineHarness();
+  (h.deps as { registrableDomain?: unknown }).registrableDomain = fakeRegistrableDomain;
+  return h;
+}
+
+test("add, list and remove owner rules", async () => {
+  const h = harness();
+  h.addBot("a", "A");
+  const site = await h.client.config.approvalRules.add({
+    match: "site",
+    value: "example.com",
+    effect: "always_allow",
+  });
+  expect(site).toMatchObject({
+    botId: "*",
+    match: "site",
+    value: "example.com",
+    effect: "always_allow",
+    scope: {},
+  });
+  const tool = await h.client.config.approvalRules.add({
+    botId: "a",
+    match: "tool",
+    value: "mcp__github__create_issue",
+    effect: "require_approval",
+    scope: { repo: "x" },
+  });
+  await h.client.config.approvalRules.add({
+    match: "category",
+    value: "email",
+    effect: "require_approval",
+  });
+  await h.client.config.approvalRules.add({
+    match: "server",
+    value: "gmail",
+    effect: "always_allow",
+  });
+  const list = await h.client.config.approvalRules.list();
+  expect(list.map((r) => [r.match, r.value])).toEqual([
+    ["site", "example.com"],
+    ["tool", "mcp__github__create_issue"],
+    ["category", "email"],
+    ["server", "gmail"],
+  ]);
+  expect(h.store.grantList.find((g) => g.id === tool.id)).toMatchObject({
+    botId: "a",
+    tool: "mcp__github__create_issue",
+    scope: { repo: "x" },
+  });
+  expect(await h.client.config.approvalRules.remove({ id: site.id })).toEqual({ ok: true });
+  expect((await h.client.config.approvalRules.list()).map((r) => r.id)).not.toContain(site.id);
+  await expect(h.client.config.approvalRules.remove({ id: site.id })).rejects.toMatchObject({
+    code: "NOT_FOUND",
+  });
+});
+
+test("bad input is refused", async () => {
+  const h = harness();
+  const add = h.client.config.approvalRules.add;
+  const bad: unknown[] = [
+    { match: "site", value: "https://example.com/x", effect: "always_allow" },
+    { match: "site", value: "a.example.com", effect: "always_allow" },
+    { match: "site", value: "fly.dev", effect: "always_allow" },
+    { match: "site", value: "Example.com", effect: "always_allow" },
+    { match: "category", value: "shopping", effect: "require_approval" },
+    { match: "server", value: "Bad Server", effect: "always_allow" },
+    { match: "tool", value: "", effect: "always_allow" },
+    { match: "tool", value: "Bash", effect: "maybe" },
+    { match: "everything", value: "x", effect: "always_allow" },
+    { match: "tool", value: "Bash", effect: "always_allow", botId: "Not A Bot" },
+  ];
+  for (const input of bad)
+    await expect(add(input as never)).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  await expect(
+    add({ match: "tool", value: "Bash", effect: "always_allow", botId: "ghost" }),
+  ).rejects.toMatchObject({
+    code: "NOT_FOUND",
+  });
+  expect(h.store.grantList).toEqual([]);
+});
+
+test("rules routes refuse without a session", async () => {
+  const h = harness();
+  const anon = createRouterClient(appRouter, { context: { deps: h.deps } as never });
+  await expect(anon.config.approvalRules.list()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  await expect(
+    anon.config.approvalRules.add({ match: "site", value: "example.com", effect: "always_allow" }),
+  ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  await expect(anon.config.approvalRules.remove({ id: "x" })).rejects.toMatchObject({
+    code: "UNAUTHORIZED",
+  });
+});

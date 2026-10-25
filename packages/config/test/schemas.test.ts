@@ -91,6 +91,11 @@ test("a settings file parses; bad limits and outcomes are refused", () => {
   expect(ok.limits).toEqual({ maxHops: 3 });
   expect(() => parseSettingsFile("limits:\n  maxHops: 0\n")).toThrow();
   expect(() => parseSettingsFile("limits:\n  nope: 1\n")).toThrow();
+  // The tool-call cap may be 0 (off), never negative.
+  expect(parseSettingsFile("limits:\n  maxToolCallsPerTurn: 0\n").limits).toEqual({
+    maxToolCallsPerTurn: 0,
+  });
+  expect(() => parseSettingsFile("limits:\n  maxToolCallsPerTurn: -1\n")).toThrow();
   expect(() => parseSettingsFile("autonomy:\n  tools: {Bash: maybe}\n")).toThrow();
 });
 
@@ -148,4 +153,26 @@ test("a group avatar passes through; without one the group has none", () => {
 test("isUploadAvatar returns the upload id or undefined", () => {
   expect(isUploadAvatar(`upload:${UUID}`)).toBe(UUID);
   expect(isUploadAvatar("fox")).toBeUndefined();
+});
+
+test("a bot description round-trips through the parser, is optional and is capped at 500 chars", () => {
+  const text = (extra: string) => `---\nname: Ann\ntitle: Dev\nmodel: m\n${extra}---\nBe brief.\n`;
+  expect(parseBotFile("ann", text("description: Reviews code.\n")).description).toBe(
+    "Reviews code.",
+  );
+  expect(parseBotFile("ann", text("")).description).toBeUndefined();
+  expect(() => parseBotFile("ann", text(`description: ${"x".repeat(501)}\n`))).toThrow();
+});
+
+test("limits.toolSearch accepts on, off and auto:<1-100>; anything else is refused", () => {
+  for (const v of ["on", "off", "auto:1", "auto:5", "auto:100"])
+    expect(parseSettingsFile(`limits:\n  toolSearch: ${v}\n`).limits).toEqual({ toolSearch: v });
+  for (const v of ["auto:0", "auto:101", "auto:", "maybe", "true", "5"])
+    expect(() => parseSettingsFile(`limits:\n  toolSearch: ${v}\n`)).toThrow();
+});
+
+test("a bot title loads up to 200 chars (old owner files keep loading); longer is refused", () => {
+  const text = (title: string) => `---\nname: Ann\ntitle: ${title}\nmodel: m\n---\nBe brief.\n`;
+  expect(parseBotFile("ann", text("x".repeat(200))).title).toHaveLength(200);
+  expect(() => parseBotFile("ann", text("x".repeat(201)))).toThrow();
 });

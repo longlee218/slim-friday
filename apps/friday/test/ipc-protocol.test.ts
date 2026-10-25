@@ -12,6 +12,7 @@ test("ipc-protocol accepts the known worker messages", () => {
       botId: "b1",
       step: { id: "s", kind: "tool", label: "Read", state: "running", startedAt: 1 },
     },
+    { t: "finished", conversationId: "c1", botId: "b1", preview: "ok" },
     { t: "card", cardId: "k1" },
     { t: "hint", kind: "run", ids: ["w1"] },
   ];

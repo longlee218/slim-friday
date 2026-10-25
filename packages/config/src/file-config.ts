@@ -95,6 +95,9 @@ export class FileConfig {
   /** Where `CreateProject` makes new repos. */
   projectsDir = (): string => this.snapshot.projectsDir;
 
+  /** The owner's IANA time zone from settings.yaml (read at every turn); undefined = the machine's zone. */
+  ownerTimeZone = (): string | undefined => this.snapshot.ownerTimeZone;
+
   /** Memory provider entries of settings.yaml (read at start; a change needs a restart). */
   memoryProviders = () => this.snapshot.memoryProviders;
 

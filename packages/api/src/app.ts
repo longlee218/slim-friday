@@ -5,6 +5,8 @@ import type {
   FileStore,
   McpProbe,
   MemoryAdmin,
+  PermissionsAdmin,
+  RegistrableDomain,
   SkillAdmin,
   Store,
 } from "@friday/core";
@@ -46,20 +48,39 @@ export interface ApiDeps {
   files: FileStore;
   /** Public https origin of the owner's CDN on the bucket (no trailing `/`); images are served from it when set. */
   cdnUrl?: string;
-  /** Admins over the config, skill and memory files, and the MCP connection test. */
-  settings: { config: ConfigAdmin; skills: SkillAdmin; memory: MemoryAdmin; probe: McpProbe };
+  /** Admins over the config, skill and memory files and the permission switches, and the MCP connection test. */
+  settings: {
+    config: ConfigAdmin;
+    skills: SkillAdmin;
+    memory: MemoryAdmin;
+    probe: McpProbe;
+    permissions: PermissionsAdmin;
+  };
   /** OAuth sign-in of MCP servers (status, sign-in url, callback). */
   mcpAuth: McpAuthAdmin;
   /** The spend cap the ops view shows, read on every call (follows a config reload). */
   limits: () => Pick<CoreLimits, "maxSpendPerBotPerDayUsd">;
   /** Empty the trash; returns how many entries were removed. */
   purge: () => number;
+  /** Registrable domain of a host (the engine's Public Suffix List); unset: the exact host. Checks site rules. */
+  registrableDomain?: RegistrableDomain;
+  /** The secret values hidden from bot-written text the API shows (scratchpad items); read at each call. */
+  secretValues?: () => string[];
 }
 
 /** The fields the engine adds to `ApiDeps` (plan 2). */
 export type EngineDeps = Pick<
   ApiDeps,
-  "hub" | "store" | "surface" | "files" | "purge" | "settings" | "mcpAuth" | "limits"
+  | "hub"
+  | "store"
+  | "surface"
+  | "files"
+  | "purge"
+  | "settings"
+  | "mcpAuth"
+  | "limits"
+  | "registrableDomain"
+  | "secretValues"
 >;
 
 /** Build the HTTP app: log, CORS, Origin check, then health, auth and the owner-only RPC. */

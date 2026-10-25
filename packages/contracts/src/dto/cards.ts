@@ -15,6 +15,8 @@ export const ApprovalCardDtoSchema = z.object({
   summary: z.string(),
   scope: z.record(z.string(), z.string()),
   offerAlways: z.boolean(),
+  /** Set when "Always" allows this site (registrable domain) rather than the tool (a web fetch card). */
+  alwaysSite: z.string().optional(),
   /** The exact call a one-shot approval binds: the input as pretty JSON, cut when long. */
   input: z.string(),
   /** True when `input` is cut: the owner did not see the whole call, so the card can only be denied. */

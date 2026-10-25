@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { homePaths } from "../src/config/home-paths";
 import { bootFriday } from "../src/lifecycle/boot";
 import { loadBootState } from "../src/lifecycle/boot-checks";
-import { sweepHome } from "../src/lifecycle/home-retention-sweeper";
+import { sweepHome, sweepScratchpad } from "../src/lifecycle/home-retention-sweeper";
 
 let home: string;
 beforeEach(() => {
@@ -78,4 +78,16 @@ test("the sweep removes inbox dirs and app logs past their age and keeps fresh o
   expect(existsSync(freshDir)).toBe(true);
   expect(existsSync(oldLog)).toBe(false);
   expect(existsSync(freshLog)).toBe(true);
+});
+
+test("the scratchpad sweep deletes done items older than 30 days only", async () => {
+  const cut: number[] = [];
+  const store = {
+    deleteDoneBefore: async (at: number) => {
+      cut.push(at);
+      return 2;
+    },
+  };
+  expect(await sweepScratchpad(store, 100 * 86_400_000)).toBe(2);
+  expect(cut).toEqual([70 * 86_400_000]);
 });

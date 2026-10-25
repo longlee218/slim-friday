@@ -12,6 +12,7 @@ import {
 } from "@friday/tools";
 import { ownerDesignContext } from "./design-context";
 import type { McpProxy } from "./mcp-oauth/mcp-proxy";
+import { createPermissionsAdmin } from "./permissions-admin";
 import { commandEnv, runCommand } from "./session-tools";
 
 /** What `createSettings` is made from. */
@@ -94,5 +95,6 @@ export function createSettings(d: SettingsDeps): EngineDeps["settings"] {
       capChars: d.capChars,
     }),
     probe: mcpProbeOf(d),
+    permissions: createPermissionsAdmin(d.config, d.agentHome),
   };
 }

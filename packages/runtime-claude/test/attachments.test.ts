@@ -18,7 +18,11 @@ const bot: Bot = {
   subagents: [],
   workspaces: [],
 };
-const spec: BotRuntimeSpec = { bot, decide: async () => ({ behavior: "allow" }) };
+const spec: BotRuntimeSpec = {
+  bot,
+  runKind: "owner",
+  decide: async () => ({ behavior: "allow" }),
+};
 
 /** A saved file of `size` bytes, as the surface leaves it. */
 function saved(name: string, mimeType: string, size: number): Attachment {
@@ -45,6 +49,8 @@ async function sendWith(files: Attachment[]): Promise<{ blocks: Block[]; scratch
     text: "look",
     hop: 0,
     context: [],
+    now: 0,
+    timeZone: "UTC",
     attachments: files,
   });
   await Bun.sleep(20);
@@ -84,7 +90,15 @@ test("a turn without files stays a plain string", async () => {
     sessionExists: async () => true,
   });
   const s = await rt.open(spec);
-  s.send({ conversationId: "c1", from: { kind: "user" }, text: "hi", hop: 0, context: [] });
+  s.send({
+    conversationId: "c1",
+    from: { kind: "user" },
+    text: "hi",
+    hop: 0,
+    context: [],
+    now: 0,
+    timeZone: "UTC",
+  });
   await Bun.sleep(20);
   expect(typeof fq.sentContent()[0]).toBe("string");
 });
@@ -130,6 +144,8 @@ test("a file that is gone becomes a note line in a steer push and in a turn", as
     text: "hi",
     hop: 0,
     context: [],
+    now: 0,
+    timeZone: "UTC",
     attachments: gone,
   });
   await Bun.sleep(20);

@@ -7,6 +7,7 @@ import {
   GroupInputDtoSchema,
   UploadTicketDtoSchema,
 } from "../dto/config";
+import { ScratchpadScopeDtoSchema } from "../dto/scratchpad";
 import { OkDtoSchema } from "../dto/status";
 import { base } from "../errors";
 import { BotIdSchema } from "../ids";
@@ -40,6 +41,8 @@ export const bots = {
   save: base.input(z.object({ id, bot: BotInputDtoSchema, mode })).output(BotDtoSchema),
   delete: base.input(z.object({ id })).output(OkDtoSchema),
   setAvatar: base.input(botAvatar).output(BotDtoSchema),
+  /** Open and parked scratchpad items of the bot, per scope (direct first, then its groups). */
+  scratchpad: base.input(z.object({ id })).output(z.array(ScratchpadScopeDtoSchema)),
 };
 
 /** Group files in the config dir. */

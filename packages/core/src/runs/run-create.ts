@@ -57,6 +57,7 @@ export async function createRun(ctx: HubContext, r: NewRun): Promise<WakeOutcome
     ...(opts.handoff && { handoff: true }),
     ...(opts.ticketId && { ticketId: opts.ticketId }),
     ...(opts.rewake && { rewake: true }),
+    ...(opts.intro && { intro: true }),
     ...(opts.attachments && { attachments: opts.attachments }),
     ...(opts.chainId && { chainId: opts.chainId }),
     ...(opts.parentWakeId && { parentWakeId: opts.parentWakeId }),

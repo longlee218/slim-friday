@@ -8,10 +8,18 @@ const outcome = z.enum(["allow", "ask", "ask_always", "deny"]);
 /** Longest timer the runtime can arm (a larger value fires at once). */
 const MAX_TIMER_MS = 2_147_483_647;
 
-/** One limit: a positive number (`workers` may be 0); counts are whole numbers, `*Ms` fit a 32-bit timer. */
-function limitSchema(key: string): z.ZodOptional<z.ZodNumber> {
-  // `workers: 0` runs every run in the main process.
-  if (key === "workers") return z.number().int().min(0).optional();
+/** Limits where 0 is a usable value: `workers: 0` runs every run in the main process, `maxToolCallsPerTurn: 0` is no cap. */
+const ZERO_OK = ["workers", "maxToolCallsPerTurn"];
+
+/** `limits.toolSearch`: `on`, `off` or `auto:<1-100>`. */
+const TOOL_SEARCH = z
+  .string()
+  .regex(/^(on|off|auto:([1-9]\d?|100))$/, "use on, off or auto:<1-100>");
+
+/** One limit: a positive number (see `ZERO_OK` for 0); counts are whole numbers, `*Ms` fit a 32-bit timer. */
+function limitSchema(key: string): z.ZodOptional<z.ZodNumber> | z.ZodOptional<z.ZodString> {
+  if (key === "toolSearch") return TOOL_SEARCH.optional();
+  if (ZERO_OK.includes(key)) return z.number().int().min(0).optional();
   const n = z.number().positive();
   if (key.endsWith("Ms")) return n.max(MAX_TIMER_MS).optional();
   return (key.endsWith("Usd") ? n : n.int()).optional();
@@ -28,11 +36,21 @@ const limitsSchema = z
   .strictObject({
     ...(Object.fromEntries(Object.keys(CORE_DEFAULTS).map((k) => [k, limitSchema(k)])) as Record<
       keyof CoreLimits,
-      z.ZodOptional<z.ZodNumber>
+      z.ZodOptional<z.ZodNumber> | z.ZodOptional<z.ZodString>
     >),
     ...RETIRED_LIMITS,
   })
   .transform(({ approvalTimeoutMs: _retired, ...limits }) => limits);
+
+/** True when `zone` is an IANA time zone this runtime knows. */
+function isTimeZone(zone: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: zone });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /** The content of `settings.yaml`. */
 const settingsSchema = z.strictObject({
@@ -44,10 +62,18 @@ const settingsSchema = z.strictObject({
     })
     .optional(),
   limits: limitsSchema.optional(),
+  /** Permission switches: `autoReview` lets a model clear a plain level ask (spec §6.14); default off. */
+  permissions: z.strictObject({ autoReview: z.boolean().optional() }).optional(),
   /** Optional memory provider plugins; each entry's keys besides `id` are checked by its plugin. */
   memory: z
     .strictObject({
       providers: z.array(z.looseObject({ id: z.string().min(1) })).optional(),
+    })
+    .optional(),
+  /** About the owner: `timeZone` is an IANA zone (default: the machine's zone, resolved by the app). */
+  owner: z
+    .strictObject({
+      timeZone: z.string().min(1).refine(isTimeZone, "not a known IANA time zone").optional(),
     })
     .optional(),
   /** Where `CreateProject` makes new repos (absolute or `~/`). */

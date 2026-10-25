@@ -29,7 +29,7 @@ export const messages = sqliteTable(
     text: text("text").notNull(),
     /** Epoch milliseconds. */
     at: integer("at").notNull(),
-    /** `text`, `file` or `relay`. */
+    /** `text`, `file`, `relay` or `progress`. */
     kind: text("kind").notNull().default("text"),
     /** Id of the message this one replies to. */
     replyTo: integer("reply_to"),
@@ -41,25 +41,33 @@ export const messages = sqliteTable(
     relay: text("relay"),
     /** Client-chosen id that makes a send idempotent; null for messages without one. */
     clientNonce: text("client_nonce"),
+    /** The wake (run) that produced the message; null for messages without one. */
+    wakeId: text("wake_id"),
   },
   (t) => [
     index("messages_conversation_idx").on(t.conversationId, t.id),
+    index("messages_wake_idx").on(t.wakeId),
     uniqueIndex("messages_conversation_nonce_uq").on(t.conversationId, t.clientNonce),
   ],
 );
 
-/** Stored "always allow" decisions. */
+/** Owner rules (spec §6.14): always-allow and require-approval decisions by site, tool, server or category. */
 export const grants = sqliteTable(
   "grants",
   {
     id: text("id").primaryKey(),
     /** A bot id, or `*` for every bot. */
     botId: text("bot_id").notNull(),
+    /** The matched value: tool name, site (registrable domain), MCP server id or category, by `match_kind`. */
     tool: text("tool").notNull(),
-    /** JSON object: scope key to value. */
+    /** JSON object: scope key to value (only `tool` rules have keys). */
     scope: text("scope").notNull(),
     createdAt: integer("created_at").notNull(),
     expiresAt: integer("expires_at"),
+    /** `always_allow` | `require_approval`; rows of older builds are always-allow grants. */
+    effect: text("effect").notNull().default("always_allow"),
+    /** `site` | `tool` | `server` | `category`; rows of older builds are tool grants. */
+    matchKind: text("match_kind").notNull().default("tool"),
   },
   (t) => [index("grants_bot_idx").on(t.botId)],
 );
@@ -94,6 +102,8 @@ export const audit = sqliteTable("audit", {
   outcome: text("outcome").notNull(),
   answer: text("answer"),
   reason: text("reason").notNull(),
+  /** The Auto Review verdict as JSON (`{ decision, reason }`); null when the call was not reviewed. */
+  review: text("review"),
 });
 
 /** One row per message sent into a bot session: its chain, intent, state and timings. */
@@ -155,6 +165,10 @@ export const wakes = sqliteTable(
     setupFailures: integer("setup_failures").notNull().default(0),
     /** JSON `{ author, text }` of the message the owner replied to, sent with the run's turn. */
     quote: text("quote"),
+    /** The first run of a new bot with the owner. */
+    intro: integer("intro", { mode: "boolean" }),
+    /** Nudges sent to the run when it ended without a final answer. */
+    nudges: integer("nudges").notNull().default(0),
   },
   (t) => [
     index("wakes_status_idx").on(t.status, t.createdAt),
@@ -399,3 +413,25 @@ export const mcpOAuth = sqliteTable("mcp_oauth", {
   /** Epoch milliseconds. */
   updatedAt: integer("updated_at").notNull(),
 });
+
+/** Working-memory items of a bot session scope (`<botId>` or `<botId>@<groupId>`). */
+export const scratchpad = sqliteTable(
+  "scratchpad",
+  {
+    id: text("id").primaryKey(),
+    /** One list per scope key. */
+    scopeKey: text("scope_key").notNull(),
+    botId: text("bot_id").notNull(),
+    title: text("title").notNull(),
+    /** `open`, `parked` or `done`. */
+    status: text("status").notNull(),
+    notes: text("notes").notNull().default(""),
+    /** Epoch milliseconds. */
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [
+    index("scratchpad_scope_idx").on(t.scopeKey, t.createdAt),
+    index("scratchpad_status_idx").on(t.status, t.updatedAt),
+  ],
+);

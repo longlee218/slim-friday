@@ -12,6 +12,8 @@ tools:
   # Starting a subagent or writing the todo list changes nothing; the subagent's own calls are decided one by one.
   - { name: Agent, annotations: { readOnlyHint: true } }
   - { name: TodoWrite, annotations: { readOnlyHint: true } }
+  # ToolSearch only looks up the tool definitions of the bot's own session: no card.
+  - { name: ToolSearch, annotations: { readOnlyHint: true } }
   # Browser tools that only look; the rest (click, type, ...) ask.
   - { name: mcp__playwright__browser_navigate, annotations: { readOnlyHint: true, openWorldHint: true } }
   - { name: mcp__playwright__browser_snapshot, annotations: { readOnlyHint: true, openWorldHint: true } }
@@ -32,10 +34,22 @@ tools:
   - { name: mcp__memory__MessageSearch, annotations: { readOnlyHint: true } }
   - { name: mcp__memory__MemorySave, sandboxed: true }
   - { name: mcp__memory__MemoryEdit, sandboxed: true }
+  # The bot's own open-work list per session scope: bounded by the tools' code (limits, scope key), so no card at
+  # any level (read-only class, like PostUpdate: the writes touch only the bot's own list).
+  - { name: mcp__scratchpad__ScratchpadList, annotations: { readOnlyHint: true } }
+  - { name: mcp__scratchpad__ScratchpadAdd, annotations: { readOnlyHint: true } }
+  - { name: mcp__scratchpad__ScratchpadUpdate, annotations: { readOnlyHint: true } }
+  - { name: mcp__scratchpad__ScratchpadComplete, annotations: { readOnlyHint: true } }
+  - { name: mcp__scratchpad__ScratchpadRemove, annotations: { readOnlyHint: true } }
   # Sending a file to the chat: the tool checks the path itself (workspace or scratch dir only), so no card.
   - { name: mcp__chat__PostFile, sandboxed: true }
   # Changes only the thinking effort of the session, capped by the bot file's maxEffort: no side effect outside the run.
   - { name: mcp__chat__SetEffort, annotations: { readOnlyHint: true } }
+  # Writes only the calling bot's own title and description (one file, same parser as BotDesign, id from the session):
+  # no card at any level (spec §6.9); a tainted run still asks (taint policy: instruction change).
+  - { name: mcp__chat__UpdateProfile, annotations: { readOnlyHint: true } }
+  # A short progress note to the owner: the hub applies the budget (60 s old, 3 per run, 500 chars), so no card.
+  - { name: mcp__chat__PostUpdate, annotations: { readOnlyHint: true } }
   # Messages between bots of one group: the hub checks the target, the hop and rate caps and the spend cap, so no card.
   - { name: mcp__chat__SendToBot, annotations: { readOnlyHint: true } }
   - { name: mcp__chat__HandOff, annotations: { readOnlyHint: true } }

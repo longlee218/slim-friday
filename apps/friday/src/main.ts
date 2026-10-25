@@ -10,6 +10,7 @@ import { WebSurface } from "@friday/surface-web";
 import { localDay, purgeTrash } from "@friday/tools";
 import { startApiServer } from "./api-server";
 import type { RuntimeParts } from "./app-deps";
+import { appAutoReviewer } from "./auto-reviewer";
 import { claudeRuntimeFactory } from "./claude-runtime-factory";
 import type { AgentConfig } from "./config/agent-config";
 import { HAIKU_SUMMARY_MODEL } from "./config/model-ids";
@@ -20,7 +21,9 @@ import { mcpAuthAdmin, startOAuthUpkeep } from "./mcp-oauth/oauth-api";
 import { McpOAuthManager } from "./mcp-oauth/oauth-manager";
 import { oauthConfs, withProxiedServers } from "./mcp-oauth/oauth-servers";
 import { logEvent, logger } from "./observability/logger";
+import { registrableDomain } from "./registrable-domain";
 import { need, r2Of } from "./required-config";
+import { deniedEnvValues } from "./secret-values";
 import { createSettings } from "./settings-admin";
 import { startApp } from "./start-app";
 import { systemClock } from "./system-clock";
@@ -113,6 +116,7 @@ async function runEngine(
     agentHome,
     log,
     env,
+    autoReviewer: appAutoReviewer(config),
     flushNotes: (transcript) =>
       extractNotes(transcript, { ...haiku, source: "transcript", today: localDay(new Date()) }),
     consolidate: (memory, notes) =>
@@ -165,6 +169,9 @@ async function runEngine(
         mcpProxy,
       }),
       mcpAuth: mcpAuthAdmin(oauth, engine.mcpOAuth, web.publicApiUrl),
+      registrableDomain,
+      // The same denied env values the engine hides from bot text (read at each call).
+      secretValues: () => deniedEnvValues(),
       limits: () => app.config.limits(),
     },
   }).catch(async (err) => {

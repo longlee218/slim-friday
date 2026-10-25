@@ -57,7 +57,7 @@ test("load serves bots, groups, catalog, settings and limits from the snapshot",
   expect((await config.bots.get("a"))?.name).toBe("A");
   expect(await config.bots.list()).toHaveLength(2); // A and the shipped Friday bot
   expect(await config.groups.get("g")).toBeUndefined();
-  expect(await config.catalog.list()).toHaveLength(45);
+  expect(await config.catalog.list()).toHaveLength(53);
   expect(await config.listGroups()).toEqual([]);
   expect(config.settings().level).toBe("balanced");
   expect(config.limits().maxHops).toBe(8);
@@ -185,4 +185,14 @@ test("a USER.md or SOUL.md change alone restarts no bot but reaches the snapshot
     "---\nname: A\ntitle: T\nmodel: m\n---\nHello.\n",
   );
   expect(config.reload().changedBots).toEqual(["a"]);
+});
+
+test("permissions.autoReview is off by default and a reload turns it on", () => {
+  const dir = newDir();
+  const { config } = make(dir);
+  expect(config.settings().autoReview).toBe(false);
+  writeFileSync(join(dir, "settings.yaml"), "permissions:\n  autoReview: true\n");
+  config.reload();
+  expect(config.settings().autoReview).toBe(true);
+  rmSync(dir, { recursive: true, force: true });
 });

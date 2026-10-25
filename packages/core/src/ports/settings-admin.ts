@@ -147,6 +147,14 @@ export interface ConfigAdmin {
   checkMcpServer(name: string, s: McpServerInput): void;
 }
 
+/** Admin over the permission switches of `settings.yaml` (spec §6.14). */
+export interface PermissionsAdmin {
+  /** The live values (all settings files merged; a write shows here once the config watcher reloaded it). */
+  get(): { autoReview: boolean };
+  /** Sets `permissions.autoReview` in the owner's `settings.yaml`, keeping its other keys and comments. */
+  setAutoReview(on: boolean): void;
+}
+
 /** Admin over skills: a lookup first, an install only after the owner confirms it. */
 export interface SkillAdmin {
   list(): SkillEntry[];

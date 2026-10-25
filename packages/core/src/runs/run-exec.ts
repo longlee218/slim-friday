@@ -6,6 +6,7 @@ import { RunTracker } from "../hub/run-steps";
 import type { SessionScope } from "../hub/session-scope";
 import type { BotSession } from "../ports/agent-runtime";
 import type { LeaseLoss } from "./run-lease";
+import { newRunTaint, type RunTaint } from "./run-taint";
 
 /** A background task a bot started, remembered with the conversation that started it. */
 export interface TaskInfo {
@@ -56,8 +57,15 @@ export interface RunExec {
   openTools: Set<string>;
   /** Run steps (thinking, tools, subagents) since the bot's last text. */
   steps: RunTracker;
-  /** Texts the bot said in this run, in order (the last one is its answer). */
-  turnTexts: string[];
+  /** The last bot text, held until the next event says if it was narration or an answer (`run-output.ts`). */
+  heldText?: string;
+  /**
+   * The last answer of the run that had prose (sentinel stripped, as posted): the run's final answer. A later
+   * silent or empty answer never clears it.
+   */
+  finalText?: string;
+  /** The final text to announce to the owner once the run is committed as done (set by `settleOutput`). */
+  announceText?: string;
   /** Sends and effect calls of this execution by content hash: how many identical ones ran so far (key part `n`). */
   sendCounts: Map<string, number>;
   /** A turn was sent (or a follow-up began) and has not ended. */
@@ -78,8 +86,10 @@ export interface RunExec {
   live: boolean;
   /** An earlier attempt was cut (crash, lost lease or graceful shutdown): the turn carries the cut note. */
   cutBefore: boolean;
-  /** Set when the run read untrusted input (spec "Taint flag"); the permission gate gets it. */
+  /** Set when the run read untrusted input (spec §6.10); the permission gate applies the taint asks. */
   tainted: boolean;
+  /** Owner-named and approved sites, approved MCP servers and open calls of the taint policy (`run-taint.ts`). */
+  taint: RunTaint;
   /** An ask of this run is storing its card or waiting for it (set synchronously; one ask per run at a time). */
   asking: boolean;
   /** A card the run waits on with its session open (only while background tasks run, else it parks). */
@@ -88,6 +98,10 @@ export interface RunExec {
   oneShot?: { hash: string; cardId: string };
   /** The first text of the run was recorded. */
   firstTextSeen: boolean;
+  /** Continue nudges sent so far (from the row, so a resumed run keeps its count; `run-nudge.ts`). */
+  nudges: number;
+  /** The current turn's last event was a tool result (no text after it): its end may need a nudge. */
+  lastWasToolResult: boolean;
   /** Set once the run is cut short; the first reason wins. */
   stop?: RunStop;
   /** Settles when `stop` is set (a hanging session open or turn build waits on it). */
@@ -124,7 +138,6 @@ export function newRunExec(row: WakeRow, scope: SessionScope, now: number, taint
     tasks: new Map(),
     openTools: new Set(),
     steps: new RunTracker(),
-    turnTexts: [],
     firstRows: [],
     pushed: [],
     sendCounts: new Map(),
@@ -134,8 +147,11 @@ export function newRunExec(row: WakeRow, scope: SessionScope, now: number, taint
     live: true,
     cutBefore: row.cuts > 0,
     tainted,
+    taint: newRunTaint(),
     asking: false,
     firstTextSeen: false,
+    nudges: row.nudges,
+    lastWasToolResult: false,
   };
   return exec;
 }

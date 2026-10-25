@@ -35,6 +35,7 @@ const bot: Bot = {
 };
 const spec: BotRuntimeSpec = {
   bot,
+  runKind: "owner",
   async decide(call) {
     console.log("decide", call.tool, "taskId=", call.taskId);
     return { behavior: "allow" };
@@ -55,6 +56,8 @@ session.send({
   text: "Start the helper in the background to read README.md, then answer 'started' right away.",
   hop: 0,
   context: [],
+  now: Date.now(),
+  timeZone: "UTC",
 });
 const timer = setTimeout(() => void session.stop(), 90_000);
 for await (const e of session.events) {

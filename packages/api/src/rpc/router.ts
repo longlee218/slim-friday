@@ -1,10 +1,12 @@
 import { approvalsRouter, questionsRouter } from "../routers/cards-router";
 import { chatRouter } from "../routers/chat-router";
+import { approvalRulesRouter } from "../routers/config/approval-rules-router";
 import { avatarsRouter } from "../routers/config/avatars-router";
 import { botsRouter } from "../routers/config/bots-router";
 import { groupsRouter } from "../routers/config/groups-router";
 import { mcpRouter } from "../routers/config/mcp-router";
 import { ownerRouter } from "../routers/config/owner-router";
+import { permissionsRouter } from "../routers/config/permissions-router";
 import { skillsRouter } from "../routers/config/skills-router";
 import { controlRouter } from "../routers/control-router";
 import { conversationsRouter } from "../routers/conversations-router";
@@ -21,7 +23,7 @@ const stubs = stubRouter() as unknown as { config: Record<string, Record<string,
 /** The whole API; later plans replace subtrees: `{ ...stubRouter(), conversations: conversationsRouter }`. */
 export const appRouter = authed.router({
   ...(stubs as unknown as AppRouterInput),
-  // Bots, groups, owner files, MCP and skills are real.
+  // Bots, groups, owner files, MCP, skills and owner rules are real.
   config: {
     ...stubs.config,
     bots: { ...stubs.config.bots, ...botsRouter },
@@ -30,6 +32,8 @@ export const appRouter = authed.router({
     owner: ownerRouter,
     mcp: mcpRouter,
     skills: skillsRouter,
+    approvalRules: approvalRulesRouter,
+    permissions: permissionsRouter,
   } as unknown as AppRouterInput["config"],
   conversations: conversationsRouter,
   chat: chatRouter,

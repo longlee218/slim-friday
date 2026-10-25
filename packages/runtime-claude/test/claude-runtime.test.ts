@@ -19,13 +19,19 @@ const bot: Bot = {
   subagents: [],
   workspaces: [],
 };
-const spec: BotRuntimeSpec = { bot, decide: async () => ({ behavior: "allow" }) };
+const spec: BotRuntimeSpec = {
+  bot,
+  runKind: "owner",
+  decide: async () => ({ behavior: "allow" }),
+};
 const turn = (text: string): InboundTurn => ({
   conversationId: "c1",
   from: { kind: "user" },
   text,
   hop: 0,
   context: [],
+  now: 0,
+  timeZone: "UTC",
 });
 const setup = () => {
   const fq = fakeQuery();
@@ -77,7 +83,8 @@ test("two sends reach the SDK in order, formatted", async () => {
   s.send(turn("one"));
   s.send(turn("two"));
   await tick();
-  expect(fq.sent()).toEqual([
+  // Each turn is the message, then the current-time line.
+  expect(fq.sent().map((t) => t.split("\n\n")[0])).toEqual([
     "[conversation c1] user (hop 0):\none",
     "[conversation c1] user (hop 0):\ntwo",
   ]);

@@ -4,10 +4,15 @@ import { isInside, realOrSame } from "../floor/paths";
 import { sdkEnv } from "../floor/sdk-env";
 import { workerSandbox } from "../floor/worker-sandbox";
 import { askOwner, PARKED_RESULT } from "./ask-question";
+import type { CallGuard } from "./call-guard";
 import { floorCheck } from "./floor-check";
 import { mcpGranted, pickServers, splitTools } from "./mcp-grants";
+import { postToolUseHook } from "./post-tool-use-hook";
+import { preToolUseHook } from "./pre-tool-use-hook";
+import { INTRO_TOOLS, introServers } from "./run-kind-tools";
 import { buildSkillsPlugin } from "./skills-plugin";
 import { systemPromptOf } from "./system-prompt";
+import { toolSearchEnv, withToolSearch } from "./tool-search";
 
 /** The SDK `query` signature; tests inject a fake. */
 export type QueryFn = typeof query;
@@ -53,6 +58,10 @@ export interface BuildOptionsInput {
   abort: AbortController;
   /** The bot's scratch dir (always writable, cwd when the bot has no workspace). */
   scratchDir: string;
+  /** Loop guard and tool-call cap of this session, counted in the `PreToolUse` hook. */
+  guard?: CallGuard;
+  /** Told the guard text when the guard stops the run (the session ends it with that text as the final). */
+  onGuardStop?: (text: string) => void;
 }
 
 /**
@@ -79,18 +88,24 @@ export function buildOptions(input: BuildOptionsInput): Options {
     cwd,
     allowInside: [scratchDir, ...extra.write, ...extra.read],
   };
-  const { builtIn, mcp } = splitTools(bot.tools);
-  const perSession = config.mcpServersFor?.(spec) ?? {};
+  // An intro run has its own fixed tool list (no bot tools, subagents, skills or other servers).
+  const intro = spec.runKind === "intro";
+  const { builtIn: granted, mcp } = splitTools(intro ? INTRO_TOOLS : bot.tools);
+  // Tool search needs the built-in `ToolSearch` listed (spike); an intro run keeps its fixed list as it is.
+  const search = spec.toolSearch ?? "on";
+  const builtIn = withToolSearch(granted, search, intro);
+  const perSession = introServers(intro, config.mcpServersFor?.(spec) ?? {});
   // A function is read at every session build, so an edited config reaches the next session.
   const configured =
     typeof config.mcpServers === "function" ? config.mcpServers() : (config.mcpServers ?? {});
   const mcpServers = pickServers(mcp, configured, perSession);
   // Skills come only from the bot's own list, as a plugin built in its scratch dir (no settings sources are read).
-  const skillsPlugin = bot.skills.length
-    ? buildSkillsPlugin(scratchDir, config.skillDirs ?? [], bot.skills)
-    : undefined;
+  const skillsPlugin =
+    bot.skills.length && !intro
+      ? buildSkillsPlugin(scratchDir, config.skillDirs ?? [], bot.skills)
+      : undefined;
   const agents = Object.fromEntries(
-    bot.subagents.map((s) => [
+    (intro ? [] : bot.subagents).map((s) => [
       s.name,
       {
         description: s.description,
@@ -105,7 +120,7 @@ export function buildOptions(input: BuildOptionsInput): Options {
   return {
     model: bot.model,
     ...(bot.effort && { effort: bot.effort }),
-    systemPrompt: systemPromptOf(spec),
+    systemPrompt: systemPromptOf(spec, scratchDir),
     cwd,
     additionalDirectories: [...bot.workspaces.slice(1), ...extra.write, ...extra.read],
     tools: skillsPlugin && !builtIn.includes("Skill") ? [...builtIn, "Skill"] : builtIn,
@@ -120,11 +135,14 @@ export function buildOptions(input: BuildOptionsInput): Options {
     ...(input.resume && { resume: input.resume }),
     ...(input.sessionId && { sessionId: input.sessionId }),
     ...(Object.keys(mcpServers).length && { mcpServers }),
-    env: sdkEnv(
-      { hasRealAuth: !!config.oauthToken, oauthToken: config.oauthToken },
-      config.env ?? {},
-      { worker: true, allowBackground: true, subagentDepth: 1 },
-    ),
+    env: {
+      ...sdkEnv(
+        { hasRealAuth: !!config.oauthToken, oauthToken: config.oauthToken },
+        config.env ?? {},
+        { worker: true, allowBackground: true, subagentDepth: 1 },
+      ),
+      ...toolSearchEnv(search),
+    },
     sandbox: workerSandbox({
       writePaths,
       readPaths,
@@ -134,30 +152,11 @@ export function buildOptions(input: BuildOptionsInput): Options {
       allowInside: [scratchDir, ...extra.write, ...extra.read],
     }),
     // The CLI auto-allows reads inside the cwd and extra dirs without calling `canUseTool`; a hook runs for every call,
-    // so the floor holds there too (and for Glob / Grep with no path).
+    // so the floor holds there too (and for Glob / Grep with no path); the call guard counts there too.
     hooks: {
-      PreToolUse: [
-        {
-          hooks: [
-            async (hook) => {
-              if (hook.hook_event_name !== "PreToolUse") return { continue: true };
-              const reason = floorCheck(
-                { tool: hook.tool_name, input: (hook.tool_input ?? {}) as Record<string, unknown> },
-                floor,
-              );
-              return reason
-                ? {
-                    hookSpecificOutput: {
-                      hookEventName: "PreToolUse" as const,
-                      permissionDecision: "deny" as const,
-                      permissionDecisionReason: reason,
-                    },
-                  }
-                : { continue: true };
-            },
-          ],
-        },
-      ],
+      PreToolUse: [{ hooks: [preToolUseHook(floor, input.guard, input.onGuardStop)] }],
+      // Clips an external MCP result over 12 000 chars (Friday's own tools clip when they build the result).
+      PostToolUse: [{ hooks: [postToolUseHook()] }],
       PostCompact: [
         {
           hooks: [
@@ -179,6 +178,8 @@ export function buildOptions(input: BuildOptionsInput): Options {
     async canUseTool(tool, toolInput, opts) {
       // A question for the owner comes first: it is no grant and no file access.
       if (tool === "AskUserQuestion") return askOwner(spec, toolInput);
+      if (intro && !INTRO_TOOLS.includes(tool))
+        return { behavior: "deny", message: "tool not available in this run" };
       if (!mcpGranted(tool, mcp, Object.keys(perSession)))
         return { behavior: "deny", message: "tool not granted to this bot" };
       const denied = floorCheck({ tool, input: toolInput }, floor);

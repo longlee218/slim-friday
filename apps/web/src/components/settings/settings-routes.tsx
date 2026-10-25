@@ -2,6 +2,7 @@ import { Navigate, type RouteObject, useParams } from "react-router";
 import { useDirectory } from "../../api/directory";
 import { useIsPhone } from "../../app/use-is-phone";
 import { AccountPanel } from "./account-panel";
+import { ApprovalRulesPanel } from "./approval-rules-panel";
 import { BotNewPage, BotPage } from "./bot-page";
 import { GroupNewPage, GroupPage } from "./group-page";
 import { McpDetail } from "./mcp/mcp-detail";
@@ -35,7 +36,7 @@ const McpPage = () => (useParams().name ? <McpDetail /> : <McpList />);
 /** `/settings/skills/:name?`: the skill list, or one skill. */
 const SkillsPage = () => (useParams().name ? <SkillDetail /> : <SkillList />);
 
-/** The `/settings/*` routes: bots, groups, connections, owner files and account. */
+/** The `/settings/*` routes: bots, groups, connections, approval rules, owner files and account. */
 export const settingsRoutes: RouteObject[] = [
   {
     path: "/settings",
@@ -50,6 +51,7 @@ export const settingsRoutes: RouteObject[] = [
       { path: "group/:id", element: <GroupPage /> },
       { path: "mcp/:name?", element: <McpPage /> },
       { path: "skills/:name?", element: <SkillsPage /> },
+      { path: "approvals", element: <ApprovalRulesPanel /> },
       { path: "owner/:file", element: <OwnerPage /> },
       { path: "account", element: <AccountPanel /> },
     ],

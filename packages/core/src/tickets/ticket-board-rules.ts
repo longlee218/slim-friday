@@ -1,3 +1,4 @@
+import { redactSecrets, secretsFrom } from "../safety/redact-secrets";
 import {
   TICKET_PRIORITIES,
   TICKET_STATUSES,
@@ -55,3 +56,7 @@ export const BAD_STATUS = {
 
 /** A finished ticket is never woken. */
 export const finished = (s: TicketStatus) => s === "done" || s === "closed";
+
+/** Ticket text with secrets redacted (bots write titles, descriptions and comments). */
+export const cleanText = (source: (() => string[]) | undefined, text: string): string =>
+  redactSecrets(text, secretsFrom(source));

@@ -36,6 +36,8 @@ export interface ConfigSnapshot {
   projectsDir: string;
   /** Memory provider entries of settings.yaml (plugin id + options), none by default. */
   memoryProviders: MemoryProviderEntry[];
+  /** The owner's IANA time zone from settings.yaml; unset = the machine's zone (resolved by the app). */
+  ownerTimeZone?: string;
   tools: ToolSpec[];
   /** External MCP servers by name (user file wins), env values not yet expanded. */
   mcp: Map<string, { server: McpServerSpec; file: string }>;
@@ -114,7 +116,7 @@ export function loadConfig(
     for (const id of Object.keys(value.autonomy?.bots ?? {}))
       if (!bots.has(id))
         problems.push({ file, message: `autonomy.bots names "${id}", which is not a loaded bot` });
-  const { settings, limits, projectsDir, memoryProviders } = buildSettings(
+  const { settings, limits, projectsDir, memoryProviders, ownerTimeZone } = buildSettings(
     settingsFiles.map((f) => f.value),
     bots.values(),
   );
@@ -126,6 +128,7 @@ export function loadConfig(
       limits,
       projectsDir,
       memoryProviders,
+      ...(ownerTimeZone && { ownerTimeZone }),
       tools: [...tools.values()],
       mcp: new Map(layers.flatMap((l) => [...l.mcp])),
     },

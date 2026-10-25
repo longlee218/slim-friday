@@ -125,6 +125,17 @@ export function existingAvatar(file: string): string | undefined {
   }
 }
 
+/** The `description` an existing bot file has in its header, so an overwrite that leaves it out keeps it. */
+export function existingDescription(file: string): string | undefined {
+  try {
+    const head = /^---\r?\n([\s\S]*?)\r?\n---/.exec(readFileSync(file, "utf8"))?.[1] ?? "";
+    const parsed = Bun.YAML.parse(head) as { description?: unknown } | null;
+    return typeof parsed?.description === "string" ? parsed.description : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** A workspace (of a bot or a group) must be an absolute, existing dir outside the agent home. */
 export function checkWorkspace(ctx: DesignContext, ws: string): void {
   if (!isAbsolute(ws)) throw new Refused(`workspace must be an absolute path: ${ws}`);

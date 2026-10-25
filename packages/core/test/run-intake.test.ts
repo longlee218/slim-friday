@@ -35,6 +35,7 @@ function storedRun(p: Partial<WakeRow> & Pick<WakeRow, "id" | "scopeKey" | "stat
     cuts: 0,
     transientRetries: 0,
     setupFailures: 0,
+    nudges: 0,
     ...p,
   };
 }

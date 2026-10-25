@@ -17,6 +17,8 @@ import {
   type MemoryRecall,
   type MessageSearchDeps,
   memoryServer,
+  SCRATCHPAD_MCP_SERVER,
+  scratchpadServer,
   TICKETS_MCP_SERVER,
   type ToolSessionContext,
   ticketsServer,
@@ -98,7 +100,7 @@ export interface SessionToolsDeps {
   recall: MemoryRecall;
   /** Search over past messages (`MessageSearch`); without it the tool is not offered. */
   messages?: MessageSearchDeps;
-  store: Pick<Store, "conversations" | "groups" | "bots" | "messages" | "effects">;
+  store: Pick<Store, "conversations" | "groups" | "bots" | "messages" | "effects" | "scratchpad">;
   /** The agent home (the trash lives under it). */
   home: string;
   /** Where `CreateProject` makes repos (read per session, so a settings change applies to new sessions). */
@@ -201,7 +203,7 @@ const wantsServer = (tools: string[], server: string) =>
   tools.some((t) => t === `mcp__${server}` || t.startsWith(`mcp__${server}__`));
 
 /**
- * The in-process MCP servers of one session: `memory` and `chat` for every bot, `effects` and `design` only for a bot
+ * The in-process MCP servers of one session: `memory`, `chat` and `scratchpad` for every bot, `effects` and `design` only for a bot
  * that names them.
  * Built per session so the tools act for that bot only.
  */
@@ -220,7 +222,16 @@ export function sessionTools(deps: SessionToolsDeps) {
         deps.messages,
       ),
     };
+    // The scratchpad list is bound to the session's scope key (the same key as `sessions`), so a direct and a group
+    // session of one bot never see each other's items.
+    servers[SCRATCHPAD_MCP_SERVER] = scratchpadServer({
+      botId: spec.bot.id,
+      scopeKey: spec.sessionKey ?? (spec.groupId ? `${spec.bot.id}@${spec.groupId}` : spec.bot.id),
+      store: deps.store,
+      now: Date.now,
+    });
     const { workspaces } = spec.bot;
+    const design = deps.design?.(spec, run);
     // Every bot may send a file from its workspaces or its session's scratch dir (the runtime's, see `main.ts`).
     servers[CHAT_MCP_SERVER] = chatServer({
       botId: spec.bot.id,
@@ -229,7 +240,18 @@ export function sessionTools(deps: SessionToolsDeps) {
       agentHome: deps.home,
       isSensitive: sensitiveCheck(workspaces, deps.isSensitive),
       conversation: () => spec.currentConversation?.(),
+      runKind: spec.runKind,
+      // The hub builds it per run (budget counted per wake in the store).
+      ...(spec.postUpdate && { postUpdate: spec.postUpdate }),
       postFile: deps.postFile,
+      // The bot's own file in the owner's config dir and the app's bot parser (`UpdateProfile`).
+      ...(design && {
+        profile: {
+          configDir: design.configDir,
+          readBotFile: design.readBotFile,
+          checkBot: design.checkBot,
+        },
+      }),
       ...(deps.messenger &&
         (deps.groupIdsOf?.(spec.bot.id).length ?? 0) > 0 && {
           messenger: sessionMessenger(deps.messenger, spec.sessionKey ?? spec.bot.id),
@@ -274,13 +296,9 @@ export function sessionTools(deps: SessionToolsDeps) {
         spec.bot.tools,
       );
     // The design tools are the Friday bot\'s alone, whatever another bot file names.
-    if (
-      deps.design &&
-      spec.bot.id === FRIDAY_BOT_ID &&
-      wantsServer(spec.bot.tools, DESIGN_MCP_SERVER)
-    )
+    if (design && spec.bot.id === FRIDAY_BOT_ID && wantsServer(spec.bot.tools, DESIGN_MCP_SERVER))
       servers[DESIGN_MCP_SERVER] = designServer({
-        ...deps.design(spec, run),
+        ...design,
         memory: deps.memory,
         insight: deps.insight ?? NO_INSIGHT,
         messages: deps.store.messages,

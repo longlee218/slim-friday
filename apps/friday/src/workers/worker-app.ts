@@ -3,6 +3,7 @@ import { type AgentRuntime, type FileStore, InProcessHints, type Log } from "@fr
 import { R2FileStore } from "@friday/store-r2";
 import { openEngineStore } from "@friday/store-sqlite";
 import type { RuntimeParts } from "../app-deps";
+import { appAutoReviewer } from "../auto-reviewer";
 import { claudeRuntimeFactory } from "../claude-runtime-factory";
 import { composeEngine } from "../compose-engine";
 import type { AgentConfig } from "../config/agent-config";
@@ -63,6 +64,7 @@ export function startWorker(d: WorkerAppDeps) {
         agentHome,
         log,
         env: readProcessEnv(),
+        autoReviewer: appAutoReviewer(config),
         // A ticket a bot saved here reaches the web through main.
         onTicketChange: (t) => d.send({ t: "ticket", ticketId: t.id }),
         hubRuns: () => ({

@@ -11,6 +11,7 @@ test("direct message opens one session, hop 0, empty context; the bot's text is 
   expect(s.sent).toHaveLength(1);
   expect(s.sent[0]).toMatchObject({ conversationId: "dc", hop: 0, context: [], text: "hello" });
   s.emit({ type: "text", text: "hi there" });
+  s.emit({ type: "turn_end", costUsd: 0 });
   await flush();
   expect(surface.posts.at(-1)).toMatchObject({
     conversationId: "dc",
@@ -99,6 +100,7 @@ test("status lists running tasks; text after task_done goes to the conversation 
   await flush();
   expect(await editorTasks()).toEqual([]);
   s.emit({ type: "text", text: "the research result" });
+  s.emit({ type: "turn_end", costUsd: 0 });
   await flush();
   expect(surface.posts.at(-1)?.conversationId).toBe("gc2");
 });
@@ -184,6 +186,7 @@ test("I1: a message to a busy session waits for the end of its turn; the answer 
   expect(runtime.turns()).toHaveLength(2);
   expect(next.sent[0]).toMatchObject({ conversationId: "gc" });
   next.emit({ type: "text", text: "group answer" });
+  next.emit({ type: "turn_end", costUsd: 0 });
   await flush();
   expect(surface.posts.find((p) => p.message.text === "group answer")?.conversationId).toBe("gc");
 });

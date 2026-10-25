@@ -64,8 +64,9 @@ export async function greetNew(
 }
 
 /**
- * The conversation sync of the app: `run` syncs and greets once (the start awaits it and fails with it); `sync`
- * queues a run after the previous one (config reloads) and logs a failure instead of throwing.
+ * The conversation sync of the app: `run` syncs and greets once (the start awaits it and fails with it) and returns the
+ * conversations it created; `sync` queues a run after the previous one (config reloads), logs a failure instead of
+ * throwing, and resolves with the conversations that run created (none after a failure).
  */
 export function conversationSync(d: {
   engine: EngineStore;
@@ -75,16 +76,21 @@ export function conversationSync(d: {
   bots: () => Promise<Bot[]>;
   groups: () => Promise<Group[]>;
 }) {
-  const run = async (): Promise<void> => {
+  const run = async (): Promise<Conversation[]> => {
     const bots = await d.bots();
     const groups = await d.groups();
     const created = await syncConversations(d.engine, bots, groups);
     await greetNew(d, created, bots, groups);
+    return created;
   };
-  let queue: Promise<void> = Promise.resolve();
-  const sync = (): Promise<void> =>
-    (queue = queue
-      .then(run)
-      .catch((err) => d.log.error({ error: why(err) }, "conversations.sync")));
+  let queue: Promise<unknown> = Promise.resolve();
+  const sync = (): Promise<Conversation[]> => {
+    const next = queue.then(run).catch((err) => {
+      d.log.error({ error: why(err) }, "conversations.sync");
+      return [] as Conversation[];
+    });
+    queue = next;
+    return next;
+  };
   return { run, sync };
 }

@@ -90,6 +90,8 @@ export async function webHarness(
   return {
     home,
     client,
+    hub: app.hub,
+    store: app.store,
     runtime,
     surface,
     files: fileStore,

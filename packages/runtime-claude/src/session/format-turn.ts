@@ -8,6 +8,7 @@ import {
   type InboundTurn,
   type StoredMessage,
 } from "@friday/core";
+import { currentTimeText } from "./current-time";
 import type { UserContent } from "./input-queue";
 
 /** Image types the model reads inline. */
@@ -37,35 +38,43 @@ function oneLine(s: string): string {
   return [...s.replace(/\s+/g, " ").trim()].slice(0, QUOTE_MAX).join("");
 }
 
+/** First line of a turn whose text comes from Friday, not from its sender (spec §6.4, R§7). */
+export const AUTOMATED_LABEL = "[Automated message from Friday, not from the owner]";
+
 /**
- * The text a bot reads for one inbound turn: a header naming the conversation, the sender and the hop,
- * then the message. A group turn with context starts with the recent messages; the last context
- * message is left out when it is the triggering message itself. Ticket blocks and recalled notes come
- * first (group context and memory are in the system prompt).
+ * The text a bot reads for one inbound turn (spec §6.4): the automated label when Friday wrote it, the interrupted
+ * note, a header naming the conversation, the sender and the hop, the quote line and the message (a bot's message
+ * wrapped as untrusted peer content); then the recent group messages (the last one left out when it is the
+ * triggering message itself), ticket blocks and recalled notes; then the reply guidance and the current time in
+ * the owner's zone. Group context and memory are in the system prompt.
  */
 export function formatTurn(turn: InboundTurn, names: Record<string, string>): string {
   const last = turn.context.at(-1);
   const recent = last && last.text === turn.text ? turn.context.slice(0, -1) : turn.context;
-  const block = recent.length
-    ? `Recent messages:\n${recent.map((m) => contextLine(m, names)).join("\n")}\n\n`
-    : "";
-  const tickets = turn.tickets ? `${turn.tickets}\n\n` : "";
-  const recalled = turn.recalled ? `${turn.recalled}\n\n` : "";
-  // A bot's message is wrapped as untrusted peer content with what is expected of the receiver.
   const body =
     turn.from.kind === "bot"
       ? buildWakePrompt({
           from: { id: turn.from.botId, name: nameOf(turn.from, names) },
           text: turn.text,
-          intent: turn.intent ?? "request",
-          ...(turn.handoff && { handoff: true }),
         })
       : turn.text;
   const quote = turn.quote
     ? `> Replying to ${nameOf(turn.quote.author, names)}: ${oneLine(turn.quote.text)}\n`
     : "";
-  const note = turn.interrupted ? `${INTERRUPTED_NOTE}\n\n` : "";
-  return `${tickets}${recalled}${block}${note}[conversation ${turn.conversationId}] ${nameOf(turn.from, names)} (hop ${turn.hop}):\n${quote}${body}`;
+  const message = `[conversation ${turn.conversationId}] ${nameOf(turn.from, names)} (hop ${turn.hop}):\n${quote}${body}`;
+  const blocks = [
+    turn.automated ? AUTOMATED_LABEL : undefined,
+    turn.interrupted ? INTERRUPTED_NOTE : undefined,
+    message,
+    recent.length
+      ? `Recent messages:\n${recent.map((m) => contextLine(m, names)).join("\n")}`
+      : undefined,
+    turn.tickets,
+    turn.recalled,
+    turn.guidance,
+    currentTimeText(turn.now, turn.timeZone),
+  ];
+  return blocks.filter(Boolean).join("\n\n");
 }
 
 /**

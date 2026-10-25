@@ -11,6 +11,7 @@ test("every post carries the stored id", async () => {
   await flush();
   runtime.nth(0).emit({ type: "text", text: "one" });
   runtime.nth(0).emit({ type: "text", text: "two" });
+  runtime.nth(0).emit({ type: "turn_end", costUsd: 0 });
   await flush();
   const posts = surface.posts.map((p) => p.message);
   expect(posts.map((m) => m.text)).toEqual(["one", "two"]);
@@ -87,6 +88,7 @@ test("a bot text whose post fails is still stored", async () => {
     throw new Error("down");
   };
   runtime.nth(0).emit({ type: "text", text: "reply" });
+  runtime.nth(0).emit({ type: "turn_end", costUsd: 0 });
   await flush();
   expect(store.msgs.some((m) => m.text === "reply" && m.author.kind === "bot")).toBe(true);
 });

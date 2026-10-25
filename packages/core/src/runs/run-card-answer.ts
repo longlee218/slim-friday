@@ -6,10 +6,15 @@ import type { ApprovalAnswer } from "../ports/surface";
 /** Result of answering a card from a surface. */
 export type AnswerCardResult = "ok" | "conflict" | "not_found" | "bad_answer";
 
-/** Whether `answer` fits the card: one of the three approval answers, or choices among the options and/or text. */
+/** Whether `answer` fits the card: one of the approval answers ("always" only when offered), or choices among the options and/or text. */
 export function validCardAnswer(card: CardRow, answer: unknown): boolean {
+  // "always" only on a card that offers it.
   if (card.kind === "approval")
-    return answer === "once" || answer === "always" || answer === "deny";
+    return (
+      answer === "once" ||
+      answer === "deny" ||
+      (answer === "always" && !!card.approval?.offerAlways)
+    );
   const q = card.question;
   const a = answer as QuestionAnswer | null;
   if (!q || !a || typeof a !== "object" || !Array.isArray(a.choices)) return false;
@@ -24,7 +29,7 @@ export function validCardAnswer(card: CardRow, answer: unknown): boolean {
 
 /**
  * The owner answers a card (main process). The guarded `cards.answer` (open -> answered, once) is the commit
- * point; then: "always" on a card that offers it adds the grant, the answer is audited, the surface closes the
+ * point; then: "always" on a card that offers it adds the owner rule, the answer is audited, the surface closes the
  * card, and the run is requeued (parked) or told in place (still running with background tasks).
  * Crash order: a crash after the answer and before the requeue leaves the run `waiting_input` with an answered
  * card; the main sweep (`remindWaitingCards`) requeues it.
@@ -42,12 +47,15 @@ export async function answerCard(
   const now = clock.now();
   if (!(await store.cards.answer(cardId, answer, now))) return "conflict";
   const a = card.approval;
+  // "Always" stores an `always_allow` rule: the card's site (a fetch) or the tool with its scope.
   if (a && answer === "always" && a.offerAlways)
     await store.grants.add({
-      id: `grant-${card.botId}-${a.tool}-${now}`,
+      id: `grant-${card.botId}-${a.always?.value ?? a.tool}-${now}`,
       botId: card.botId,
-      tool: a.tool,
-      scope: a.scope,
+      effect: "always_allow",
+      match: a.always?.match ?? "tool",
+      tool: a.always?.value ?? a.tool,
+      scope: a.always ? {} : a.scope,
       createdAt: now,
     });
   if (a)

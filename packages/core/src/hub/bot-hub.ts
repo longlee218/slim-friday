@@ -19,6 +19,7 @@ import { sendFromSession } from "./bot-messaging";
 import { type HubContext, tell } from "./hub-context";
 import { type BotHubDeps, type BotStatus, errText } from "./hub-types";
 import { sweepQuietScopes } from "./idle-close";
+import { queueIntroRun } from "./intro-run";
 import { wakeForTicket } from "./ticket-wakes";
 import { admit, wake } from "./wake-admission";
 import { WakeLog } from "./wake-log";
@@ -47,6 +48,7 @@ export class BotHub implements BotMessenger {
       clock: deps.clock,
       wake: (t, botId, actor) => this.wakeForTicket(t, botId, false, actor),
       ...(deps.onTicketChange && { onChange: deps.onTicketChange }),
+      ...(deps.secretValues && { secretValues: deps.secretValues }),
     });
     const limits = deps.limits ?? CORE_DEFAULTS;
     const local = deps.hints ? undefined : new InProcessHints();
@@ -185,6 +187,11 @@ export class BotHub implements BotMessenger {
     actor: Author = { kind: "system" },
   ): Promise<void> {
     return wakeForTicket(this.ctx, ticket, botId, rewake, actor);
+  }
+
+  /** Queue the intro run of a new bot (one per bot; see `queueIntroRun`). */
+  queueIntroRun(botId: BotId): Promise<void> {
+    return queueIntroRun(this.ctx, botId);
   }
 
   /** A bot's `SendToBot` / `HandOff` from session `sessionKey`: deliver a message to a member of its group. */

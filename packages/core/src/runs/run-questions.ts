@@ -3,6 +3,7 @@ import type { QuestionAnswer, QuestionCard } from "../domain/question";
 import type { HubContext } from "../hub/hub-context";
 import { WAITING_TEXT } from "../permission/permission-gate";
 import type { AskResult } from "../ports/agent-runtime";
+import { redactValue, secretsFrom } from "../safety/redact-secrets";
 import { questionContinuation } from "./approval-continuation";
 import { waitOrPark } from "./run-cards";
 import type { RunExec } from "./run-exec";
@@ -31,6 +32,7 @@ export async function askInRun(
   if (exec.asking) return { behavior: "refused", reason: WAITING_TEXT };
   exec.asking = true;
   try {
+    const secrets = secretsFrom(ctx.deps.secretValues);
     const askId = `card-${crypto.randomUUID()}`;
     const cards: CardRow[] = qs.map((q, i) => ({
       id: `${askId}.${i}`,
@@ -39,7 +41,7 @@ export async function askInRun(
       botId: bot.id,
       conversationId: exec.current.conversationId,
       scopeKey: row.scopeKey,
-      question: { ...q, botId: bot.id, botName: bot.name },
+      question: { ...redactValue(q, secrets), botId: bot.id, botName: bot.name },
       status: "open",
       createdAt: clock.now(),
     }));

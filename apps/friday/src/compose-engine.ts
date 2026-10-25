@@ -6,10 +6,14 @@ import { openEngineStore } from "@friday/store-sqlite";
 import { WriteThroughMemory } from "@friday/tools";
 import type { AppDeps } from "./app-deps";
 import { composeStore } from "./compose-store";
+import { resolveOwnerTimeZone } from "./config/owner-time-zone";
+import { readProcessEnv } from "./config/process-env";
 import { idleFlush } from "./idle-flush";
 import { wireMemory } from "./memory-wiring";
 import { readProjectRules } from "./project-rules";
+import { registrableDomain } from "./registrable-domain";
 import { scopeBotFor } from "./scope-bot";
+import { deniedEnvValues } from "./secret-values";
 import { systemClock } from "./system-clock";
 import { availableMemoryMb } from "./workers/free-memory";
 
@@ -25,6 +29,7 @@ export type EngineDeps = Pick<
   | "memory"
   | "memoryIndex"
   | "flushNotes"
+  | "autoReviewer"
   | "env"
   | "fetch"
   | "log"
@@ -84,12 +89,19 @@ export function composeEngine(deps: EngineDeps, opened: Array<() => unknown>) {
         })
       : deps.runtime;
 
+  // The env values the bots are denied are hidden from everything they post, show or write.
+  const secretValues = () => deniedEnvValues({ ...readProcessEnv(), ...deps.env });
   const gate = new PermissionGate({
     store,
     surface,
     clock,
     catalog: config.catalog,
     settings: config.settings,
+    secretValues,
+    // Sites of the taint policy by the Public Suffix List (spec §6.10).
+    registrableDomain,
+    // Asked only while `permissions.autoReview` is on: `settings` is read at every call, so a toggle applies at once.
+    ...(deps.autoReviewer && { autoReviewer: deps.autoReviewer }),
   });
   const botHub = new BotHub({
     runtime,
@@ -109,6 +121,9 @@ export function composeEngine(deps: EngineDeps, opened: Array<() => unknown>) {
       }),
     }),
     limits: config.limits(),
+    secretValues,
+    // Read at every turn, so a settings.yaml edit reaches the next run.
+    timeZone: () => resolveOwnerTimeZone(config.ownerTimeZone()),
     ...(deps.onTicketChange && { onTicketChange: deps.onTicketChange }),
     scopeBot: scopeBotFor(agentHome, config),
     projectRules: readProjectRules,

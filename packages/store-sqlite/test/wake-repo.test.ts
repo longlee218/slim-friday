@@ -21,6 +21,7 @@ const wake = (id: string, over: Partial<WakeRow> = {}): WakeRow => ({
   cuts: 0,
   transientRetries: 0,
   setupFailures: 0,
+  nudges: 0,
   ...over,
 });
 
@@ -123,4 +124,16 @@ test("list filters by status and since, newest first, honours limit", async () =
   expect(await ids({ since: 20, limit: 10 })).toEqual(["w4", "w3", "w2"]);
   expect(await ids({ since: 0, limit: 10, status: "done" })).toEqual(["w4", "w2"]);
   expect(await ids({ since: 0, limit: 2 })).toEqual(["w4", "w3"]);
+});
+
+test("intro and nudges round-trip; nudges defaults to 0", async () => {
+  const s = openEngineStore(":memory:");
+  await s.wakes.insert({ ...wake("w-intro"), intro: true, nudges: 2 });
+  await s.wakes.insert(wake("w-plain"));
+  expect(await s.wakes.get("w-intro")).toMatchObject({ intro: true, nudges: 2 });
+  const plain = await s.wakes.get("w-plain");
+  expect(plain?.nudges).toBe(0);
+  expect(plain?.intro).toBeUndefined();
+  await s.wakes.update("w-plain", { nudges: 1 });
+  expect((await s.wakes.get("w-plain"))?.nudges).toBe(1);
 });

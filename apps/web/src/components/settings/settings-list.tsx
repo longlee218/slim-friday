@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { KeyRound, Plug, Plus, Puzzle, Sparkles, UserRound } from "lucide-react";
+import { KeyRound, Plug, Plus, Puzzle, ShieldCheck, Sparkles, UserRound } from "lucide-react";
 import type { ReactNode } from "react";
 import { useLocation } from "react-router";
 import { orpc } from "../../api/client";
@@ -67,6 +67,12 @@ export function SettingsList() {
         </Ico>
         <span className="name">Skills & plugins</span>
         <span className="count">{skills?.length}</span>
+      </SidebarRow>
+      <SidebarRow href="/settings/approvals" on={on("/settings/approvals")}>
+        <Ico>
+          <ShieldCheck size={16} strokeWidth={1.75} />
+        </Ico>
+        <span className="name">Approval rules</span>
       </SidebarRow>
       <div className="sb-sec">You</div>
       <SidebarRow href="/settings/owner/user" on={on("/settings/owner/user")}>

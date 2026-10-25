@@ -1,3 +1,4 @@
+import { approvalRules } from "./approval-rules";
 import { approvals, questions } from "./cards";
 import { chat } from "./chat";
 import { avatars, bots, groups } from "./config-bots";
@@ -7,6 +8,7 @@ import { conversations } from "./conversations";
 import { events } from "./events";
 import { memory } from "./memory";
 import { ops } from "./ops";
+import { permissions } from "./permissions";
 import { tickets } from "./tickets";
 
 /** The shared oRPC contract: every router of the web app API. */
@@ -18,7 +20,7 @@ export const contract = {
   control,
   tickets,
   ops,
-  config: { bots, groups, avatars, skills, mcp, owner },
+  config: { bots, groups, avatars, skills, mcp, owner, approvalRules, permissions },
   memory,
   events,
 };

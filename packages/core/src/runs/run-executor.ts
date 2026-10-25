@@ -10,10 +10,12 @@ import { abortRun, newRunExec, type RunExec, untilStop } from "./run-exec";
 import { countCut, handleRunError } from "./run-failure";
 import { finishRun } from "./run-finish";
 import type { RunLease } from "./run-lease";
+import { announceFinished, settleOutput } from "./run-output";
 import { type PumpEnd, pumpRun } from "./run-pump";
 import { openRunSession } from "./run-session";
 import { persistEffort, runSpec } from "./run-spec";
 import { claimSteering, withSteering } from "./run-steering";
+import { addOwnerTexts, seedTaint, taintedAtClaim } from "./run-taint";
 import { buildRunTurn } from "./run-turn";
 import { StreamWatchdog } from "./run-watchdog";
 
@@ -39,9 +41,7 @@ export async function executeRun(ctx: HubContext, row: WakeRow, lease: RunLease)
   const requeued = await requeuedByShutdown(ctx, claimed);
   // A run reclaimed after a cut: rows its earlier attempt answered go, the others are offered again.
   if (claimed.claimedFrom === "running" || requeued) await settleCutSteering(ctx, claimed);
-  // Spec "Taint flag": not started by the owner, resumes a cut or parked run, or a second attempt.
-  const tainted =
-    claimed.sender.kind !== "user" || claimed.cuts > 0 || claimed.cardId !== undefined || fence > 1;
+  const tainted = taintedAtClaim(claimed, fence);
   const patch = {
     attempts: Math.max(claimed.attempts, fence),
     ...(tainted && { tainted }),
@@ -103,6 +103,8 @@ async function runSession(
       return { kind: "stopped" };
     }
     if (resume?.oneShot) exec.oneShot = resume.oneShot;
+    // Owner-named sites, and sites and MCP servers approved on this run's earlier taint cards (spec §6.10).
+    await seedTaint(ctx, exec);
     const state = await untilStop(exec, ctx.deps.store.scopes.get(exec.key));
     if (exec.stop) return { kind: "stopped" };
     const spec = runSpec(ctx, exec, state?.effort);
@@ -133,6 +135,11 @@ async function runSession(
     const rows = await untilStop(exec, claimSteering(ctx, exec.row, ctx.deps.clock.now()));
     if (rows === undefined || exec.stop) return { kind: "stopped" };
     exec.firstRows = rows.map((r) => r.id);
+    addOwnerTexts(
+      ctx,
+      exec,
+      rows.map((r) => r.text),
+    );
     exec.session.send(withSteering(turn, rows));
     return await pumpRun(ctx, exec, dog);
   } catch (err) {
@@ -159,9 +166,11 @@ async function settle(ctx: HubContext, exec: RunExec, end: PumpEnd): Promise<voi
     const err = Object.assign(new Error("model stream idle timeout"), { retryable: true });
     return handleRunError(ctx, row, fence, err, bot);
   }
-  const resultText = exec.turnTexts.at(-1);
+  // The final answer: posted already, or silence, or "done." (`run-output.ts`).
+  const resultText = await settleOutput(ctx, exec);
   const done = { status: "done" as const, ...(resultText !== undefined && { resultText }) };
   if (!(await finishRun(ctx, row, fence, done))) return;
+  announceFinished(ctx, exec);
   await checkUnfinished(ctx, exec);
 }
 

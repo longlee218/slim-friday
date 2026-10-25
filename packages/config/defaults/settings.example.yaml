@@ -14,6 +14,14 @@ autonomy:
   # tools:
   #   GitPush: ask_always
 
+## --- Auto Review: a model may clear an approval ask -------------------------------
+## On: before a card for a call your level would ask about, a quick Haiku check compares the call with your own
+## words that started the work; a clear fit runs without a card, anything else shows the card with its reason.
+## It never denies. Bot config changes, calls that cannot be undone, untrusted-content asks and your "always ask"
+## rules always show a card. Also on the web: Settings, Approval rules.
+# permissions:
+#   autoReview: false
+
 ## --- Memory providers (optional plugins) ----------------------------------------
 ## Without a provider, memory is MEMORY.md + the journal with a local word search (no service needed).
 ## Honcho adds search by meaning (other words, other languages). Setup: docs/honcho-setup.md
@@ -27,6 +35,10 @@ autonomy:
 
 ## --- Where CreateProject makes new repos (absolute or ~/) ------------------------
 # projectsDir: ~/friday-projects
+
+## --- The owner's time zone (IANA), stated to every bot turn; default: this machine's zone ---
+# owner:
+#   timeZone: Europe/Paris
 
 ## --- Limits ------------------------------------------------------------------------
 ## A limit line works only under `limits:` (keep its two-space indent). A bad file is refused whole and logged as
@@ -78,5 +90,9 @@ limits:
   # cardReminderMs: 14400000
   ## How often stale runs are repaired (ms).
   # reconcileMs: 30000
+  ## Tool calls a bot may make in one turn; the next call is denied and the run stops with a note (0 = no cap).
+  # maxToolCallsPerTurn: 0
+  ## Tool search: `on` finds tools through ToolSearch when there are many, `off` loads every tool, `auto:<1-100>` defers tools past that % of the context.
+  # toolSearch: on
   ## No new run starts below this much free memory (MB).
   # minFreeMemoryMb: 512

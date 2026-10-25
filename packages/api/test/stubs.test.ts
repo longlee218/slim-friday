@@ -24,6 +24,7 @@ const implemented = [
   "config.bots.save",
   "config.bots.delete",
   "config.bots.setAvatar",
+  "config.bots.scratchpad",
   "config.avatars.",
   "config.groups.list",
   "config.groups.get",
@@ -33,6 +34,8 @@ const implemented = [
   "config.skills.",
   "config.mcp.",
   "config.owner.",
+  "config.approvalRules.",
+  "config.permissions.",
   "memory.",
 ];
 const expected = listProcedurePaths(contract)

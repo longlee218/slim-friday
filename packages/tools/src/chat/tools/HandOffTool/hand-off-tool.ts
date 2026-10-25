@@ -13,14 +13,20 @@ const SHAPE = {
 
 /** `HandOff` for one session: a request the receiver owns, with no answer back to the sender. */
 export function createHandOffTool(ctx: ChatContext) {
-  return tool(HAND_OFF_TOOL, HAND_OFF_DESCRIPTION, SHAPE, async ({ to, task }) => {
-    const r = await ctx.messenger?.send(ctx.botId, {
-      to,
-      text: task,
-      intent: "request",
-      handoff: true,
-    });
-    if (!r) return textResult("Refused: you are in no group.", true);
-    return r.ok ? textResult(r.note) : textResult(r.error, true);
-  });
+  return tool(
+    HAND_OFF_TOOL,
+    HAND_OFF_DESCRIPTION,
+    SHAPE,
+    async ({ to, task }) => {
+      const r = await ctx.messenger?.send(ctx.botId, {
+        to,
+        text: task,
+        intent: "request",
+        handoff: true,
+      });
+      if (!r) return textResult("Refused: you are in no group.", true);
+      return r.ok ? textResult(r.note) : textResult(r.error, true);
+    },
+    { alwaysLoad: true },
+  );
 }

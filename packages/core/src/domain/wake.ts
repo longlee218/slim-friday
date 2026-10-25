@@ -42,6 +42,8 @@ export interface WakeRow {
   ticketId?: string;
   /** The second wake for a ticket left open after a turn. */
   rewake?: boolean;
+  /** The first run of a new bot with the owner (the bot introduces itself). */
+  intro?: boolean;
   /** Created by `HandOff`: the receiver owns the step and does not answer the sender. */
   handoff?: boolean;
   status: WakeStatus;
@@ -83,6 +85,8 @@ export interface WakeRow {
   transientRetries: number;
   /** Failures before the session started. */
   setupFailures: number;
+  /** Nudges sent to the run when it ended without a final answer. */
+  nudges: number;
   /** The message the owner replied to: who wrote it and what it said; sent with the run's turn. */
   quote?: { author: Author; text: string };
   /** Status the row had before the claim that returned it (`claimNext` sets it; never stored). */

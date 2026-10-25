@@ -12,7 +12,7 @@ import { TicketDtoSchema } from "./dto/tickets";
 import { ConversationIdSchema } from "./ids";
 
 /**
- * Everything the server pushes to the web app (13 members). The numeric event id travels
+ * Everything the server pushes to the web app (14 members). The numeric event id travels
  * as the SSE id, not inside the event.
  */
 export const FridayEventSchema = z.discriminatedUnion("type", [
@@ -52,6 +52,13 @@ export const FridayEventSchema = z.discriminatedUnion("type", [
     type: z.literal("unread"),
     conversationId: ConversationIdSchema,
     unread: z.number().int().nonnegative(),
+  }),
+  // a run posted its final answer to the owner (live only; the web toasts it when that chat is not open)
+  z.object({
+    type: z.literal("run.finished"),
+    conversationId: ConversationIdSchema,
+    botId: z.string(),
+    preview: z.string().max(400),
   }),
   // reserved: the v1 engine sends none, the web refetches control.status
   z.object({ type: z.literal("status"), bots: z.array(BotStatusDtoSchema) }),

@@ -6,6 +6,7 @@ import { clampBotMessage, nextHop } from "../routing/bot-messages";
 import { sendKeyFor } from "../runs/outcome-outbox";
 import { createRun } from "../runs/run-create";
 import type { RunExec } from "../runs/run-exec";
+import { redactSecrets, secretsFrom } from "../safety/redact-secrets";
 import type { HubContext } from "./hub-context";
 import { errText } from "./hub-types";
 import { postStored } from "./post-stored";
@@ -36,7 +37,8 @@ async function deliver(
 ): Promise<SendResult> {
   const { store, clock } = ctx.deps;
   const fail = (error: string): SendResult => ({ ok: false, error });
-  const text = clampBotMessage(req.text);
+  // Redacted before anything is stored: the target's wake, its dedupe key and the relay line.
+  const text = redactSecrets(clampBotMessage(req.text), secretsFrom(ctx.deps.secretValues));
   if (!text) return fail("The message is empty.");
   const conv = await store.conversations.get(cur.conversationId);
   if (conv?.kind !== "group") return fail("Messages between bots work in group chats only.");

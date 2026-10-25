@@ -30,6 +30,7 @@ const run = (over: Partial<WakeRow> = {}): WakeRow => ({
   cuts: 0,
   transientRetries: 0,
   setupFailures: 0,
+  nudges: 0,
   ...over,
 });
 
@@ -223,7 +224,8 @@ test("a row pushed after the last tool result is unanswered: continuation run", 
   s.emit({ type: "tool_result", toolUseId: "t2", ok: true });
   await flush();
   expect(s.steered).toHaveLength(1);
-  // The push followed the last tool result: nothing shows the model read it.
+  // The push followed the last tool result: nothing shows the model read it (a text answer is no proof).
+  s.emit({ type: "text", text: "done" });
   s.emit({ type: "turn_end", costUsd: 0 });
   await flush();
   expect(h.runtime.last().sent[0]?.text).toBe(`${CONTINUATION_PROMPT}\n\n${HEADER}\nlate one`);
@@ -243,6 +245,7 @@ test("a steer push that throws leaves the row unanswered", async () => {
   s.emit({ type: "tool_result", toolUseId: "t1", ok: true });
   s.emit({ type: "tool_call", toolUseId: "t2", tool: "Bash", input: {} });
   s.emit({ type: "tool_result", toolUseId: "t2", ok: true });
+  s.emit({ type: "text", text: "done" });
   s.emit({ type: "turn_end", costUsd: 0 });
   await flush();
   expect(h.runtime.last().sent[0]?.text).toBe(`${CONTINUATION_PROMPT}\n\n${HEADER}\nmore`);

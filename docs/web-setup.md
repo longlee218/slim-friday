@@ -204,6 +204,36 @@ Main process (web, intake, sweeps, reconciler, config watch) plus `workers` work
 12. No SIGKILL leftovers: after `kill -9 <worker pid>` no SDK child process of that worker keeps running (main kills the worker's process group); check `ps`; the same after `kill -9 <main pid>` once the workers have exited (about 15 s).
 13. Effect replay: after a cut, the resumed model may send the exact same tool input again; the effect tool then returns the stored result or the "may already have run" warning. Check the warning is shown and nothing runs twice.
 
+## Check owner and bot communication (not verified live)
+Settings in `<AGENT_HOME>/config/settings.yaml` (all optional; the example file lists them): `owner.timeZone` (IANA zone; default the machine's zone), `limits.toolSearch` (`on` default, `off`, `auto:<1-100>`), `limits.maxToolCallsPerTurn` (default 0 = no cap), `permissions.autoReview` (default `false`; also a switch in Settings, Approval rules).
+1. Progress notes: give a bot a task that takes over a minute with several steps; at most 3 short notes (500 chars) appear in the chat while it works, none in the first 60 s, then one final answer.
+2. `NO_RESPONSE` on a ticket: assign a ticket to a bot; it works and posts nothing in the chat (comments go on the ticket); no unread badge and no finished toast. A message you send is never answered with silence (at worst `done.`).
+3. Nudge: make a bot stop right after a tool result (for example a task that ends on a tool call); the run continues up to 3 times, then shows "The tools finished, but the bot did not write a final answer. Rephrase the request and try again."
+4. Loop guard: make a bot call the same tool with the same input 6 times in a row; the run stops with the loop text as its answer. Set `limits.maxToolCallsPerTurn: 5` and check that the 6th call of a turn stops it.
+5. Scratchpad across runs: ask a bot to note a to-do on its scratchpad; start a new run (or a new session) in the same conversation and ask what is open; the item is listed, also under the bot's Inspector. A group session has its own list.
+6. Intro run: create a bot in Settings; its chat gets one short intro turn, the bot saves its title and description (`UpdateProfile`), and the other bots list it in their teammate directory.
+7. Taint card: ask a bot to read a page you do not name (a bot that fetches a link found inside another page); `WebFetch` to a site you did not name shows a card ending `(tainted: ...)`; a site you named in the message does not ask. A tainted background run parks on the card.
+8. Redaction: ask a bot to print an env secret or a token it can read; the chat, run steps and cards show `[redacted]`.
+9. Tool search: add an external MCP server with many tools; the bot finds its tools through `ToolSearch` (check the run steps). Set `limits.toolSearch: off` and compare.
+10. A mutating external MCP tool asks: a tool named like `send_email`, `create_issue` or `delete_row` shows a card even at `autonomous`; a `get_*` / `list_*` tool runs without one. Add a server named `memory` to `mcp.yaml`: the config must refuse it.
+11. Site rule from "Always": answer a `WebFetch` card with "Always allow <site>"; Settings, Approval rules lists a site rule; the next fetch to that site (also in a tainted run) does not ask; remove the rule and it asks again.
+12. Auto Review pass: turn it on (Settings, Approval rules), set the level to `careful` or `balanced`, ask for a call that fits your message (for example "run the tests" with a Bash call): no card, the audit row has `review: pass`.
+13. Auto Review ask: ask for a call that does not fit your message; the card shows the reason first. Irreversible calls, `BotDesign` and calls in a tainted run never use the judge.
+14. Finished toast: send a long task, switch to another chat or tab; one toast with the start of the final answer; a failed or stopped run shows none.
+
+## Open decisions and known limits (owner and bot communication)
+- Open decision: spec section 6.14 says a taint card never offers "Always", section 6.10 allows it for a fetched site; built: the `WebFetch` site card offers "Always allow <site>", MCP and `BotDesign` cards never do.
+- Taint is set when the run pump handles the tool result, not in a PostToolUse hook (a stalled pump could let one call be decided clean).
+- `ToolSearch` no longer taints; `TodoWrite` and `Skill` still do.
+- A tainted run can still write `MemorySave` / `MemoryEdit` lessons; naming a google.com URL allows `script.google.com`.
+- An existing `mcp.yaml` with a server id equal to a Friday server name (`memory`, `effects`, `chat`, `design`, `tickets`, `scratchpad`) now fails to load.
+- Auto Review judges only the chain's first owner message; its Haiku call is not verified live.
+- Failed, cut and stopped runs raise no finished toast.
+- Parallel `PostUpdate` or `ScratchpadAdd` calls can overshoot their soft caps (3 per run, 40 items).
+- External MCP result clipping is verified only on an in-process server; error results may not reach the PostToolUse hook.
+- `tldts` is a new dependency of `apps/friday` (registrable domains for site rules).
+- A bot file created while the engine is stopped gets no intro run.
+
 ## Check OAuth MCP servers (not verified live)
 For an MCP server that signs in with OAuth (example: `https://db-mcp.example.com/mcp`).
 1. Settings, MCP servers, Add server: choose HTTP, enter the https URL, turn **Sign in with OAuth** on (scopes optional) and add it (an OAuth server is not tested before it is added). Do not add an `Authorization` header.

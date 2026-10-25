@@ -16,6 +16,12 @@ export function failureKind(err: unknown): "transient" | "setup" | "fatal" {
   return retryable === true ? "transient" : classifyFailure(err);
 }
 
+/** The owner notice an error carries as it is (e.g. a run out of nudges), if any. */
+function noticeOf(err: unknown): string | undefined {
+  const n = typeof err === "object" && err !== null && "notice" in err ? err.notice : undefined;
+  return typeof n === "string" ? n : undefined;
+}
+
 /**
  * A run failed in this worker. `transient`: back to `queued` with `transientRetries + 1` and `wakeAt = now +
  * backoffMs(n)`; past `limits.transientRetries` it ends `failed` and the conversation is told
@@ -62,9 +68,10 @@ export async function handleRunError(
   if (retry) await store.wakes.transition(row.id, fence, ["running"], failed);
   if (!(await finishRun(ctx, row, fence, { status: "failed", error: why }))) return;
   const text =
-    kind === "fatal"
+    noticeOf(err) ??
+    (kind === "fatal"
       ? `${bot.name} stopped unexpectedly: ${why}. ${GIVE_UP_TEXT}`
-      : `${bot.name} could not finish: ${why}. ${GIVE_UP_TEXT}`;
+      : `${bot.name} could not finish: ${why}. ${GIVE_UP_TEXT}`);
   await tell(ctx, row.conversationId, text);
 }
 

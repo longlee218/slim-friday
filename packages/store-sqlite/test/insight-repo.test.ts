@@ -74,6 +74,7 @@ async function seeded() {
     cuts: 0,
     transientRetries: 0,
     setupFailures: 0,
+    nudges: 0,
   });
   await s.wakes.insert(wake("w1", "expired"));
   await s.wakes.insert(wake("w2", "done"));

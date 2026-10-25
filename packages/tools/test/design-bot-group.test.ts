@@ -301,3 +301,11 @@ test("a new group without workspaces or instructions writes no empty keys", asyn
   expect(text).not.toContain("workspaces");
   expect(text).not.toContain("instructions");
 });
+
+test("write_bot refuses a title over 80 chars and writes nothing", async () => {
+  const { ctx, configDir } = setup();
+  const r = await call(createBotDesignTool(ctx), { ...bot, title: "x".repeat(81) });
+  expect(r.isError).toBe(true);
+  expect(textOf(r)).toContain("80");
+  expect(existsSync(join(configDir, "bots", "ann.md"))).toBe(false);
+});

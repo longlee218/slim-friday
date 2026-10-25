@@ -37,21 +37,26 @@ test("a failed tool result marks the step failed", async () => {
   expect(surface.runs.at(-1)?.step).toMatchObject({ id: "t1", state: "failed" });
 });
 
-test("a second text in the turn carries only the steps after the first", async () => {
+test("a second answer carries only the steps after the first; narration is a step of the next answer", async () => {
   const { s, store } = await open();
   s.emit({ type: "tool_call", toolUseId: "t1", tool: "Read", input: {} });
   s.emit({ type: "text", text: "one" });
-  s.emit({ type: "tool_call", toolUseId: "t2", tool: "Read", input: {} });
   s.emit({ type: "text", text: "two" });
+  s.emit({ type: "tool_call", toolUseId: "t2", tool: "Read", input: {} });
+  s.emit({ type: "text", text: "three" });
+  s.emit({ type: "turn_end", costUsd: 0 });
   await flush();
   const bots = store.msgs.filter((m) => m.author.kind === "bot");
-  expect(bots.map((m) => m.run?.map((x) => x.id))).toEqual([["t1"], ["t2"]]);
+  expect(bots.map((m) => m.text)).toEqual(["one", "three"]);
+  expect(bots.map((m) => m.run?.map((x) => x.id))).toEqual([["t1"], ["note-1", "t2"]]);
+  expect(bots[1]?.run?.[0]).toMatchObject({ label: "Note", target: "two" });
 });
 
 test("text without steps stores no run; unknown tool_result changes nothing", async () => {
   const { s, store, surface } = await open();
   s.emit({ type: "tool_result", toolUseId: "nope", ok: true });
   s.emit({ type: "text", text: "plain" });
+  s.emit({ type: "turn_end", costUsd: 0 });
   await flush();
   expect(surface.runs).toEqual([]);
   expect(store.msgs.at(-1)?.run).toBeUndefined();
@@ -85,6 +90,7 @@ test("task_started reuses the Agent tool step instead of adding a second one", a
   s.emit({ type: "task_started", taskId: "k1", description: "scan repo", toolUseId: "a1" });
   s.emit({ type: "task_done", taskId: "k1", status: "completed", summary: "" });
   s.emit({ type: "text", text: "x" });
+  s.emit({ type: "turn_end", costUsd: 0 });
   await flush();
   expect(new Set(surface.runs.map((r) => r.step.id))).toEqual(new Set(["a1"]));
   expect(store.msgs.at(-1)?.run).toHaveLength(1);

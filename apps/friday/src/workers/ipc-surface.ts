@@ -60,6 +60,11 @@ export class IpcSurface implements Surface {
     this.tell({ t: "activity", conversationId, activity });
   }
 
+  /** Live finished notice (final answer posted to the owner). */
+  notifyFinished(e: { conversationId: ConversationId; botId: string; preview: string }): void {
+    this.tell({ t: "finished", ...e });
+  }
+
   /** Live run step. */
   showRun(conversationId: ConversationId, botId: string, step: RunStep): void {
     this.tell({ t: "run_step", conversationId, botId, step });

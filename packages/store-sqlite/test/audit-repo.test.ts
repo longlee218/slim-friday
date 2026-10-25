@@ -35,3 +35,11 @@ test("a non-finite limit uses 1", async () => {
   for (let at = 1; at <= 3; at++) await s.audit.append({ ...row, at, tool: "mcp__a__t" });
   expect(await s.audit.recent({ toolPrefix: "mcp__a__", limit: Number.NaN })).toHaveLength(1);
 });
+
+test("the Auto Review verdict is stored and read back", async () => {
+  const s = openEngineStore(":memory:");
+  const review = { decision: "pass", reason: "the owner asked for it" } as const;
+  await s.audit.append({ ...row, at: 7, tool: "mcp__a__t", review });
+  const [got] = await s.audit.recent({ toolPrefix: "mcp__a__", limit: 1 });
+  expect(got?.review).toEqual(review);
+});

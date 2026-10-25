@@ -4,7 +4,7 @@ import { CONTINUATION_PROMPT } from "../src/runs/run-steering";
 import { flush, makeHub } from "./bot-hub-harness";
 
 const WAKE = (n: number) =>
-  `Work on ticket FRI-${n}. Read it with TicketGet. Keep progress in ticket comments and update its status with TicketUpdate. Ask the owner when input is needed.`;
+  `Work on ticket FRI-${n}. Read it with TicketGet. Keep progress in ticket comments and update its status with TicketUpdate. Use ask or approval cards when owner input is needed.`;
 const REWAKE = (n: number) =>
   `Your ticket FRI-${n} is still open. Finish it, or set it to blocked and comment why.`;
 

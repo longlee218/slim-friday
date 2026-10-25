@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { getSessionInfo, query } from "@anthropic-ai/claude-agent-sdk";
 import type { AgentRuntime, BotRuntimeSpec, BotSession } from "@friday/core";
 import { buildOptions, type ClaudeRuntimeConfig } from "./session/build-options";
+import { createCallGuard } from "./session/call-guard";
 import { ClaudeSession } from "./session/claude-session";
 import { createInputQueue } from "./session/input-queue";
 import { scratchName } from "./session/scratch-name";
@@ -35,7 +36,10 @@ export class ClaudeRuntime implements AgentRuntime {
     return this.start(spec, sessionId);
   }
 
-  /** Create the scratch dir, the input queue and the SDK stream, and wrap them in a session. */
+  /**
+   * Create the scratch dir, the input queue, the call guard and the SDK stream, and wrap them in a session. A guard
+   * stop in the hook reaches the session, which ends its events with a `guard_stop`.
+   */
   private start(spec: BotRuntimeSpec, resume: string | undefined): ClaudeSession {
     const { bot } = spec;
     const scratchDir = join(this.config.scratchRoot, scratchName(spec));
@@ -43,6 +47,8 @@ export class ClaudeRuntime implements AgentRuntime {
     const queue = createInputQueue();
     const abort = new AbortController();
     const id = resume ?? randomUUID();
+    const guard = createCallGuard({ maxToolCallsPerTurn: spec.maxToolCallsPerTurn ?? 0 });
+    let session: ClaudeSession | undefined;
     const options = buildOptions({
       spec,
       config: this.config,
@@ -50,6 +56,8 @@ export class ClaudeRuntime implements AgentRuntime {
       sessionId: resume ? undefined : id,
       abort,
       scratchDir,
+      guard,
+      onGuardStop: (text) => session?.guardStop(text),
     });
     const run = (this.config.queryFn ?? query)({ prompt: queue.iterable, options });
     // `SetEffort` reaches the live query through the holder the app put on the spec.
@@ -61,13 +69,15 @@ export class ClaudeRuntime implements AgentRuntime {
         control.current = level;
       };
     }
-    return new ClaudeSession(
+    session = new ClaudeSession(
       id,
       queue,
       abort,
       run[Symbol.asyncIterator](),
       { [bot.id]: bot.name },
       scratchDir,
+      guard,
     );
+    return session;
   }
 }

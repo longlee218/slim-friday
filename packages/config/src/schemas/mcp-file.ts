@@ -1,3 +1,4 @@
+import { FRIDAY_MCP_SERVERS } from "@friday/core";
 import { z } from "zod";
 import { idSchema } from "./ids";
 
@@ -48,7 +49,18 @@ export function isOAuthServer(
 }
 
 /** The content of `mcp.yaml`: servers by name. */
-const mcpSchema = z.strictObject({ servers: z.record(idSchema, serverSchema) });
+const mcpSchema = z
+  .strictObject({ servers: z.record(idSchema, serverSchema) })
+  .superRefine((f, ctx) => {
+    // A server named like one of Friday's own would pass as built in (no name check, no taint ask).
+    for (const id of Object.keys(f.servers))
+      if (FRIDAY_MCP_SERVERS.includes(id))
+        ctx.addIssue({
+          code: "custom",
+          path: ["servers", id],
+          message: `server name ${id} is reserved for Friday's own tools; pick another server name`,
+        });
+  });
 
 /** Parse `mcp.yaml`. Throws a readable error for any problem. */
 export function parseMcpFile(text: string): Record<string, McpServerSpec> {

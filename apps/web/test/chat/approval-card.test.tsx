@@ -46,6 +46,15 @@ test("button order with Always", () => {
   ]);
 });
 
+test("a web fetch card's Always names the site", () => {
+  view(<ApprovalCard card={apprCard({ tool: "WebFetch", alwaysSite: "example.com" })} />);
+  expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual([
+    "Deny",
+    "Always allow example.com",
+    "Allow once",
+  ]);
+});
+
 test("title and scope line", () => {
   expect(approvalTitle(apprCard())).toBe("Dev wants to use GitPush");
   expect(scopeLine({ repo: "friday", branch: "feat/x" })).toBe("feat/x");

@@ -99,3 +99,13 @@ test("a ticket a worker saved is read by id and given to main's listener; a gone
   await relayWorkerEvents({ t: "ticket", ticketId: t.id }, surface, store);
   expect(seen).toEqual([t.id]);
 });
+
+test("a finished notice from a worker reaches main's surface", async () => {
+  const surface = new FakeSurface();
+  await relayWorkerEvents(
+    { t: "finished", conversationId: "c1", botId: "b1", preview: "done" },
+    surface,
+    new FakeStore(),
+  );
+  expect(surface.finished).toEqual([{ conversationId: "c1", botId: "b1", preview: "done" }]);
+});

@@ -5,7 +5,7 @@ import { Avatar } from "../ui/avatar";
 import { Button } from "../ui/button";
 import { Pill } from "../ui/pill";
 import { ApprovalDetail } from "./approval-detail";
-import { APPROVAL_VERB, approvalTitle, scopeLine, toolLabel } from "./approval-text";
+import { APPROVAL_VERB, alwaysLabel, approvalTitle, scopeLine, toolLabel } from "./approval-text";
 import { CardReceiptLine } from "./card-receipt-line";
 import { useAnswerApproval } from "./use-answer-card";
 import { useBotFace } from "./use-bot-face";
@@ -47,7 +47,7 @@ export function ApprovalCard({ card, receipt }: { card: ApprovalCardDto; receipt
                   </Button>
                   {card.offerAlways && !card.inputCut && (
                     <Button disabled={busy} onClick={() => send("always")}>
-                      Always allow
+                      {alwaysLabel(card)}
                     </Button>
                   )}
                   {!card.inputCut && (

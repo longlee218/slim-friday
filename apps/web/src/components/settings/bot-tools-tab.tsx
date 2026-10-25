@@ -25,6 +25,7 @@ const TOOLS = [
   "TaskList",
   "TaskStop",
   "mcp__memory",
+  "mcp__scratchpad",
   "mcp__chat",
   "mcp__effects",
   "mcp__tickets",

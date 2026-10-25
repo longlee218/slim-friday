@@ -19,6 +19,8 @@ test("settings.example.yaml parses as shipped and with every setting turned on",
   const on = parseSettingsFile(allOn);
   expect(on.memory?.providers?.[0]?.id).toBe("honcho");
   expect(on.projectsDir).toBeDefined();
+  expect(on.owner?.timeZone).toBe("Europe/Paris");
+  expect(on.permissions?.autoReview).toBe(false);
 });
 
 test("settings.example.yaml lists every core limit with its default value", () => {

@@ -7,12 +7,16 @@ const ALL = [
   "chat.file",
   "chat.send",
   "chat.uploadCreate",
+  "config.approvalRules.add",
+  "config.approvalRules.list",
+  "config.approvalRules.remove",
   "config.avatars.create",
   "config.avatars.list",
   "config.bots.delete",
   "config.bots.get",
   "config.bots.list",
   "config.bots.save",
+  "config.bots.scratchpad",
   "config.bots.setAvatar",
   "config.groups.delete",
   "config.groups.get",
@@ -27,6 +31,8 @@ const ALL = [
   "config.mcp.test",
   "config.owner.get",
   "config.owner.save",
+  "config.permissions.get",
+  "config.permissions.setAutoReview",
   "config.skills.checkUpdate",
   "config.skills.install",
   "config.skills.list",
@@ -73,7 +79,7 @@ const inputOf = (path: string) => procAt(path)["~orpc"].inputSchema;
 const uuid = "123e4567-e89b-42d3-a456-426614174000";
 
 test("the contract has exactly the shared-contract procedures", () => {
-  expect(ALL).toHaveLength(56);
+  expect(ALL).toHaveLength(62);
   expect(listProcedurePaths(contract)).toEqual(ALL);
 });
 

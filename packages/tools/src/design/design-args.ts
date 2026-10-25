@@ -17,6 +17,12 @@ export const DESIGN_SHAPE = {
   id: z.string().optional().describe("Bot id, group id, skill name or MCP server name."),
   name: z.string().optional().describe("Bot display name (one word) or group name."),
   title: z.string().optional(),
+  description: z
+    .string()
+    .optional()
+    .describe(
+      "write_bot: one public line (at most 500 chars) other bots read in the teammate directory.",
+    ),
   model: z.string().optional(),
   instructions: z
     .string()

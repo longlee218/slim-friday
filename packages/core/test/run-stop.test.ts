@@ -23,6 +23,7 @@ const queuedRow = (over: Partial<WakeRow>): WakeRow => ({
   cuts: 0,
   transientRetries: 0,
   setupFailures: 0,
+  nudges: 0,
   wakeAt: 9_000_000_000_000,
   ...over,
 });

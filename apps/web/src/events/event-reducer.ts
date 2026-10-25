@@ -39,8 +39,8 @@ export interface ReducerView {
 }
 
 /**
- * Pure mapping from a server event to cache effects. A toast is raised only when the
- * user is not looking at the conversation (other chat, or hidden tab).
+ * Pure mapping from a server event to cache effects. A toast (finished notice or card) is raised
+ * only when the user is not looking at the conversation (other chat, or hidden tab).
  */
 export function reduceEvent(e: FridayEvent, view: ReducerView): CacheEffect[] {
   const away = (conversationId: string) =>
@@ -53,18 +53,23 @@ export function reduceEvent(e: FridayEvent, view: ReducerView): CacheEffect[] {
       if (author.kind === "bot") {
         out.push({ op: "endRun", conversationId: e.conversationId, botId: author.botId });
         out.push({ op: "refetchStatus" });
-        if (away(e.conversationId)) {
-          out.push({
-            op: "notify",
-            conversationId: e.conversationId,
-            botId: author.botId,
-            title: author.botId,
-            text: e.message.text,
-          });
-        }
+        // No toast here: a bot's final answer to the owner arrives as `run.finished` (progress,
+        // ticket and bot-to-bot messages raise none).
       }
       return out;
     }
+    case "run.finished":
+      return away(e.conversationId)
+        ? [
+            {
+              op: "notify",
+              conversationId: e.conversationId,
+              botId: e.botId,
+              title: e.botId,
+              text: e.preview,
+            },
+          ]
+        : [];
     case "activity": {
       const out: CacheEffect[] = [{ op: "refetchStatus" }];
       if (e.kind === "typing") {

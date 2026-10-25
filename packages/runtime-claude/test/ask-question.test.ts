@@ -33,6 +33,7 @@ const opts = { signal: new AbortController().signal, toolUseID: "t1", requestId:
 function canUse(ask?: BotRuntimeSpec["ask"], b: Bot = bot) {
   const spec: BotRuntimeSpec = {
     bot: b,
+    runKind: "owner",
     // `decide` denies everything: a question must reach `ask` before it.
     decide: async () => ({ behavior: "deny", reason: "no" }),
     ...(ask && { ask }),

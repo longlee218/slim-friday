@@ -19,6 +19,8 @@ export interface Bot {
   id: BotId;
   name: string;
   title: string;
+  /** Public one-line profile other bots see in the teammate directory (not instructions); none = title only. */
+  description?: string;
   /** Bot instructions; for a bot of the config files they start with `ownerPreface` (the owner's SOUL and USER). */
   instructions: string;
   /**

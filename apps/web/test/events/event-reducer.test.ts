@@ -13,17 +13,15 @@ describe("reduceEvent", () => {
     expect(fx.map((e) => e.op)).toEqual(["appendMessage", "endRun", "refetchStatus"]);
   });
 
-  test("message elsewhere also notifies", () => {
+  test("a bot message alone never toasts (run.finished does)", () => {
     const fx = reduceEvent(
       { type: "message", conversationId: "bot:pia", message: botMsg("pia", 8) },
       view,
     );
-    expect(fx.at(-1)).toMatchObject({ op: "notify", conversationId: "bot:pia" });
-  });
-
-  test("hidden tab notifies even for the open conversation", () => {
-    const fx = reduceEvent(msgEvt("bot:dev"), { ...view, visible: false });
-    expect(fx.some((e) => e.op === "notify")).toBe(true);
+    expect(fx.some((e) => e.op === "notify")).toBe(false);
+    expect(
+      reduceEvent(msgEvt("bot:dev"), { ...view, visible: false }).some((e) => e.op === "notify"),
+    ).toBe(false);
   });
 
   test("approval.opened opens and notifies with the summary", () => {
