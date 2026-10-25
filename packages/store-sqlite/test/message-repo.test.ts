@@ -80,3 +80,43 @@ test("lastText is the newest plain text message of a wake; progress, relay and o
   await s.messages.append({ ...base, text: "owner", author: { kind: "user" }, wakeId: "w1" });
   expect(await s.messages.lastText("w1")).toBe("second");
 });
+
+test("a schedule tag round-trips; a message without one has none", async () => {
+  const s = fresh();
+  const bot = { kind: "bot", botId: "a" } as const;
+  const id = await s.messages.append({
+    conversationId: "bot:a",
+    author: bot,
+    text: "brief",
+    at: 1,
+    wakeId: "w1",
+    scheduleId: "s1",
+    scheduleName: "Morning brief",
+  });
+  const plain = await s.messages.append({ conversationId: "bot:a", author: bot, text: "x", at: 2 });
+  expect(await s.messages.get(id)).toMatchObject({
+    scheduleId: "s1",
+    scheduleName: "Morning brief",
+  });
+  const other = await s.messages.get(plain);
+  expect(other?.scheduleId).toBeUndefined();
+  expect(other?.scheduleName).toBeUndefined();
+  expect((await s.messages.recent("bot:a", 1))[0]?.scheduleId).toBeUndefined();
+});
+
+test("lastIdOf gives the id of a wake's last message, undefined when it has none", async () => {
+  const s = fresh();
+  const bot = { kind: "bot", botId: "a" } as const;
+  await s.messages.append({ conversationId: "bot:a", author: bot, text: "1", at: 1, wakeId: "w1" });
+  const last = await s.messages.append({
+    conversationId: "bot:a",
+    author: bot,
+    text: "2",
+    at: 2,
+    wakeId: "w1",
+    kind: "progress",
+  });
+  await s.messages.append({ conversationId: "bot:a", author: bot, text: "3", at: 3, wakeId: "w2" });
+  expect(await s.messages.lastIdOf("w1")).toBe(last);
+  expect(await s.messages.lastIdOf("none")).toBeUndefined();
+});

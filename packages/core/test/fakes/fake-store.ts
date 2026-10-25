@@ -90,6 +90,7 @@ export class FakeStore implements Store {
       this.msgs.findLast(
         (m) => m?.wakeId === wakeId && (m.kind ?? "text") === "text" && m.author.kind === "bot",
       )?.text,
+    lastIdOf: async (wakeId: string) => this.live().findLast((m) => m.wakeId === wakeId)?.id,
     after: async (afterId: number, limit: number) =>
       this.live()
         .filter((m) => m.id > afterId)

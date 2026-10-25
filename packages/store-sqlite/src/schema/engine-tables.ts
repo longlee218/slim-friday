@@ -43,6 +43,10 @@ export const messages = sqliteTable(
     clientNonce: text("client_nonce"),
     /** The wake (run) that produced the message; null for messages without one. */
     wakeId: text("wake_id"),
+    /** The schedule whose run posted the message; outlives the schedule and the wake. */
+    scheduleId: text("schedule_id"),
+    /** That schedule's name when the run started; null when it was already gone. */
+    scheduleName: text("schedule_name"),
   },
   (t) => [
     index("messages_conversation_idx").on(t.conversationId, t.id),

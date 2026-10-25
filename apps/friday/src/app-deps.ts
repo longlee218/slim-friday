@@ -84,5 +84,7 @@ export interface AppDeps {
   onConfigChanged?: () => void;
   /** Told after every saved ticket create, update and comment (the web surface publishes `ticket`). */
   onTicketChange?: (t: Ticket) => void;
+  /** Told after every schedule change, in this process or a worker (the web surface publishes `schedule`). */
+  onScheduleChange?: (scheduleId: string) => void;
   log: Log;
 }

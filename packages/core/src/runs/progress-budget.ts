@@ -1,6 +1,7 @@
 import type { HubContext } from "../hub/hub-context";
 import { postStored } from "../hub/post-stored";
 import type { RunExec } from "./run-exec";
+import { scheduleTagOf } from "./run-schedule-tag";
 
 /** Longest progress update (PostUpdate or promoted narration); longer text is cut (spec §6.2). */
 export const PROGRESS_MAX_CHARS = 500;
@@ -56,6 +57,7 @@ export async function postProgress(
     at: now,
     kind: "progress",
     wakeId: exec.row.id,
+    ...(await scheduleTagOf(ctx, exec)),
   });
   return { posted: true, cut };
 }

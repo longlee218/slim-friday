@@ -90,6 +90,15 @@ export function messageRepo(db: BunSQLiteDatabase): Store["messages"] {
         .limit(1)
         .get()?.text;
     },
+    async lastIdOf(wakeId) {
+      return db
+        .select({ id: messages.id })
+        .from(messages)
+        .where(eq(messages.wakeId, wakeId))
+        .orderBy(desc(messages.id))
+        .limit(1)
+        .get()?.id;
+    },
     async after(afterId, limit) {
       return db
         .select()
@@ -117,6 +126,8 @@ function toValues(m: StoredMessage) {
     run: m.run ? JSON.stringify(m.run) : null,
     relay: m.relay ? JSON.stringify(m.relay) : null,
     wakeId: m.wakeId ?? null,
+    scheduleId: m.scheduleId ?? null,
+    scheduleName: m.scheduleName ?? null,
   };
 }
 
@@ -138,6 +149,8 @@ function toStored(r: Row): StoredMessage {
     ...(r.run && { run: JSON.parse(r.run) }),
     ...(r.relay && { relay: JSON.parse(r.relay) }),
     ...(r.wakeId && { wakeId: r.wakeId }),
+    ...(r.scheduleId && { scheduleId: r.scheduleId }),
+    ...(r.scheduleName && { scheduleName: r.scheduleName }),
   };
 }
 

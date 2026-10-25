@@ -49,8 +49,9 @@ async function composeApp(deps: AppDeps, opened: Array<() => unknown>) {
   const { surface, log } = deps;
   // Worker processes run the runs when a launcher is given and `limits.workers` > 0; else this process does.
   let workers: MainWorkers | undefined;
-  // The hub is built before the ticker: it fires this hook, and the ticker (later, plan 02 a web publisher) subscribes.
+  // The hub is built before the ticker: it fires this hook; the ticker and the caller's listener subscribe.
   const scheduleChanged = scheduleChangeHook();
+  if (deps.onScheduleChange) scheduleChanged.subscribe(deps.onScheduleChange);
   const parts = composeEngine(
     {
       ...deps,
@@ -98,6 +99,8 @@ async function composeApp(deps: AppDeps, opened: Array<() => unknown>) {
       surface,
       store,
       ...(deps.onTicketChange && { onTicketChange: deps.onTicketChange }),
+      // A schedule a worker's bot changed: main's ticker looks now, the web is told.
+      onScheduleChange: scheduleChanged.fire,
     });
     opened.push(() => pool.stop());
   }

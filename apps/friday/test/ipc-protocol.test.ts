@@ -14,6 +14,7 @@ test("ipc-protocol accepts the known worker messages", () => {
     },
     { t: "finished", conversationId: "c1", botId: "b1", preview: "ok" },
     { t: "card", cardId: "k1" },
+    { t: "schedule", scheduleId: "s1" },
     { t: "hint", kind: "run", ids: ["w1"] },
   ];
   for (const m of known) expect(parseWorkerToMain(m)).toEqual(m as never);
@@ -32,6 +33,7 @@ test("ipc-protocol rejects unknown messages", () => {
     { t: "hint", kind: "run", ids: [1] },
     { t: "activity", conversationId: "c1", activity: { kind: "dance", botId: "b" } },
     { t: "card", cardId: "k", extra: true },
+    { t: "schedule" },
     // A main-only message is not a worker message.
     { t: "init", config: { agentHome: "/h", r2: {} } },
   ];

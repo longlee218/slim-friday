@@ -7,6 +7,7 @@ import { redactSecrets, redactStep, secretsFrom } from "../safety/redact-secrets
 import { postProgress } from "./progress-budget";
 import type { RunExec } from "./run-exec";
 import { runKindOf, silenceAllowed, talksToOwner } from "./run-kind";
+import { scheduleTagOf } from "./run-schedule-tag";
 import { isSilent, stripSentinel } from "./silent-reply";
 
 /** What an owner run posts when its final answer is empty or the silence sentinel (spec §6.3). */
@@ -135,6 +136,7 @@ async function post(ctx: HubContext, exec: RunExec, text: string): Promise<void>
   const author: Author = { kind: "bot", botId: exec.bot.id };
   const conversationId = exec.current.conversationId;
   const run = exec.steps.take(clock.now());
+  const tag = await scheduleTagOf(ctx, exec);
   // Text goes to the channel only; a bot reaches another bot with SendToBot / HandOff.
   await postStored(ctx.deps, {
     conversationId,
@@ -143,6 +145,7 @@ async function post(ctx: HubContext, exec: RunExec, text: string): Promise<void>
     at: clock.now(),
     // Ties the message to its run: the unread count skips runs that do not talk to the owner.
     wakeId: exec.row.id,
+    ...tag,
     ...(run.length > 0 && { run }),
   }).catch((err) =>
     ctx.deps.log?.error({ error: errText(err), conversationId }, "hub.post_failed"),

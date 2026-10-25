@@ -98,6 +98,8 @@ export interface RunExec {
   oneShot?: { hash: string; cardId: string };
   /** The first text of the run was recorded. */
   firstTextSeen: boolean;
+  /** The schedule tag of this run's messages, once read (`run-schedule-tag.ts`). */
+  scheduleTag?: { scheduleId: string; scheduleName?: string };
   /** Continue nudges sent so far (from the row, so a resumed run keeps its count; `run-nudge.ts`). */
   nudges: number;
   /** The current turn's last event was a tool result (no text after it): its end may need a nudge. */

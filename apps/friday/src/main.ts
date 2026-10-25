@@ -140,6 +140,8 @@ async function runEngine(
     }),
     // Every saved ticket change goes to the web app with its fresh comment count.
     onTicketChange: ticketChangePublisher({ store: engine, bus: surface.bus, log }),
+    // A schedule a bot or the owner changed refreshes the web's schedule list.
+    onScheduleChange: (id) => surface.bus.publish({ type: "schedule", id }),
   }).catch(async (err) => {
     // startApp closes what it opened; closing the db here too is harmless and covers a throw before it took it.
     await mcpProxy.stop();

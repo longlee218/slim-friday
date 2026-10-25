@@ -73,6 +73,15 @@ export function fakeSchedules() {
         .sort((a, b) => b.firedAt - a.firedAt)
         .slice(0, limit)
         .map((r) => ({ ...r })),
+    latest: async (ids) => {
+      const out = new Map<string, ScheduleRun>();
+      for (const r of runs) {
+        const cur = out.get(r.scheduleId);
+        if (ids.includes(r.scheduleId) && (!cur || r.firedAt > cur.firedAt))
+          out.set(r.scheduleId, { ...r });
+      }
+      return out;
+    },
     deleteBefore: async (at) => {
       const n = runs.length;
       for (let j = runs.length - 1; j >= 0; j--)
