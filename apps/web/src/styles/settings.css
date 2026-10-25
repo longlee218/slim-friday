@@ -43,6 +43,9 @@
 .av-edit:hover .ov, .av-edit:focus-visible .ov { opacity: 1; }
 .av-edit.popped .av { animation: pop 460ms var(--ease); }
 .tabs { margin-bottom: 18px; }
+/* Phone: the four bot tabs share the row and fit a 320 px screen. */
+.ios .tabs .seg { width: 100%; }
+.ios .tabs .seg button { min-width: 0; padding: 0 4px; font-size: 13px; }
 .list-panel { border-radius: 12px; background: var(--well); overflow: hidden; margin-bottom: 18px; }
 :root[data-theme="dark"] .list-panel { background: #252528; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .list-panel { background: #252528; } }
