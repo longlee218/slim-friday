@@ -139,7 +139,12 @@ export function buildOptions(input: BuildOptionsInput): Options {
       ...sdkEnv(
         { hasRealAuth: !!config.oauthToken, oauthToken: config.oauthToken },
         config.env ?? {},
-        { worker: true, allowBackground: true, subagentDepth: 1 },
+        {
+          worker: true,
+          allowBackground: true,
+          subagentDepth: 1,
+          ...(spec.maxParallelSubagents && { maxParallelSubagents: spec.maxParallelSubagents }),
+        },
       ),
       ...toolSearchEnv(search),
     },
