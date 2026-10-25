@@ -74,11 +74,16 @@ export function scheduleRepo(db: BunSQLiteDatabase): Store["schedules"] {
       return r && fromRow(r);
     },
     async advance(id, expectedNext, patch) {
+      const match = and(eq(schedules.id, id), eq(schedules.nextRunAt, expectedNext));
+      const cols = toColumns(patch);
+      // Drizzle refuses an empty set: with nothing to write, only compare.
+      if (!Object.keys(cols).length)
+        return db.select({ id: schedules.id }).from(schedules).where(match).get() !== undefined;
       // The guard on next_run_at makes a second ticker (or a racing manual run) lose.
       const done = db
         .update(schedules)
-        .set(toColumns(patch))
-        .where(and(eq(schedules.id, id), eq(schedules.nextRunAt, expectedNext)))
+        .set(cols)
+        .where(match)
         .returning({ id: schedules.id })
         .all();
       return done.length > 0;

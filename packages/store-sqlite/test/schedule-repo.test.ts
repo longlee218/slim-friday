@@ -78,6 +78,33 @@ test("advance is a compare-and-set on nextRunAt", async () => {
   expect(await s.schedules.get("s1")).toMatchObject({ nextRunAt: 2000, lastFireAt: 1000 });
 });
 
+test("an explicit undefined clears a column; an absent key leaves it", async () => {
+  const s = openEngineStore(":memory:");
+  await s.schedules.insert(sched("s1", { lastFireAt: 5 }));
+  // Disable: nextRunAt cleared, lastFireAt (absent) kept.
+  await s.schedules.update("s1", { enabled: false, nextRunAt: undefined, disabledReason: "done" });
+  expect(await s.schedules.get("s1")).toMatchObject({ enabled: false, lastFireAt: 5 });
+  expect((await s.schedules.get("s1"))?.nextRunAt).toBeUndefined();
+  // Enable: disabledReason cleared.
+  await s.schedules.update("s1", { enabled: true, nextRunAt: 7000, disabledReason: undefined });
+  const on = await s.schedules.get("s1");
+  expect(on).toMatchObject({ enabled: true, nextRunAt: 7000 });
+  expect(on?.disabledReason).toBeUndefined();
+  // advance clears the same way.
+  expect(await s.schedules.advance("s1", 7000, { nextRunAt: undefined, enabled: false })).toBe(
+    true,
+  );
+  expect((await s.schedules.get("s1"))?.nextRunAt).toBeUndefined();
+});
+
+test("advance with an empty patch is a plain compare and does not throw", async () => {
+  const s = openEngineStore(":memory:");
+  await s.schedules.insert(sched("s1"));
+  expect(await s.schedules.advance("s1", 1000, {})).toBe(true);
+  expect(await s.schedules.advance("s1", 999, {})).toBe(false);
+  expect(await s.schedules.advance("nope", 1000, {})).toBe(false);
+});
+
 test("remove deletes the schedule and its runs", async () => {
   const s = openEngineStore(":memory:");
   await s.schedules.insert(sched("s1"));
