@@ -45,7 +45,7 @@ export function BotProfileTab({ form, readOnly, mode }: BotTabProps) {
   const models = ids.includes(v.model) ? ids : [v.model, ...ids];
   const modelNode = (m: string) => {
     const name = known.get(m);
-    return name && name !== m ? `${name} (${m})` : m;
+    return name && name !== m ? `${name} (${m.replace(/\[1m\]$/, "")})` : m;
   };
   return (
     <>
