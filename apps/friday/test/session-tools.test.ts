@@ -2,12 +2,13 @@ import { expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Bot, BotRuntimeSpec, Store } from "@friday/core";
+import type { Bot, BotRuntimeSpec, ScheduleBoard, Store } from "@friday/core";
 import { FileMemory, MemoryRecall, resolveOwner } from "@friday/tools";
 import {
   commandEnv,
   ownerIdentityEnv,
   runCommand,
+  type SessionToolsDeps,
   sensitiveCheck,
   sessionScratchDir,
   sessionTools,
@@ -46,10 +47,11 @@ const store = {
   },
 } as unknown as Store;
 
-function build() {
+function build(over: Partial<SessionToolsDeps> = {}) {
   const root = mkdtempSync(join(tmpdir(), "st-"));
   const memory = new FileMemory(join(root, "memory"));
   const forSpec = sessionTools({
+    ...over,
     memory,
     recall: new MemoryRecall([]),
     store,
@@ -76,6 +78,14 @@ test("every bot gets the memory server; only a bot that names an effect tool get
     "chat",
     "effects",
   ]);
+});
+
+test("every bot gets the schedules server once the board exists, even with no tools entry", () => {
+  const { forSpec } = build({ schedules: () => ({}) as ScheduleBoard });
+  expect(Object.keys(forSpec(specOf(bot([]))))).toContain("schedules");
+  expect(Object.keys(forSpec(specOf(bot(["Read"]))))).toContain("schedules");
+  // Before the hub exists there is no board: no server (like the ticket tools).
+  expect(Object.keys(build().forSpec(specOf(bot([]))))).not.toContain("schedules");
 });
 
 test("the tool context follows the current conversation: a group save lands in the group file", async () => {

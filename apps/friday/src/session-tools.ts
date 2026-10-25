@@ -1,6 +1,13 @@
 import { realpathSync } from "node:fs";
 import { join, relative } from "node:path";
-import type { BotMessenger, BotRuntimeSpec, InsightStore, Store, TicketBoard } from "@friday/core";
+import type {
+  BotMessenger,
+  BotRuntimeSpec,
+  InsightStore,
+  ScheduleBoard,
+  Store,
+  TicketBoard,
+} from "@friday/core";
 import { scratchName } from "@friday/runtime-claude";
 import {
   CHAT_MCP_SERVER,
@@ -17,7 +24,9 @@ import {
   type MemoryRecall,
   type MessageSearchDeps,
   memoryServer,
+  SCHEDULES_MCP_SERVER,
   SCRATCHPAD_MCP_SERVER,
+  schedulesServer,
   scratchpadServer,
   TICKETS_MCP_SERVER,
   type ToolSessionContext,
@@ -113,6 +122,8 @@ export interface SessionToolsDeps {
   messenger?: BotMessenger;
   /** The shared ticket board, once the hub exists (read per session: the runtime is built before the hub). */
   tickets?: () => TicketBoard | undefined;
+  /** The schedule board, once the hub exists (read per session, like `tickets`). */
+  schedules?: () => ScheduleBoard | undefined;
   /** The ids of the groups a bot is in. */
   groupIdsOf?: (botId: string) => string[];
   /** Sends a file to a conversation under a bot's name (the surface). */
@@ -203,8 +214,8 @@ const wantsServer = (tools: string[], server: string) =>
   tools.some((t) => t === `mcp__${server}` || t.startsWith(`mcp__${server}__`));
 
 /**
- * The in-process MCP servers of one session: `memory`, `chat` and `scratchpad` for every bot, `effects` and `design` only for a bot
- * that names them.
+ * The in-process MCP servers of one session: `memory`, `chat`, `scratchpad` and (once the hub exists) `schedules` for
+ * every bot, `effects` and `design` only for a bot that names them.
  * Built per session so the tools act for that bot only.
  */
 export function sessionTools(deps: SessionToolsDeps) {
@@ -230,6 +241,16 @@ export function sessionTools(deps: SessionToolsDeps) {
       store: deps.store,
       now: Date.now,
     });
+    // The schedule tools: every bot, no `tools` entry needed; a group session sees only its conversation's schedules.
+    const schedules = deps.schedules?.();
+    if (schedules)
+      servers[SCHEDULES_MCP_SERVER] = schedulesServer({
+        botId: spec.bot.id,
+        board: schedules,
+        conversation: () => spec.currentConversation?.(),
+        groupSession: spec.groupId !== undefined,
+        runKind: spec.runKind,
+      });
     const { workspaces } = spec.bot;
     const design = deps.design?.(spec, run);
     // Every bot may send a file from its workspaces or its session's scratch dir (the runtime's, see `main.ts`).

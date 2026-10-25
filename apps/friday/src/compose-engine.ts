@@ -80,6 +80,7 @@ export function composeEngine(deps: EngineDeps, opened: Array<() => unknown>) {
       ? deps.runtime({
           messenger,
           tickets: () => hub?.tickets,
+          schedules: () => hub?.schedules,
           config,
           mcpServers: () => config.mcpServers(deps.env ?? {}).servers,
           store,

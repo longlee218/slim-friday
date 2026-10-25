@@ -18,13 +18,17 @@ const atCareful = (tool: string) =>
     now: 0,
   }).outcome;
 
-test("UpdateProfile and the scratchpad writes need no card even at careful (spec §6.9: intro runs ask none)", () => {
+test("UpdateProfile, the scratchpad writes and the schedule tools need no card even at careful (spec §6.9: intro runs ask none)", () => {
   for (const tool of [
     "mcp__chat__UpdateProfile",
     "mcp__scratchpad__ScratchpadAdd",
     "mcp__scratchpad__ScratchpadUpdate",
     "mcp__scratchpad__ScratchpadComplete",
     "mcp__scratchpad__ScratchpadRemove",
+    "mcp__schedules__ScheduleList",
+    "mcp__schedules__ScheduleCreate",
+    "mcp__schedules__ScheduleUpdate",
+    "mcp__schedules__ScheduleDelete",
   ])
     expect({ tool, outcome: atCareful(tool) }).toEqual({ tool, outcome: "allow" });
 });

@@ -1,0 +1,3 @@
+/** Description the model reads for `ScheduleCreate`. */
+export const SCHEDULE_CREATE_DESCRIPTION =
+  'Create a schedule: this bot runs a task on its own at set times and posts the result to this chat. Use it when the owner asks for something done at a time or repeatedly ("every morning…", "remind me at 3 pm"). Write the task so it stands alone: it is read later without this chat, so name sources, what to check and how to report. Repeats: daily, weekdays, weekly, interval (at least 15 minutes) or once. notify "problems" stays silent unless there is something to report. After creating, call ScheduleList and report the next run time. The scratchpad is for open work; schedules are for timed work.';

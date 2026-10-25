@@ -48,6 +48,7 @@ export function claudeRuntimeFactory(config: AgentConfig, agentHome: string, log
         store: parts.store,
         messenger: parts.messenger,
         tickets: parts.tickets,
+        schedules: parts.schedules,
         groupIdsOf: parts.config.groupIdsOf,
         home: agentHome,
         projectsDir: parts.config.projectsDir,
