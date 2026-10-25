@@ -125,6 +125,27 @@ describe("sheets", () => {
     fireEvent.pointerUp(sheet, { clientY: 250, pointerId: 1 });
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
+  test("BottomSheet captures the pointer only once a drag starts, so taps reach its buttons", () => {
+    const capture = vi.fn();
+    const proto = HTMLElement.prototype as { setPointerCapture?: (id: number) => void };
+    const orig = proto.setPointerCapture;
+    proto.setPointerCapture = capture;
+    try {
+      render(
+        <BottomSheet open onOpenChange={() => {}}>
+          Body
+        </BottomSheet>,
+      );
+      const sheet = document.querySelector(".bsheet") as HTMLElement;
+      fireEvent.pointerDown(sheet, { clientY: 100, pointerId: 1 });
+      fireEvent.pointerMove(sheet, { clientY: 103, pointerId: 1 });
+      expect(capture).not.toHaveBeenCalled();
+      fireEvent.pointerMove(sheet, { clientY: 140, pointerId: 1 });
+      expect(capture).toHaveBeenCalledWith(1);
+    } finally {
+      proto.setPointerCapture = orig;
+    }
+  });
 });
 
 describe("overlays.css", () => {

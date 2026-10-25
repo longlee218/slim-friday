@@ -3,6 +3,8 @@ import { type PointerEvent, type ReactNode, useRef } from "react";
 
 /** Drag distance (px) past which a release closes the sheet. */
 const DISMISS_PX = 110;
+/** Downward move (px) before a press becomes a drag; below it a press stays a tap on the target. */
+const DRAG_START_PX = 6;
 /** Drag distance (px) at which the dim has fully faded. */
 const DIM_FADE_PX = 400;
 
@@ -26,20 +28,32 @@ export function BottomSheet({ open, onOpenChange, children }: BottomSheetProps) 
   const dy = useRef(0);
   const dim = useRef<HTMLDivElement>(null);
 
+  const dragging = useRef(false);
+
+  // The pointer is captured only once the press moves down: capturing on press would send the
+  // click to the sheet instead of the button under the finger.
   const onDown = (e: PointerEvent<HTMLDivElement>) => {
     startY.current = e.clientY;
-    e.currentTarget.setPointerCapture?.(e.pointerId);
-    e.currentTarget.style.transition = "none";
+    dragging.current = false;
   };
   const onMove = (e: PointerEvent<HTMLDivElement>) => {
     if (startY.current == null) return;
-    dy.current = Math.max(0, e.clientY - startY.current);
+    const moved = e.clientY - startY.current;
+    if (!dragging.current) {
+      if (moved < DRAG_START_PX) return;
+      dragging.current = true;
+      e.currentTarget.setPointerCapture?.(e.pointerId);
+      e.currentTarget.style.transition = "none";
+    }
+    dy.current = Math.max(0, moved);
     e.currentTarget.style.transform = `translateY(${dy.current}px)`;
     if (dim.current) dim.current.style.opacity = String(1 - dy.current / DIM_FADE_PX);
   };
   const onUp = (e: PointerEvent<HTMLDivElement>) => {
     if (startY.current == null) return;
     startY.current = null;
+    if (!dragging.current) return;
+    dragging.current = false;
     const el = e.currentTarget;
     el.style.transition = "";
     if (shouldDismissSheet(dy.current)) onOpenChange(false);
