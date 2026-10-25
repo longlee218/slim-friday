@@ -1,6 +1,6 @@
 # Web Setup Guide
 
-Friday is a team engine ([design](superpowers/specs/2026-10-23-friday-team-engine-design.md)): bots and groups of bots, used from a web app (PWA) you own. The engine runs on your machine; a Cloudflare Tunnel exposes its API; the web app runs on Vercel; files live in a private Cloudflare R2 bucket. This guide covers the domain, tunnel, R2, Vercel, the first login, the owner live checklist, home, logs, tools and skills. Design: [the web app design](superpowers/specs/2026-10-24-friday-web-app-design.md). Architecture: [system-architecture.md](system-architecture.md).
+Friday is a team engine (design): bots and groups of bots, used from a web app (PWA) you own. The engine runs on your machine; a Cloudflare Tunnel exposes its API; the web app runs on Vercel; files live in a private Cloudflare R2 bucket. This guide covers the domain, tunnel, R2, Vercel, the first login, the owner live checklist, home, logs, tools and skills. Design: the web app design. Architecture: [system-architecture.md](system-architecture.md).
 
 ## Prerequisites
 - Bun, and `claude setup-token` completed (`CLAUDE_CODE_OAUTH_TOKEN` in `.env`; Anthropic is the only LLM provider)
@@ -30,7 +30,7 @@ Friday is a team engine ([design](superpowers/specs/2026-10-23-friday-team-engin
      - service: http_status:404
    ```
 4. `cloudflared tunnel route dns friday friday-api.example.com`
-5. `cloudflared tunnel run friday`. To start at login instead: `cloudflared service install`.
+5. `cloudflared tunnel run friday`. To keep the engine and the tunnel running (restart on crash, start at login): `scripts/install-launchd.sh` (agents `ai.friday.engine` and `ai.friday.tunnel`; `status` and `uninstall` also work; logs in `<AGENT_HOME>/logs/ai.friday.*.log`).
 6. With the engine running (below): `curl -s https://friday-api.example.com/health` prints `{"ok":true,"db":true}`. When the engine db does not answer it prints `{"ok":false,"db":false}` with HTTP 503.
 
 ## R2 bucket
