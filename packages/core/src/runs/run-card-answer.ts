@@ -6,10 +6,15 @@ import type { ApprovalAnswer } from "../ports/surface";
 /** Result of answering a card from a surface. */
 export type AnswerCardResult = "ok" | "conflict" | "not_found" | "bad_answer";
 
-/** Whether `answer` fits the card: one of the three approval answers, or choices among the options and/or text. */
+/** Whether `answer` fits the card: one of the approval answers ("always" only when offered), or choices among the options and/or text. */
 export function validCardAnswer(card: CardRow, answer: unknown): boolean {
+  // "always" only on a card that offers it.
   if (card.kind === "approval")
-    return answer === "once" || answer === "always" || answer === "deny";
+    return (
+      answer === "once" ||
+      answer === "deny" ||
+      (answer === "always" && !!card.approval?.offerAlways)
+    );
   const q = card.question;
   const a = answer as QuestionAnswer | null;
   if (!q || !a || typeof a !== "object" || !Array.isArray(a.choices)) return false;

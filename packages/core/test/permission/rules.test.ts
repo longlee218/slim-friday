@@ -119,11 +119,19 @@ test("require_approval asks even for a read class call", () => {
   expect(run(FETCH, "WebFetch", [r], "autonomous" as never).outcome).toBe("ask");
 });
 
-test("always_allow allows an ask, but never an irreversible, destructive or mandatory call", () => {
+test("always_allow allows an ask, but never an irreversible or mandatory call", () => {
   const allow = rule({});
   expect(run(WRITE, "T", [allow]).outcome).toBe("allow");
-  expect(run(DELETE, "T", [allow]).outcome).toBe("ask_always");
-  expect(run(DESTRUCTIVE, "T", [allow], "autonomous" as never).outcome).toBe("ask_always");
+  expect(run(DELETE, "T", [allow])).toMatchObject({
+    outcome: "ask_always",
+    reason: "balanced: destructive; cannot be undone",
+  });
+  // Destructive but reversible (idempotent, not open-world): a rule allows it and its card offers "Always".
+  expect(run(DESTRUCTIVE, "T", [allow], "autonomous" as never).outcome).toBe("allow");
+  expect(run(DESTRUCTIVE, "T", [], "autonomous" as never)).toMatchObject({
+    outcome: "ask",
+    always: "tool",
+  });
   const tainted = decide({
     call: call("T"),
     spec: WRITE,
@@ -133,6 +141,42 @@ test("always_allow allows an ask, but never an irreversible, destructive or mand
     taint: { reason: "changes bot instructions", mandatory: true },
   });
   expect(tainted.outcome).toBe("ask_always");
+});
+
+test("an always_allow that cannot apply never hides a less specific require rule", () => {
+  const spec: ToolSpec = { name: GMAIL_SEND, annotations: { openWorldHint: true } };
+  const cat = rule({ id: "c", match: "category", tool: "email", effect: "require_approval" });
+  expect(run(spec, GMAIL_SEND, [cat], "autonomous" as never).outcome).toBe("ask_always");
+  const allow = rule({ id: "t", tool: GMAIL_SEND });
+  expect(run(spec, GMAIL_SEND, [cat, allow], "autonomous" as never)).toMatchObject({
+    outcome: "ask_always",
+    reason: "rule c: require approval; cannot be undone",
+  });
+});
+
+test("a scopeless require rule asks for a scoped tool; a scopeless allow rule does not allow it", () => {
+  const push = "mcp__effects__GitPush";
+  const spec: ToolSpec = {
+    name: push,
+    annotations: { destructiveHint: false, openWorldHint: true },
+    scopeKeys: ["workspace", "branch"],
+  };
+  const c = (grants: Grant[], level: PermissionSettings["level"]) =>
+    decide({
+      call: call(push, { workspace: "w", branch: "b" }),
+      spec,
+      grants,
+      settings: settings(level),
+      now: 1,
+    });
+  expect(c([], "autonomous").outcome).toBe("allow");
+  expect(c([rule({ tool: push, effect: "require_approval" })], "autonomous").outcome).toBe("ask");
+  // A require rule that names a key still checks it.
+  expect(
+    c([rule({ tool: push, effect: "require_approval", scope: { branch: "main" } })], "autonomous")
+      .outcome,
+  ).toBe("allow");
+  expect(c([rule({ tool: push })], "balanced").outcome).toBe("ask");
 });
 
 test("old style grants (always_allow + tool) still allow", () => {

@@ -75,7 +75,7 @@ test("level map: careful, balanced, autonomous", () => {
   expect(
     run({ name: "T", annotations: { destructiveHint: true, idempotentHint: true } }, "autonomous")
       .outcome,
-  ).toBe("ask_always");
+  ).toBe("ask");
 });
 
 test("an irreversible call asks always", () => {

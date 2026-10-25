@@ -31,14 +31,15 @@ function live(g: Grant, call: ToolCall, now: number): boolean {
 }
 
 /**
- * True when a `tool` rule covers the call: same tool, every scope key of the call named by the rule, and every
- * scope key of the rule equal to the call's value or "*".
+ * True when a `tool` rule covers the call: same tool, every scope key of the rule equal to the call's value or
+ * "*", and (for an allow rule) every scope key of the call named by the rule. A require rule treats the keys it
+ * does not name as "*", so a scopeless require rule asks for every call of the tool.
  */
 function toolMatches(g: Grant, call: ToolCall, scope: Record<string, string>): boolean {
   return (
     g.tool === call.tool &&
-    // the rule must name every scope key of the call, so a rule made without scope never widens later
-    Object.keys(scope).every((k) => k in g.scope) &&
+    // an allow rule must name every scope key of the call, so a rule made without scope never widens later
+    (g.effect === "require_approval" || Object.keys(scope).every((k) => k in g.scope)) &&
     Object.entries(g.scope).every(([k, v]) => v === "*" || scope[k] === v)
   );
 }

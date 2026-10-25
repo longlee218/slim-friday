@@ -4,7 +4,10 @@ import { mkdirSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { decide, type Grant } from "@friday/core";
+import { drizzle } from "drizzle-orm/bun-sqlite";
 import { openEngineStore } from "../src/engine-store";
+import { openEngineDb } from "../src/open-engine-db";
+import { grantRepo } from "../src/repos/grant-repo";
 
 const MIGRATIONS = join(import.meta.dir, "../src/migrations");
 
@@ -37,6 +40,17 @@ test("rules round-trip with effect and match; all lists every bot oldest first; 
   expect((await s.grants.list("b1")).map((g) => g.id).sort()).toEqual(["s", "t"]);
   await s.grants.revoke("s");
   expect((await s.grants.all()).map((g) => g.id)).toEqual(["t", "c"]);
+});
+
+test("a row with an unknown effect or match kind is skipped", async () => {
+  const db = openEngineDb(":memory:");
+  const s = { grants: grantRepo(drizzle({ client: db })) };
+  await s.grants.add(rule({ id: "ok" }));
+  db.run(
+    "INSERT INTO grants (id, bot_id, tool, scope, created_at, effect, match_kind) VALUES ('e', '*', 'T', '{}', 1, 'maybe', 'tool'), ('m', '*', 'T', '{}', 1, 'always_allow', 'everything')",
+  );
+  expect((await s.grants.list("b1")).map((g) => g.id)).toEqual(["ok"]);
+  expect((await s.grants.all()).map((g) => g.id)).toEqual(["ok"]);
 });
 
 test("a grant stored before the rules migration is an always_allow tool rule after it and still allows", async () => {

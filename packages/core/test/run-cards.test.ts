@@ -471,12 +471,13 @@ test("always stores the grant: the resumed call and the next same call need no c
   expect(h.store.cardMap.size).toBe(1);
 });
 
-test("a forged always on a card without Always allow stores no grant but still allows the one shot", async () => {
+test("a forged always on a card without Always allow is refused; the card stays open and once still works", async () => {
   const h = await parked();
   expect(h.store.cardMap.get(h.cardId)?.approval?.offerAlways).toBe(false);
-  expect(await h.hub.answerCard(h.cardId, "always")).toBe("ok");
+  expect(await h.hub.answerCard(h.cardId, "always")).toBe("bad_answer");
+  expect(h.store.cardMap.get(h.cardId)?.status).toBe("open");
   expect(h.store.grantList).toHaveLength(0);
-  expect(h.store.auditLog.at(-1)).toMatchObject({ outcome: "ask", answer: "always" });
+  expect(await h.hub.answerCard(h.cardId, "once")).toBe("ok");
   await flush();
   const s = h.runtime.last();
   expect(s.sent[0]?.text).toBe(APPROVED);

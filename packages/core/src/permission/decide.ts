@@ -60,29 +60,33 @@ export interface Decision {
  * Decide one tool call (spec §6.14). Order: hard floor (deny), per-tool deny, mandatory asks (instruction change
  * in a tainted run), the other taint asks (they yield only to an `always_allow` site rule, or for an MCP call a
  * tool or server rule), per-tool override, owner rule (`require_approval` asks, `always_allow` allows), then the
- * autonomy level for the tool's class. An irreversible or destructive-class call is never lifted by an
- * `always_allow` rule and its ask is `ask_always`. Auto Review (Task 17) goes after the level's ask.
+ * autonomy level for the tool's class. An irreversible call is never lifted by an `always_allow` rule (nor
+ * does one hide a require rule) and its ask is `ask_always`. Auto Review (Task 17) goes after the level's ask.
  */
 export function decide(input: DecideInput): Decision {
   const { call, spec, grants, settings, now } = input;
   if (input.floorDenyReason) return { outcome: "deny", reason: input.floorDenyReason };
   const cls = classifyTool(spec, call.tool);
-  // No permanent permission for what cannot be undone or destroys: never lifted by a rule, never "Always".
-  const irreversible = isIrreversible(spec);
-  const noAlways = irreversible || cls === "destructive";
+  // No permanent permission for what cannot be undone: never lifted by a rule, never "Always".
+  const noAlways = isIrreversible(spec);
   const override = settings.tools?.[call.tool];
   if (override === "deny") return { outcome: "deny", reason: "tool override" };
   const taint = input.taint;
   if (taint?.mandatory) return { outcome: "ask_always", reason: `tainted: ${taint.reason}` };
   const server = mcpServerOf(call.tool);
   const category = server ? categoryOf(call.tool, server) : undefined;
-  const rule = resolveRule(grants, call, {
-    ...(input.site && { site: input.site }),
-    ...(server && { server }),
-    ...(category && { category }),
-    scope: scopeOf(call, spec),
-    now,
-  });
+  // An allow rule that cannot apply must never hide a less specific require rule: only require rules count then.
+  const rule = resolveRule(
+    noAlways ? grants.filter((g) => g.effect === "require_approval") : grants,
+    call,
+    {
+      ...(input.site && { site: input.site }),
+      ...(server && { server }),
+      ...(category && { category }),
+      scope: scopeOf(call, spec),
+      now,
+    },
+  );
   const allowRule = rule?.effect === "always_allow" && !noAlways ? rule : undefined;
   const required = rule?.effect === "require_approval" ? RULE_SPECIFICITY[rule.match] : 0;
   const fetch = call.tool === "WebFetch";
@@ -91,10 +95,7 @@ export function decide(input: DecideInput): Decision {
   const always = kind && !noAlways && RULE_SPECIFICITY[kind] > required ? kind : undefined;
   const ask = (reason: string): Decision =>
     noAlways
-      ? {
-          outcome: "ask_always",
-          reason: `${reason}; ${irreversible ? "cannot be undone" : "destructive"}`,
-        }
+      ? { outcome: "ask_always", reason: `${reason}; cannot be undone` }
       : { outcome: "ask", reason, ...(always && { always }) };
   if (taint) {
     const yields =

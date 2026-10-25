@@ -3,18 +3,25 @@ import { asc, eq, inArray } from "drizzle-orm";
 import type { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import { grants } from "../schema/engine-tables";
 
-/** One stored row as an owner rule. */
-function toGrant(r: typeof grants.$inferSelect): Grant {
-  return {
-    id: r.id,
-    botId: r.botId,
-    effect: r.effect as RuleEffect,
-    match: r.matchKind as RuleMatch,
-    tool: r.tool,
-    scope: JSON.parse(r.scope) as Record<string, string>,
-    createdAt: r.createdAt,
-    ...(r.expiresAt !== null && { expiresAt: r.expiresAt }),
-  };
+/** The effects and match kinds this build knows. */
+const EFFECTS: readonly string[] = ["always_allow", "require_approval"] satisfies RuleEffect[];
+const MATCHES: readonly string[] = ["site", "tool", "server", "category"] satisfies RuleMatch[];
+
+/** One stored row as an owner rule; a row with an unknown effect or match kind is no rule (skipped). */
+function toGrant(r: typeof grants.$inferSelect): Grant[] {
+  if (!EFFECTS.includes(r.effect) || !MATCHES.includes(r.matchKind)) return [];
+  return [
+    {
+      id: r.id,
+      botId: r.botId,
+      effect: r.effect as RuleEffect,
+      match: r.matchKind as RuleMatch,
+      tool: r.tool,
+      scope: JSON.parse(r.scope) as Record<string, string>,
+      createdAt: r.createdAt,
+      ...(r.expiresAt !== null && { expiresAt: r.expiresAt }),
+    },
+  ];
 }
 
 /** Owner rules (spec §6.14). `list` includes the rules for every bot (`*`); expired rows too (core checks expiry). */
@@ -26,7 +33,7 @@ export function grantRepo(db: BunSQLiteDatabase): Store["grants"] {
         .from(grants)
         .where(inArray(grants.botId, [botId, "*"]))
         .all()
-        .map(toGrant);
+        .flatMap(toGrant);
     },
     async all() {
       return db
@@ -34,7 +41,7 @@ export function grantRepo(db: BunSQLiteDatabase): Store["grants"] {
         .from(grants)
         .orderBy(asc(grants.createdAt), asc(grants.id))
         .all()
-        .map(toGrant);
+        .flatMap(toGrant);
     },
     async add(g) {
       db.insert(grants)
