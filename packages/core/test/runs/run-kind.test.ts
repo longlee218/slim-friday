@@ -57,7 +57,9 @@ test("replyGuidance: a bot and a ticket run are told progress updates are not av
   const note = "You cannot post progress updates in this run; write your final answer only.";
   const bot = row({ sender: ann, intent: "request" });
   expect(replyGuidance(bot, "bot", "Ann")).toContain(note);
-  expect(replyGuidance(row({ ticketId: "FRI-1" }), "ticket", "owner")).toContain(note);
+  const ticket = replyGuidance(row({ ticketId: "FRI-1" }), "ticket", "owner");
+  expect(ticket).toContain("You cannot post progress updates in this run.");
+  expect(ticket).not.toContain("write your final answer only");
   expect(replyGuidance(row({}), "owner", "owner") ?? "").not.toContain(note);
 });
 

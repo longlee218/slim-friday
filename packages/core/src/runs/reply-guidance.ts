@@ -20,7 +20,9 @@ export const NO_PROGRESS_UPDATES_NOTE =
  * (`wakeAction`, named after `senderName`); a ticket run reports on the board.
  */
 export function replyGuidance(row: WakeRow, kind: RunKind, senderName: string): string | undefined {
-  if (kind === "ticket") return `${TICKET_REPLY_GUIDANCE} ${NO_PROGRESS_UPDATES_NOTE}`;
+  // A ticket run ends with an empty reply, so it only learns that progress updates are absent.
+  if (kind === "ticket")
+    return `${TICKET_REPLY_GUIDANCE} You cannot post progress updates in this run.`;
   if (kind !== "bot" || row.sender.kind !== "bot") return undefined;
   const action = wakeAction({
     from: { id: row.sender.botId, name: senderName },
