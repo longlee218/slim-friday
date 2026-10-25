@@ -83,7 +83,7 @@ bun run start
 
 ## Vercel
 1. New Project from the repo. Root Directory `apps/web`, framework Vite. Install Command `bun install` (the workspace package `@friday/contracts` needs the install from the repo root `bun.lock`; the build runs `bun csp/check-dist.ts`, so Bun must be in the build image). Check the first deploy log: it must show Bun and a passing `check-dist`.
-2. Environment variables (Production; Preview deploys run on `*.vercel.app`, which is not the API's parent domain, so they show only the shell: sign-in and API calls fail there; run the header and cache checks on the production domain. Also in `apps/web/.env.example`):
+2. Environment variables (Production; Preview deploys run on `*.vercel.app`, which is not the API's parent domain, so they show only the shell: sign-in and API calls fail there; run the header and cache checks on the production domain. The same keys are in `apps/web/.env.example`):
    - `VITE_API_URL=https://friday-api.example.com`
    - `VITE_R2_ORIGIN=https://<ACCOUNT_ID>.r2.cloudflarestorage.com`
    - `VITE_CDN_ORIGIN=https://img.example.com` (only with a CDN)
