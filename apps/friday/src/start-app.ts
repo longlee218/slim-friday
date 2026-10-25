@@ -120,6 +120,7 @@ async function composeApp(deps: AppDeps, opened: Array<() => unknown>) {
   const daily = startDailyMaintenance({
     ...mem,
     engine,
+    store,
     clock,
     log,
     ...(deps.consolidate && { consolidate: deps.consolidate }),

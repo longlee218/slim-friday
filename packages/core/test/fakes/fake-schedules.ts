@@ -44,14 +44,16 @@ export function fakeSchedules() {
       for (let j = runs.length - 1; j >= 0; j--) if (runs[j]?.scheduleId === id) runs.splice(j, 1);
       return true;
     },
-    removeDisabledBefore: async (reasons: DisabledReason[], at: number) => {
-      const gone = rows.filter(
-        (s) =>
-          !s.enabled && s.disabledReason && reasons.includes(s.disabledReason) && s.updatedAt < at,
-      );
-      for (const s of gone) await schedules.remove(s.id);
-      return gone.length;
-    },
+    disabledBefore: async (reasons: DisabledReason[], at: number) =>
+      rows
+        .filter(
+          (s) =>
+            !s.enabled &&
+            s.disabledReason !== undefined &&
+            reasons.includes(s.disabledReason) &&
+            s.updatedAt < at,
+        )
+        .map((s) => ({ ...s })),
   };
   const scheduleRuns: Store["scheduleRuns"] = {
     insert: async (r) => {
