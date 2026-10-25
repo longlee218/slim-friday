@@ -46,6 +46,7 @@ export async function decideInRun(
       scopeKey: row.scopeKey,
       chainId: row.chainId,
       tainted: callTainted(exec, call),
+      scheduled: row.scheduleId !== undefined,
       taint: exec.taint,
       ...(shot && { oneShot: shot }),
       reserve: () => {

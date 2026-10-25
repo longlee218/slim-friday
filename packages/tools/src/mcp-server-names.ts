@@ -5,3 +5,4 @@ export const CHAT_MCP_SERVER = "chat";
 export const DESIGN_MCP_SERVER = "design";
 export const TICKETS_MCP_SERVER = "tickets";
 export const SCRATCHPAD_MCP_SERVER = "scratchpad";
+export const SCHEDULES_MCP_SERVER = "schedules";

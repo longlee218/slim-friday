@@ -124,7 +124,7 @@ test("owner.timeZone is unset by default and a user setting sets it", () => {
 });
 
 test("a server named like one of Friday's own is refused", () => {
-  for (const id of ["memory", "effects", "chat", "design", "tickets", "scratchpad"])
+  for (const id of ["memory", "effects", "chat", "design", "tickets", "scratchpad", "schedules"])
     expect(() => parseMcpFile(`servers:\n  ${id}: { type: stdio, command: x }\n`)).toThrow(
       new RegExp(`server name ${id} is reserved`),
     );

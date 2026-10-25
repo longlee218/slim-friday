@@ -47,6 +47,11 @@ export interface DecideInput {
   taint?: TaintAsk;
   /** Registrable domain of a `WebFetch` url (`fetchSiteOf`); unset for other tools or a host with none. */
   site?: string;
+  /**
+   * The call is a read step (`isScheduledRead`) of a scheduled run (spec 6.4): allowed after the floor and a
+   * per-tool `deny`, over taint asks, owner rules and the level. Set by the gate only; unset everywhere else.
+   */
+  scheduledRead?: boolean;
 }
 
 /** The decision; `always` names the kind of "Always allow" rule the card may offer (unset: no "Always"). */
@@ -59,7 +64,7 @@ export interface Decision {
 }
 
 /**
- * Decide one tool call (spec §6.14). Order: hard floor (deny), per-tool deny, mandatory asks (instruction change
+ * Decide one tool call (spec §6.14). Order: hard floor (deny), per-tool deny, a scheduled run's read step (allow), mandatory asks (instruction change
  * in a tainted run), the other taint asks (they yield only to an `always_allow` site rule, or for an MCP call a
  * tool or server rule), per-tool `ask` override, a `require_approval` rule, per-tool `allow` override, an
  * `always_allow` rule, then the autonomy level for the tool's class. An irreversible call is never lifted by an `always_allow` rule (nor
@@ -73,6 +78,8 @@ export function decide(input: DecideInput): Decision {
   const noAlways = isIrreversible(spec);
   const override = settings.tools?.[call.tool];
   if (override === "deny") return { outcome: "deny", reason: "tool override" };
+  // A scheduled run's read step never asks (owner decision, spec 6.4); the floor and a tool deny came first.
+  if (input.scheduledRead) return { outcome: "allow", reason: "scheduled run: read step" };
   const taint = input.taint;
   if (taint?.mandatory) return { outcome: "ask_always", reason: `tainted: ${taint.reason}` };
   const server = mcpServerOf(call.tool);
