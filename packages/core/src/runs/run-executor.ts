@@ -15,6 +15,7 @@ import { type PumpEnd, pumpRun } from "./run-pump";
 import { openRunSession } from "./run-session";
 import { persistEffort, runSpec } from "./run-spec";
 import { claimSteering, withSteering } from "./run-steering";
+import { addOwnerTexts, restoreTaint, taintedAtClaim } from "./run-taint";
 import { buildRunTurn } from "./run-turn";
 import { StreamWatchdog } from "./run-watchdog";
 
@@ -40,9 +41,7 @@ export async function executeRun(ctx: HubContext, row: WakeRow, lease: RunLease)
   const requeued = await requeuedByShutdown(ctx, claimed);
   // A run reclaimed after a cut: rows its earlier attempt answered go, the others are offered again.
   if (claimed.claimedFrom === "running" || requeued) await settleCutSteering(ctx, claimed);
-  // Spec "Taint flag": not started by the owner, resumes a cut or parked run, or a second attempt.
-  const tainted =
-    claimed.sender.kind !== "user" || claimed.cuts > 0 || claimed.cardId !== undefined || fence > 1;
+  const tainted = taintedAtClaim(claimed, fence);
   const patch = {
     attempts: Math.max(claimed.attempts, fence),
     ...(tainted && { tainted }),
@@ -104,6 +103,8 @@ async function runSession(
       return { kind: "stopped" };
     }
     if (resume?.oneShot) exec.oneShot = resume.oneShot;
+    // Sites and MCP servers the owner approved on this run's earlier cards stay approved (spec §6.10).
+    await restoreTaint(ctx, exec);
     const state = await untilStop(exec, ctx.deps.store.scopes.get(exec.key));
     if (exec.stop) return { kind: "stopped" };
     const spec = runSpec(ctx, exec, state?.effort);
@@ -134,6 +135,10 @@ async function runSession(
     const rows = await untilStop(exec, claimSteering(ctx, exec.row, ctx.deps.clock.now()));
     if (rows === undefined || exec.stop) return { kind: "stopped" };
     exec.firstRows = rows.map((r) => r.id);
+    addOwnerTexts(
+      exec,
+      rows.map((r) => r.text),
+    );
     exec.session.send(withSteering(turn, rows));
     return await pumpRun(ctx, exec, dog);
   } catch (err) {

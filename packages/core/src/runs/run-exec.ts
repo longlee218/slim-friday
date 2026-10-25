@@ -6,6 +6,7 @@ import { RunTracker } from "../hub/run-steps";
 import type { SessionScope } from "../hub/session-scope";
 import type { BotSession } from "../ports/agent-runtime";
 import type { LeaseLoss } from "./run-lease";
+import { newRunTaint, type RunTaint } from "./run-taint";
 
 /** A background task a bot started, remembered with the conversation that started it. */
 export interface TaskInfo {
@@ -83,8 +84,10 @@ export interface RunExec {
   live: boolean;
   /** An earlier attempt was cut (crash, lost lease or graceful shutdown): the turn carries the cut note. */
   cutBefore: boolean;
-  /** Set when the run read untrusted input (spec "Taint flag"); the permission gate gets it. */
+  /** Set when the run read untrusted input (spec §6.10); the permission gate applies the taint asks. */
   tainted: boolean;
+  /** Owner-named and approved sites, approved MCP servers and open calls of the taint policy (`run-taint.ts`). */
+  taint: RunTaint;
   /** An ask of this run is storing its card or waiting for it (set synchronously; one ask per run at a time). */
   asking: boolean;
   /** A card the run waits on with its session open (only while background tasks run, else it parks). */
@@ -142,6 +145,7 @@ export function newRunExec(row: WakeRow, scope: SessionScope, now: number, taint
     live: true,
     cutBefore: row.cuts > 0,
     tainted,
+    taint: newRunTaint(row),
     asking: false,
     firstTextSeen: false,
     nudges: row.nudges,

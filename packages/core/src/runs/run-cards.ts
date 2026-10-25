@@ -9,6 +9,7 @@ import { requeueForCard } from "./run-card-answer";
 import { abortRun, type RunExec } from "./run-exec";
 import { questionsResume } from "./run-questions";
 import { holdOrContinue } from "./run-steering";
+import { callTainted, noteAllowed } from "./run-taint";
 
 /**
  * One tool call of a run through the permission gate. The resumed run's approved call takes its one shot first:
@@ -40,7 +41,8 @@ export async function decideInRun(
     {
       wakeId: row.id,
       scopeKey: row.scopeKey,
-      tainted: exec.tainted,
+      tainted: callTainted(exec, call),
+      taint: exec.taint,
       ...(shot && { oneShot: shot }),
       reserve: () => {
         if (exec.asking) return false;
@@ -54,12 +56,14 @@ export async function decideInRun(
   );
   if (d.behavior !== "park") {
     if (mine) exec.asking = false;
+    if (d.behavior === "allow") noteAllowed(exec, call);
     return d;
   }
   const r = await waitOrPark(ctx, exec, d.cardId);
   exec.asking = false;
   if (r === "parked") return d;
   const approved = r.status !== "withdrawn" && (r.answer === "once" || r.answer === "always");
+  if (approved) noteAllowed(exec, call);
   return approved ? { behavior: "allow" } : { behavior: "deny", reason: DENIAL_TEXT };
 }
 

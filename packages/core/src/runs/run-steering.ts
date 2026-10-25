@@ -6,6 +6,7 @@ import type { InboundTurn, SteerInput } from "../ports/agent-runtime";
 import { createRun } from "./run-create";
 import type { RunExec } from "./run-exec";
 import { isConversational } from "./run-rules";
+import { addOwnerTexts } from "./run-taint";
 
 /** Dedupe-key prefix that marks a continuation run. */
 export const CONTINUATION_KEY = "cont:";
@@ -76,6 +77,11 @@ export function deliverSteering(
     if (!can() || (needsOpenTool && exec.openTools.size === 0)) return;
     const rows = await claimSteering(ctx, exec.row, ctx.deps.clock.now());
     if (rows.length === 0 || !can()) return;
+    // Sites named in these owner messages may be fetched by a tainted run (spec §6.10).
+    addOwnerTexts(
+      exec,
+      rows.map((r) => r.text),
+    );
     exec.session?.steer(formatSteering(rows));
     exec.pushed.push(...rows.map((r) => r.id));
   };

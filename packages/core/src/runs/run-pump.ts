@@ -7,6 +7,7 @@ import { noFinalAnswerError, nudgeOrEnd } from "./run-nudge";
 import { holdText, onAnswerText, releaseHeld, showStep } from "./run-output";
 import { dayOf } from "./run-rules";
 import { answerFirstTurn, answerPushed, deliverSteering } from "./run-steering";
+import { onTaintCall, onTaintResult } from "./run-taint";
 import type { StreamWatchdog } from "./run-watchdog";
 
 /** How a run's event stream ended: the work is done, it failed, or the run was cut short (`exec.stop`). */
@@ -67,11 +68,14 @@ async function onEvent(
     // A text held before this call was narration.
     await releaseHeld(ctx, exec, "narration");
     exec.openTools.add(e.toolUseId);
+    onTaintCall(exec, e.toolUseId, e.tool);
     for (const s of exec.steps.onToolCall(e, now)) show(s);
   } else if (e.type === "tool_result") {
     exec.openTools.delete(e.toolUseId);
     exec.lastWasToolResult = true;
     show(exec.steps.onToolResult(e, now));
+    // The first result from outside taints the run, stored on the row (spec §6.10).
+    await onTaintResult(ctx, exec, e.toolUseId);
     // This result followed the earlier pushes: the model read them. Then push what came while the tool ran.
     await answerPushed(ctx, exec);
     await deliverSteering(ctx, exec, false);

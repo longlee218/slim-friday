@@ -10,6 +10,7 @@ import { redactSecrets, redactValue, secretsFrom } from "../safety/redact-secret
 import { scopeOf } from "./classify-tool";
 import { decide } from "./decide";
 import { inputHash } from "./input-hash";
+import { type TaintRun, taintAskOf } from "./taint-policy";
 
 /** Deny reason for a call that needs approval while the same run already waits on a card. */
 export const WAITING_TEXT = "waiting for the owner's answer to an earlier request";
@@ -32,8 +33,10 @@ export interface GateContext {
   wakeId: string;
   /** The run's session scope (`<botId>` or `<botId>@<groupId>`). */
   scopeKey: string;
-  /** The run read untrusted input (spec "Taint flag"); recorded only, the stricter policy is later work. */
+  /** The run read untrusted input (spec §6.10): the taint asks of `taint-policy.ts` apply. */
   tainted: boolean;
+  /** The run's owner-named and approved sites and approved MCP servers; unset: none (every taint ask asks). */
+  taint?: Omit<TaintRun, "tainted">;
   /** Input hash of the call the owner approved for this resumed run: that exact call is allowed. */
   oneShot?: string;
   /**
@@ -79,6 +82,14 @@ export class PermissionGate {
     const { store, catalog, clock } = this.deps;
     const spec = (await catalog.list()).find((t) => t.name === call.tool);
     const scope = scopeOf(call, spec);
+    const none = new Set<string>();
+    const taint = taintAskOf(call, {
+      sites: none,
+      approvedSites: none,
+      usedMcpServers: none,
+      ...ctx.taint,
+      tainted: ctx.tainted,
+    });
     const verdict = decide({
       call,
       spec,
@@ -86,6 +97,7 @@ export class PermissionGate {
       settings: this.deps.settings(),
       floorDenyReason,
       now: clock.now(),
+      ...(taint && { taint }),
     });
     const audit = (reason: string) =>
       store.audit.append({
@@ -131,8 +143,10 @@ export class PermissionGate {
         tool: call.tool,
         input: redactValue(call.input, secrets),
         inputHash: hash,
+        // A taint card says why it asks (spec §6.10).
         summary: redactSecrets(
-          [call.tool, ...Object.entries(scope).map(([k, v]) => `${k}=${v}`)].join(" "),
+          [call.tool, ...Object.entries(scope).map(([k, v]) => `${k}=${v}`)].join(" ") +
+            (verdict.reason.startsWith("tainted: ") ? ` (${verdict.reason})` : ""),
           secrets,
         ),
         scope: shownScope,

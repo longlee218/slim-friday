@@ -3,6 +3,7 @@ import type { Grant } from "../domain/grant";
 import type { ToolCall, ToolSpec } from "../domain/tool";
 import { classifyTool, isIrreversible, scopeOf } from "./classify-tool";
 import { matchGrant } from "./match-grant";
+import type { TaintAsk } from "./taint-policy";
 
 /** What each autonomy level does with each class of call, before grants and overrides. */
 export const LEVEL_MAP: Record<AutonomyLevel, Record<RiskClass, "allow" | "ask">> = {
@@ -40,12 +41,15 @@ export interface DecideInput {
   /** Set by the runtime when a hard rule (sandbox, credential path) already forbids the call. */
   floorDenyReason?: string;
   now: number;
+  /** The taint ask of the call in a tainted run (`taintAskOf`); unset when none applies. */
+  taint?: TaintAsk;
 }
 
 /**
  * Decide one tool call. Order: hard floor (deny), per-tool override, matching grant (allow), then the
  * autonomy level for the tool's class. An `ask` on an irreversible call becomes `ask_always`
- * (no "Always allow" offered).
+ * (no "Always allow" offered). A taint ask (spec §6.10) only adds a card, never "Always": a mandatory one
+ * (instruction change) beats everything but a deny; another one (site, MCP server) yields only to a grant.
  */
 export function decide(input: DecideInput): { outcome: Outcome; reason: string } {
   const { call, spec, grants, settings, now } = input;
@@ -56,9 +60,13 @@ export function decide(input: DecideInput): { outcome: Outcome; reason: string }
       ? { outcome: "ask_always", reason: `${reason}; cannot be undone` }
       : { outcome, reason };
   const override = settings.tools?.[call.tool];
-  if (override) return upgrade(override, "tool override");
+  if (override === "deny") return { outcome: "deny", reason: "tool override" };
+  const taint = input.taint;
+  if (taint?.mandatory) return { outcome: "ask_always", reason: `tainted: ${taint.reason}` };
   // An irreversible call never matches a grant: no permanent permission for what cannot be undone.
   const grant = irreversible ? undefined : matchGrant(grants, call, scopeOf(call, spec), now);
+  if (taint && !grant) return { outcome: "ask_always", reason: `tainted: ${taint.reason}` };
+  if (override) return upgrade(override, "tool override");
   if (grant) return { outcome: "allow", reason: `grant ${grant.id}` };
   const cls = classifyTool(spec);
   const level = settings.botLevels?.[call.botId] ?? settings.level;
