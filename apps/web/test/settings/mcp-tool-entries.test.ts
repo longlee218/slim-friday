@@ -2,6 +2,7 @@ import { expect, test } from "vitest";
 import {
   isServerEntry,
   selectedTools,
+  toolSummary,
   withoutServer,
   withSelectedTools,
 } from "../../src/components/settings/mcp-tool-entries";
@@ -32,4 +33,11 @@ test("choosing every tool writes the whole-server entry; none removes the server
     "mcp__apero",
   ]);
   expect(withSelectedTools(["Read", "mcp__apero"], "apero", all, new Set())).toEqual(["Read"]);
+});
+
+test("the summary names all tools, a count or nothing", () => {
+  expect(toolSummary(["mcp__apero"], "apero")).toBe("All tools");
+  expect(toolSummary(["mcp__apero__a", "mcp__apero__b"], "apero")).toBe("2 tools");
+  expect(toolSummary(["mcp__apero__a"], "apero")).toBe("1 tool");
+  expect(toolSummary(["Read"], "apero")).toBe("");
 });

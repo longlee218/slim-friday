@@ -34,3 +34,10 @@ export function withSelectedTools(
   if (all.every((t) => chosen.has(t))) return [...rest, serverRef(server)];
   return [...rest, ...all.filter((t) => chosen.has(t)).map((t) => `${toolPrefix(server)}${t}`)];
 }
+
+/** What the entries give a server, for a one-line summary: "All tools", "N tools" or "" when it is off. */
+export function toolSummary(entries: string[], server: string): string {
+  if (entries.includes(serverRef(server))) return "All tools";
+  const n = entries.filter((e) => e.startsWith(toolPrefix(server))).length;
+  return n === 0 ? "" : `${n} tool${n === 1 ? "" : "s"}`;
+}
