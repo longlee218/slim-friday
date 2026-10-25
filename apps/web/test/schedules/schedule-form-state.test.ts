@@ -1,10 +1,11 @@
 import type { RepeatRuleDto } from "@friday/contracts";
-import { expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import {
   checkForm,
   formToRule,
   newScheduleForm,
   ruleToForm,
+  timeZones,
 } from "../../src/components/schedules/schedule-form-state";
 
 const RULES: RepeatRuleDto[] = [
@@ -53,4 +54,14 @@ test("checkForm needs a name and a task, then returns the update fields", () => 
     rule: { kind: "daily", at: "09:00" },
     notify: "always",
   });
+});
+
+afterEach(() => vi.unstubAllGlobals());
+
+test("time zones include UTC, with a short built-in list when Intl cannot list them", () => {
+  expect(timeZones()).toContain("UTC");
+  expect(timeZones()).toContain("Asia/Ho_Chi_Minh");
+  vi.stubGlobal("Intl", { ...Intl, supportedValuesOf: undefined });
+  expect(timeZones()).toContain("UTC");
+  expect(timeZones()).toContain("Asia/Ho_Chi_Minh");
 });

@@ -5,15 +5,9 @@ import { useFormState } from "../settings/use-form-state";
 import { BottomSheet } from "../ui/bottom-sheet";
 import { Button } from "../ui/button";
 import { Sheet } from "../ui/sheet";
-import { ScheduleForm } from "./schedule-form";
-import {
-  checkForm,
-  formError,
-  isFieldError,
-  newScheduleForm,
-  refusal,
-  sendSchedule,
-} from "./schedule-form-state";
+import { FormErrorLine, ScheduleForm } from "./schedule-form";
+import { checkForm, isFieldError, localToday, newScheduleForm } from "./schedule-form-state";
+import { FORM_ERROR_ID, formError, refusal, sendSchedule } from "./schedule-save";
 import { useCreateSchedule } from "./use-schedules";
 
 export interface NewScheduleSheetProps {
@@ -23,14 +17,11 @@ export interface NewScheduleSheetProps {
   onCreated?: (schedule: ScheduleDto) => void;
 }
 
-/** Today on this device's calendar, `YYYY-MM-DD` (the first date a Once schedule offers). */
-const today = () => new Date().toLocaleDateString("en-CA");
-
 /** The form and buttons; mounted only while the sheet is open, so every opening starts blank. */
 function NewScheduleForm({ onOpenChange, onCreated }: Omit<NewScheduleSheetProps, "open">) {
   const dir = useDirectory();
   const first = dir.bots.keys().next().value ?? "";
-  const form = useFormState(newScheduleForm(first, today()));
+  const form = useFormState(newScheduleForm(first, localToday()));
   const create = useCreateSchedule();
   const v = form.value;
   const canCreate = v.name.trim() !== "" && v.task.trim() !== "" && v.botId !== "" && !form.saving;
@@ -60,14 +51,15 @@ function NewScheduleForm({ onOpenChange, onCreated }: Omit<NewScheduleSheetProps
     >
       <h3>New schedule</h3>
       <ScheduleForm value={v} set={form.set} errors={form.errors} mode="create" />
-      {formError(form.errors) && (
-        <div className="help err sched-form-err" role="alert">
-          {formError(form.errors)}
-        </div>
-      )}
+      <FormErrorLine errors={form.errors} />
       <div className="acts">
         <Button onClick={() => onOpenChange(false)}>Cancel</Button>
-        <Button type="submit" variant="primary" disabled={!canCreate}>
+        <Button
+          type="submit"
+          variant="primary"
+          disabled={!canCreate}
+          aria-describedby={formError(form.errors) ? FORM_ERROR_ID : undefined}
+        >
           {form.saving ? "Creating…" : "Create schedule"}
         </Button>
       </div>

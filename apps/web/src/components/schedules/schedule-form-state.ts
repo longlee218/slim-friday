@@ -1,5 +1,4 @@
 import type { RepeatRuleDto, ScheduleDto } from "@friday/contracts";
-import { isBadRequest, saveFailure } from "../settings/field-error";
 
 /** The five Repeat choices. */
 export type RepeatKind = RepeatRuleDto["kind"];
@@ -141,19 +140,29 @@ export const newScheduleForm = (botId: string, today: string): ScheduleFormValue
   notify: "always",
 });
 
-/** A `BAD_REQUEST` on `field`: `useFormState.submit` shows it by that field (`form`: under the form). */
-export const refusal = (field: string, message: string): Error =>
-  Object.assign(new Error(message), { code: "BAD_REQUEST", data: { field } });
+/** Today on this device's calendar, `YYYY-MM-DD` (the date a Once schedule starts from). */
+export const localToday = (): string => new Date().toLocaleDateString("en-CA");
 
-/** Runs `send`; the server's `BAD_REQUEST` (it names no field) becomes one on `form`. */
-export async function sendSchedule<T>(send: () => Promise<T>): Promise<T> {
-  try {
-    return await send();
-  } catch (e) {
-    const { field, message } = saveFailure(e);
-    throw isBadRequest(e) && !field ? refusal("form", message) : e;
-  }
+/** A short list for engines without `Intl.supportedValuesOf`. */
+const FALLBACK_ZONES = [
+  "Europe/London",
+  "Europe/Paris",
+  "America/New_York",
+  "America/Los_Angeles",
+  "Asia/Ho_Chi_Minh",
+  "Asia/Singapore",
+  "Asia/Tokyo",
+  "Australia/Sydney",
+];
+
+/**
+ * IANA zones the picker offers: UTC first, then the engine's list merged with the common ones
+ * (engines may leave out UTC or list a zone by an older name, e.g. Asia/Saigon).
+ */
+export function timeZones(): string[] {
+  const all =
+    typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : [];
+  const rest = new Set([...all, ...FALLBACK_ZONES]);
+  rest.delete("UTC");
+  return ["UTC", ...[...rest].sort()];
 }
-
-/** The message shown under the form (the server's refusal), from `useFormState().errors`. */
-export const formError = (errors: object): string | undefined => (errors as { form?: string }).form;

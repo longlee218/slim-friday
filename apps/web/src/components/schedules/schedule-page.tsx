@@ -11,16 +11,10 @@ import { Avatar } from "../ui/avatar";
 import { Button } from "../ui/button";
 import { DeleteScheduleSheet } from "./delete-schedule-sheet";
 import { formatNextRun } from "./format-next-run";
-import { ScheduleForm } from "./schedule-form";
-import {
-  checkForm,
-  formError,
-  isFieldError,
-  refusal,
-  scheduleToForm,
-  sendSchedule,
-} from "./schedule-form-state";
+import { FormErrorLine, ScheduleForm } from "./schedule-form";
+import { isFieldError, scheduleToForm } from "./schedule-form-state";
 import { ScheduleRuns } from "./schedule-runs";
+import { FORM_ERROR_ID, formError, refusal, schedulePatch, sendSchedule } from "./schedule-save";
 import { conversationName } from "./schedule-target";
 import { useRunNow, useScheduleSwitch } from "./use-schedule-actions";
 import { useUpdateSchedule } from "./use-schedules";
@@ -87,9 +81,10 @@ export function SchedulePage({ schedule: s }: { schedule: ScheduleDto }) {
 
   const save = () =>
     form.submit(async (f) => {
-      const input = checkForm(f);
-      if (isFieldError(input)) throw refusal(input.field, input.error);
-      await sendSchedule(() => update.mutateAsync({ id: s.id, ...input }));
+      const patch = schedulePatch(f, s);
+      if (isFieldError(patch)) throw refusal(patch.field, patch.error);
+      if (Object.keys(patch).length === 0) return;
+      await sendSchedule(() => update.mutateAsync({ id: s.id, ...patch }));
     });
 
   return (
@@ -125,11 +120,7 @@ export function SchedulePage({ schedule: s }: { schedule: ScheduleDto }) {
             mode="edit"
             readOnly={gone !== undefined}
           />
-          {formError(form.errors) && (
-            <div className="help err sched-form-err" role="alert">
-              {formError(form.errors)}
-            </div>
-          )}
+          <FormErrorLine errors={form.errors} />
           <h3 className="sched-runs-title">Recent runs</h3>
           <ScheduleRuns schedule={s} />
           <div className="savebar">
@@ -142,6 +133,7 @@ export function SchedulePage({ schedule: s }: { schedule: ScheduleDto }) {
             <Button
               variant="primary"
               disabled={!form.dirty || form.saving || !!gone}
+              aria-describedby={formError(form.errors) ? FORM_ERROR_ID : undefined}
               onClick={() => void save()}
             >
               Save

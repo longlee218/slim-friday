@@ -17,6 +17,8 @@ export interface TicketSelectProps<T extends string> {
   current: ReactNode;
   onChange: (value: T) => void;
   disabled?: boolean;
+  /** Extra class of the popup (e.g. a scroll limit for a long list). */
+  popupClassName?: string;
 }
 
 /**
@@ -30,6 +32,7 @@ export function TicketSelect<T extends string>({
   current,
   onChange,
   disabled,
+  popupClassName,
 }: TicketSelectProps<T>) {
   return (
     <Select.Root
@@ -45,7 +48,9 @@ export function TicketSelect<T extends string>({
       </Select.Trigger>
       <Select.Portal>
         <Select.Positioner className="pop-pos" sideOffset={6} alignItemWithTrigger={false}>
-          <Select.Popup className="pop sel-pop">
+          <Select.Popup
+            className={popupClassName ? `pop sel-pop ${popupClassName}` : "pop sel-pop"}
+          >
             {options.map((o) => (
               <Select.Item key={o.value} value={o.value} className="sel-it">
                 <Select.ItemText>{o.node}</Select.ItemText>

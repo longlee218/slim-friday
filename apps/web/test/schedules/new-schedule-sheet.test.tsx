@@ -85,13 +85,42 @@ test("posting to a group the bot is in, only problems", async () => {
   const sheet = await renderSheet();
   await fill(sheet);
   await userEvent.click(within(sheet).getByRole("combobox", { name: "Post to" }));
-  expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(["Ray", "Crew"]);
+  expect((await screen.findAllByRole("option")).map((o) => o.textContent)).toEqual(["Ray", "Crew"]);
   await userEvent.click(screen.getByRole("option", { name: "Crew" }));
   await userEvent.click(within(sheet).getByRole("button", { name: "Only problems" }));
   await userEvent.click(within(sheet).getByRole("button", { name: "Create schedule" }));
   await waitFor(() =>
     expect(api.create).toHaveBeenCalledWith(
       expect.objectContaining({ botId: "ray", conversationId: "group:crew", notify: "problems" }),
+    ),
+  );
+});
+
+test("a chosen time zone is sent by its IANA name", async () => {
+  api.create.mockResolvedValue(schedule("s9"));
+  const sheet = await renderSheet();
+  await fill(sheet);
+  await userEvent.click(within(sheet).getByRole("combobox", { name: "Time zone" }));
+  await userEvent.click(await screen.findByRole("option", { name: "Asia/Tokyo" }));
+  await userEvent.click(within(sheet).getByRole("button", { name: "Create schedule" }));
+  await waitFor(() =>
+    expect(api.create).toHaveBeenCalledWith(expect.objectContaining({ timeZone: "Asia/Tokyo" })),
+  );
+});
+
+test("a bot change resets Post to the new bot's own chat", async () => {
+  api.create.mockResolvedValue(schedule("s9"));
+  const sheet = await renderSheet();
+  await fill(sheet);
+  await userEvent.click(within(sheet).getByRole("combobox", { name: "Post to" }));
+  await userEvent.click(await screen.findByRole("option", { name: "Crew" }));
+  await userEvent.click(within(sheet).getByRole("combobox", { name: "Bot" }));
+  await userEvent.click(await screen.findByRole("option", { name: /Kai/ }));
+  expect(within(sheet).getByRole("combobox", { name: "Post to" }).textContent).toBe("Kai");
+  await userEvent.click(within(sheet).getByRole("button", { name: "Create schedule" }));
+  await waitFor(() =>
+    expect(api.create).toHaveBeenCalledWith(
+      expect.objectContaining({ botId: "kai", conversationId: "bot:kai" }),
     ),
   );
 });
