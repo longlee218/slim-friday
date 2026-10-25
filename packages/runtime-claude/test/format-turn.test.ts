@@ -13,7 +13,6 @@ test("a message from a bot is wrapped as untrusted peer content; the intent's gu
       from: { kind: "bot", botId: "writer" },
       text: "check <it>",
       hop: 1,
-      intent: "request",
       context: [],
       guidance: "This is a request. Complete it.",
       ...T,
@@ -217,6 +216,8 @@ test("an automated turn starts with the automated label", () => {
     {},
   );
   expect(text).toStartWith(`${AUTOMATED_LABEL}\n`);
+  expect(text).toContain("[conversation c1] system (hop 0):");
+  expect(text).not.toContain("user (hop 0)");
   expect(AUTOMATED_LABEL).toBe("[Automated message from Friday, not from the owner]");
 });
 
@@ -227,7 +228,6 @@ test("a bot turn carries the intent's guidance once, after the message", () => {
       from: { kind: "bot", botId: "writer" },
       text: "check",
       hop: 1,
-      intent: "request",
       context: [],
       guidance: "This is a request. Complete it.",
       now: NOW,

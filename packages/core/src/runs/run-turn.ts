@@ -55,9 +55,11 @@ export async function buildRunTurn(
   if (conv?.kind === "group") owners.push({ kind: "group", groupId: conv.groupId });
   const recalled = await recalledBlock(recall, owners, text, opts.shown ?? "", ctx.limits);
   const guidance = replyGuidance(row, runKindOf(row), await senderName(ctx, row));
+  // Friday wrote an automated turn's text (continuation, card resume), so its header names the system, never the owner.
+  const automated = isAutomatedTurn(row, !first);
   return {
     conversationId: row.conversationId,
-    from: first ? row.sender : { kind: "system" },
+    from: automated ? { kind: "system" } : row.sender,
     text,
     hop: row.hop,
     intent: row.intent,
@@ -69,7 +71,7 @@ export async function buildRunTurn(
     ...(first && row.quote && { quote: row.quote }),
     ...(recalled && { recalled }),
     ...(guidance && { guidance }),
-    ...(isAutomatedTurn(row, !first) && { automated: true }),
+    ...(automated && { automated: true }),
     now: ctx.deps.clock.now(),
     timeZone: ctx.deps.timeZone?.() ?? "UTC",
   };
