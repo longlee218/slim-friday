@@ -1,0 +1,56 @@
+# Git hooks (Lefthook). Installed by `bun install` (the `prepare` script) or `bunx lefthook install`.
+# Skip once with LEFTHOOK=0 git ...; never skip a failing check just to get a push through.
+
+pre-commit:
+  parallel: true
+  skip: [merge, rebase]
+  commands:
+    # Lint + format check on the staged files only (the whole repo has older findings).
+    biome:
+      glob: "*.{ts,tsx,js,jsx,json,jsonc}"
+      run: bunx biome check --staged --no-errors-on-unmatched --files-ignore-unknown=true
+    # Env files, keys and certificates never enter a commit (`.env.example` is fine).
+    forbidden-files:
+      run: |
+        bad=$(git diff --cached --name-only --diff-filter=AM | grep -E '(^|/)(\.env(\..+)?|.*\.(pem|p12|pfx)|id_(rsa|ed25519))$' | grep -v '\.env\.example$' || true)
+        [ -z "$bad" ] || { echo "forbidden file staged:"; echo "$bad"; exit 1; }
+    # Real-looking secrets in added lines (test fixtures hold dummy values and are skipped).
+    secrets:
+      run: |
+        hit=$(git diff --cached -U0 --diff-filter=AM -- . ':!bun.lock' ':!**/test/**' | grep -E '^\+.*(sk-ant-(api|oat)[0-9]*-[A-Za-z0-9_-]{40,}|AKIA[0-9A-Z]{16}([^A-Z]|$)|ghp_[A-Za-z0-9]{36}|-----BEGIN ([A-Z]+ )*PRIVATE KEY-----)' || true)
+        [ -z "$hit" ] || { echo "possible secret in staged changes (values hidden)"; exit 1; }
+    # Files over 1 MB.
+    large-files:
+      run: |
+        fail=0
+        for f in $(git diff --cached --name-only --diff-filter=AM); do
+          [ -f "$f" ] && [ "$(wc -c < "$f")" -gt 1048576 ] && { echo "over 1 MB: $f"; fail=1; }
+        done
+        exit $fail
+    # Unresolved merge conflict markers in added lines.
+    conflict-markers:
+      run: |
+        ! git diff --cached -U0 --diff-filter=AM | grep -E '^\+(<<<<<<< |>>>>>>> |=======$)'
+
+commit-msg:
+  skip: [merge, rebase]
+  commands:
+    # Conventional commits: type(scope)!: subject (see CLAUDE.md, Commits).
+    conventional:
+      run: |
+        head -1 {1} | grep -qE '^(feat|fix|chore|docs|refactor|test|optimize|perf|ci|build|style|revert)(\([a-z0-9._/-]+\))?!?: .+' \
+          || { echo "commit message must be 'type(scope): subject' (feat, fix, chore, docs, refactor, test, optimize, perf, ci, build, style, revert)"; exit 1; }
+    # No AI attribution in commits.
+    no-ai-attribution:
+      run: |
+        ! grep -iE 'co-authored-by:.*(claude|anthropic|copilot|codex|openai)|generated (with|by) (claude|ai)|noreply@anthropic' {1}
+
+pre-push:
+  commands:
+    typecheck:
+      run: bunx tsc --noEmit
+    typecheck-web:
+      glob: "apps/web/**"
+      run: bun run --cwd apps/web typecheck
+    test:
+      run: bun test
