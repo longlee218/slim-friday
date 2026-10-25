@@ -57,6 +57,8 @@ export function fromRow(r: Row): WakeRow {
     setupFailures: r.setupFailures,
     nudges: r.nudges,
     ...(r.intro && { intro: true }),
+    ...(r.scheduleId && { scheduleId: r.scheduleId }),
+    ...(r.scheduleQuiet && { scheduleQuiet: true }),
     ...(r.quote && { quote: JSON.parse(r.quote) }),
   };
 }

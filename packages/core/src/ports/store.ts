@@ -6,6 +6,7 @@ import type { Group, GroupId } from "../domain/group";
 import type { IndexedMessage, StoredMessage } from "../domain/message";
 import type { ScratchpadItem } from "../domain/scratchpad";
 import type { WakeRow, WakeStatus } from "../domain/wake";
+import type { DisabledReason, Schedule, ScheduleRun } from "../schedules/schedule";
 import type { Ticket, TicketComment, TicketEvent, TicketStatus } from "../tickets/ticket";
 import type { CardPort, EffectPort, ScopePort, SteeringPort } from "./run-state-ports";
 import type { ApprovalAnswer } from "./surface";
@@ -293,6 +294,48 @@ export interface Store {
     remove(id: string, scopeKey: string): Promise<boolean>;
     /** Delete `done` items last updated before `at`; returns the count. */
     deleteDoneBefore(at: number): Promise<number>;
+  };
+  /** Scheduled bot runs. */
+  schedules: {
+    /** Schedules by creation time, optionally of one bot or conversation. */
+    list(f?: { botId?: BotId; conversationId?: ConversationId }): Promise<Schedule[]>;
+    get(id: string): Promise<Schedule | undefined>;
+    insert(s: Schedule): Promise<void>;
+    /** Patch a schedule; undefined when the id is unknown. */
+    update(
+      id: string,
+      patch: Partial<Omit<Schedule, "id" | "createdAt" | "createdBy">>,
+    ): Promise<Schedule | undefined>;
+    /** Compare-and-set on next_run_at: true only when the row still had `expectedNext`. */
+    advance(
+      id: string,
+      expectedNext: number,
+      patch: Partial<
+        Pick<Schedule, "nextRunAt" | "lastFireAt" | "enabled" | "disabledReason" | "updatedAt">
+      >,
+    ): Promise<boolean>;
+    /** Enabled schedules whose next_run_at is at or before `now`. */
+    due(now: number): Promise<Schedule[]>;
+    /** Delete a schedule and its runs; false when it is not there. */
+    remove(id: string): Promise<boolean>;
+    /** Delete disabled schedules with one of the reasons last updated before `at` (and their runs); returns the count. */
+    removeDisabledBefore(reasons: DisabledReason[], at: number): Promise<number>;
+  };
+  /** Fires of schedules. */
+  scheduleRuns: {
+    insert(r: ScheduleRun): Promise<void>;
+    update(
+      id: string,
+      patch: Partial<Pick<ScheduleRun, "status" | "wakeId" | "endedAt" | "error">>,
+    ): Promise<void>;
+    /** Runs still `running`. */
+    open(): Promise<ScheduleRun[]>;
+    /** Add spend to the run of that wake (no-op when none). */
+    addCost(wakeId: string, usd: number): Promise<void>;
+    /** Newest first by firedAt; `before` keeps only runs fired earlier than it. */
+    list(scheduleId: string, limit: number, before?: number): Promise<ScheduleRun[]>;
+    /** Delete runs fired before `at`; returns the count. */
+    deleteBefore(at: number): Promise<number>;
   };
   /** Approval and question cards. */
   cards: CardPort;

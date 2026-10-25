@@ -44,6 +44,10 @@ export interface WakeRow {
   rewake?: boolean;
   /** The first run of a new bot with the owner (the bot introduces itself). */
   intro?: boolean;
+  /** The schedule that fired this wake. */
+  scheduleId?: string;
+  /** A schedule run that stays silent unless it has a problem (notify "problems"). */
+  scheduleQuiet?: boolean;
   /** Created by `HandOff`: the receiver owns the step and does not answer the sender. */
   handoff?: boolean;
   status: WakeStatus;

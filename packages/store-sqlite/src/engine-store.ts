@@ -13,6 +13,8 @@ import { mcpOAuthRepo } from "./repos/mcp-oauth-repo";
 import { messageRepo } from "./repos/message-repo";
 import { readRepo } from "./repos/read-repo";
 import { scopeRepo } from "./repos/scope-repo";
+import { scheduleRepo } from "./repos/schedule-repo";
+import { scheduleRunRepo } from "./repos/schedule-run-repo";
 import { scratchpadRepo } from "./repos/scratchpad-repo";
 import { sessionRepo } from "./repos/session-repo";
 import { spendRepo } from "./repos/spend-repo";
@@ -54,6 +56,8 @@ export function openEngineStore(file: string): EngineStore {
     effects: effectCallRepo(db),
     scopes: scopeRepo(db),
     scratchpad: scratchpadRepo(db),
+    schedules: scheduleRepo(db),
+    scheduleRuns: scheduleRunRepo(db),
     tickets: ticketRepo(db),
     ticketEvents: ticketEventRepo(db),
     insight: insightRepo(db),
