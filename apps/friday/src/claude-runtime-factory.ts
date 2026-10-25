@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { TEMPLATES_DIR } from "@friday/config";
-import type { AgentRuntime, Log } from "@friday/core";
+import { type AgentRuntime, type Log, redactSecrets } from "@friday/core";
 import { ClaudeRuntime, extractNotes, isSensitivePath } from "@friday/runtime-claude";
 import { localDay } from "@friday/tools";
 import type { RuntimeParts } from "./app-deps";
@@ -10,6 +10,7 @@ import { readProcessEnv } from "./config/process-env";
 import { designContextFor } from "./design-context";
 import { fridayExtraDirs } from "./friday-bot";
 import { memoryFlush } from "./memory-flush";
+import { deniedEnvValues } from "./secret-values";
 import { sessionTools } from "./session-tools";
 import { sessionSharedDirs } from "./shared-dirs";
 import { skillDirs } from "./skills-dirs";
@@ -53,7 +54,13 @@ export function claudeRuntimeFactory(config: AgentConfig, agentHome: string, log
         isSensitive: isSensitivePath,
         env,
         postFile: (conversationId, botId, file, caption) =>
-          parts.surface.postFile(conversationId, { kind: "bot", botId }, file, caption),
+          parts.surface.postFile(
+            conversationId,
+            { kind: "bot", botId },
+            file,
+            // The caption is bot text: hide the denied env's secrets like every other post.
+            caption === undefined ? undefined : redactSecrets(caption, deniedEnvValues(env)),
+          ),
       }),
       // After a compaction, keep what matters in the bot's journal (never in MEMORY.md, which the bot curates).
       onCompact: memoryFlush(

@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { PermissionGate, postStored, TicketBoard } from "../../src";
+import { inputHash } from "../../src/permission/input-hash";
 import { flush, makeHub } from "../bot-hub-harness";
 import { FakeClock } from "../fakes/fake-clock";
 import { FakeStore } from "../fakes/fake-store";
@@ -75,6 +76,13 @@ test("an approval card shows the call redacted", async () => {
   const card = [...store.cardMap.values()][0];
   expect(JSON.stringify(card)).not.toContain(SECRET);
   expect(card?.approval?.input).toEqual({ command: "echo [redacted]" });
+  // The hash (what the one shot matches) is that of the REAL input, not the redacted one.
+  expect(card?.approval?.inputHash).toBe(await inputHash("Bash", { command: `echo ${SECRET}` }));
+  expect(card?.approval?.inputHash).not.toBe(
+    await inputHash("Bash", { command: "echo [redacted]" }),
+  );
+  // A secret in the scope is never offered as an "always" grant.
+  expect(card?.approval?.offerAlways).toBe(false);
 });
 
 test("a ticket comment is stored redacted", async () => {
@@ -102,4 +110,40 @@ test("a ticket comment is stored redacted", async () => {
   const c = await board.comment(actor, { id: t.ticket.id, body: `key ${SECRET}` });
   expect(c.ok && c.comment.body).toBe("key [redacted]");
   expect((await store.tickets.comments(t.ticket.id)).at(-1)?.body).toBe("key [redacted]");
+});
+
+test("a question card shows the question and options redacted", async () => {
+  const h = makeHub(undefined, { secretValues });
+  h.surface.deliver({ conversationId: "dc", text: "hi" });
+  await flush();
+  await h.runtime.nth(0).spec.ask?.([
+    {
+      botId: "",
+      botName: "",
+      question: `Use ${SECRET}?`,
+      kind: "single",
+      options: [{ value: "a", label: `key ${SECRET}`, description: SECRET }],
+      allowText: true,
+    },
+  ]);
+  const card = [...h.store.cardMap.values()][0];
+  expect(JSON.stringify(card)).not.toContain(SECRET);
+  expect(card?.question?.question).toBe("Use [redacted]?");
+  expect(card?.question?.options[0]?.label).toBe("key [redacted]");
+});
+
+test("a bot-to-bot message is stored redacted (wake, relay line)", async () => {
+  const h = makeHub(undefined, { secretValues });
+  h.surface.deliver({ conversationId: "gc", text: "go" });
+  await flush();
+  const r = await h.hub.send("writer@g", {
+    to: "editor",
+    text: `pw ${SECRET}`,
+    intent: "request",
+  });
+  await flush();
+  expect(r.ok).toBe(true);
+  expect(JSON.stringify([...h.store.wakeMap.values()])).not.toContain(SECRET);
+  expect(h.store.msgs.some((m) => m.kind === "relay" && m.text === "pw [redacted]")).toBe(true);
+  expect(JSON.stringify(h.store.msgs)).not.toContain(SECRET);
 });
