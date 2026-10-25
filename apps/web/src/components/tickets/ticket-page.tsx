@@ -71,7 +71,7 @@ export function TicketPage({ ticketRef }: { ticketRef: string }) {
   if (!t) {
     const missing = (get.error as { code?: string } | null)?.code === "NOT_FOUND";
     return (
-      <section style={{ position: "relative", height: "100%" }}>
+      <section className="pane">
         <PageToolbar ticketRef={ticketRef} />
         <div className="content">
           <div className="empty">
@@ -100,7 +100,7 @@ export function TicketPage({ ticketRef }: { ticketRef: string }) {
   };
 
   return (
-    <section style={{ position: "relative", height: "100%" }}>
+    <section className="pane">
       <PageToolbar
         ticketRef={ticketRef}
         actions={

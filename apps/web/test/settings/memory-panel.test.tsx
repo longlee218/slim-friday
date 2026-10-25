@@ -85,3 +85,18 @@ test("edit saves the new text; delete calls memory.delete", async () => {
   await userEvent.click(screen.getAllByRole("button", { name: "Delete note" })[1] as HTMLElement);
   await waitFor(() => expect(m.delete).toHaveBeenCalledWith({ owner: "bot:dev", id: "n2" }));
 });
+
+test("in a kind's tab the add row has no kind picker and saves that kind", async () => {
+  setup();
+  await userEvent.click(screen.getByRole("button", { name: "Decisions" }));
+  expect(screen.queryByLabelText("Kind")).toBeNull();
+  await userEvent.type(screen.getByPlaceholderText(/Add a note/), "Ship on Friday.");
+  await userEvent.click(screen.getByRole("button", { name: "Add" }));
+  await waitFor(() =>
+    expect(m.save).toHaveBeenCalledWith({
+      owner: "bot:dev",
+      kind: "decision",
+      text: "Ship on Friday.",
+    }),
+  );
+});

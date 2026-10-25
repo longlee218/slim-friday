@@ -11,7 +11,7 @@ import { SettingsList } from "./settings-list";
 export function SettingsLayout() {
   if (useIsPhone()) return <Outlet />;
   return (
-    <section style={{ position: "relative", height: "100%" }}>
+    <section className="pane">
       <Toolbar
         title={
           <>

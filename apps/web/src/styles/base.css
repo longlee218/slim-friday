@@ -65,6 +65,10 @@ svg.lucide { width: 16px; height: 16px; stroke-width: 1.75; flex: none; }
 .badge.tint { background: var(--tint-fill); color: #fff; }
 .badge.amber { background: var(--amber-dot); color: #2b1600; }
 .field { width: 100%; height: 30px; padding: 0 10px; border-radius: 7px; border: 1px solid var(--sep-strong); background: var(--raised); outline: 0; transition: box-shadow var(--t-fast), border-color var(--t-fast); }
+/* Native select arrow replaced by a chevron with room on the right (the native one sits on the edge). */
+select.field { appearance: none; -webkit-appearance: none; padding-right: 30px; cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 15 5 5 5-5'/%3E%3Cpath d='m7 9 5-5 5 5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 9px center; background-size: 13px; }
 .field:focus { border-color: var(--tint); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tint) 28%, transparent); }
 textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height: 1.5; }
 .field.err { border-color: var(--red); box-shadow: 0 0 0 3px var(--red-fill); }

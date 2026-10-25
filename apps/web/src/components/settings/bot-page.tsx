@@ -7,6 +7,7 @@ import { Avatar } from "../ui/avatar";
 import { AvatarPicker } from "./avatar-picker";
 import { BotForm } from "./bot-form";
 import { type BotFormValue, NEW_BOT } from "./bot-form-value";
+import { SEG_BUTTON, SEG_GRID } from "./form-parts";
 import { InlineName } from "./inline-name";
 import { MemoryPanel } from "./memory-panel";
 import { RuleList } from "./rule-list";
@@ -104,7 +105,7 @@ export function BotPage() {
         </Link>
       </div>
       <div className="tabs">
-        <div className="seg" style={{ display: "flex" }} role="tablist">
+        <div className="seg" style={SEG_GRID} role="tablist">
           {tabAt >= 0 && (
             <span
               className="thumb"
@@ -118,7 +119,7 @@ export function BotPage() {
               role="tab"
               aria-selected={tab === t}
               className={tab === t ? "on" : ""}
-              style={{ flex: "1 1 0" }}
+              style={SEG_BUTTON}
               onClick={() => void navigate(`/settings/bot/${bot.id}/${t}`)}
             >
               {label}

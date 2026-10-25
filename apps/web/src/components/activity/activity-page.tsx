@@ -47,7 +47,7 @@ export function ActivityPage() {
   }, [sessions, stopping]);
 
   return (
-    <section style={{ position: "relative", height: "100%" }}>
+    <section className="pane">
       <Toolbar
         title={
           <>

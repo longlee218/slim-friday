@@ -6,6 +6,7 @@ import { client, orpc } from "../../api/client";
 import { formatAge } from "../../lib/format";
 import { Button } from "../ui/button";
 import { Pill } from "../ui/pill";
+import { Segmented } from "./form-parts";
 import { NoteRow } from "./note-row";
 import { PromptMeter, useOwnerName } from "./prompt-meter";
 
@@ -48,26 +49,24 @@ export function MemoryPanel({ owner }: { owner: MemoryOwner }) {
       toast.error(e instanceof Error ? e.message : "Could not save the memory.");
     }
   };
+  // A note added in a kind's tab takes that kind; only All asks for one.
+  const addKind = filter === "all" ? kind : filter;
   const add = async () => {
-    await write(() => client.memory.save({ owner, kind, text: text.trim() }));
+    await write(() => client.memory.save({ owner, kind: addKind, text: text.trim() }));
     setText("");
   };
   const [bucket, id] = owner.split(":");
   return (
     <>
       <div className="mem-head">
-        <div className="seg">
-          {FILTERS.map(([k, label]) => (
-            <button
-              key={k}
-              type="button"
-              className={filter === k ? "on" : ""}
-              onClick={() => setFilter(k)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        <Segmented<MemoryKind | "all">
+          label="Kind of note"
+          fit
+          options={FILTERS.map(([k]) => k)}
+          names={Object.fromEntries(FILTERS)}
+          value={filter}
+          onChange={setFilter}
+        />
         <span className="grow" />
         <input
           className="field"
@@ -101,18 +100,21 @@ export function MemoryPanel({ owner }: { owner: MemoryOwner }) {
           </div>
         )}
         <div className="add-row">
-          <select
-            className="field"
-            aria-label="Kind"
-            value={kind}
-            onChange={(e) => setKind(e.target.value as MemoryKind)}
-          >
-            {FILTERS.slice(1).map(([k, label]) => (
-              <option key={k} value={k}>
-                {label.replace(/s$/, "")}
-              </option>
-            ))}
-          </select>
+          {filter === "all" && (
+            <select
+              className="field"
+              style={{ width: "auto" }}
+              aria-label="Kind"
+              value={kind}
+              onChange={(e) => setKind(e.target.value as MemoryKind)}
+            >
+              {FILTERS.slice(1).map(([k, label]) => (
+                <option key={k} value={k}>
+                  {label.replace(/s$/, "")}
+                </option>
+              ))}
+            </select>
+          )}
           <input
             className="field"
             style={{ flex: 1 }}
@@ -131,7 +133,7 @@ export function MemoryPanel({ owner }: { owner: MemoryOwner }) {
         used={list.data?.promptChars ?? 0}
         cap={list.data?.capChars ?? 12000}
       />
-      <h3 style={{ fontSize: 13, margin: "0 0 8px" }}>Journal</h3>
+      <h3 style={{ fontSize: 13, fontWeight: 600, margin: "0 0 8px" }}>Journal</h3>
       <div className="list-panel">
         {(journal.data ?? []).map((j) => (
           <div className="journal-day" key={j.day}>
