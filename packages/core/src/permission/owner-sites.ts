@@ -19,8 +19,13 @@ export const exactHost: RegistrableDomain = (host) =>
 
 /** URLs with a scheme; the host is read with `URL`. */
 const URL_RE = /\bhttps?:\/\/[^\s<>"'`)\]]+/gi;
-/** Bare hostnames: two or more labels ending in a letters-only label. */
-const HOST_RE = /\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,24}\b/gi;
+/**
+ * Bare hostnames: two or more labels (any script's letters and digits) ending in a letters-only label. Not
+ * part of a longer token on either side, so `bücher.de` is one host (never `cher.de`); it is read with `URL`,
+ * which turns it into its ASCII (punycode) form like a URL's host.
+ */
+const HOST_RE =
+  /(?<![\p{L}\p{N}_.-])(?:[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,61}[\p{L}\p{N}])?\.)+\p{L}{2,24}(?![\p{L}\p{N}_-])/gu;
 
 /**
  * Last labels that are real top-level domains but far more often file extensions (`README.md`, `setup.sh`,
@@ -48,6 +53,13 @@ const FILE_EXTENSION_TLDS = new Set([
   "json",
   "yaml",
   "yml",
+  "tf",
+  "mk",
+  "ml",
+  "ai",
+  "java",
+  "pub",
+  "pro",
 ]);
 
 /** The hostname of a URL string; undefined when it is not an http(s) URL. */
@@ -75,7 +87,8 @@ export function ownerSites(texts: string[], domainOf: RegistrableDomain = exactH
     }
     for (const m of text.replace(URL_RE, " ").matchAll(HOST_RE)) {
       const last = m[0].split(".").at(-1)?.toLowerCase() ?? "";
-      if (!FILE_EXTENSION_TLDS.has(last)) add(domainOf(m[0]));
+      const host = hostOf(`http://${m[0]}`);
+      if (host && !FILE_EXTENSION_TLDS.has(last)) add(domainOf(host));
     }
   }
   return sites;

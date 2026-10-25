@@ -2,6 +2,7 @@ import type { RegistrableDomain } from "../../src";
 
 /** Public suffixes of the fake list (a tiny stand-in for the Public Suffix List, private section included). */
 const SUFFIXES = new Set([
+  "de",
   "com",
   "test",
   "sh",

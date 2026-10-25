@@ -18,6 +18,16 @@ test("file names are never sites", () => {
   expect(sites("edit app.ts, config.json, notes.txt and ci.yaml")).toEqual([]);
 });
 
+test("more file names are never sites", () => {
+  expect(sites("see main.tf, build.mk, lib.ml, logo.ai, App.java, id.pub and app.pro")).toEqual([]);
+});
+
+test("a bare non-ASCII host is one host in punycode, never its ASCII tail", () => {
+  expect(sites("buy at bücher.de today")).toEqual(["xn--bcher-kva.de"]);
+  expect(sites("open https://bücher.de/x")).toEqual(["xn--bcher-kva.de"]);
+  expect(sites("not_a.de or x-.de")).toEqual([]);
+});
+
 test("a full URL with a file-like TLD still counts", () => {
   expect(sites("see https://get.example.sh/install")).toEqual(["example.sh"]);
 });

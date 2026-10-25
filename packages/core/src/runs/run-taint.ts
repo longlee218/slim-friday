@@ -70,13 +70,20 @@ export async function onTaintResult(
   await ctx.deps.store.wakes.transition(row.id, row.leaseFence, ["running"], { tainted: true });
 }
 
-/** A call of a tainted run was allowed (grant, card, one shot): its site or MCP server needs no new taint card. */
+/**
+ * A call of a tainted run was allowed: its site or MCP server needs no new taint card. Allowed by the policy
+ * (a grant, no taint ask): noted when the call is decided as tainted. Allowed by the owner's answer on `card`
+ * (one shot, answer in place): noted only when that card was asked while tainted, so an approval given in a
+ * clean run never becomes a taint approval (the run may have become tainted since).
+ */
 export function noteAllowed(
   ctx: HubContext,
   exec: RunExec,
   call: Pick<ToolCall, "tool" | "input"> & { taskId?: string },
+  card?: { approval?: { tainted?: boolean } },
 ): void {
-  if (callTainted(exec, call)) noteTaintAllowed(call, exec.taint, ctx.deps.gate.domainOf);
+  const taintApproval = card ? card.approval?.tainted === true : callTainted(exec, call);
+  if (taintApproval) noteTaintAllowed(call, exec.taint, ctx.deps.gate.domainOf);
 }
 
 /**

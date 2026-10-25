@@ -26,12 +26,15 @@ export async function decideInRun(
   const { gate, store } = ctx.deps;
   const { row, bot } = exec;
   let shot: string | undefined;
+  // The card of the one shot: only an approval asked while tainted counts as a taint approval.
+  let shotCard: CardRow | undefined;
   if (exec.oneShot) {
     const hash = await inputHash(call.tool, call.input);
     const s = exec.oneShot;
     if (s?.hash === hash) {
       delete exec.oneShot;
-      if (await store.cards.setStatus(s.cardId, "answered", "used")) shot = hash;
+      if (await store.cards.setStatus(s.cardId, "answered", "used"))
+        [shot, shotCard] = [hash, await store.cards.get(s.cardId)];
     }
   }
   let mine = false;
@@ -56,14 +59,14 @@ export async function decideInRun(
   );
   if (d.behavior !== "park") {
     if (mine) exec.asking = false;
-    if (d.behavior === "allow") noteAllowed(ctx, exec, call);
+    if (d.behavior === "allow") noteAllowed(ctx, exec, call, shot ? (shotCard ?? {}) : undefined);
     return d;
   }
   const r = await waitOrPark(ctx, exec, d.cardId);
   exec.asking = false;
   if (r === "parked") return d;
   const approved = r.status !== "withdrawn" && (r.answer === "once" || r.answer === "always");
-  if (approved) noteAllowed(ctx, exec, call);
+  if (approved) noteAllowed(ctx, exec, call, r);
   return approved ? { behavior: "allow" } : { behavior: "deny", reason: DENIAL_TEXT };
 }
 
