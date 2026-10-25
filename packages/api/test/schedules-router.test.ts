@@ -172,3 +172,56 @@ test("no session -> UNAUTHORIZED", async () => {
   const anon = createRouterClient(appRouter, { context: { deps: h.deps } as never });
   await expect(anon.schedules.list({})).rejects.toMatchObject({ code: "UNAUTHORIZED" });
 });
+
+/** Store a schedule as the engine leaves it after switching it off for `reason`. */
+async function switchedOff(
+  h: ReturnType<typeof setup>,
+  id: string,
+  reason: "bot_gone" | "group_gone" | "done",
+) {
+  await h.store.schedules.update(id, {
+    enabled: false,
+    disabledReason: reason,
+    nextRunAt: undefined,
+  });
+}
+
+test("a bot_gone schedule whose bot is back shows plain off; still gone keeps bot_gone", async () => {
+  const h = setup();
+  const s = await h.client.schedules.create(input());
+  await switchedOff(h, s.id, "bot_gone");
+  const one = (await h.client.schedules.get({ id: s.id })).schedule;
+  expect(one.enabled).toBe(false);
+  expect(one.disabledReason).toBeUndefined();
+  expect((await h.client.schedules.list({})).items[0]?.disabledReason).toBeUndefined();
+  h.store.botMap.delete("a");
+  expect((await h.client.schedules.get({ id: s.id })).schedule.disabledReason).toBe("bot_gone");
+});
+
+test("a group_gone schedule whose group is back shows plain off; done stays done", async () => {
+  const h = setup();
+  const g = await h.client.schedules.create(input({ conversationId: "group:crew" }));
+  const d = await h.client.schedules.create(input({ name: "Once" }));
+  await switchedOff(h, g.id, "group_gone");
+  await switchedOff(h, d.id, "done");
+  const { items } = await h.client.schedules.list({});
+  expect(items.find((i) => i.id === g.id)?.disabledReason).toBeUndefined();
+  expect(items.find((i) => i.id === d.id)?.disabledReason).toBe("done");
+  expect((await h.client.schedules.get({ id: g.id })).schedule.disabledReason).toBeUndefined();
+});
+
+test("an enabled schedule whose group or chat is gone is shown off (group_gone), no next run", async () => {
+  const h = setup();
+  const g = await h.client.schedules.create(input({ conversationId: "group:crew" }));
+  const b = await h.client.schedules.create(input({ botId: "b", conversationId: "bot:b" }));
+  h.store.groupMap.delete("crew");
+  h.store.convMap.delete("bot:b");
+  const { items } = await h.client.schedules.list({});
+  for (const id of [g.id, b.id]) {
+    const it = items.find((i) => i.id === id);
+    expect(it).toMatchObject({ enabled: false, disabledReason: "group_gone" });
+    expect(it?.nextRunAt).toBeUndefined();
+  }
+  const one = (await h.client.schedules.get({ id: g.id })).schedule;
+  expect(one).toMatchObject({ enabled: false, disabledReason: "group_gone" });
+});
