@@ -13,7 +13,12 @@ test("nameRisk: compound names with a verb are consequential", () => {
   expect(nameRisk("get_and_delete")).toBe("consequential");
   expect(nameRisk("get_then_notify")).toBe("consequential");
   expect(nameRisk("list_or_search_items")).toBe("consequential");
-  expect(nameRisk("salt_and_pepper")).toBe("unknown");
+  expect(nameRisk("sync_and_notify")).toBe("consequential");
+  expect(nameRisk("foo_or_bar")).toBe("consequential");
+  expect(nameRisk("salt_and_pepper")).toBe("consequential");
+  // A token must equal a compound word.
+  expect(nameRisk("list_android_orders")).toBe("read");
+  expect(nameRisk("get_sandbox_info")).toBe("read");
 });
 
 test("nameRisk: camelCase, hyphens and the mcp prefix", () => {
@@ -47,4 +52,19 @@ test("categoryOf: reads and unrelated tools have no category", () => {
   expect(categoryOf("list_charges", "stripe")).toBeUndefined();
   expect(categoryOf("search_mail", "gmail")).toBeUndefined();
   expect(categoryOf("post_message", "slack")).toBeUndefined();
+});
+
+test("nameRisk: a read verb with a sensitive word is unknown", () => {
+  for (const t of [
+    "get_oauth_token",
+    "read_secret",
+    "fetch_credentials",
+    "download_file",
+    "export_data",
+    "get_password",
+    "getApiKey",
+  ])
+    expect(nameRisk(t)).toBe("unknown");
+  // Only a whole token counts.
+  expect(nameRisk("list_keyboards")).toBe("read");
 });

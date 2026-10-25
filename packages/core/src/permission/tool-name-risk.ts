@@ -16,6 +16,15 @@ const READ_VERBS: ReadonlySet<string> = new Set([
 /** Words that join two actions in one tool (`get_and_delete`): the tool does more than its first verb says. */
 const COMPOUND_WORDS: ReadonlySet<string> = new Set(["and", "or", "then"]);
 
+/**
+ * Words that make a read verb unsafe to trust (owner ruling, stricter than the spec): `get_oauth_token`,
+ * `read_secret`, `download_file` and `export_data` read, but what they read is sensitive or leaves the
+ * server. Such a name is `unknown`, so the server's hints and the autonomy level decide as before.
+ */
+const SENSITIVE_WORDS: ReadonlySet<string> = new Set([
+  "token", "secret", "credential", "credentials", "password", "key", "export", "download",
+]); // biome-ignore format: word list
+
 /** Servers (or name words) of mail tools; `mail` also matches `email`, `gmail` and `smtp` by substring. */
 const MAIL_WORDS = ["mail", "outlook", "smtp"];
 /** Verbs that send a mail. */
@@ -44,15 +53,15 @@ function tokens(tool: string): string[] {
 
 /**
  * How risky an external MCP tool is by its name alone. A token must equal a verb (`postgres` is not `post`).
- * A consequential verb wins; a compound word (`_and_`) next to any known verb also counts as consequential;
- * only read verbs is `read`; anything else is `unknown`.
+ * A consequential verb or a compound word (`_and_`, `_or_`, `_then_`, spec §6.14) wins;
+ * read verbs alone are `read` unless a sensitive word is also there; anything else is `unknown`.
  */
 export function nameRisk(tool: string): "consequential" | "read" | "unknown" {
   const words = tokens(tool);
-  if (words.some((w) => CONSEQUENTIAL_VERBS.has(w))) return "consequential";
+  if (words.some((w) => CONSEQUENTIAL_VERBS.has(w) || COMPOUND_WORDS.has(w)))
+    return "consequential";
   const hasRead = words.some((w) => READ_VERBS.has(w));
-  if (hasRead && words.some((w) => COMPOUND_WORDS.has(w))) return "consequential";
-  return hasRead ? "read" : "unknown";
+  return hasRead && !words.some((w) => SENSITIVE_WORDS.has(w)) ? "read" : "unknown";
 }
 
 /**

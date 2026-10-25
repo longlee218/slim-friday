@@ -53,3 +53,14 @@ test("Friday's own tools and built-ins keep their tools.yaml class", () => {
   expect(classifyTool({ name: "Write", annotations: { destructiveHint: false } })).toBe("write");
   expect(classifyTool({ name: "WebFetch", annotations: { readOnlyHint: true } })).toBe("read");
 });
+
+test("compound names are consequential, with or without a readOnlyHint", () => {
+  expect(classifyTool(ext("sync_and_notify"))).toBe("write");
+  expect(classifyTool(ext("foo_or_bar", { readOnlyHint: true }))).toBe("write");
+});
+
+test("a read verb with a sensitive word keeps the hint logic", () => {
+  expect(classifyTool(ext("get_oauth_token"))).toBe("unknown");
+  expect(classifyTool(ext("download_file", { readOnlyHint: true }))).toBe("read");
+  expect(classifyTool(ext("export_data", {}))).toBe("destructive");
+});
