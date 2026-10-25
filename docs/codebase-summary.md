@@ -1,6 +1,6 @@
 # Codebase Summary
 
-Last updated: 2026-10-25 (after web plans 1-6, durable runs and owner and bot communication). Design: [2026-10-23-friday-team-engine-design.md](superpowers/specs/2026-10-23-friday-team-engine-design.md), [web app](superpowers/specs/2026-10-24-friday-web-app-design.md), [durable runs](superpowers/specs/2026-10-25-durable-multi-worker-runs-design.md).
+Last updated: 2026-10-25 (after web plans 1-6, durable runs and owner and bot communication). Design: 2026-10-23-friday-team-engine-design.md, web app, durable runs.
 
 Friday is a self-hosted personal agent on the Claude Agent SDK (Bun + TypeScript + SQLite/Drizzle). The engine lives in packages; `src/` keeps only the boot.
 

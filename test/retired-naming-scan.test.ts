@@ -330,6 +330,7 @@ function markdown(dir: string): string[] {
 
 test("app-owned skills (`.agents/skills/**/*.md`, local lock entries) name no retired tool", () => {
   const local = Object.entries(readSkillsLock().skills).filter(([, e]) => e.sourceType === "local");
+  if (local.length === 0) return; // no local lock: the published repo ships no `.agents/`
   const mds = local.flatMap(([n]) => markdown(join(".agents", "skills", n)));
   expect(mds.length).toBeGreaterThan(2); // the glob really reaches the hidden dir
   const hits: string[] = [];
@@ -372,8 +373,7 @@ test("src, test, living docs and app-owned skills hold no `lead` role or engine 
     { file: "package.json", text: readFileSync("package.json", "utf8") },
   ].filter((f) => !OLD_LEAD_EXEMPT.some((e) => f.file.endsWith(e)));
   const docs = [
-    "CLAUDE.md",
-    "AGENTS.md",
+    ...["CLAUDE.md", "AGENTS.md"].filter((f) => existsSync(f)), // private files are not published
     ...readdirSync("docs")
       .filter((f) => f.endsWith(".md") && !f.startsWith("project-changelog"))
       .map((f) => join("docs", f)),
@@ -416,8 +416,7 @@ test("code, living docs and .env.example hold no Discord surface name", () => {
     existsSync(join("packages", p, "src")) ? sources(join("packages", p, "src")) : [],
   );
   const docs = [
-    "CLAUDE.md",
-    "AGENTS.md",
+    ...["CLAUDE.md", "AGENTS.md"].filter((f) => existsSync(f)), // private files are not published
     "README.md",
     "CONTRIBUTING.md",
     ".env.example",

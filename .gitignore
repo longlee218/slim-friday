@@ -26,3 +26,24 @@ apps/web/dist/
 apps/web/dev-dist/
 apps/web/test-results/
 apps/web/playwright-report/
+
+# Private: working notes, plans, design history and AI-workflow files (not published)
+/plans/
+/.agents/
+/CLAUDE.md
+/AGENTS.md
+/skills-lock.json
+/DESIGN.md
+/PRODUCT.md
+/docs/superpowers/
+/docs/design/
+/docs/references/
+/docs/rakazo-reference.md
+/docs/project-changelog.md
+/docs/development-roadmap.md
+
+# Local design tool state
+.impeccable/
+
+# Local-only git hook overrides
+lefthook-local.yml

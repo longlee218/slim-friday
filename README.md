@@ -34,7 +34,7 @@ Set up R2, the tunnel and Vercel, and check the first start, with [docs/web-setu
 
 ## Docs
 
-- [Architecture](docs/system-architecture.md) and the [design](docs/superpowers/specs/2026-10-23-friday-team-engine-design.md)
+- [Architecture](docs/system-architecture.md)
 - Ports, to write your own adapter: [surface](docs/ports/surface.md), [runtime](docs/ports/runtime.md), [tools](docs/ports/tools.md), [store](docs/ports/store.md), [file store](docs/ports/file-store.md)
 - [Contributing](CONTRIBUTING.md)
 

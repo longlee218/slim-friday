@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 /** Format of `skills-lock.json` (the `skills` CLI): one entry per skill dir, pinned by a folder hash. */
@@ -47,6 +47,8 @@ export function skillDirHash(dir: string): string {
   return h.digest("hex");
 }
 
-/** The repo-root lock, parsed. */
-export const readSkillsLock = (): SkillsLock =>
-  JSON.parse(readFileSync(join(import.meta.dir, "..", "skills-lock.json"), "utf8"));
+/** The repo-root lock, parsed. Empty when the lock is absent (the published repo does not ship it). */
+export const readSkillsLock = (): SkillsLock => {
+  const path = join(import.meta.dir, "..", "skills-lock.json");
+  return existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : { version: 1, skills: {} };
+};
