@@ -5,6 +5,8 @@ import { watchConfigReload } from "./config-reload";
 import { startDailyMaintenance } from "./daily-maintenance";
 import { startIdleSweep } from "./idle-sweep";
 import { startUploadSweeper } from "./lifecycle/upload-sweeper";
+import { scheduleChangeHook } from "./schedules/schedule-change-hook";
+import { startScheduleTicker } from "./schedules/schedule-ticker";
 import { showOpenCards } from "./show-open-cards";
 import { conversationSync } from "./sync-conversations";
 import { systemClock } from "./system-clock";
@@ -47,9 +49,12 @@ async function composeApp(deps: AppDeps, opened: Array<() => unknown>) {
   const { surface, log } = deps;
   // Worker processes run the runs when a launcher is given and `limits.workers` > 0; else this process does.
   let workers: MainWorkers | undefined;
+  // The hub is built before the ticker: it fires this hook, and the ticker (later, plan 02 a web publisher) subscribes.
+  const scheduleChanged = scheduleChangeHook();
   const parts = composeEngine(
     {
       ...deps,
+      onScheduleChange: scheduleChanged.fire,
       hubRuns: (config) => {
         const count: number = config.limits().workers;
         if (!deps.workers || count === 0) return {};
@@ -108,6 +113,8 @@ async function composeApp(deps: AppDeps, opened: Array<() => unknown>) {
 
   let stopped = false;
   const stopIdleSweep = startIdleSweep(botHub, clock, log);
+  const ticker = startScheduleTicker(botHub.schedules, clock, log);
+  scheduleChanged.subscribe(ticker.kick);
   const stopReconciler = botHub.startReconciler();
   const stopUploadSweeper = startUploadSweeper(engine, deps.files, log, () => clock.now());
   const daily = startDailyMaintenance({
@@ -140,9 +147,11 @@ async function composeApp(deps: AppDeps, opened: Array<() => unknown>) {
       const workersDone = workers?.stop();
       stopWatching();
       stopIdleSweep();
+      const tickerDone = ticker.stop();
       await stopReconciler();
       stopUploadSweeper();
       await workersDone;
+      await tickerDone;
       // In-process mode: this process's runs are requeued here (a run that ignores its stop is not waited for).
       if (!(await botHub.stopAll(10_000))) log.warn({}, "app.runs_unsettled");
       // A daily run may still use the index and the db.

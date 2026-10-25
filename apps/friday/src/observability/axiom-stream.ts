@@ -6,6 +6,7 @@ export const AXIOM_FIELDS = [
   "wakeId",
   "chainId",
   "botId",
+  "scheduleId",
   "intent",
   "hop",
   "status",
