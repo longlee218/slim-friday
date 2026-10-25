@@ -3,6 +3,7 @@ import { join } from "node:path";
 import {
   DEFAULTS_DIR,
   type FileConfig,
+  OWNER_EDITABLE_BOT_IDS,
   parseBotFile,
   parseGroupFile,
   parseMcpFile,
@@ -67,6 +68,7 @@ function designContextOf(
     botDirs: [join(agentHome, "config", "bots"), join(DEFAULTS_DIR, "bots")],
     skillDirs: skillDirs(agentHome),
     reservedBotIds: RESERVED_BOT_IDS,
+    ownerBotIds: OWNER_EDITABLE_BOT_IDS,
     catalogTools: config.toolNames,
     mcpNames: config.mcpNames,
     botSummaries: config.botSummaries,

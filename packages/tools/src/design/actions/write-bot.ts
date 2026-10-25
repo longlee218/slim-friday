@@ -33,7 +33,10 @@ export function buildBotFile(
   by: "bot" | "owner",
 ): { file: string; text: string } {
   const id = plainId(a.id);
-  if (ctx.reservedBotIds.includes(id)) throw new Refused(`bot id "${id}" is reserved.`, "id");
+  // The owner may write the reserved ids listed in `ownerBotIds` (Friday); a bot tool never may.
+  const ownerEdits = by === "owner" && !!ctx.ownerBotIds?.includes(id);
+  if (ctx.reservedBotIds.includes(id) && !ownerEdits)
+    throw new Refused(`bot id "${id}" is reserved.`, "id");
   const name = need(a.name, "name");
   const body = need(a.instructions, "instructions");
   const title = need(a.title, "title");
@@ -51,7 +54,7 @@ export function buildBotFile(
     throw new Refused("tools lists a name twice.", "tools");
   for (const t of a.tools ?? []) {
     // The design tools belong to the Friday bot only.
-    if (t === "mcp__design" || t.startsWith("mcp__design__"))
+    if (!ownerEdits && (t === "mcp__design" || t.startsWith("mcp__design__")))
       throw new Refused("the design tools cannot be given to another bot.", "tools");
     if (!toolKnown(ctx, t, catalog))
       throw new Refused(`unknown tool: ${t} (see BotLookup list).`, "tools");

@@ -26,6 +26,13 @@ export const DEFAULT_SKILLS_DIR = join(DEFAULTS_DIR, "skills");
  */
 export const RESERVED_BOT_IDS = ["friday", "owner"];
 
+/**
+ * Reserved ids the owner may still override with a user file, saved only from the web app (the settings admin).
+ * No bot tool writes them (`RESERVED_BOT_IDS` stays closed to `BotDesign`), and the Friday bot has no write grant on
+ * the config dir, so it cannot write its own powers.
+ */
+export const OWNER_EDITABLE_BOT_IDS = ["friday"];
+
 /** Everything the engine reads from config at one point in time. */
 export interface ConfigSnapshot {
   bots: Map<BotId, Bot>;
@@ -58,9 +65,9 @@ export function loadConfig(
   const parsed = new Map<string, unknown>();
   const ctx = { problems, previous, parsed };
   const layers = [readLayer(dirs.defaultsDir, ctx), readLayer(dirs.userDir, ctx)];
-  // The shipped Friday bot may not be replaced from the user dir: it can write that dir, so it would write its own powers.
+  // Reserved ids stay out of the user dir, except the ones the owner may override (the shipped Friday bot).
   for (const [id, entry] of layers[1]?.bots ?? [])
-    if (RESERVED_BOT_IDS.includes(id)) {
+    if (RESERVED_BOT_IDS.includes(id) && !OWNER_EDITABLE_BOT_IDS.includes(id)) {
       problems.push({
         file: entry.file,
         message: `bot id "${id}" is reserved for the shipped bot`,

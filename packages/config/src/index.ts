@@ -7,6 +7,7 @@ export {
   DEFAULT_SKILLS_DIR,
   DEFAULTS_DIR,
   loadConfig,
+  OWNER_EDITABLE_BOT_IDS,
   RESERVED_BOT_IDS,
 } from "./load-config";
 export { avatarSchema, isUploadAvatar } from "./schemas/avatar";

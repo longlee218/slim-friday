@@ -1,4 +1,4 @@
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { AdminError, type BotEntry, type BotInput, type GroupEntry } from "@friday/core";
 import { deleteBot } from "../design/actions/delete-bot";
@@ -21,9 +21,27 @@ export function guarded<T>(fn: () => T): T {
 export const isOwnerBot = (ctx: DesignContext, id: string): boolean =>
   existsSync(botFileOf(ctx.configDir, id));
 
-/** Throws NOT_FOUND for a bot that does not exist and BAD_REQUEST for a shipped one (read only). */
+/** True for a shipped bot the owner may override from the web app (Friday): its first edit copies the shipped file. */
+const isOverridable = (ctx: DesignContext, id: string): boolean =>
+  !isOwnerBot(ctx, id) && !!ctx.ownerBotIds?.includes(id) && ctx.readBotFile(id) !== undefined;
+
+/** Writes the owner's copy of an overridable shipped bot, so later edits keep its avatar, subagents and description. */
+function seedOverride(ctx: DesignContext, id: string): void {
+  const text = ctx.readBotFile(id);
+  if (text !== undefined)
+    atomicWrite(insideConfig(ctx.configDir, botFileOf(ctx.configDir, id)), text);
+}
+
+/**
+ * Throws NOT_FOUND for a bot that does not exist and BAD_REQUEST for a shipped one (read only). Friday is shipped but
+ * overridable: it gets the owner's copy here.
+ */
 export function requireOwnerBot(ctx: DesignContext, id: string): void {
   if (isOwnerBot(ctx, id)) return;
+  if (isOverridable(ctx, id)) {
+    seedOverride(ctx, id);
+    return;
+  }
   if (ctx.readBotFile(id) !== undefined)
     throw new AdminError("BAD_REQUEST", "shipped bots are read only", "id");
   throw new AdminError("NOT_FOUND", `bot "${id}" does not exist`, "id");
@@ -52,7 +70,7 @@ export function getBotEntry(ctx: DesignContext, rawId: string): BotEntry {
       ...opt("maxEffort"),
       ...opt("autonomy"),
       ...(typeof h.avatar === "string" && { avatar: h.avatar }),
-      shipped: !isOwnerBot(ctx, id),
+      shipped: !isOwnerBot(ctx, id) && !isOverridable(ctx, id),
     };
   });
 }
@@ -80,40 +98,60 @@ export function listBotEntries(ctx: DesignContext): BotEntry[] {
 export function saveBotFile(ctx: DesignContext, b: BotInput, mode: "create" | "update"): void {
   guarded(() => {
     const id = plainId(b.id);
-    if (!isOwnerBot(ctx, id) && ctx.readBotFile(id) !== undefined)
-      throw new AdminError("BAD_REQUEST", "shipped bots are read only", "id");
-    const exists = isOwnerBot(ctx, id);
-    if (mode === "create" && exists)
-      throw new AdminError("CONFLICT", `bot "${id}" already exists`, "id");
-    if (mode === "update" && !exists)
-      throw new AdminError("NOT_FOUND", `bot "${id}" does not exist`, "id");
-    const { file, text } = buildBotFile(
-      ctx,
-      {
-        action: "write_bot",
-        id: b.id,
-        name: b.name,
-        title: b.title,
-        model: b.model,
-        instructions: b.instructions,
-        tools: b.tools,
-        skills: b.skills,
-        workspaces: b.workspaces,
-        effort: b.effort,
-        maxEffort: b.maxEffort,
-        autonomy: b.autonomy,
-        overwrite: mode === "update",
-      },
-      "owner",
-    );
-    atomicWrite(insideConfig(ctx.configDir, file), text);
+    if (!isOwnerBot(ctx, id) && ctx.readBotFile(id) !== undefined) {
+      if (!isOverridable(ctx, id))
+        throw new AdminError("BAD_REQUEST", "shipped bots are read only", "id");
+      // The first save of Friday starts from the shipped file; a refused save leaves no copy behind.
+      if (mode === "update") {
+        seedOverride(ctx, id);
+        try {
+          return writeBotFile(ctx, b, mode);
+        } catch (err) {
+          rmSync(botFileOf(ctx.configDir, id), { force: true });
+          throw err;
+        }
+      }
+    }
+    writeBotFile(ctx, b, mode);
   });
+}
+
+/** Checks the input and writes `bots/<id>.md` (the file exists for an update, not for a create). */
+function writeBotFile(ctx: DesignContext, b: BotInput, mode: "create" | "update"): void {
+  const id = plainId(b.id);
+  const exists = isOwnerBot(ctx, id);
+  if (mode === "create" && exists)
+    throw new AdminError("CONFLICT", `bot "${id}" already exists`, "id");
+  if (mode === "update" && !exists)
+    throw new AdminError("NOT_FOUND", `bot "${id}" does not exist`, "id");
+  const { file, text } = buildBotFile(
+    ctx,
+    {
+      action: "write_bot",
+      id: b.id,
+      name: b.name,
+      title: b.title,
+      model: b.model,
+      instructions: b.instructions,
+      tools: b.tools,
+      skills: b.skills,
+      workspaces: b.workspaces,
+      effort: b.effort,
+      maxEffort: b.maxEffort,
+      autonomy: b.autonomy,
+      overwrite: mode === "update",
+    },
+    "owner",
+  );
+  atomicWrite(insideConfig(ctx.configDir, file), text);
 }
 
 /** Move an owner bot (file and memory) to the 7-day trash, as `BotDesign` `delete_bot` does; refused while a group has it. */
 export function deleteBotFile(ctx: DesignContext, rawId: string, groups: GroupEntry[]): void {
   guarded(() => {
     const id = plainId(rawId);
+    if (ctx.reservedBotIds.includes(id))
+      throw new AdminError("BAD_REQUEST", `bot "${id}" is reserved and cannot be deleted`, "id");
     requireOwnerBot(ctx, id);
     const inGroups = groups.filter((g) => g.members.includes(id)).map((g) => g.id);
     if (inGroups.length)
