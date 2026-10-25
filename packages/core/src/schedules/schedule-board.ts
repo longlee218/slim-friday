@@ -1,24 +1,22 @@
 import type { Author } from "../domain/message";
 import { errText } from "../hub/hub-types";
 import type { Schedule, ScheduleRun } from "./schedule";
+import { fieldError, noNextRun } from "./schedule-board-checks";
 import {
   changed,
   inScope,
   invalid,
-  NAME_MAX,
   type NewSchedule,
   NOT_FOUND,
-  NOTIFY_MODES,
   type ScheduleBoardDeps,
   type SchedulePatch,
   type ScheduleResult,
   type ScheduleScope,
-  TASK_MAX,
 } from "./schedule-board-types";
 import { type FireCtx, fireDue, hasOpenRun, startRun } from "./schedule-fire";
 import { ScheduleNotices } from "./schedule-notices";
 import { reconcileRuns } from "./schedule-reconcile";
-import { ruleError, timeZoneError } from "./schedule-rules";
+import { timeZoneError } from "./schedule-rules";
 
 export type {
   NewSchedule,
@@ -39,6 +37,7 @@ export class ScheduleBoard {
     this.notices = new ScheduleNotices(deps);
   }
 
+  /** Validate and store a new schedule with its first next run; the zone defaults to the owner's. */
   async create(input: NewSchedule, by: Author): Promise<ScheduleResult<{ schedule: Schedule }>> {
     const { nextRunAt } = this.deps;
     if (!nextRunAt) return UNAVAILABLE;
@@ -47,7 +46,7 @@ export class ScheduleBoard {
     if (why) return invalid(why);
     const now = this.deps.clock.now();
     const next = nextRunAt(input.rule, timeZone, now);
-    if (next === undefined) return invalid(noNextRun(input.rule.kind));
+    if (next === undefined) return invalid(noNextRun(input.rule));
     const schedule: Schedule = {
       id: crypto.randomUUID(),
       name: input.name.trim(),
@@ -93,7 +92,7 @@ export class ScheduleBoard {
     if (patch.rule || patch.enabled === true) {
       if (!this.deps.nextRunAt) return UNAVAILABLE;
       const at = this.deps.nextRunAt(rule, cur.timeZone, now);
-      if (at === undefined) return invalid(noNextRun(rule.kind));
+      if (at === undefined) return invalid(noNextRun(rule));
       if (enabled) next.nextRunAt = at;
     }
     // An explicit undefined clears the stored value.
@@ -105,6 +104,7 @@ export class ScheduleBoard {
     return { ok: true, schedule };
   }
 
+  /** Delete a schedule (and its history) inside the scope. */
   async remove(id: string, scope?: ScheduleScope): Promise<ScheduleResult<object>> {
     if (!(await this.get(id, scope))) return NOT_FOUND;
     if (!(await this.deps.store.schedules.remove(id))) return NOT_FOUND;
@@ -112,10 +112,12 @@ export class ScheduleBoard {
     return { ok: true };
   }
 
+  /** Schedules inside the scope, by creation time. */
   list(scope?: ScheduleScope): Promise<Schedule[]> {
     return this.deps.store.schedules.list(scope);
   }
 
+  /** One schedule, or undefined when missing or outside the scope. */
   async get(id: string, scope?: ScheduleScope): Promise<Schedule | undefined> {
     const s = await this.deps.store.schedules.get(id);
     return s && inScope(s, scope) ? s : undefined;
@@ -126,7 +128,10 @@ export class ScheduleBoard {
     return this.deps.store.scheduleRuns.list(id, limit, before);
   }
 
-  /** Fire at once outside the schedule; refused while its last run is open. Does not move the next run. */
+  /**
+   * Fire at once outside the schedule; refused while its last run is open. Does not move the next run.
+   * Not serialized with `tick`: a tick firing the same schedule at the same moment can add a second run.
+   */
   async runNow(id: string, nonce: string): Promise<ScheduleResult<{ wakeId: string }>> {
     const s = await this.get(id);
     if (!s) return NOT_FOUND;
@@ -139,7 +144,10 @@ export class ScheduleBoard {
     return "wakeId" in out ? { ok: true, wakeId: out.wakeId } : invalid(out.error);
   }
 
-  /** One ticker pass: settle open history rows, then fire every due schedule. Never throws. */
+  /**
+   * One ticker pass: settle open history rows, then fire every due schedule. Never throws.
+   * Not re-entrant: the caller (the ticker) must never run two passes at once.
+   */
   async tick(): Promise<void> {
     try {
       await reconcileRuns(this.deps, this.notices);
@@ -181,20 +189,3 @@ export class ScheduleBoard {
     return group?.members.includes(i.botId) ? undefined : "the bot is not a member of that group";
   }
 }
-
-/** Why the name, task, rule or notify of a create or patch is invalid (only the fields present are checked). */
-function fieldError(p: SchedulePatch): string | undefined {
-  const name = p.name?.trim();
-  if (p.name !== undefined && (!name || name.length > NAME_MAX))
-    return `name must be 1 to ${NAME_MAX} characters`;
-  const task = p.task?.trim();
-  if (p.task !== undefined && (!task || task.length > TASK_MAX))
-    return `task must be 1 to ${TASK_MAX} characters`;
-  if (p.notify !== undefined && !NOTIFY_MODES.includes(p.notify))
-    return 'notify must be "always" or "problems"';
-  return p.rule && ruleError(p.rule);
-}
-
-/** The refusal text of a rule with no next run. */
-const noNextRun = (kind: Schedule["rule"]["kind"]) =>
-  kind === "once" ? "That time is already past." : "That rule never fires.";

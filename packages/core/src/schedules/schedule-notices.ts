@@ -15,8 +15,9 @@ export class ScheduleNotices {
       this.deps.clock.now(),
     );
     if (this.lastDay.get(s.id) === day) return;
-    this.lastDay.set(s.id, day);
+    // Counted only once posted: a failed post lets the next problem of the day try again.
     await this.deps.tell(s.conversationId, text);
+    this.lastDay.set(s.id, day);
     try {
       this.deps.notifyFinished({ conversationId: s.conversationId, botId: s.botId, preview: text });
     } catch (err) {

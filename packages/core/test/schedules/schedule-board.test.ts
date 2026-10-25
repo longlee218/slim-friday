@@ -74,7 +74,11 @@ test("a once already past, or a date with no next run, is invalid", async () => 
       kind: "user",
     },
   );
-  expect(none).toMatchObject({ ok: false, code: "invalid" });
+  expect(none).toEqual({
+    ok: false,
+    code: "invalid",
+    error: "That date does not exist or is already past.",
+  });
 });
 
 test("a non-once rule with no next run is invalid", async () => {
