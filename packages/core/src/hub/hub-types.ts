@@ -44,6 +44,8 @@ export interface WakeOpts {
   rewake?: boolean;
   /** The first run of a new bot with the owner (see `queueIntroRun`). */
   intro?: boolean;
+  /** The schedule that fires this run, and whether it stays quiet unless there is a problem. */
+  schedule?: { id: string; quiet: boolean };
   /** The message this one replies to; stored on the run and sent with its turn. */
   quote?: { author: Author; text: string };
 }

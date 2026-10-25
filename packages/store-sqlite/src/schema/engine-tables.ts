@@ -167,6 +167,9 @@ export const wakes = sqliteTable(
     quote: text("quote"),
     /** The first run of a new bot with the owner. */
     intro: integer("intro", { mode: "boolean" }),
+    /** The schedule that fired this wake, and whether it stays quiet unless there is a problem. */
+    scheduleId: text("schedule_id"),
+    scheduleQuiet: integer("schedule_quiet", { mode: "boolean" }),
     /** Nudges sent to the run when it ended without a final answer. */
     nudges: integer("nudges").notNull().default(0),
   },
@@ -433,5 +436,57 @@ export const scratchpad = sqliteTable(
   (t) => [
     index("scratchpad_scope_idx").on(t.scopeKey, t.createdAt),
     index("scratchpad_status_idx").on(t.status, t.updatedAt),
+  ],
+);
+
+/** Scheduled bot runs. */
+export const schedules = sqliteTable(
+  "schedules",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    botId: text("bot_id").notNull(),
+    task: text("task").notNull(),
+    /** JSON `RepeatRule`. */
+    rule: text("rule").notNull(),
+    timeZone: text("time_zone").notNull(),
+    conversationId: text("conversation_id").notNull(),
+    /** `always` or `problems`. */
+    notify: text("notify").notNull(),
+    enabled: integer("enabled", { mode: "boolean" }).notNull(),
+    /** Epoch ms of the next fire; null when nothing is left to fire. */
+    nextRunAt: integer("next_run_at"),
+    lastFireAt: integer("last_fire_at"),
+    /** `bot_gone`, `group_gone` or `done` when the engine switched it off. */
+    disabledReason: text("disabled_reason"),
+    /** JSON `Author`. */
+    createdBy: text("created_by").notNull(),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [index("schedules_due_idx").on(t.enabled, t.nextRunAt)],
+);
+
+/** One fire of a schedule. */
+export const scheduleRuns = sqliteTable(
+  "schedule_runs",
+  {
+    id: text("id").primaryKey(),
+    scheduleId: text("schedule_id").notNull(),
+    dueAt: integer("due_at").notNull(),
+    firedAt: integer("fired_at").notNull(),
+    manual: integer("manual", { mode: "boolean" }).notNull(),
+    late: integer("late", { mode: "boolean" }).notNull(),
+    /** `running`, `ok`, `problem`, `failed` or `skipped`. */
+    status: text("status").notNull(),
+    wakeId: text("wake_id"),
+    endedAt: integer("ended_at"),
+    costUsd: real("cost_usd").notNull().default(0),
+    error: text("error"),
+  },
+  (t) => [
+    index("schedule_runs_schedule_idx").on(t.scheduleId, t.firedAt),
+    index("schedule_runs_status_idx").on(t.status),
+    index("schedule_runs_wake_idx").on(t.wakeId),
   ],
 );

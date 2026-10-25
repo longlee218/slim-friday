@@ -137,3 +137,13 @@ test("intro and nudges round-trip; nudges defaults to 0", async () => {
   await s.wakes.update("w-plain", { nudges: 1 });
   expect((await s.wakes.get("w-plain"))?.nudges).toBe(1);
 });
+
+test("scheduleId and scheduleQuiet round-trip; absent by default", async () => {
+  const s = openEngineStore(":memory:");
+  await s.wakes.insert({ ...wake("w-sched"), scheduleId: "s1", scheduleQuiet: true });
+  await s.wakes.insert(wake("w-plain"));
+  expect(await s.wakes.get("w-sched")).toMatchObject({ scheduleId: "s1", scheduleQuiet: true });
+  const plain = await s.wakes.get("w-plain");
+  expect(plain?.scheduleId).toBeUndefined();
+  expect(plain?.scheduleQuiet).toBeUndefined();
+});

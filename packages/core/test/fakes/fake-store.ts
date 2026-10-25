@@ -24,6 +24,7 @@ import type {
   WakeRow,
   WakeStatus,
 } from "../../src";
+import { fakeSchedules } from "./fake-schedules";
 
 /** Statuses of a wake not finished yet. */
 const ACTIVE_STATUSES: WakeStatus[] = ["queued", "leased", "running", "waiting_input"];
@@ -549,6 +550,10 @@ export class FakeStore implements Store {
       return n - this.padItems.length;
     },
   };
+  /** Schedules and their runs. */
+  private scheduleParts = fakeSchedules();
+  schedules = this.scheduleParts.schedules;
+  scheduleRuns = this.scheduleParts.scheduleRuns;
   /** Effect records by key. */
   effectMap = new Map<string, { state: "started" | "done"; result?: string }>();
   effects = {

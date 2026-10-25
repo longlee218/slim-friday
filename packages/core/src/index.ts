@@ -57,6 +57,7 @@ export * from "./runs/run-hints";
 export { type RunKind, talksToOwner } from "./runs/run-kind";
 export * from "./runs/run-rules";
 export * from "./safety/redact-secrets";
+export * from "./schedules/schedule";
 export * from "./tickets/ticket";
 export * from "./tickets/ticket-board";
 export * from "./tickets/ticket-context";

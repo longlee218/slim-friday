@@ -14,6 +14,7 @@ function base(w: WakeRow) {
     attempts: w.attempts,
     ...(w.ticketId && { ticketId: w.ticketId }),
     ...(w.rewake && { rewake: true }),
+    ...(w.scheduleId && { scheduleId: w.scheduleId }),
   };
 }
 
