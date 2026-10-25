@@ -16,6 +16,6 @@ export function createScheduleListTool(ctx: SchedulesContext) {
       const all = await ctx.board.list(scope);
       return textResult(all.length === 0 ? "No schedules." : JSON.stringify(all.map(scheduleView)));
     },
-    { annotations: { readOnlyHint: true } },
+    { annotations: { readOnlyHint: true }, alwaysLoad: true },
   );
 }

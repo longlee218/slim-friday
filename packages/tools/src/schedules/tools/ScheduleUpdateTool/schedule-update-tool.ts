@@ -9,18 +9,28 @@ import { SCHEDULE_UPDATE_DESCRIPTION } from "./prompt";
 /** Input the model sees: the id, then any field to change (no time zone). */
 const SHAPE = {
   id: z.string().describe("The schedule's id."),
-  name: TEXT_FIELDS.name.optional(),
-  task: TEXT_FIELDS.task.optional(),
+  // The description is set again on each optional wrapper so it is not tied to how the schema is converted.
+  name: TEXT_FIELDS.name.optional().describe(TEXT_FIELDS.name.description ?? ""),
+  task: TEXT_FIELDS.task.optional().describe(TEXT_FIELDS.task.description ?? ""),
   notify: TEXT_FIELDS.notify,
   ...RULE_FIELDS,
-  repeat: RULE_FIELDS.repeat.optional(),
+  repeat: RULE_FIELDS.repeat
+    .optional()
+    .describe(`${RULE_FIELDS.repeat.description} Set it only to change the rule.`),
   enabled: z.boolean().optional().describe("false pauses the schedule, true resumes it."),
 };
 
-/** True when a rule field is set without `repeat` (the rule is replaced whole, never merged). */
-const ruleFieldWithoutRepeat = (i: Record<string, unknown>) =>
-  i.repeat === undefined &&
-  ["at", "weekday", "every", "unit", "date"].some((k) => i[k] !== undefined);
+/** The rule fields of the input. */
+const RULE_KEYS = ["at", "weekday", "every", "unit", "date"] as const;
+
+/** The refusal when rule fields are sent without `repeat` (the rule is replaced whole, never merged). */
+function ruleFieldsWithoutRepeat(i: Record<string, unknown>): string | undefined {
+  if (i.repeat !== undefined) return undefined;
+  const sent = RULE_KEYS.filter((k) => i[k] !== undefined);
+  return sent.length === 0
+    ? undefined
+    : `Rule fields ${sent.join(", ")} were sent without repeat. To change the rule, send repeat with all the fields it needs.`;
+}
 
 /** `ScheduleUpdate` for one session scope. */
 export function createScheduleUpdateTool(ctx: SchedulesContext) {
@@ -32,8 +42,8 @@ export function createScheduleUpdateTool(ctx: SchedulesContext) {
       const { id, name, task, notify, enabled, repeat } = input;
       const scope = scopeOf(ctx);
       if (typeof scope === "string") return textResult(scope, true);
-      if (ruleFieldWithoutRepeat(input))
-        return textResult("To change the rule, send repeat with all the fields it needs.", true);
+      const noRepeat = ruleFieldsWithoutRepeat(input);
+      if (noRepeat) return textResult(noRepeat, true);
       const rule = repeat === undefined ? undefined : toRule({ ...input, repeat });
       if (typeof rule === "string") return textResult(rule, true);
       const r = await ctx.board.update(

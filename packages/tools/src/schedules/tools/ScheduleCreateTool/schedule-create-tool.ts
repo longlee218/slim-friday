@@ -43,6 +43,9 @@ export function createScheduleCreateTool(ctx: SchedulesContext) {
         ? textResult(JSON.stringify(scheduleView(r.schedule)))
         : textResult(r.error, true);
     },
-    { annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false } },
+    {
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+      alwaysLoad: true,
+    },
   );
 }

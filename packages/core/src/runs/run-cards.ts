@@ -7,6 +7,7 @@ import type { ToolDecision } from "../ports/agent-runtime";
 import { approvalContinuation, DENIAL_TEXT, toolStillExists } from "./approval-continuation";
 import { requeueForCard } from "./run-card-answer";
 import { abortRun, type RunExec } from "./run-exec";
+import { runKindOf } from "./run-kind";
 import { questionsResume } from "./run-questions";
 import { holdOrContinue } from "./run-steering";
 import { callTainted, noteAllowed } from "./run-taint";
@@ -47,6 +48,7 @@ export async function decideInRun(
       chainId: row.chainId,
       tainted: callTainted(exec, call),
       scheduled: row.scheduleId !== undefined,
+      notOwnerRun: ["bot", "ticket"].includes(runKindOf(row)),
       taint: exec.taint,
       ...(shot && { oneShot: shot }),
       reserve: () => {

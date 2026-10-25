@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import type { RunKind } from "@friday/core";
+import { z } from "zod";
 import { addSchedule, makeBoard } from "../../core/test/schedules/schedule-harness";
 import type { SchedulesContext } from "../src/schedules/schedules-context";
 import { scheduleTools } from "../src/schedules/schedules-server";
@@ -210,4 +211,38 @@ test("a group session with no current conversation refuses instead of widening t
     {},
   );
   expect(r.isError).toBe(true);
+});
+
+test("the input schema bounds name (1-80) and task (1-4000)", () => {
+  const h = makeBoard();
+  for (const t of [tools(h).create, tools(h).update]) {
+    const schema = z.object(t.inputSchema).partial();
+    expect(schema.safeParse({ name: "x".repeat(80), task: "t".repeat(4000) }).success).toBe(true);
+    for (const bad of [
+      { name: "" },
+      { name: "x".repeat(81) },
+      { task: "" },
+      { task: "t".repeat(4001) },
+    ])
+      expect(schema.safeParse(bad).success).toBe(false);
+  }
+});
+
+test("ScheduleUpdate with rule fields but no repeat names the fields in its refusal", async () => {
+  const h = makeBoard();
+  const s = await addSchedule(h);
+  const r = await call(tools(h).update, { id: s.id, at: "09:00", weekday: "mon" });
+  expect(r.isError).toBe(true);
+  expect(textOf(r)).toBe(
+    "Rule fields at, weekday were sent without repeat. To change the rule, send repeat with all the fields it needs.",
+  );
+});
+
+test("ScheduleCreate and ScheduleList are always loaded; update and delete may be deferred", () => {
+  const t = tools(makeBoard());
+  const KEY = "anthropic/alwaysLoad";
+  expect(t.create._meta?.[KEY]).toBe(true);
+  expect(t.list._meta?.[KEY]).toBe(true);
+  expect(t.update._meta?.[KEY]).toBeUndefined();
+  expect(t.remove._meta?.[KEY]).toBeUndefined();
 });

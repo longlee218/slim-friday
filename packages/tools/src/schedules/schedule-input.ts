@@ -21,9 +21,11 @@ export const RULE_FIELDS = {
 
 /** The other changeable fields of a schedule. */
 export const TEXT_FIELDS = {
-  name: z.string().describe("Short label, 1 to 80 characters."),
+  name: z.string().min(1).max(80).describe("Short label, 1 to 80 characters."),
   task: z
     .string()
+    .min(1)
+    .max(4000)
     .describe(
       "What to do at each run, 1 to 4000 characters; it must stand alone without this chat.",
     ),

@@ -16,7 +16,7 @@ Risk: **none** = reads or chats only, never asks; **sandboxed** = writes, bounde
 | `Skill` | Load a listed skill (added by itself when `skills` is set) | none |
 | `mcp__memory` (`MemorySearch`, `MessageSearch`, `MemorySave`, `MemoryEdit`) | The bot's own memory and past messages | none / sandboxed |
 | `mcp__scratchpad` (`ScratchpadList`, `ScratchpadAdd`, `ScratchpadUpdate`, `ScratchpadComplete`, `ScratchpadRemove`) | The bot's open-work list for the session (direct or group), shown at every turn | none / sandboxed |
-| `mcp__schedules` (`ScheduleList`, `ScheduleCreate`, `ScheduleUpdate`, `ScheduleDelete`) | Timed work: the bot runs a task by itself at set times in a chat. Every bot has them; no `tools` entry needed | none (a tainted run asks) |
+| `mcp__schedules` (`ScheduleList`, `ScheduleCreate`, `ScheduleUpdate`, `ScheduleDelete`) | Timed work: the bot runs a task by itself at set times in a chat. Every bot has them; no `tools` entry needed | none (create, update and delete ask in a tainted, bot-to-bot or ticket run) |
 | `mcp__chat__SendToBot`, `mcp__chat__HandOff` | Ask another group member / pass ownership | none (hub checks caps) |
 | `mcp__chat__PostFile` | Send a file from its workspace or scratch to the chat | sandboxed |
 | `mcp__chat__PostUpdate` | Short progress note to the owner during long work (owner runs; 500 chars, 3 per run) | none |
