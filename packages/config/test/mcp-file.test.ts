@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { FileConfig } from "../src/file-config";
 import { DEFAULTS_DIR, loadConfig } from "../src/load-config";
+import { expandServer, parseMcpFile } from "../src/schemas/mcp-file";
 
 /** A temp user dir with the given files (path relative to it → text). */
 function userDir(files: Record<string, string> = {}): string {
@@ -84,4 +85,33 @@ test("the effect tools are annotated and Friday may create projects", async () =
   const friday = await configFor({}).bots.get("friday");
   expect(friday?.tools).toContain("mcp__effects__CreateProject");
   expect(friday?.instructions).toContain("CreateProject");
+});
+
+test("http server takes an oauth block", () => {
+  const s = parseMcpFile(
+    "servers:\n  db-mcp:\n    type: http\n    url: https://db-mcp.example.com/mcp\n    oauth:\n      scopes: [openid, offline_access]\n",
+  );
+  expect(s["db-mcp"]).toEqual({
+    type: "http",
+    url: "https://db-mcp.example.com/mcp",
+    oauth: { scopes: ["openid", "offline_access"] },
+  });
+});
+test("oauth with an Authorization header is refused", () => {
+  expect(() =>
+    parseMcpFile(
+      'servers:\n  x:\n    type: http\n    url: https://x.example.com/mcp\n    headers: { Authorization: "Bearer k" }\n    oauth: {}\n',
+    ),
+  ).toThrow(/oauth/);
+});
+test("oauth needs an https url", () => {
+  expect(() =>
+    parseMcpFile(
+      "servers:\n  x:\n    type: http\n    url: http://x.example.com/mcp\n    oauth: {}\n",
+    ),
+  ).toThrow(/https/);
+});
+test("expandServer keeps oauth", () => {
+  const r = expandServer({ type: "http", url: "https://x.example.com/mcp", oauth: {} }, {});
+  expect(r).toEqual({ server: { type: "http", url: "https://x.example.com/mcp", oauth: {} } });
 });
