@@ -1,5 +1,6 @@
 import { EffortSchema } from "@friday/contracts";
 import { TicketSelect } from "../tickets/ticket-select";
+import { AutoTextarea } from "../ui/auto-textarea";
 import type { BotFormValue } from "./bot-form-value";
 import { Row, Segmented } from "./form-parts";
 import type { FormState } from "./use-form-state";
@@ -75,7 +76,7 @@ export function BotProfileTab({ form, readOnly, mode }: BotTabProps) {
         >
           Instructions
         </label>
-        <textarea
+        <AutoTextarea
           id="f-instructions"
           className="field"
           rows={6}

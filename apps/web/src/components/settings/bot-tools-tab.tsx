@@ -76,6 +76,7 @@ export function BotToolsTab({ form, readOnly }: BotTabProps) {
             values={v.workspaces}
             options={[]}
             addLabel="Grant folder"
+            placeholder="Type a folder path"
             disabled={readOnly}
             onChange={(next) => set("workspaces", next)}
           />

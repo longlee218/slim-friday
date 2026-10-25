@@ -46,6 +46,8 @@
 /* app-only: select menu rows, nested markdown size, fresh card entry, card focus ring */
 .sel-pop { width: 200px; }
 .sel-pop .sel-it { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px; border-radius: 8px; font-size: 13px; cursor: default; }
+/* Base UI keeps the Empty element mounted while items exist: no blank row then. */
+.sel-pop .sel-it:empty { display: none; }
 .sel-pop .sel-it[data-highlighted] { background: var(--tint-fill); color: #fff; }
 .sel-pop .sel-it .av { width: 18px; height: 18px; }
 .td-desc .md { font-size: inherit; }

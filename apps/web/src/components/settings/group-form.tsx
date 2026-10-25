@@ -1,6 +1,7 @@
 import { BotIdSchema, type GroupInputDto, GroupInputDtoSchema } from "@friday/contracts";
 import { useDirectory } from "../../api/directory";
 import { TicketSelect } from "../tickets/ticket-select";
+import { AutoTextarea } from "../ui/auto-textarea";
 import { Avatar } from "../ui/avatar";
 import { Row, SaveBar, StaleNotice } from "./form-parts";
 import { TokenList } from "./token-list";
@@ -114,6 +115,7 @@ export function GroupForm({
             values={v.workspaces}
             options={[]}
             addLabel="Grant folder"
+            placeholder="Type a folder path"
             onChange={(next) => set("workspaces", next)}
           />
         </Row>
@@ -125,7 +127,7 @@ export function GroupForm({
         >
           Instructions
         </label>
-        <textarea
+        <AutoTextarea
           id="g-instructions"
           className="field"
           rows={6}

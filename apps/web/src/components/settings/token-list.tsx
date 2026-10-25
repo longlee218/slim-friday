@@ -16,11 +16,14 @@ export interface TokenListProps {
   disabled?: boolean;
   /** Turns a stored value into its label (a bot id into its name). */
   label?: (value: string) => string;
+  /** Placeholder of the search box (default "Type to search"; free text such as paths says so). */
+  placeholder?: string;
 }
 
 /**
  * The prototype's `.toks` row: a token per value with a remove button, then an "add" token
- * that opens a Base UI `Combobox` (type to filter, Enter or click to add).
+ * that opens a Base UI `Combobox` (type to filter, Enter or click to add). The first item is
+ * highlighted, so Enter adds it; with no option left the typed text is that item.
  */
 export function TokenList({
   values,
@@ -30,6 +33,7 @@ export function TokenList({
   plain,
   disabled,
   label = (v) => v,
+  placeholder = "Type to search",
 }: TokenListProps) {
   const [typed, setTyped] = useState("");
   const [open, setOpen] = useState(false);
@@ -56,6 +60,7 @@ export function TokenList({
       {!disabled && (
         <Combobox.Root
           items={items}
+          autoHighlight
           value={null}
           open={open}
           onOpenChange={setOpen}
@@ -76,7 +81,7 @@ export function TokenList({
                 <Combobox.Input
                   className="field"
                   aria-label={addLabel}
-                  placeholder="Type to search"
+                  placeholder={placeholder}
                 />
                 <Combobox.Empty className="sel-it">Nothing to add.</Combobox.Empty>
                 <Combobox.List>
