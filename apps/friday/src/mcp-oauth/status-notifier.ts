@@ -15,6 +15,15 @@ export class StatusNotifier {
   }
 
   /**
+   * A login was saved. `wasUsable`: the row before it was already connected for the same url;
+   * otherwise (none, needs_login, other url) it is a change and `connected` is always told.
+   */
+  loggedIn(server: string, wasUsable: boolean): void {
+    if (!wasUsable) this.last.delete(server);
+    this.tell(server, "connected", wasUsable ? "connected" : undefined);
+  }
+
+  /**
    * Tell listeners `status` if it differs from the last one told (or, before any, from `stored`,
    * the status the row had). Returns whether it was a change.
    */

@@ -1,4 +1,4 @@
-import type { McpOAuthRecord } from "@friday/core";
+import type { McpOAuthRecord, McpOAuthStore } from "@friday/core";
 import type { OAuthTokens } from "@modelcontextprotocol/sdk/shared/auth.js";
 
 /** Lifetime assumed when `/token` gives no `expires_in`. */
@@ -29,4 +29,18 @@ export function connectedRow(
 export function needsLoginRow(row: McpOAuthRecord, code: string, at: number): McpOAuthRecord {
   const { accessToken: _token, accessExpiresAt: _expires, ...rest } = row;
   return { ...rest, status: "needs_login", lastError: code, updatedAt: at };
+}
+
+/** The stored row of `row.server` if it changed since `row` was read (a login saved meanwhile). */
+export async function newerRow(
+  store: McpOAuthStore,
+  row: McpOAuthRecord,
+): Promise<McpOAuthRecord | undefined> {
+  const now = await store.get(row.server);
+  const same =
+    now?.refreshToken === row.refreshToken &&
+    now.accessToken === row.accessToken &&
+    now.serverUrl === row.serverUrl &&
+    now.status === row.status;
+  return same ? undefined : now;
 }

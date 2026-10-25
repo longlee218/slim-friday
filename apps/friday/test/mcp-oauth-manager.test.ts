@@ -162,4 +162,63 @@ describe("McpOAuthManager", () => {
     expect(fake.refreshCalls).toBe(1);
     expect(other.refreshCalls).toBe(0);
   });
+
+  test("a refresh in flight does not overwrite a newer login", async () => {
+    const { mgr, fake, clock, store } = setup();
+    await login(mgr);
+    clock.t += 400_000;
+    fake.mode = "invalid_grant";
+    fake.delayMs = 100;
+    const pending = mgr.accessToken("db");
+    await Bun.sleep(20);
+    await login(mgr);
+    await pending;
+    expect(await mgr.status("db")).toBe("connected");
+    expect(store.rows.get("db")?.lastError).toBeUndefined();
+    expect(store.rows.get("db")?.accessToken).toBe("at-2");
+  });
+
+  test("re-login after a url change fires connected", async () => {
+    const { mgr, servers, events } = setup();
+    await login(mgr);
+    const other = startFakeOAuthServer();
+    fakes.push(other);
+    servers.db = { url: other.mcpUrl };
+    expect(await mgr.status("db")).toBe("needs_login");
+    await login(mgr);
+    expect(events).toEqual([
+      ["db", "connected"],
+      ["db", "connected"],
+    ]);
+  });
+
+  test("HTTP 401 with a plain body → needs_login", async () => {
+    const { mgr, fake, clock, events } = setup();
+    await login(mgr);
+    fake.mode = "plain401";
+    clock.t += 400_000;
+    expect(await mgr.accessToken("db")).toBeUndefined();
+    expect(await mgr.status("db")).toBe("needs_login");
+    expect(events.at(-1)).toEqual(["db", "needs_login"]);
+  });
+
+  test("HTTP 503 server_error keeps connected", async () => {
+    const { mgr, fake, clock, events } = setup();
+    await login(mgr);
+    fake.mode = "unavailable503";
+    clock.t += 400_000;
+    expect(await mgr.accessToken("db")).toBeUndefined();
+    expect(await mgr.status("db")).toBe("connected");
+    expect(events).toEqual([["db", "connected"]]);
+  });
+
+  test("keepAlive skips a needs_login row", async () => {
+    const { mgr, fake } = setup();
+    await login(mgr);
+    fake.mode = "invalid_grant";
+    await mgr.forceRefresh("db");
+    expect(await mgr.status("db")).toBe("needs_login");
+    await mgr.keepAlive();
+    expect(fake.refreshCalls).toBe(1);
+  });
 });

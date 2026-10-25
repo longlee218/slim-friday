@@ -1,5 +1,14 @@
-/** How the fake `/token` answers a refresh: plain, `invalid_grant`, a new refresh token, or after a delay. */
-export type FakeTokenMode = "ok" | "invalid_grant" | "rotate" | "slow";
+/**
+ * How the fake `/token` answers a refresh: plain, `invalid_grant`, a new refresh token, after a
+ * delay, HTTP 401 with a plain text body, or HTTP 503 with a `server_error` body.
+ */
+export type FakeTokenMode =
+  | "ok"
+  | "invalid_grant"
+  | "rotate"
+  | "slow"
+  | "plain401"
+  | "unavailable503";
 
 /** A fake MCP authorization server (`Bun.serve` on 127.0.0.1) for the OAuth manager tests. */
 export interface FakeOAuthServer {
@@ -11,6 +20,8 @@ export interface FakeOAuthServer {
   refreshCalls: number;
   /** Number of `/register` calls. */
   registerCalls: number;
+  /** Extra delay (ms) before any refresh answer. */
+  delayMs: number;
   /** Refresh token the last refresh grant sent. */
   lastRefreshTokenSeen?: string;
   /** Query params of the last `/authorize` hit (the tests only parse the url, so usually unset). */
@@ -76,6 +87,9 @@ export function startFakeOAuthServer(expiresIn = 300): FakeOAuthServer {
         }
         fake.refreshCalls++;
         fake.lastRefreshTokenSeen = form.get("refresh_token") ?? undefined;
+        if (fake.delayMs) await Bun.sleep(fake.delayMs);
+        if (fake.mode === "plain401") return new Response("Unauthorized", { status: 401 });
+        if (fake.mode === "unavailable503") return json({ error: "server_error" }, 503);
         if (fake.mode === "invalid_grant")
           return json({ error: "invalid_grant", error_description: "session gone" }, 400);
         if (fake.mode === "slow") await Bun.sleep(50);
@@ -90,6 +104,7 @@ export function startFakeOAuthServer(expiresIn = 300): FakeOAuthServer {
     mode: "ok",
     refreshCalls: 0,
     registerCalls: 0,
+    delayMs: 0,
     stop: () => void server.stop(true),
   };
   return fake;

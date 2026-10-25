@@ -14,7 +14,7 @@ import {
   registerPublicClient,
   scopeFor,
 } from "./oauth-discovery";
-import { connectedRow, needsLoginRow } from "./oauth-records";
+import { connectedRow, needsLoginRow, newerRow } from "./oauth-records";
 import { PendingLogins } from "./pending-logins";
 import { type McpOAuthStatus, StatusNotifier } from "./status-notifier";
 
@@ -113,12 +113,13 @@ export class McpOAuthManager {
       fetchFn: this.fetchFn,
     });
     if (!tokens.refresh_token) throw new Error("the server returned no refresh token");
-    const base = { server: login.server, serverUrl: login.serverUrl, clientId: login.clientId };
-    await this.deps.store.put(connectedRow(base, tokens, tokens.refresh_token, this.now()));
-    const ms = this.now() - started;
-    logEvent(this.deps.log, "mcp.oauth.connected", { server: login.server, ms });
-    this.notifier.tell(login.server, "connected", undefined);
-    return { server: login.server };
+    const { server, serverUrl } = login;
+    const before = await this.deps.store.get(server);
+    await this.deps.store.put(connectedRow(login, tokens, tokens.refresh_token, this.now()));
+    logEvent(this.deps.log, "mcp.oauth.connected", { server, ms: this.now() - started });
+    const wasUsable = before?.status === "connected" && before.serverUrl === serverUrl;
+    this.notifier.loggedIn(server, wasUsable);
+    return { server };
   }
 
   /** A token valid for 60 s more (refreshed when needed); undefined ⇒ not usable now. */
@@ -169,6 +170,8 @@ export class McpOAuthManager {
       });
       // Always keep the refresh token the response returns (the SDK keeps the old one otherwise).
       const next = connectedRow(row, tokens, tokens.refresh_token ?? row.refreshToken, this.now());
+      const newer = await newerRow(this.deps.store, row);
+      if (newer) return newer.status === "connected" ? newer.accessToken : undefined;
       await this.deps.store.put(next);
       logEvent(this.deps.log, "mcp.oauth.refreshed", { server, ms: this.now() - started });
       this.notifier.tell(server, "connected", row.status);
@@ -178,7 +181,7 @@ export class McpOAuthManager {
       const lost = loginLostCode(err);
       const reason = failureReason(err);
       logEvent(this.deps.log, "mcp.oauth.refresh_failed", { server, ms, reason }, "warn");
-      if (!lost) return undefined;
+      if (!lost || (await newerRow(this.deps.store, row))) return undefined;
       await this.deps.store.put(needsLoginRow(row, lost, this.now()));
       if (this.notifier.tell(server, "needs_login", row.status))
         logEvent(this.deps.log, "mcp.oauth.needs_login", { server, ms, reason: lost }, "warn");
