@@ -62,3 +62,30 @@ test("holding 450 ms opens the sheet; vertical movement cancels", () => {
   act(() => vi.advanceTimersByTime(600));
   expect(onHold).toHaveBeenCalledTimes(1);
 });
+
+test("a tap with a little drift leaves the bubble alone: no cue, no inline style", () => {
+  vi.useFakeTimers();
+  const { getByTestId } = render(<Host onReply={vi.fn()} onHold={vi.fn()} />);
+  const text = getByTestId("text");
+  const msg = text.closest<HTMLElement>(".msg");
+  press(text, 100);
+  fireEvent.pointerMove(text, { clientX: 104, clientY: 101 });
+  act(() => vi.advanceTimersByTime(100));
+  expect(msg?.classList.contains("holding")).toBe(false);
+  expect(msg?.style.transform).toBe("");
+  fireEvent.pointerUp(text);
+  expect(msg?.getAttribute("style")).toBeNull();
+});
+
+test("the press cue shows only after 150 ms of holding still", () => {
+  vi.useFakeTimers();
+  const { getByTestId } = render(<Host onReply={vi.fn()} onHold={vi.fn()} />);
+  const text = getByTestId("text");
+  press(text, 100);
+  act(() => vi.advanceTimersByTime(149));
+  expect(text.closest(".msg")?.classList.contains("holding")).toBe(false);
+  act(() => vi.advanceTimersByTime(1));
+  expect(text.closest(".msg")?.classList.contains("holding")).toBe(true);
+  fireEvent.pointerUp(text);
+  expect(text.closest(".msg")?.classList.contains("holding")).toBe(false);
+});
