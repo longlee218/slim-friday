@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { Row } from "../settings/form-parts";
 import { TicketSelect } from "../tickets/ticket-select";
 import type { ScheduleFormProps } from "./schedule-form";
+import { timeZones } from "./schedule-form-state";
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 /** Monday first; the value is the rule's weekday (0 Sunday). */
@@ -16,16 +17,16 @@ const OWNER_ZONE = "owner";
  */
 export function ScheduleWhenRow({ value: v, set, errors, mode, readOnly }: ScheduleFormProps) {
   const create = mode === "create";
-  const zones = useMemo(() => (create ? Intl.supportedValuesOf("timeZone") : []), [create]);
+  const zones = useMemo(() => (create ? timeZones() : []), [create]);
   const interval = v.repeat === "interval";
+  // Only the refusal of a field the current Repeat uses.
+  const error = interval
+    ? errors.every
+    : (errors.at ?? (v.repeat === "once" ? errors.date : undefined));
   const cls = (bad?: string) => (bad ? "field num err" : "field num");
 
   return (
-    <Row
-      label={interval ? "Every" : "At"}
-      htmlFor={interval ? "sc-every" : "sc-at"}
-      error={errors.every ?? errors.at ?? errors.date}
-    >
+    <Row label={interval ? "Every" : "At"} htmlFor={interval ? "sc-every" : "sc-at"} error={error}>
       <div className="sched-when">
         {interval ? (
           <>
@@ -46,7 +47,10 @@ export function ScheduleWhenRow({ value: v, set, errors, mode, readOnly }: Sched
               ]}
               current={v.unit}
               disabled={readOnly}
-              onChange={(u) => set("unit", u)}
+              onChange={(u) => {
+                set("unit", u);
+                set("every", v.every); // the old unit's refusal no longer applies
+              }}
             />
           </>
         ) : (
@@ -92,6 +96,7 @@ export function ScheduleWhenRow({ value: v, set, errors, mode, readOnly }: Sched
             }))}
             current={v.timeZone || "Owner zone"}
             onChange={(z) => set("timeZone", z === OWNER_ZONE ? "" : z)}
+            popupClassName="sched-zone-pop"
           />
         ) : (
           <span className="t2">{v.timeZone}</span>

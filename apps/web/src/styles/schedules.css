@@ -68,8 +68,8 @@
 .sched-run-err { color: var(--red); }
 .sched-run-cost { width: 56px; text-align: right; }
 .sched-delete { margin-right: auto; }
-/* Long pickers (time zones) scroll inside the popup. */
-.pop.sel-pop { max-height: min(360px, var(--available-height, 360px)); overflow-y: auto; }
+/* The time-zone list (hundreds of zones) scrolls inside its popup. */
+.pop.sched-zone-pop { max-height: min(360px, var(--available-height, 360px)); overflow-y: auto; }
 
 /* The shared .switch has no hover, pressed or disabled look; give it one on the page too. */
 .sched-page .switch { flex: none; cursor: pointer; }

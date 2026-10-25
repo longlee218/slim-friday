@@ -3,7 +3,14 @@ import { useDirectory } from "../../api/directory";
 import { Row, Segmented } from "../settings/form-parts";
 import { TicketSelect } from "../tickets/ticket-select";
 import { Avatar } from "../ui/avatar";
-import { REPEAT_KINDS, REPEAT_NAMES, type ScheduleFormValue } from "./schedule-form-state";
+import {
+  localToday,
+  REPEAT_KINDS,
+  REPEAT_NAMES,
+  type RepeatKind,
+  type ScheduleFormValue,
+} from "./schedule-form-state";
+import { FORM_ERROR_ID, formError } from "./schedule-save";
 import { postTargets } from "./schedule-target";
 import { ScheduleWhenRow } from "./schedule-when-row";
 
@@ -28,6 +35,16 @@ export interface ScheduleFormProps {
 const ChatIcon = ({ id }: { id: string }) =>
   id.startsWith("group:") ? <Users strokeWidth={1.75} /> : <MessageCircle strokeWidth={1.75} />;
 
+/** The server's refusal under the form; Save points at it with aria-describedby. */
+export function FormErrorLine({ errors }: { errors: object }) {
+  const message = formError(errors);
+  return message ? (
+    <div id={FORM_ERROR_ID} className="help err sched-form-err" role="alert">
+      {message}
+    </div>
+  ) : null;
+}
+
 /**
  * One schedule's form (prototype `scheduleForm`): what, who, when, where, how loud. Shared by
  * the schedule page and the new-schedule sheet. Repeat has a fifth choice, Once (date + time);
@@ -41,6 +58,13 @@ export function ScheduleForm(props: ScheduleFormProps) {
   const chatName = targets.find((t) => t.id === v.conversationId)?.name ?? v.conversationId;
   const botName = dir.botName(v.botId);
   const face = <Avatar src={dir.bots.get(v.botId)?.avatarUrl} name={botName} size={16} />;
+  // A new Repeat drops the old kind's refusals (re-setting a field clears its error); Once
+  // starts from today when it has no date yet.
+  const repeat = (k: RepeatKind) => {
+    set("repeat", k);
+    for (const f of ["at", "every", "date"] as const) set(f, v[f]);
+    if (k === "once" && !v.date) set("date", localToday());
+  };
   const chat = (
     <>
       <ChatIcon id={v.conversationId} />
@@ -123,7 +147,7 @@ export function ScheduleForm(props: ScheduleFormProps) {
             names={REPEAT_NAMES}
             value={v.repeat}
             disabled={readOnly}
-            onChange={(k) => set("repeat", k)}
+            onChange={repeat}
           />
         </Row>
         <ScheduleWhenRow {...props} />
