@@ -189,3 +189,57 @@ test("a require_approval rule beats a per-tool allow override; an override deny 
   // Without the rule the override still allows.
   expect(decide({ ...base, grants: [], settings: allowOverride }).outcome).toBe("allow");
 });
+
+test("scheduledRead allows over a require rule and the level, but never over the floor or a tool deny", () => {
+  const siteRule: Grant = {
+    id: "s1",
+    botId: "*",
+    effect: "require_approval",
+    match: "site",
+    tool: "example.com",
+    scope: {},
+    createdAt: 0,
+  };
+  const fetchCall = call({ url: "https://example.com/a" }, "WebFetch");
+  const base = {
+    call: fetchCall,
+    spec: READ,
+    grants: [siteRule],
+    settings: settings("careful"),
+    site: "example.com",
+    now: 10,
+  };
+  // Without the flag the require rule asks.
+  expect(decide(base).outcome).toBe("ask");
+  expect(decide({ ...base, scheduledRead: true })).toEqual({
+    outcome: "allow",
+    reason: "scheduled run: read step",
+  });
+  // Over a taint ask too.
+  expect(
+    decide({ ...base, scheduledRead: true, taint: { reason: "x", mandatory: false } }).outcome,
+  ).toBe("allow");
+  expect(
+    decide({
+      ...base,
+      scheduledRead: true,
+      settings: { level: "careful", tools: { WebFetch: "deny" } },
+    }).outcome,
+  ).toBe("deny");
+  expect(decide({ ...base, scheduledRead: true, floorDenyReason: "sandbox" })).toEqual({
+    outcome: "deny",
+    reason: "sandbox",
+  });
+});
+
+test("scheduledRead unset: a mandatory taint ask still asks", () => {
+  const d = decide({
+    call: call({}, "mcp__design__BotDesign"),
+    spec: WRITE,
+    grants: [],
+    settings: settings("autonomous"),
+    now: 1,
+    taint: { reason: "r", mandatory: true },
+  });
+  expect(d.outcome).toBe("ask_always");
+});

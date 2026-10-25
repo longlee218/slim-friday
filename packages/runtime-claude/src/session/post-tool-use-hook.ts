@@ -5,7 +5,15 @@ const RESULT_MAX_CHARS = 12_000;
 
 /** In-process Friday servers: their results are clipped when built (`textResult` in packages/tools). */
 /** Keep equal to packages/tools/src/mcp-server-names.ts (a test checks it). */
-export const OWN_SERVERS = ["memory", "effects", "chat", "design", "tickets", "scratchpad"];
+export const OWN_SERVERS = [
+  "memory",
+  "effects",
+  "chat",
+  "design",
+  "tickets",
+  "scratchpad",
+  "schedules",
+];
 
 /**
  * Copy of `clipResult` in packages/tools/src/clip-result.ts (runtime-claude may not import that package): same cut

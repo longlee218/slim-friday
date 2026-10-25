@@ -13,6 +13,7 @@ import { scopeOf } from "./classify-tool";
 import { decide } from "./decide";
 import { inputHash } from "./input-hash";
 import { exactHost, type RegistrableDomain } from "./owner-sites";
+import { isScheduledRead } from "./scheduled-read";
 import { fetchSiteOf, type TaintRun, taintAskOf } from "./taint-policy";
 
 /** Deny reason for a call that needs approval while the same run already waits on a card. */
@@ -44,6 +45,8 @@ export interface GateContext {
   scopeKey: string;
   /** The run read untrusted input (spec §6.10): the taint asks of `taint-policy.ts` apply. */
   tainted: boolean;
+  /** The run is a scheduled run (`row.scheduleId` set): its read steps never ask (`isScheduledRead`). */
+  scheduled?: boolean;
   /** The run's owner-named and approved sites and approved MCP servers; unset: none (every taint ask asks). */
   taint?: Omit<TaintRun, "tainted">;
   /** The run's chain (`row.chainId`): Auto Review reads the owner's words from it; unset: no review. */
@@ -121,6 +124,7 @@ export class PermissionGate {
       now: clock.now(),
       ...(taint && { taint }),
       ...(site && { site }),
+      ...(ctx.scheduled === true && isScheduledRead(call, spec) && { scheduledRead: true }),
     });
     const audit = (reason: string, review?: AuditEntry["review"], outcome = verdict.outcome) =>
       store.audit.append({

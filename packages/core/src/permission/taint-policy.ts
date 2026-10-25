@@ -21,6 +21,7 @@ export const FRIDAY_MCP_SERVERS: readonly string[] = [
   "design",
   "tickets",
   "scratchpad",
+  "schedules",
 ];
 
 /**
@@ -33,6 +34,7 @@ export const OWN_STATE_TOOLS: readonly string[] = [
   "mcp__memory__MemoryEdit",
   "mcp__memory__MessageSearch",
   "mcp__scratchpad__*",
+  "mcp__schedules__*",
   "mcp__tickets__TicketGet",
   "mcp__tickets__TicketList",
   "mcp__chat__PostUpdate",
@@ -58,6 +60,9 @@ export const OWN_STATE_TOOLS: readonly string[] = [
 export const INSTRUCTION_CHANGE_TOOLS: readonly string[] = [
   "mcp__design__BotDesign",
   "mcp__chat__UpdateProfile",
+  "mcp__schedules__ScheduleCreate",
+  "mcp__schedules__ScheduleUpdate",
+  "mcp__schedules__ScheduleDelete",
 ];
 
 /** What the taint policy reads of a run. */
