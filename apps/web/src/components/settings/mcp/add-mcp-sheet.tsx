@@ -6,6 +6,7 @@ import { useIsPhone } from "../../../app/use-is-phone";
 import { BottomSheet } from "../../ui/bottom-sheet";
 import { Button } from "../../ui/button";
 import { Sheet } from "../../ui/sheet";
+import { PhoneSheetForm } from "../../ui/sheet-bar";
 import { Row } from "../form-parts";
 import { type FieldErrors, useFormState } from "../use-form-state";
 import { McpForm } from "./mcp-form";
@@ -51,9 +52,15 @@ function AddMcpBody({ onClose, onAdded }: { onClose(): void; onAdded(name: strin
       onClose();
     });
 
-  return (
+  const phone = useIsPhone();
+  const canAdd = tested && !form.saving;
+  const testButton = !oauth && (
+    <Button disabled={!form.valid || probe.running} onClick={() => void test()}>
+      Test connection
+    </Button>
+  );
+  const fields = (
     <>
-      <h3>Add MCP server</h3>
       <Row label="Name" htmlFor="mcp-name" error={form.errors.name}>
         <input
           id="mcp-name"
@@ -74,14 +81,35 @@ function AddMcpBody({ onClose, onAdded }: { onClose(): void; onAdded(name: strin
       {probe.result && probe.result.state !== "connected" && testedKey === key && (
         <ConnBanner probe={probe} onTest={() => void test()} />
       )}
+    </>
+  );
+  if (phone) {
+    return (
+      <PhoneSheetForm
+        title="Add MCP server"
+        onCancel={onClose}
+        onSubmit={() => {
+          if (canAdd) void add();
+        }}
+        action={
+          <button type="submit" className="nb strong" disabled={!canAdd} aria-label="Add server">
+            Add
+          </button>
+        }
+      >
+        {fields}
+        {testButton}
+      </PhoneSheetForm>
+    );
+  }
+  return (
+    <>
+      <h3>Add MCP server</h3>
+      {fields}
       <div className="acts">
         <Button onClick={onClose}>Cancel</Button>
-        {!oauth && (
-          <Button disabled={!form.valid || probe.running} onClick={() => void test()}>
-            Test connection
-          </Button>
-        )}
-        <Button variant="primary" disabled={!tested || form.saving} onClick={() => void add()}>
+        {testButton}
+        <Button variant="primary" disabled={!canAdd} onClick={() => void add()}>
           Add server
         </Button>
       </div>

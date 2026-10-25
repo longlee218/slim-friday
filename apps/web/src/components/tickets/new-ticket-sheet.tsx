@@ -8,6 +8,7 @@ import { useIsPhone } from "../../app/use-is-phone";
 import { BottomSheet } from "../ui/bottom-sheet";
 import { Button } from "../ui/button";
 import { Sheet } from "../ui/sheet";
+import { PhoneSheetForm } from "../ui/sheet-bar";
 import { patchTicket } from "./ticket-cache";
 import { AssigneeSelect, PrioritySelect } from "./ticket-fields";
 
@@ -43,15 +44,13 @@ function NewTicketForm({ onOpenChange, onCreated }: Omit<NewTicketSheetProps, "o
     onError: () => toast("Could not create the ticket. Try again."),
   });
   const canCreate = title.trim() !== "" && !create.isPending;
+  const phone = useIsPhone();
+  const submit = () => {
+    if (canCreate) create.mutate();
+  };
 
-  return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (canCreate) create.mutate();
-      }}
-    >
-      <h3>New ticket</h3>
+  const fields = (
+    <>
       <div className="frow">
         <label htmlFor="nt-title">Title</label>
         <input
@@ -89,6 +88,38 @@ function NewTicketForm({ onOpenChange, onCreated }: Omit<NewTicketSheetProps, "o
           <PrioritySelect value={priority} onChange={setPriority} />
         </div>
       </div>
+    </>
+  );
+  if (phone) {
+    return (
+      <PhoneSheetForm
+        title="New ticket"
+        onCancel={() => onOpenChange(false)}
+        onSubmit={submit}
+        action={
+          <button
+            type="submit"
+            className="nb strong"
+            disabled={!canCreate}
+            aria-label="Create ticket"
+          >
+            {create.isPending ? "Creating…" : "Create"}
+          </button>
+        }
+      >
+        {fields}
+      </PhoneSheetForm>
+    );
+  }
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        submit();
+      }}
+    >
+      <h3>New ticket</h3>
+      {fields}
       <div className="acts">
         <Button onClick={() => onOpenChange(false)}>Cancel</Button>
         <Button type="submit" variant="primary" disabled={!canCreate}>

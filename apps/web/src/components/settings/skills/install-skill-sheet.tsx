@@ -6,6 +6,7 @@ import { useIsPhone } from "../../../app/use-is-phone";
 import { BottomSheet } from "../../ui/bottom-sheet";
 import { Button } from "../../ui/button";
 import { Sheet } from "../../ui/sheet";
+import { PhoneSheetForm } from "../../ui/sheet-bar";
 import { saveFailure } from "../field-error";
 import { Row } from "../form-parts";
 import { LookupResult, useLookup } from "./lookup-result";
@@ -58,9 +59,11 @@ function InstallBody({
     setInstallError(undefined);
   };
 
-  return (
+  const phone = useIsPhone();
+  const canFind = source.trim() !== "" && !lookup.running;
+  const findLabel = lookup.running ? "Looking up…" : "Look up";
+  const fields = (
     <>
-      <h3>Install skill</h3>
       <Row
         label="From"
         htmlFor="skill-src"
@@ -95,10 +98,34 @@ function InstallBody({
           </Button>
         </div>
       )}
+    </>
+  );
+  if (phone) {
+    return (
+      <PhoneSheetForm
+        title="Install skill"
+        onCancel={onClose}
+        onSubmit={() => {
+          if (canFind) find();
+        }}
+        action={
+          <button type="submit" className="nb strong" disabled={!canFind}>
+            {findLabel}
+          </button>
+        }
+      >
+        {fields}
+      </PhoneSheetForm>
+    );
+  }
+  return (
+    <>
+      <h3>Install skill</h3>
+      {fields}
       <div className="acts">
         <Button onClick={onClose}>Cancel</Button>
-        <Button variant="primary" disabled={!source.trim() || lookup.running} onClick={find}>
-          {lookup.running ? "Looking up…" : "Look up"}
+        <Button variant="primary" disabled={!canFind} onClick={find}>
+          {findLabel}
         </Button>
       </div>
     </>

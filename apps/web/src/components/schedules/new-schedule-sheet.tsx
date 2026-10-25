@@ -5,6 +5,7 @@ import { useFormState } from "../settings/use-form-state";
 import { BottomSheet } from "../ui/bottom-sheet";
 import { Button } from "../ui/button";
 import { Sheet } from "../ui/sheet";
+import { PhoneSheetForm } from "../ui/sheet-bar";
 import { FormErrorLine, ScheduleForm } from "./schedule-form";
 import { checkForm, isFieldError, localToday, newScheduleForm } from "./schedule-form-state";
 import { FORM_ERROR_ID, formError, refusal, sendSchedule } from "./schedule-save";
@@ -23,6 +24,7 @@ export interface NewScheduleSheetProps {
 /** The form and buttons; mounted only while the sheet is open, so every opening starts blank. */
 function NewScheduleForm({ onOpenChange, onCreated }: Omit<NewScheduleSheetProps, "open">) {
   const dir = useDirectory();
+  const phone = useIsPhone();
   const first = dir.bots.keys().next().value ?? "";
   const form = useFormState(newScheduleForm(first, localToday()));
   const create = useCreateSchedule();
@@ -45,23 +47,55 @@ function NewScheduleForm({ onOpenChange, onCreated }: Omit<NewScheduleSheetProps
       onCreated?.(s);
     });
 
+  const submit = () => {
+    if (canCreate) void save();
+  };
+  const describedBy = formError(form.errors) ? FORM_ERROR_ID : undefined;
+  const fields = (
+    <>
+      <ScheduleForm value={v} set={form.set} errors={form.errors} mode="create" />
+      <FormErrorLine errors={form.errors} />
+    </>
+  );
+
+  if (phone) {
+    return (
+      <PhoneSheetForm
+        title="New schedule"
+        onCancel={() => onOpenChange(false)}
+        onSubmit={submit}
+        action={
+          <button
+            type="submit"
+            className="nb strong"
+            disabled={!canCreate}
+            aria-label="Create schedule"
+            aria-describedby={describedBy}
+          >
+            {form.saving ? "Creating…" : "Create"}
+          </button>
+        }
+      >
+        {fields}
+      </PhoneSheetForm>
+    );
+  }
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        if (canCreate) void save();
+        submit();
       }}
     >
       <h3>New schedule</h3>
-      <ScheduleForm value={v} set={form.set} errors={form.errors} mode="create" />
-      <FormErrorLine errors={form.errors} />
+      {fields}
       <div className="acts">
         <Button onClick={() => onOpenChange(false)}>Cancel</Button>
         <Button
           type="submit"
           variant="primary"
           disabled={!canCreate}
-          aria-describedby={formError(form.errors) ? FORM_ERROR_ID : undefined}
+          aria-describedby={describedBy}
         >
           {form.saving ? "Creating…" : "Create schedule"}
         </Button>
