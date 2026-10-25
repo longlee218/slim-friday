@@ -9,12 +9,20 @@ const isConflict = (e: unknown): boolean => (e as { code?: string } | null)?.cod
 
 /**
  * Run now of one schedule: success opens its chat; a run still going sets `busy` (the caller
- * shows "Still running" with a link to the chat); any other error is a toast.
+ * shows "Still running" with a link to the chat) until the schedule's last run changes; any
+ * other error is a toast.
  */
 export function useRunNow(s: ScheduleDto) {
   const go = useAppNavigate();
   const runNow = useRunScheduleNow();
   const [busy, setBusy] = useState(false);
+  // A new or finished last run ends the "Still running" note (state adjusted while rendering).
+  const last = JSON.stringify(s.last ?? null);
+  const [seenLast, setSeenLast] = useState(last);
+  if (seenLast !== last) {
+    setSeenLast(last);
+    setBusy(false);
+  }
   const chat = `/c/${s.conversationId}`;
   const run = () => {
     setBusy(false);

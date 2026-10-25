@@ -6,7 +6,7 @@ import { Switch } from "../settings/form-parts";
 import { useAppNavigate } from "../shell/use-app-navigate";
 import { Avatar } from "../ui/avatar";
 import { Button } from "../ui/button";
-import { formatNextRun } from "./format-next-run";
+import { nextRunNote } from "./format-next-run";
 import { ScheduleStatusPill } from "./schedule-status-pill";
 import { conversationName } from "./schedule-target";
 import { useRunNow, useScheduleSwitch } from "./use-schedule-actions";
@@ -29,6 +29,7 @@ export function ScheduleRow({ schedule: s }: { schedule: ScheduleDto }) {
   const go = useAppNavigate();
   const { run, busy, pending, chat } = useRunNow(s);
   const onSwitch = useScheduleSwitch(s);
+  const note = nextRunNote(s, Date.now());
 
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: the name link is the keyboard path
@@ -54,11 +55,7 @@ export function ScheduleRow({ schedule: s }: { schedule: ScheduleDto }) {
           <Repeat strokeWidth={1.75} aria-hidden />
           {s.when}
         </div>
-        <div className="t2">
-          {s.enabled && s.nextRunAt !== undefined
-            ? `Next ${formatNextRun(s.nextRunAt, Date.now(), s.timeZone)}`
-            : "Paused"}
-        </div>
+        {note && <div className="t2">{note}</div>}
       </div>
       <div className="s-last">
         <ScheduleStatusPill schedule={s} />
@@ -68,7 +65,12 @@ export function ScheduleRow({ schedule: s }: { schedule: ScheduleDto }) {
           </div>
         )}
       </div>
-      <Button className="s-run" disabled={!s.enabled || pending} onClick={run}>
+      <Button
+        className="s-run"
+        aria-label={`Run ${s.name} now`}
+        disabled={!s.enabled || pending}
+        onClick={run}
+      >
         <Play size={14} strokeWidth={1.75} />
         Run now
       </Button>
