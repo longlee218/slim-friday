@@ -1,4 +1,4 @@
-import type { Clock, ConsolidateFn, Log, MessageIndexStore } from "@friday/core";
+import type { Clock, ConsolidateFn, Log, MessageIndexStore, Store } from "@friday/core";
 import type { EngineStore } from "@friday/store-sqlite";
 import {
   catchUpMessages,
@@ -23,6 +23,8 @@ export interface DailyDeps {
   memoryIndex: MessageIndexStore;
   indexer: Indexer;
   engine: EngineStore;
+  /** The composed store (engine db + config bots and groups), for checks that need the bots and groups. */
+  store: Pick<Store, "bots" | "groups">;
   clock: Clock;
   log: Log;
   /** Picks the journal notes to promote into MEMORY.md; without it nothing is consolidated. */
@@ -76,8 +78,8 @@ export function startDailyMaintenance(d: DailyDeps) {
     sweepScratchpad(d.engine.scratchpad, clock.now()).catch((err) =>
       log.error({ error: why(err) }, "scratchpad.prune"),
     );
-    pruneSchedules(d.engine, clock.now()).catch((err) =>
-      log.error({ error: why(err) }, "schedules.prune"),
+    pruneSchedules({ ...d.engine, bots: d.store.bots, groups: d.store.groups }, clock.now()).catch(
+      (err) => log.error({ error: why(err) }, "schedules.prune"),
     );
     if (!stopped)
       cancelTimer = clock.setTimer(DAILY_MS, () => {

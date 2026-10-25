@@ -117,17 +117,23 @@ test("remove deletes the schedule and its runs", async () => {
   expect(await s.scheduleRuns.list("s2", 10)).toHaveLength(1);
 });
 
-test("removeDisabledBefore deletes disabled rows of the reasons updated before the time", async () => {
+test("disabledBefore lists disabled rows of the reasons updated before the time", async () => {
   const s = openEngineStore(":memory:");
   const off = { enabled: false, updatedAt: 10 };
   await s.schedules.insert(sched("done", { ...off, disabledReason: "done" }));
   await s.schedules.insert(sched("gone", { ...off, disabledReason: "bot_gone" }));
   await s.schedules.insert(sched("new", { enabled: false, updatedAt: 90, disabledReason: "done" }));
   await s.schedules.insert(sched("paused", off));
-  await s.scheduleRuns.insert(run("r1", { scheduleId: "done" }));
-  expect(await s.schedules.removeDisabledBefore(["done", "group_gone"], 50)).toBe(1);
-  expect((await s.schedules.list()).map((x) => x.id).sort()).toEqual(["gone", "new", "paused"]);
-  expect(await s.scheduleRuns.list("done", 10)).toEqual([]);
+  expect((await s.schedules.disabledBefore(["done", "group_gone"], 50)).map((x) => x.id)).toEqual([
+    "done",
+  ]);
+  expect(await s.schedules.disabledBefore([], 50)).toEqual([]);
+  expect((await s.schedules.list()).map((x) => x.id).sort()).toEqual([
+    "done",
+    "gone",
+    "new",
+    "paused",
+  ]);
 });
 
 test("runs: update, open, addCost, list newest first, deleteBefore", async () => {

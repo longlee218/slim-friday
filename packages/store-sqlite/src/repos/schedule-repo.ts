@@ -110,10 +110,10 @@ export function scheduleRepo(db: BunSQLiteDatabase): Store["schedules"] {
           .length > 0
       );
     },
-    async removeDisabledBefore(reasons, at) {
-      if (!reasons.length) return 0;
-      const gone = db
-        .select({ id: schedules.id })
+    async disabledBefore(reasons, at) {
+      if (!reasons.length) return [];
+      return db
+        .select()
         .from(schedules)
         .where(
           and(
@@ -122,12 +122,9 @@ export function scheduleRepo(db: BunSQLiteDatabase): Store["schedules"] {
             lt(schedules.updatedAt, at),
           ),
         )
+        .orderBy(asc(schedules.updatedAt), asc(schedules.id))
         .all()
-        .map((r) => r.id);
-      if (!gone.length) return 0;
-      db.delete(scheduleRuns).where(inArray(scheduleRuns.scheduleId, gone)).run();
-      db.delete(schedules).where(inArray(schedules.id, gone)).run();
-      return gone.length;
+        .map(fromRow);
     },
   };
 }

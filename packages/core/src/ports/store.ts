@@ -318,8 +318,8 @@ export interface Store {
     due(now: number): Promise<Schedule[]>;
     /** Delete a schedule and its runs; false when it is not there. */
     remove(id: string): Promise<boolean>;
-    /** Delete disabled schedules with one of the reasons last updated before `at` (and their runs); returns the count. */
-    removeDisabledBefore(reasons: DisabledReason[], at: number): Promise<number>;
+    /** Disabled schedules with one of the reasons, last updated before `at`. */
+    disabledBefore(reasons: DisabledReason[], at: number): Promise<Schedule[]>;
   };
   /** Fires of schedules. */
   scheduleRuns: {
