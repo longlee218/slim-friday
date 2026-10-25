@@ -1,9 +1,11 @@
 import { BotInputDtoSchema } from "@friday/contracts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { MessageCircle } from "lucide-react";
+import { useRef } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { client, orpc } from "../../api/client";
 import { Avatar } from "../ui/avatar";
+import { useSegThumb } from "../ui/use-seg-thumb";
 import { AvatarPicker } from "./avatar-picker";
 import { BotForm } from "./bot-form";
 import { type BotFormValue, NEW_BOT } from "./bot-form-value";
@@ -20,7 +22,6 @@ const TABS = [
   ["rules", "Rules"],
 ] as const;
 /** Width of one tab (the tabs share the control equally). */
-const TAB_W = `calc((100% - 4px) / ${TABS.length})`;
 
 /** `/settings/bot/new`: the Profile form of a bot that does not exist yet. */
 export function BotNewPage() {
@@ -58,6 +59,10 @@ export function BotPage() {
   const navigate = useNavigate();
   const q = useQuery(orpc.config.bots.get.queryOptions({ input: { id } }));
   const bot = q.data;
+  const tabBox = useRef<HTMLDivElement>(null);
+  const tabAt = TABS.findIndex(([t]) => t === tab);
+  // The tab bar mounts once the bot loads: that is when it can be measured.
+  const tabThumb = useSegThumb(tabBox, tabAt, TABS.length, bot ? "loaded" : "");
   if (!bot) {
     return (
       <SettingsPage title="Bot">
@@ -70,7 +75,6 @@ export function BotPage() {
   /** The newest bot in the cache, so a save never builds on a stale copy. */
   const latest = () => qc.getQueryData(orpc.config.bots.get.queryKey({ input: { id } })) ?? bot;
   const shipped = bot.shipped === true;
-  const tabAt = TABS.findIndex(([t]) => t === tab);
   /** Saves the owner's fields; the name always comes from the latest bot (rename has its own door). */
   const save = async (input: Omit<BotFormValue, "id" | "name">, name?: string) => {
     await client.config.bots.save({
@@ -105,13 +109,8 @@ export function BotPage() {
         </Link>
       </div>
       <div className="tabs">
-        <div className="seg" style={SEG_GRID} role="tablist">
-          {tabAt >= 0 && (
-            <span
-              className="thumb"
-              style={{ left: `calc(2px + ${tabAt} * ${TAB_W})`, width: TAB_W }}
-            />
-          )}
+        <div ref={tabBox} className="seg" style={SEG_GRID} role="tablist">
+          {tabAt >= 0 && <span className="thumb" style={tabThumb} />}
           {TABS.map(([t, label]) => (
             <button
               key={t}

@@ -1,7 +1,8 @@
 import { Gauge } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Toolbar } from "../shell/toolbar";
 import { useStopRun } from "../shell/use-stop-run";
+import { useSegThumb } from "../ui/use-seg-thumb";
 import { LimitMeter } from "./limit-meter";
 import { SessionsTable } from "./sessions-table";
 import { SpendChart } from "./spend-chart";
@@ -10,9 +11,11 @@ import { WakesTable } from "./wakes-table";
 
 /** 7 / 30 days switch (`.seg`); the thumb sits under the active button. */
 function RangeSwitch({ days, onChange }: { days: 7 | 30; onChange: (d: 7 | 30) => void }) {
+  const box = useRef<HTMLDivElement>(null);
+  const thumb = useSegThumb(box, days === 7 ? 0 : 1, 2, "");
   return (
-    <div className="seg">
-      <span className="thumb" style={{ left: days === 7 ? 2 : "50%", width: "calc(50% - 2px)" }} />
+    <div ref={box} className="seg">
+      <span className="thumb" style={thumb} />
       {([7, 30] as const).map((d) => (
         <button
           type="button"

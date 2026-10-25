@@ -1,5 +1,6 @@
 /* Phone shell (iOS): prototype app.css .ios, .ios-view*, .ios-nav*, .ios-scroll, .large, .ios-search, .live, .crow*, .tabbar*, chat nav. Composer, cards and sheets live in chat.css, cards.css, overlays.css. */
-.ios { position: fixed; inset: 0; background: var(--ground); font-size: 17px; overflow: hidden; --nav-h: 44px; --tab-h: 50px; --safe-t: env(safe-area-inset-top, 0px); --safe-b: env(safe-area-inset-bottom, 0px); }
+/* overflow: clip, not hidden: a hidden box can still be scrolled by focus or find-in-page, which shifts the whole phone frame. */
+.ios { position: fixed; inset: 0; background: var(--ground); font-size: 17px; overflow: clip; --nav-h: 44px; --tab-h: 50px; --safe-t: env(safe-area-inset-top, 0px); --safe-b: env(safe-area-inset-bottom, 0px); }
 .ios.framed { --safe-t: 54px; --safe-b: 30px; }
 .ios-view { position: absolute; inset: 0; background: var(--ground); display: flex; flex-direction: column; will-change: transform; }
 .ios-view.under { transition: transform var(--t-slow) var(--ease-sheet), filter var(--t-slow); }
@@ -107,3 +108,9 @@ button.live { border: 0; width: calc(100% - 32px); text-align: left; color: inhe
 /* Rows here are links or buttons: neutral their default look. */
 a.irow, button.irow { color: inherit; text-decoration: none; background: none; border: 0; width: 100%; font: inherit; text-align: left; }
 a.irow.danger, button.irow.danger { color: var(--red); }
+/* Desktop controls reused on phone pages: finger-sized targets (prototype sizes are for a pointer). */
+.ios .btn { height: 36px; }
+.ios .ib { width: 36px; height: 36px; }
+.ios .popbtn { height: 32px; }
+.ios .seg button { height: 32px; }
+.ios .field { height: 36px; }

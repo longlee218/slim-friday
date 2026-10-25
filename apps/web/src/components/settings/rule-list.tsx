@@ -134,7 +134,6 @@ export function RuleList({ owner }: { owner: MemoryOwner }) {
         <div className="add-row">
           <input
             className="field"
-            style={{ flex: 1 }}
             maxLength={MAX_RULE_CHARS}
             placeholder="Add a rule, e.g. “Ask before deleting files.”"
             value={text}

@@ -117,7 +117,6 @@ export function MemoryPanel({ owner }: { owner: MemoryOwner }) {
           )}
           <input
             className="field"
-            style={{ flex: 1 }}
             placeholder={`Add a note ${name} should remember`}
             value={text}
             onChange={(e) => setText(e.target.value)}

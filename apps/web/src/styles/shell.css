@@ -25,7 +25,7 @@
 .sidebar { background: var(--sidebar); border-right: 1px solid var(--sep); display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
 .inspector { border-left: 1px solid var(--sep); background: var(--ground); overflow: hidden; min-width: 0; display: flex; flex-direction: column; }
 
-.main { position: relative; min-width: 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column; background: var(--ground); }
+.main { position: relative; min-width: 0; min-height: 0; overflow: clip; display: flex; flex-direction: column; background: var(--ground); }
 .toolbar { position: absolute; z-index: 5; top: 0; left: 0; right: 0; height: 52px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto minmax(max-content, 1fr); align-items: center; gap: 6px; padding: 0 10px 0 12px;
   background: var(--toolbar); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
   border-bottom: 1px solid transparent; transition: border-color var(--t-mid); }

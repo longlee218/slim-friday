@@ -1,9 +1,10 @@
 import { type AuthorDto, MAX_WAKES, type WakeDto } from "@friday/contracts";
 import { LoaderCircle } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useDirectory } from "../../api/directory";
 import { formatClock, formatDuration } from "../../lib/format";
 import { Pill } from "../ui/pill";
+import { useSegThumb } from "../ui/use-seg-thumb";
 import { wakeBucket, wakeTone } from "./activity-math";
 
 type Filter = "all" | "running" | "failed";
@@ -16,12 +17,11 @@ const FILTERS: { id: Filter; label: string }[] = [
 /** All / Running / Failed switch (`.seg`); the thumb sits under the active button. */
 function WakeFilter({ value, onChange }: { value: Filter; onChange: (f: Filter) => void }) {
   const i = FILTERS.findIndex((f) => f.id === value);
+  const box = useRef<HTMLSpanElement>(null);
+  const thumb = useSegThumb(box, i, FILTERS.length, "");
   return (
-    <span className="seg">
-      <span
-        className="thumb"
-        style={{ left: `calc(2px + ${i} * (100% - 4px) / 3)`, width: "calc((100% - 4px) / 3)" }}
-      />
+    <span ref={box} className="seg">
+      <span className="thumb" style={thumb} />
       {FILTERS.map((f) => (
         <button
           type="button"

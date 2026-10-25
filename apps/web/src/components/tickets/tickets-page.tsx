@@ -1,9 +1,10 @@
 import { List, Plus, SquareKanban } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useOpenNewTicket } from "../../app/shell-context";
 import { Toolbar } from "../shell/toolbar";
 import { useAppNavigate } from "../shell/use-app-navigate";
 import { Button } from "../ui/button";
+import { useSegThumb } from "../ui/use-seg-thumb";
 import { TicketBoard } from "./ticket-board";
 import { TicketTable } from "./ticket-table";
 import { useFreshTickets } from "./use-fresh-tickets";
@@ -18,12 +19,11 @@ function ViewSwitch({
   view: "board" | "list";
   onChange: (v: "board" | "list") => void;
 }) {
+  const box = useRef<HTMLDivElement>(null);
+  const thumb = useSegThumb(box, view === "board" ? 0 : 1, 2, "");
   return (
-    <div className="seg">
-      <span
-        className="thumb"
-        style={{ left: view === "board" ? 2 : "50%", width: "calc(50% - 2px)" }}
-      />
+    <div ref={box} className="seg">
+      <span className="thumb" style={thumb} />
       <button
         type="button"
         className={view === "board" ? "on" : ""}

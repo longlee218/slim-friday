@@ -49,7 +49,7 @@
 .list-panel { border-radius: 12px; background: var(--well); overflow: hidden; margin-bottom: 18px; }
 :root[data-theme="dark"] .list-panel { background: #252528; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .list-panel { background: #252528; } }
-.list-panel .add-row { display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--sep); background: var(--raised); }
+.list-panel .add-row { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--sep); background: var(--raised); }
 .foot-note { font-size: 12px; color: var(--label-2); margin: -8px 0 18px 2px; }
 .srow { display: flex; align-items: center; gap: 12px; padding: 0 14px; min-height: 52px; border-bottom: 1px solid var(--sep); transition: background var(--t-fast); }
 .srow:last-child { border-bottom: 0; }
@@ -90,9 +90,12 @@
 .note .acts { opacity: 0; display: flex; gap: 2px; transition: opacity var(--t-fast); }
 .note:hover .acts, .note:focus-within .acts { opacity: 1; }
 .mem-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 12px; }
-.mem-head .seg { flex: none; }
+/* The kind filter scrolls sideways on a narrow pane instead of pushing the page wider. */
+.mem-head .seg { flex: none; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.mem-head .seg::-webkit-scrollbar { display: none; }
 .mem-head .grow { flex: 1; }
-.mem-head .field { width: 220px; }
+.mem-head .field { width: 220px; max-width: 100%; }
+.add-row input.field { flex: 1 1 120px; min-width: 0; }
 .journal-day { padding: 8px 14px; border-bottom: 1px solid var(--sep); }
 .journal-day:last-child { border-bottom: 0; }
 .journal-day b { font-size: 12px; color: var(--label-2); font-weight: 600; }
