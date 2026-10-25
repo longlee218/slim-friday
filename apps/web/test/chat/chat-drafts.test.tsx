@@ -1,4 +1,4 @@
-import { act, screen } from "@testing-library/react";
+import { act, fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test, vi } from "vitest";
 import { renderChat, setup, stubMatchMedia } from "./chat-view-fixtures";
@@ -33,4 +33,11 @@ test("draft and reply target survive unmounting the chat (width crossing)", asyn
   renderChat(qc);
   expect(box().value).toBe("still here");
   expect(screen.getAllByText("Quote me").length).toBeGreaterThan(1);
+});
+
+test("an edit is in the textarea at once, so an IME composition (Vietnamese) is not reset", () => {
+  renderChat(setup([[msg({ id: 9 })]]));
+  // One change event, no waiting: the cache notifies its readers later, the textarea must not.
+  fireEvent.change(box(), { target: { value: "Tiếng Việt" } });
+  expect(box().value).toBe("Tiếng Việt");
 });
