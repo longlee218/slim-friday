@@ -42,18 +42,25 @@ function nudgeTurn(ctx: HubContext, exec: RunExec): InboundTurn {
  * Called at a `turn_end` with no background task open (a turn that ends while one runs waits for it and is never
  * nudged). A turn whose last event was a tool result, with no text after it, gets a nudge pushed as an automated
  * turn while `exec.nudges < MAX_NUDGES` ("nudged"; the count is stored on the row, so a resumed run keeps it);
- * past that the run fails ("fail"). Any other turn end is "done".
+ * past that the run fails ("fail"). Any other turn end is "done", also one with unread steering pushes or a lost
+ * lease.
  */
 export async function nudgeOrEnd(
   ctx: HubContext,
   exec: RunExec,
 ): Promise<"nudged" | "fail" | "done"> {
   if (!exec.lastWasToolResult || exec.stop || !exec.session) return "done";
+  // Steering pushed after the last tool result was not read: the run ends and a continuation run carries those
+  // messages (a nudge would answer them too, and the continuation again).
+  if (exec.pushed.length > 0) return "done";
   if (exec.nudges >= MAX_NUDGES) return "fail";
-  exec.nudges += 1;
   exec.lastWasToolResult = false;
   const { id, leaseFence } = exec.row;
-  await ctx.deps.store.wakes.transition(id, leaseFence, ["running"], { nudges: exec.nudges });
+  const nudges = exec.nudges + 1;
+  // A lost lease (the fence refuses the write): this worker no longer owns the run, so it sends nothing.
+  if (!(await ctx.deps.store.wakes.transition(id, leaseFence, ["running"], { nudges })))
+    return "done";
+  exec.nudges = nudges;
   exec.turnOpen = true;
   exec.session.send(nudgeTurn(ctx, exec));
   return "nudged";

@@ -131,6 +131,8 @@ async function onEvent(
     // The loop guard or the tool-call cap stopped the run: its text is the final answer.
     await releaseHeld(ctx, exec, "narration");
     await onAnswerText(ctx, exec, e.text);
+    // The first turn's rows were answered by this stop (no turn_end comes); rows pushed later stay as they are.
+    await answerFirstTurn(ctx, exec);
     return { kind: "done" };
   } else if (e.type === "error") {
     await releaseHeld(ctx, exec, "answer");
