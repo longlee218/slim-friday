@@ -1,6 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { ticketChangePublisher } from "@friday/api";
+import type { FileConfig } from "@friday/config";
 import type { AgentRuntime, FileStore } from "@friday/core";
 import { consolidateNotes, extractNotes } from "@friday/runtime-claude";
 import { R2FileStore } from "@friday/store-r2";
@@ -14,6 +15,9 @@ import type { AgentConfig } from "./config/agent-config";
 import { HAIKU_SUMMARY_MODEL } from "./config/model-ids";
 import { readProcessEnv } from "./config/process-env";
 import { acquireMainLock } from "./lifecycle/main-lock";
+import { startMcpProxy } from "./mcp-oauth/mcp-proxy";
+import { McpOAuthManager } from "./mcp-oauth/oauth-manager";
+import { oauthConfs, warnNeedsLogin, withOAuthProxy } from "./mcp-oauth/oauth-servers";
 import { logEvent, logger } from "./observability/logger";
 import { need, r2Of } from "./required-config";
 import { createSettings } from "./settings-admin";
@@ -23,6 +27,9 @@ import { bootId } from "./workers/boot-id";
 import { workerLauncher } from "./workers/worker-spawn";
 
 const log = logger.child({ module: "engine" });
+
+/** OAuth keep-alive period: every `connected` server is refreshed this often. */
+const KEEP_ALIVE_MS = 24 * 60 * 60 * 1000;
 
 /** Test seams of `startEngine`; any of them runs the runs in the main process (no workers). */
 interface EngineOverrides {
@@ -86,12 +93,28 @@ async function runEngine(
   const claudeRuntime = claudeRuntimeFactory(config, agentHome, log);
   /** The one-turn Haiku call shared by the note extraction and the consolidation. */
   const haiku = { model: HAIKU_SUMMARY_MODEL, env, oauthToken: config.oauthToken };
+  // OAuth MCP servers: the manager holds the logins (rows in the engine db), the proxy gives sessions a local url.
+  // The server list is read from the config the app loads (set when the runtime is built, before any request).
+  let appConfig: FileConfig | undefined;
+  const oauthServers = () => oauthConfs(appConfig?.mcpServers(env).servers ?? {});
+  const oauth = new McpOAuthManager({ store: engine.mcpOAuth, servers: oauthServers, log });
+  const mcpProxy = startMcpProxy({ manager: oauth, servers: oauthServers, log });
+  const baseRuntime = overrides?.runtime ?? claudeRuntime;
+  /** The runtime over parts whose MCP servers go through the proxy. */
+  const runtime = (parts: RuntimeParts): AgentRuntime => {
+    appConfig = parts.config;
+    const proxied = {
+      ...parts,
+      mcpServers: () => withOAuthProxy(parts.mcpServers(), mcpProxy),
+    };
+    return typeof baseRuntime === "function" ? baseRuntime(proxied) : baseRuntime;
+  };
   // A failed start leaves no open db.
   const app = await startApp({
     surface,
     files,
     engine,
-    runtime: overrides?.runtime ?? claudeRuntime,
+    runtime,
     agentHome,
     log,
     env,
@@ -107,11 +130,22 @@ async function runEngine(
     }),
     // Every saved ticket change goes to the web app with its fresh comment count.
     onTicketChange: ticketChangePublisher({ store: engine, bus: surface.bus, log }),
-  }).catch((err) => {
+  }).catch(async (err) => {
     // startApp closes what it opened; closing the db here too is harmless and covers a throw before it took it.
+    await mcpProxy.stop();
     engine.close();
     throw err;
   });
+  // Tell the owner which OAuth servers need a login, then refresh every connected one now and daily.
+  void warnNeedsLogin(oauth, oauthServers(), log).catch((err) =>
+    log.error({ error: String(err) }, "mcp.oauth.status_failed"),
+  );
+  const keepAlive = () =>
+    oauth
+      .keepAlive()
+      .catch((err) => log.error({ error: String(err) }, "mcp.oauth.keepalive_failed"));
+  void keepAlive();
+  const keepAliveTimer = setInterval(() => void keepAlive(), KEEP_ALIVE_MS);
   // The web API over the running engine; a failed start stops the app.
   const api = await startApiServer({
     agentHome,
@@ -136,6 +170,8 @@ async function runEngine(
       limits: () => app.config.limits(),
     },
   }).catch(async (err) => {
+    clearInterval(keepAliveTimer);
+    await mcpProxy.stop();
     await app.stop();
     throw err;
   });
@@ -143,9 +179,14 @@ async function runEngine(
   if (!signal.aborted)
     await new Promise<void>((r) => signal.addEventListener("abort", () => r(), { once: true }));
   // Open cards stay open: they are rows, shown again at the next start. The API stops first, then the app.
+  clearInterval(keepAliveTimer);
   try {
     await api.stop();
   } finally {
-    await app.stop();
+    try {
+      await mcpProxy.stop();
+    } finally {
+      await app.stop();
+    }
   }
 }

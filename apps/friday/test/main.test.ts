@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { existsSync, mkdtempSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadConfig } from "../src/config/agent-config";
@@ -85,4 +85,34 @@ test("a taken API port fails the start with a named error", async () => {
   } finally {
     await holder.stop(true);
   }
+});
+
+test("an OAuth server of mcp.yaml reaches the runtime as a local proxy url", async () => {
+  const home = mkdtempSync(join(tmpdir(), "main-"));
+  mkdirSync(join(home, "config"), { recursive: true });
+  writeFileSync(
+    join(home, "config", "mcp.yaml"),
+    "servers:\n  linear:\n    type: http\n    url: https://mcp.linear.app/mcp\n    oauth: {}\n",
+  );
+  const probe = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: () => new Response("x") });
+  const port = String(probe.port);
+  await probe.stop(true);
+  const env = { AGENT_HOME: home, ...full, API_PORT: port };
+  const ac = new AbortController();
+  let seen: unknown;
+  const run = startEngine(
+    { config: loadConfig(env), agentHome: home, signal: ac.signal },
+    {
+      runtime: (parts) => {
+        seen = parts.mcpServers().linear;
+        return { openSession: () => Promise.reject(new Error("unused")) } as never;
+      },
+    },
+  );
+  await new Promise((r) => setTimeout(r, 300));
+  ac.abort();
+  await run;
+  const linear = seen as { url: string; headers: Record<string, string> };
+  expect(linear.url.startsWith("http://127.0.0.1:")).toBe(true);
+  expect(Object.keys(linear.headers).length).toBe(1);
 });

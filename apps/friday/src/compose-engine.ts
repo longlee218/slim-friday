@@ -73,6 +73,7 @@ export function composeEngine(deps: EngineDeps, opened: Array<() => unknown>) {
           messenger,
           tickets: () => hub?.tickets,
           config,
+          mcpServers: () => config.mcpServers(deps.env ?? {}).servers,
           store,
           memory,
           recall: mem.recall,

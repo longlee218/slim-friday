@@ -37,7 +37,7 @@ export function claudeRuntimeFactory(config: AgentConfig, agentHome: string, log
         const shared = sessionSharedDirs(agentHome, parts.config.groupIdsOf)(bot.id, groupId);
         return { write: [...friday.write, ...shared], read: friday.read };
       },
-      mcpServers: () => parts.config.mcpServers(env).servers,
+      mcpServers: parts.mcpServers,
       mcpServersFor: sessionTools({
         design: designContextFor({ config: parts.config, agentHome }),
         memory: parts.memory,

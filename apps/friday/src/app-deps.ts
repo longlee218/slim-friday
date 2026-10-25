@@ -1,4 +1,4 @@
-import type { FileConfig } from "@friday/config";
+import type { FileConfig, McpServerSpec } from "@friday/config";
 import type {
   AgentRuntime,
   BotMessenger,
@@ -26,6 +26,8 @@ export interface RuntimeParts {
   /** The shared ticket board; undefined until the hub exists (the runtime reads it when a session opens). */
   tickets: () => TicketBoard | undefined;
   config: FileConfig;
+  /** The MCP servers for a session (read again per session; the main process swaps OAuth ones for the local proxy). */
+  mcpServers: () => Record<string, McpServerSpec>;
   store: Store;
   memory: FileMemory;
   /** Review views over the engine's own log (`BotInsight`). */

@@ -13,6 +13,7 @@ export const AXIOM_FIELDS = [
   "route",
   "method",
   "ms",
+  "server",
   "via",
   "reason",
   "blockReason",
