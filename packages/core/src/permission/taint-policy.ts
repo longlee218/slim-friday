@@ -1,5 +1,5 @@
 import type { ToolCall } from "../domain/tool";
-import { hostOf, registrableDomain } from "./owner-sites";
+import { exactHost, hostOf, type RegistrableDomain } from "./owner-sites";
 
 /**
  * Taint policy (spec §6.10, Rakazo R§17). A run is tainted once it read content from outside (any tool result
@@ -85,24 +85,31 @@ export function externalServerOf(tool: string): string | undefined {
   return server && !FRIDAY_MCP_SERVERS.includes(server) ? server : undefined;
 }
 
-/** The registrable domain a `WebFetch` call goes to; undefined when its url is missing or not http(s). */
-export function fetchSiteOf(call: Pick<ToolCall, "tool" | "input">): string | undefined {
+/**
+ * The registrable domain a `WebFetch` call goes to (by `domainOf`); undefined when its url is missing, not
+ * http(s), or its host has no registrable domain (a public suffix itself, or an unknown suffix).
+ */
+export function fetchSiteOf(
+  call: Pick<ToolCall, "tool" | "input">,
+  domainOf: RegistrableDomain = exactHost,
+): string | undefined {
   const url = call.input.url;
   const host = typeof url === "string" ? hostOf(url) : undefined;
-  return host ? registrableDomain(host) : undefined;
+  return host ? domainOf(host) : undefined;
 }
 
 /** The taint ask of a call with its mandatory flag; undefined when the run is clean or the call needs none. */
 export function taintAskOf(
   call: Pick<ToolCall, "tool" | "input">,
   run: TaintRun,
+  domainOf: RegistrableDomain = exactHost,
 ): TaintAsk | undefined {
   if (!run.tainted) return undefined;
   if (INSTRUCTION_CHANGE_TOOLS.includes(call.tool))
     return { reason: "changes bot instructions after untrusted content was read", mandatory: true };
   if (call.tool === "WebFetch") {
-    const site = fetchSiteOf(call);
-    if (!site) return { reason: "web fetch without a valid http(s) url", mandatory: false };
+    const site = fetchSiteOf(call, domainOf);
+    if (!site) return { reason: "web fetch to a url with no registrable site", mandatory: false };
     if (run.sites.has(site) || run.approvedSites.has(site)) return undefined;
     return { reason: `web site ${site} was not named by the owner`, mandatory: false };
   }
@@ -116,8 +123,9 @@ export function taintAskOf(
 export function taintAsk(
   call: Pick<ToolCall, "tool" | "input">,
   run: TaintRun,
+  domainOf: RegistrableDomain = exactHost,
 ): string | undefined {
-  return taintAskOf(call, run)?.reason;
+  return taintAskOf(call, run, domainOf)?.reason;
 }
 
 /**
@@ -127,9 +135,10 @@ export function taintAsk(
 export function noteTaintAllowed(
   call: Pick<ToolCall, "tool" | "input">,
   run: Pick<TaintRun, "approvedSites" | "usedMcpServers">,
+  domainOf: RegistrableDomain = exactHost,
 ): void {
   if (call.tool === "WebFetch") {
-    const site = fetchSiteOf(call);
+    const site = fetchSiteOf(call, domainOf);
     if (site) run.approvedSites.add(site);
     return;
   }

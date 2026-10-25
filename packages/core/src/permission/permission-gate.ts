@@ -10,6 +10,7 @@ import { redactSecrets, redactValue, secretsFrom } from "../safety/redact-secret
 import { scopeOf } from "./classify-tool";
 import { decide } from "./decide";
 import { inputHash } from "./input-hash";
+import { exactHost, type RegistrableDomain } from "./owner-sites";
 import { type TaintRun, taintAskOf } from "./taint-policy";
 
 /** Deny reason for a call that needs approval while the same run already waits on a card. */
@@ -25,6 +26,8 @@ export interface PermissionGateDeps {
   settings: () => PermissionSettings;
   /** The configured secret values to hide on a card (the app's denied env values); unset: only token patterns. */
   secretValues?: () => string[];
+  /** Registrable domain of a host by the Public Suffix List (the app's); unset: the exact host (`exactHost`). */
+  registrableDomain?: RegistrableDomain;
 }
 
 /** The run a call belongs to, as the gate needs it. */
@@ -56,6 +59,11 @@ export interface GateContext {
 export class PermissionGate {
   constructor(private deps: PermissionGateDeps) {}
 
+  /** The registrable-domain function of the taint policy (sites in owner texts and fetch urls). */
+  get domainOf(): RegistrableDomain {
+    return this.deps.registrableDomain ?? exactHost;
+  }
+
   /** Decide one call; every call is audited once. Any failure on the way is a deny. */
   async decide(
     call: ToolCall,
@@ -83,13 +91,17 @@ export class PermissionGate {
     const spec = (await catalog.list()).find((t) => t.name === call.tool);
     const scope = scopeOf(call, spec);
     const none = new Set<string>();
-    const taint = taintAskOf(call, {
-      sites: none,
-      approvedSites: none,
-      usedMcpServers: none,
-      ...ctx.taint,
-      tainted: ctx.tainted,
-    });
+    const taint = taintAskOf(
+      call,
+      {
+        sites: none,
+        approvedSites: none,
+        usedMcpServers: none,
+        ...ctx.taint,
+        tainted: ctx.tainted,
+      },
+      this.domainOf,
+    );
     const verdict = decide({
       call,
       spec,
@@ -151,6 +163,8 @@ export class PermissionGate {
         ),
         scope: shownScope,
         offerAlways: offerAlways && scopeClean,
+        // Asked in a tainted run: only such an approval restores a site or server on resume (`restoreTaint`).
+        ...(ctx.tainted && { tainted: true }),
       },
       status: "open",
       createdAt: clock.now(),

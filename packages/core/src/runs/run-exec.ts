@@ -145,7 +145,7 @@ export function newRunExec(row: WakeRow, scope: SessionScope, now: number, taint
     live: true,
     cutBefore: row.cuts > 0,
     tainted,
-    taint: newRunTaint(row),
+    taint: newRunTaint(),
     asking: false,
     firstTextSeen: false,
     nudges: row.nudges,

@@ -21,6 +21,8 @@ export interface CardRow {
     scope: Record<string, string>;
     /** Whether the owner may pick "always". */
     offerAlways: boolean;
+    /** The call was asked while its run was tainted (spec §6.10); unset: asked in a clean run. */
+    tainted?: boolean;
   };
   /** Set for question cards. */
   question?: QuestionCard;

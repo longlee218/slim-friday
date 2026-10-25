@@ -15,7 +15,7 @@ import { type PumpEnd, pumpRun } from "./run-pump";
 import { openRunSession } from "./run-session";
 import { persistEffort, runSpec } from "./run-spec";
 import { claimSteering, withSteering } from "./run-steering";
-import { addOwnerTexts, restoreTaint, taintedAtClaim } from "./run-taint";
+import { addOwnerTexts, seedTaint, taintedAtClaim } from "./run-taint";
 import { buildRunTurn } from "./run-turn";
 import { StreamWatchdog } from "./run-watchdog";
 
@@ -103,8 +103,8 @@ async function runSession(
       return { kind: "stopped" };
     }
     if (resume?.oneShot) exec.oneShot = resume.oneShot;
-    // Sites and MCP servers the owner approved on this run's earlier cards stay approved (spec §6.10).
-    await restoreTaint(ctx, exec);
+    // Owner-named sites, and sites and MCP servers approved on this run's earlier taint cards (spec §6.10).
+    await seedTaint(ctx, exec);
     const state = await untilStop(exec, ctx.deps.store.scopes.get(exec.key));
     if (exec.stop) return { kind: "stopped" };
     const spec = runSpec(ctx, exec, state?.effort);
@@ -136,6 +136,7 @@ async function runSession(
     if (rows === undefined || exec.stop) return { kind: "stopped" };
     exec.firstRows = rows.map((r) => r.id);
     addOwnerTexts(
+      ctx,
       exec,
       rows.map((r) => r.text),
     );

@@ -1,25 +1,42 @@
 import { expect, test } from "bun:test";
-import { ownerSites, registrableDomain } from "../../src/permission/owner-sites";
+import { exactHost, ownerSites } from "../../src/permission/owner-sites";
+import { fakeRegistrableDomain as rd } from "../fakes/fake-registrable-domain";
 
-test("registrable domain keeps the label before the public suffix", () => {
-  expect(registrableDomain("docs.example.com")).toBe("example.com");
-  expect(registrableDomain("WWW.Example.COM.")).toBe("example.com");
-  expect(registrableDomain("a.b.bbc.co.uk")).toBe("bbc.co.uk");
-  expect(registrableDomain("me.github.io")).toBe("me.github.io");
-  expect(registrableDomain("x.me.github.io")).toBe("me.github.io");
-  expect(registrableDomain("bucket.s3.amazonaws.com")).toBe("bucket.s3.amazonaws.com");
-  expect(registrableDomain("10.0.0.1")).toBe("10.0.0.1");
-  expect(registrableDomain("localhost")).toBe("localhost");
+const sites = (...texts: string[]) => [...ownerSites(texts, rd)].sort();
+
+test("owner sites come from URLs and bare hostnames, by registrable domain", () => {
+  expect(
+    sites(
+      "Read https://docs.bun.sh/api?x=1 and also news.example.com, please.",
+      "Then check (http://foo.github.io/page) and myapp.fly.dev.",
+    ),
+  ).toEqual(["bun.sh", "example.com", "foo.github.io", "myapp.fly.dev"]);
 });
 
-test("owner sites come from URLs and bare hostnames", () => {
-  const sites = ownerSites([
-    "Read https://docs.bun.sh/api?x=1 and also news.ycombinator.com, please.",
-    "Then check (http://foo.github.io/page).",
+test("file names are never sites", () => {
+  expect(sites("fix README.md and main.cc, run setup.sh")).toEqual([]);
+  expect(sites("edit app.ts, config.json, notes.txt and ci.yaml")).toEqual([]);
+});
+
+test("a full URL with a file-like TLD still counts", () => {
+  expect(sites("see https://get.example.sh/install")).toEqual(["example.sh"]);
+});
+
+test("a host inside a URL's path or query is not a site", () => {
+  expect(sites("open https://example.com/r?to=attacker.com&b=x.evil.com/y")).toEqual([
+    "example.com",
   ]);
-  expect([...sites].sort()).toEqual(["bun.sh", "foo.github.io", "ycombinator.com"]);
+});
+
+test("a public suffix or an unknown suffix is never a site", () => {
+  expect(sites("https://fly.dev/x and github.io", "localhost and a.b.unknownzz")).toEqual([]);
+});
+
+test("without a list, the exact host is the site", () => {
+  expect([...ownerSites(["https://Docs.Example.com./a"])]).toEqual(["docs.example.com"]);
+  expect(exactHost("A.B.")).toBe("a.b");
 });
 
 test("a text with no site gives no site", () => {
-  expect(ownerSites(["just do it", ""]).size).toBe(0);
+  expect(sites("just do it", "")).toEqual([]);
 });

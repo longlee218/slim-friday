@@ -3,6 +3,8 @@ import type { WakeRow } from "../../src";
 import { flush, makeHub } from "../bot-hub-harness";
 
 const EXT = "mcp__ext__search";
+/** A tool of the same server that balanced asks about by class (write). */
+const EXT_WRITE = "mcp__ext__save";
 type Hub = ReturnType<typeof makeHub>;
 
 /** A hub whose catalog knows WebFetch and an external read-only MCP tool (balanced allows both). */
@@ -11,6 +13,7 @@ function hub(): Hub {
   h.catalog.tools = [
     { name: "WebFetch", annotations: { readOnlyHint: true, openWorldHint: true } },
     { name: EXT, annotations: { readOnlyHint: true } },
+    { name: EXT_WRITE, annotations: { destructiveHint: false, openWorldHint: false } },
   ];
   return h;
 }
@@ -77,8 +80,9 @@ test("tainted: first external MCP call asks; after approval the second one does 
   await flush();
   const r = h.runtime.last();
   expect(r).not.toBe(s);
-  expect(await r.spec.decide(first)).toEqual({ behavior: "allow" });
+  // The other call first: the server is approved from the stored taint card, not from the one shot.
   expect(await r.spec.decide({ tool: EXT, input: { q: "b" } })).toEqual({ behavior: "allow" });
+  expect(await r.spec.decide(first)).toEqual({ behavior: "allow" });
   expect(h.store.cardMap.size).toBe(1);
 });
 
@@ -117,4 +121,23 @@ test("a resume keeps the stored taint", async () => {
   const s = h.runtime.last();
   expect(only(h)).toMatchObject({ status: "running", leaseFence: 1, tainted: true });
   expect((await s.spec.decide(fetch("https://other.test/a"))).behavior).toBe("park");
+});
+
+test("an approval asked while the run was clean is no taint approval on resume", async () => {
+  const h = hub();
+  const s = await ownerRunAfter(h, "save it");
+  const d = await s.spec.decide({ tool: EXT_WRITE, input: { v: 1 } });
+  expect(d.behavior).toBe("park");
+  const cardId = d.behavior === "park" ? d.cardId : "";
+  expect(h.store.cardMap.get(cardId)?.approval?.tainted).toBeUndefined();
+  await flush();
+  await h.hub.answerCard(cardId, "once");
+  await flush();
+  // The resumed run is tainted; the server's first tainted call still asks.
+  const r = h.runtime.last();
+  expect(r).not.toBe(s);
+  const d2 = await r.spec.decide({ tool: EXT, input: { q: "a" } });
+  expect(d2.behavior).toBe("park");
+  const card2 = h.store.cardMap.get(d2.behavior === "park" ? d2.cardId : "");
+  expect(card2?.approval).toMatchObject({ tainted: true });
 });

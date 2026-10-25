@@ -79,6 +79,7 @@ export function deliverSteering(
     if (rows.length === 0 || !can()) return;
     // Sites named in these owner messages may be fetched by a tainted run (spec §6.10).
     addOwnerTexts(
+      ctx,
       exec,
       rows.map((r) => r.text),
     );

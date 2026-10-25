@@ -25,6 +25,7 @@ export * from "./permission/classify-tool";
 export * from "./permission/decide";
 export { stableJson } from "./permission/input-hash";
 export * from "./permission/match-grant";
+export * from "./permission/owner-sites";
 export * from "./permission/permission-gate";
 export * from "./permission/taint-policy";
 export * from "./ports/agent-runtime";

@@ -11,6 +11,7 @@ import { readProcessEnv } from "./config/process-env";
 import { idleFlush } from "./idle-flush";
 import { wireMemory } from "./memory-wiring";
 import { readProjectRules } from "./project-rules";
+import { registrableDomain } from "./registrable-domain";
 import { scopeBotFor } from "./scope-bot";
 import { deniedEnvValues } from "./secret-values";
 import { systemClock } from "./system-clock";
@@ -96,6 +97,8 @@ export function composeEngine(deps: EngineDeps, opened: Array<() => unknown>) {
     catalog: config.catalog,
     settings: config.settings,
     secretValues,
+    // Sites of the taint policy by the Public Suffix List (spec §6.10).
+    registrableDomain,
   });
   const botHub = new BotHub({
     runtime,

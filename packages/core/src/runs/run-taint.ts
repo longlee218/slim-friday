@@ -11,10 +11,10 @@ export interface RunTaint extends Omit<TaintRun, "tainted"> {
   calls: Map<string, boolean>;
 }
 
-/** A fresh taint state: the sites the owner named in the run's own message (an owner-sent row only). */
-export function newRunTaint(row: WakeRow): RunTaint {
+/** A fresh, empty taint state (`seedTaint` fills it once the run starts). */
+export function newRunTaint(): RunTaint {
   return {
-    sites: ownerSites(row.sender.kind === "user" ? [row.text] : []),
+    sites: new Set(),
     approvedSites: new Set(),
     usedMcpServers: new Set(),
     calls: new Map(),
@@ -35,9 +35,9 @@ export function taintedAtClaim(row: WakeRow, fence: number): boolean {
   );
 }
 
-/** Add the sites named in owner messages that reached the run later (steering rows). */
-export function addOwnerTexts(exec: RunExec, texts: string[]): void {
-  for (const site of ownerSites(texts)) exec.taint.sites.add(site);
+/** Add the sites named in owner messages of the run (its own owner text, steering rows). */
+export function addOwnerTexts(ctx: HubContext, exec: RunExec, texts: string[]): void {
+  for (const site of ownerSites(texts, ctx.deps.gate.domainOf)) exec.taint.sites.add(site);
 }
 
 /**
@@ -72,21 +72,24 @@ export async function onTaintResult(
 
 /** A call of a tainted run was allowed (grant, card, one shot): its site or MCP server needs no new taint card. */
 export function noteAllowed(
+  ctx: HubContext,
   exec: RunExec,
   call: Pick<ToolCall, "tool" | "input"> & { taskId?: string },
 ): void {
-  if (callTainted(exec, call)) noteTaintAllowed(call, exec.taint);
+  if (callTainted(exec, call)) noteTaintAllowed(call, exec.taint, ctx.deps.gate.domainOf);
 }
 
 /**
- * At claim: the sites and MCP servers the owner approved on this run's earlier cards (a resumed run starts a
- * new state). The card keeps the call's input redacted; a redacted url only fails to match (a new card).
+ * When the run starts: the sites in its own owner message (an owner-sent row only), and the sites and MCP
+ * servers the owner approved on this run's earlier cards asked while tainted (a card asked in a clean run is
+ * no taint approval). The card keeps the call's input redacted; a redacted url only fails to match (a new card).
  */
-export async function restoreTaint(ctx: HubContext, exec: RunExec): Promise<void> {
+export async function seedTaint(ctx: HubContext, exec: RunExec): Promise<void> {
+  if (exec.row.sender.kind === "user") addOwnerTexts(ctx, exec, [exec.row.text]);
   for (const card of await ctx.deps.store.cards.forWake(exec.row.id)) {
     const a = card.approval;
     const approved = card.answer === "once" || card.answer === "always";
-    if (a && approved && (card.status === "answered" || card.status === "used"))
-      noteTaintAllowed({ tool: a.tool, input: a.input }, exec.taint);
+    if (a?.tainted && approved && (card.status === "answered" || card.status === "used"))
+      noteTaintAllowed({ tool: a.tool, input: a.input }, exec.taint, ctx.deps.gate.domainOf);
   }
 }
