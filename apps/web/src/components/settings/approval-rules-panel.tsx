@@ -5,6 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { client, orpc } from "../../api/client";
 import { useDirectory } from "../../api/directory";
+import { ScheduledRunsNote } from "../schedules/scheduled-runs-note";
 import { Button, IconButton } from "../ui/button";
 import { Pill } from "../ui/pill";
 import { AutoReviewToggle } from "./auto-review-toggle";
@@ -196,6 +197,7 @@ export function ApprovalRulesPanel() {
           </Button>
         </div>
       </div>
+      <ScheduledRunsNote />
     </SettingsPage>
   );
 }
