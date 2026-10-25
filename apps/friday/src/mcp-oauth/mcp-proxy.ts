@@ -1,0 +1,167 @@
+import { randomBytes, timingSafeEqual } from "node:crypto";
+import type { Logger } from "pino";
+import { logEvent } from "../observability/logger";
+import type { McpOAuthManager, OAuthServerConf } from "./oauth-manager";
+import { OFFLINE_SESSION_PREFIX, offlineReply, rpcMethodOf } from "./offline-replies";
+
+/** Header carrying the per-server key that opens `/mcp/<server>`. */
+const KEY_HEADER = "x-friday-mcp-key";
+
+/** Incoming headers never sent upstream (auth, our key, hop-by-hop, length/encoding). */
+const DROP_REQUEST = new Set([
+  KEY_HEADER,
+  "authorization",
+  "host",
+  "connection",
+  "content-length",
+  "transfer-encoding",
+  "accept-encoding",
+]);
+
+/** Upstream headers never sent back (Bun's fetch already decoded and re-chunks the body). */
+const DROP_RESPONSE = new Set([
+  "connection",
+  "content-length",
+  "transfer-encoding",
+  "content-encoding",
+]);
+
+/** A running proxy: SDK config per OAuth server, and shutdown. */
+export interface McpProxy {
+  /** SDK config for one OAuth server: proxy URL plus its key header. */
+  configFor(server: string): { type: "http"; url: string; headers: Record<string, string> };
+  /** Stop listening (open streams are closed). */
+  stop(): Promise<void>;
+}
+
+/** What the proxy needs: the token source, the OAuth servers (read per request) and a logger. */
+export interface McpProxyDeps {
+  /** Token source (never logged). */
+  manager: Pick<McpOAuthManager, "accessToken" | "forceRefresh" | "status">;
+  /** OAuth servers by name, read on every request so config reloads apply. */
+  servers: () => Record<string, OAuthServerConf>;
+  /** Logger for `mcp.proxy.request` (no bodies, headers or tokens). */
+  log: Logger;
+}
+
+/** Constant-time compare of the presented key with the expected one. */
+function keyMatches(given: string | null, expected: string | undefined): boolean {
+  if (!given || !expected || given.length !== expected.length) return false;
+  return timingSafeEqual(Buffer.from(given), Buffer.from(expected));
+}
+
+/** Copy `from` without the names in `drop`. */
+function without(from: Headers, drop: Set<string>): Headers {
+  const out = new Headers();
+  from.forEach((v, k) => {
+    if (!drop.has(k.toLowerCase())) out.set(k, v);
+  });
+  return out;
+}
+
+/**
+ * Start the local MCP proxy on 127.0.0.1 (random port). `/mcp/<server>` forwards to the server's
+ * real url with a fresh bearer token, streams the reply back, refreshes and retries once on 401,
+ * and answers locally (never a 401) when no token is available.
+ */
+export function startMcpProxy(deps: McpProxyDeps): McpProxy {
+  /** Random key per server for this start, made on first `configFor`. */
+  const keys = new Map<string, string>();
+
+  /** Send one request upstream with `token`. */
+  const send = (url: string, req: Request, body: ArrayBuffer | undefined, token: string) => {
+    const headers = without(req.headers, DROP_REQUEST);
+    headers.set("authorization", `Bearer ${token}`);
+    return fetch(url, { method: req.method, headers, body, redirect: "manual" });
+  };
+
+  /** Handle one request for a known server whose key matched. */
+  const forward = async (
+    server: string,
+    conf: OAuthServerConf,
+    req: Request,
+    body: ArrayBuffer | undefined,
+  ) => {
+    const text = () => (body ? new TextDecoder().decode(body) : "");
+    let token = await deps.manager.accessToken(server);
+    if (!token) return offlineReply(server, req.method, text());
+    // A session opened while offline is unknown upstream: 404 makes the client start a new one.
+    if (req.headers.get("mcp-session-id")?.startsWith(OFFLINE_SESSION_PREFIX)) {
+      return new Response(null, { status: 404 });
+    }
+    let up = await send(conf.url, req, body, token);
+    if (up.status === 401) {
+      await up.body?.cancel();
+      token = await deps.manager.forceRefresh(server);
+      if (!token) return offlineReply(server, req.method, text());
+      up = await send(conf.url, req, body, token);
+      if (up.status === 401) {
+        await up.body?.cancel();
+        return offlineReply(server, req.method, text());
+      }
+    }
+    return new Response(up.body, {
+      status: up.status,
+      statusText: up.statusText,
+      headers: without(up.headers, DROP_RESPONSE),
+    });
+  };
+
+  const http = Bun.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    idleTimeout: 0, // SSE streams may stay quiet for long.
+    async fetch(req) {
+      const started = Date.now();
+      const match = /^\/mcp\/([^/]+)$/.exec(new URL(req.url).pathname);
+      const server = match ? decodeURIComponent(match[1] as string) : undefined;
+      const conf = server ? deps.servers()[server] : undefined;
+      if (!server || !conf) return new Response(null, { status: 404 });
+      if (!keyMatches(req.headers.get(KEY_HEADER), keys.get(server))) {
+        return new Response(null, { status: 403 });
+      }
+      // The body is buffered once: it may be sent twice (401 retry); MCP bodies are small.
+      const body =
+        req.method === "GET" || req.method === "HEAD" ? undefined : await req.arrayBuffer();
+      const method =
+        req.method === "POST" && body ? rpcMethodOf(new TextDecoder().decode(body)) : req.method;
+      let res: Response;
+      try {
+        res = await forward(server, conf, req, body);
+      } catch (e) {
+        logEvent(
+          deps.log,
+          "mcp.proxy.error",
+          { server, method, code: (e as { code?: string }).code },
+          "warn",
+        );
+        res = new Response(null, { status: 502 });
+      }
+      logEvent(deps.log, "mcp.proxy.request", {
+        server,
+        method,
+        status: res.status,
+        ms: Date.now() - started,
+      });
+      return res;
+    },
+  });
+
+  return {
+    configFor(server) {
+      let key = keys.get(server);
+      if (!key) {
+        key = randomBytes(32).toString("hex");
+        keys.set(server, key);
+      }
+      return {
+        type: "http",
+        url: `http://127.0.0.1:${http.port}/mcp/${encodeURIComponent(server)}`,
+        headers: { [KEY_HEADER]: key },
+      };
+    },
+    async stop() {
+      await http.stop(true);
+    },
+  };
+}
