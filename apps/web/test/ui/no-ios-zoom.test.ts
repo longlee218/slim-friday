@@ -10,3 +10,11 @@ test("touch screens raise the owner-file editor and mono fields to 16px", () => 
   expect(raised).toContain(".of-edit");
   expect(raised).toContain(".field.mono");
 });
+
+// A shared phone rule must not outrank the narrower form-sheet sizing (`:is()` takes its most
+// specific argument), or the five Repeat labels overlap on a 320px screen.
+test("form-sheet segmented buttons keep their own padding and size", () => {
+  const css = readFileSync("src/styles/settings.css", "utf8");
+  expect(css).not.toMatch(/:is\([^)]*\.bs-form[^)]*\) \.seg button \{[^}]*padding/);
+  expect(css).toMatch(/\.bs-form \.seg button \{[^}]*padding: 0 2px;[^}]*font-size: 12\.5px;/);
+});
