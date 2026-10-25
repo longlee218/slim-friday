@@ -243,6 +243,13 @@ For an MCP server that signs in with OAuth (example: `https://db-mcp.example.com
 5. If the provider revokes the login, the tool answers `<server> needs a new login: open Settings → MCP servers → <server> → Sign in.`, the banner turns amber and one toast shows; sign in again.
 6. The test button on the page runs the saved settings, not unsaved edits.
 
+## Check scheduled runs (not verified live)
+1. In chat, ask a bot for a schedule that runs every 15 minutes (the minimum). The bot calls `ScheduleCreate` and answers with the next run time; a clean owner run needs no card.
+2. Wait for the tick: the result appears in the same chat. With `notify: problems` a quiet run posts nothing.
+3. Leave a card unanswered while a run waits on it: the next tick is `skipped` and one notice shows (at most one per schedule per local day).
+4. Ask the bot to delete the schedule: it calls `ScheduleDelete` and no further run starts.
+Known limits: the once-a-day notice map is in memory (a notice can repeat after an engine restart); a schedule made by a worker bot starts within one 15 s tick.
+
 ## Owner live checklist
 Nothing below is verified live until you tick it.
 
