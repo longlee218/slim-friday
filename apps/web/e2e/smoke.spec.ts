@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { signInFirstTime } from "./helpers";
 
-test("sign in with a passkey, chat, upload, answer an approval, run a ticket, open activity, change settings", async ({
+test("sign in with a passkey, chat, upload, answer an approval, run a ticket, open activity, schedule a run, change settings", async ({
   page,
   context,
 }) => {
@@ -43,6 +43,21 @@ test("sign in with a passkey, chat, upload, answer an approval, run a ticket, op
   // Activity: the sessions table is there.
   await page.goto("/ops");
   await expect(page.getByRole("heading", { name: "Sessions" })).toBeVisible();
+
+  // Schedules: create a daily one, see it listed, pause it.
+  await page.goto("/schedules");
+  await page.getByRole("button", { name: "New schedule" }).click();
+  await page.getByLabel("Name", { exact: true }).fill("Morning brief");
+  await page.getByLabel("Task").fill("Send me a short morning brief.");
+  await page.getByRole("button", { name: "Create schedule" }).click();
+  await page.goto("/schedules");
+  const row = page.locator(".sched-row", { hasText: "Morning brief" });
+  await expect(row).toBeVisible();
+  await row.getByRole("switch", { name: "Morning brief on" }).click();
+  await expect(row.getByRole("switch", { name: "Morning brief on" })).toHaveAttribute(
+    "aria-checked",
+    "false",
+  );
 
   // Settings: a new bot appears in the sidebar under Bots.
   await page.goto("/settings/bot/new");
