@@ -1,5 +1,6 @@
 import { Dialog } from "@base-ui/react/dialog";
 import { type PointerEvent, type ReactNode, useRef } from "react";
+import { useKeyboardInset } from "./use-keyboard-inset";
 
 /** Drag distance (px) past which a release closes the sheet. */
 const DISMISS_PX = 110;
@@ -45,6 +46,7 @@ export function BottomSheet({ open, onOpenChange, children }: BottomSheetProps) 
   const dy = useRef(0);
   const dim = useRef<HTMLDivElement>(null);
   const popup = useRef<HTMLDivElement>(null);
+  useKeyboardInset(popup, open);
 
   const dragging = useRef(false);
 

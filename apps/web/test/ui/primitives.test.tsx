@@ -141,6 +141,25 @@ describe("sheets", () => {
     );
     await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText("Name")));
   });
+  test("BottomSheet sits on top of the iOS keyboard (visual viewport)", () => {
+    const vv = Object.assign(new EventTarget(), { height: 844, offsetTop: 0 });
+    vi.stubGlobal("visualViewport", vv);
+    window.innerHeight = 844;
+    try {
+      render(
+        <BottomSheet open onOpenChange={() => {}}>
+          Body
+        </BottomSheet>,
+      );
+      const sheet = document.querySelector(".bsheet") as HTMLElement;
+      vv.height = 500;
+      vv.dispatchEvent(new Event("resize"));
+      expect(sheet.style.getPropertyValue("--vv-h")).toBe("500px");
+      expect(sheet.style.getPropertyValue("--kb-h")).toBe("344px");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
   test("BottomSheet shows a grab handle", () => {
     render(
       <BottomSheet open onOpenChange={() => {}}>

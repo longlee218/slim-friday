@@ -47,7 +47,9 @@
    outside `.ios`, so it sets its own `--safe-b` (unset, the padding shorthand above is invalid and drops to 0). */
 .bsheet { position: fixed; --safe-b: env(safe-area-inset-bottom, 0px); }
 /* A tall sheet stops below the status bar; a form's fields scroll in `.bs-body` (a swipe there scrolls, it never drags). */
-.bsheet { display: flex; flex-direction: column; max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 10px); }
+.bsheet { display: flex; flex-direction: column; max-height: calc(var(--vv-h, 100dvh) - env(safe-area-inset-top, 0px) - 10px); }
+/* With the iOS keyboard up the sheet rests on it (use-keyboard-inset.ts sets the two variables). */
+.bsheet { bottom: var(--kb-h, 0px); }
 /* Sheet form (sheet-bar.tsx): Cancel | title | action, like the nav bar; the fields scroll under it. */
 .bs-form { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .bs-bar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; min-height: 44px; margin: -8px -6px 4px; }
