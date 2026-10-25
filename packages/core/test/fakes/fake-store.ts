@@ -12,6 +12,7 @@ import type {
   GroupId,
   IndexedMessage,
   ScopeState,
+  ScratchpadItem,
   SteeringRow,
   Store,
   StoredMessage,
@@ -82,6 +83,8 @@ export class FakeStore implements Store {
         .slice(0, f.limit),
     recent: async (c: ConversationId, limit: number) =>
       this.msgs.filter((m) => m?.conversationId === c).slice(-limit),
+    countInterim: async (wakeId: string) =>
+      this.msgs.filter((m) => m?.wakeId === wakeId && m.kind === "progress").length,
     after: async (afterId: number, limit: number) =>
       this.live()
         .filter((m) => m.id > afterId)
@@ -507,6 +510,38 @@ export class FakeStore implements Store {
     markReminded: async (id: string, at: number) => {
       const c = this.cardMap.get(id);
       if (c) c.remindedAt = at;
+    },
+  };
+  /** Scratchpad items (a fake id is a counter). */
+  padItems: ScratchpadItem[] = [];
+  scratchpad = {
+    list: async (scopeKey: string, f?: { status?: ScratchpadItem["status"] }) =>
+      this.padItems.filter((i) => i.scopeKey === scopeKey && (!f?.status || i.status === f.status)),
+    add: async (i: Omit<ScratchpadItem, "id" | "createdAt" | "updatedAt">, now: number) => {
+      const item = { ...i, id: `pad${this.padItems.length + 1}`, createdAt: now, updatedAt: now };
+      this.padItems.push(item);
+      return { ...item };
+    },
+    update: async (
+      id: string,
+      scopeKey: string,
+      patch: Partial<Pick<ScratchpadItem, "title" | "status" | "notes">>,
+      now: number,
+    ) => {
+      const item = this.padItems.find((i) => i.id === id && i.scopeKey === scopeKey);
+      if (!item) return undefined;
+      Object.assign(item, patch, { updatedAt: now });
+      return { ...item };
+    },
+    remove: async (id: string, scopeKey: string) => {
+      const n = this.padItems.length;
+      this.padItems = this.padItems.filter((i) => !(i.id === id && i.scopeKey === scopeKey));
+      return this.padItems.length < n;
+    },
+    deleteDoneBefore: async (at: number) => {
+      const n = this.padItems.length;
+      this.padItems = this.padItems.filter((i) => !(i.status === "done" && i.updatedAt < at));
+      return n - this.padItems.length;
     },
   };
   /** Effect records by key. */

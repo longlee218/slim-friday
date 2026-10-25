@@ -23,6 +23,7 @@ const row = (id: string, over: Partial<WakeRow> = {}): WakeRow => ({
   cuts: 0,
   transientRetries: 0,
   setupFailures: 0,
+  nudges: 0,
   ...over,
 });
 

@@ -4,6 +4,7 @@ import type { Conversation, ConversationId } from "../domain/conversation";
 import type { Grant } from "../domain/grant";
 import type { Group, GroupId } from "../domain/group";
 import type { IndexedMessage, StoredMessage } from "../domain/message";
+import type { ScratchpadItem } from "../domain/scratchpad";
 import type { WakeRow, WakeStatus } from "../domain/wake";
 import type { Ticket, TicketComment, TicketEvent, TicketStatus } from "../tickets/ticket";
 import type { CardPort, EffectPort, ScopePort, SteeringPort } from "./run-state-ports";
@@ -135,6 +136,8 @@ export interface Store {
     page(c: ConversationId, f: { before?: number; limit: number }): Promise<IndexedMessage[]>;
     /** The last `limit` messages, oldest first. */
     recent(c: ConversationId, limit: number): Promise<StoredMessage[]>;
+    /** Progress messages (`kind: "progress"`) already stored for a wake. */
+    countInterim(wakeId: string): Promise<number>;
     /** Messages with an id above `afterId`, oldest first, at most `limit` (feeds the message index). */
     after(afterId: number, limit: number): Promise<IndexedMessage[]>;
   };
@@ -264,6 +267,26 @@ export interface Store {
   };
   /** Owner messages sent while a run is busy. */
   steering: SteeringPort;
+  /** Working-memory items per session scope. */
+  scratchpad: {
+    /** Items of one scope, oldest first. */
+    list(scopeKey: string, f?: { status?: ScratchpadItem["status"] }): Promise<ScratchpadItem[]>;
+    add(
+      i: Omit<ScratchpadItem, "id" | "createdAt" | "updatedAt">,
+      now: number,
+    ): Promise<ScratchpadItem>;
+    /** Patch an item of that scope; undefined when the id is not in the scope. */
+    update(
+      id: string,
+      scopeKey: string,
+      patch: Partial<Pick<ScratchpadItem, "title" | "status" | "notes">>,
+      now: number,
+    ): Promise<ScratchpadItem | undefined>;
+    /** Delete an item of that scope; false when it is not there. */
+    remove(id: string, scopeKey: string): Promise<boolean>;
+    /** Delete `done` items last updated before `at`; returns the count. */
+    deleteDoneBefore(at: number): Promise<number>;
+  };
   /** Approval and question cards. */
   cards: CardPort;
   /** Side-effect call records. */

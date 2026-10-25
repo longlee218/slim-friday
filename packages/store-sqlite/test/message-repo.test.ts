@@ -54,3 +54,17 @@ test("page with before 0 is a filter (nothing is older), not 'no filter'", async
   expect(await s.messages.page("bot:a", { before: 0, limit: 10 })).toEqual([]);
   expect(await s.messages.page("bot:a", { limit: 10 })).toHaveLength(1);
 });
+
+test("wakeId round-trips and countInterim counts only progress rows of that wake", async () => {
+  const s = fresh();
+  const base = { conversationId: "bot:a", author: { kind: "bot", botId: "a" } as const, at: 1 };
+  await s.messages.append({ ...base, text: "p1", kind: "progress", wakeId: "w1" });
+  await s.messages.append({ ...base, text: "p2", kind: "progress", wakeId: "w1" });
+  await s.messages.append({ ...base, text: "p3", kind: "progress", wakeId: "w2" });
+  const final = await s.messages.append({ ...base, text: "done", wakeId: "w1" });
+  await s.messages.append({ ...base, text: "no wake" });
+  expect(await s.messages.countInterim("w1")).toBe(2);
+  expect(await s.messages.countInterim("w3")).toBe(0);
+  expect((await s.messages.get(final))?.wakeId).toBe("w1");
+  expect((await s.messages.get(final + 1))?.wakeId).toBeUndefined();
+});

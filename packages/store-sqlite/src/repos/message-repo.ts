@@ -1,5 +1,5 @@
 import type { Author, IndexedMessage, Store, StoredMessage } from "@friday/core";
-import { and, asc, desc, eq, gt, lt } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, lt } from "drizzle-orm";
 import type { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import { messages } from "../schema/engine-tables";
 
@@ -66,6 +66,15 @@ export function messageRepo(db: BunSQLiteDatabase): Store["messages"] {
       // Newest first from the query; the port wants the last N oldest first.
       return rows.reverse().map(toStored);
     },
+    async countInterim(wakeId) {
+      return (
+        db
+          .select({ n: count() })
+          .from(messages)
+          .where(and(eq(messages.wakeId, wakeId), eq(messages.kind, "progress")))
+          .get()?.n ?? 0
+      );
+    },
     async after(afterId, limit) {
       return db
         .select()
@@ -92,6 +101,7 @@ function toValues(m: StoredMessage) {
     files: m.files ? JSON.stringify(m.files) : null,
     run: m.run ? JSON.stringify(m.run) : null,
     relay: m.relay ? JSON.stringify(m.relay) : null,
+    wakeId: m.wakeId ?? null,
   };
 }
 
@@ -112,6 +122,7 @@ function toStored(r: Row): StoredMessage {
     ...(r.files && { files: JSON.parse(r.files) }),
     ...(r.run && { run: JSON.parse(r.run) }),
     ...(r.relay && { relay: JSON.parse(r.relay) }),
+    ...(r.wakeId && { wakeId: r.wakeId }),
   };
 }
 

@@ -55,6 +55,8 @@ export function fromRow(r: Row): WakeRow {
     cuts: r.cuts,
     transientRetries: r.transientRetries,
     setupFailures: r.setupFailures,
+    nudges: r.nudges,
+    ...(r.intro && { intro: true }),
     ...(r.quote && { quote: JSON.parse(r.quote) }),
   };
 }

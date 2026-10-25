@@ -134,6 +134,7 @@ test("a scope with a leased or running row (a worker runs it) is not flushed", a
     cuts: 0,
     transientRetries: 0,
     setupFailures: 0,
+    nudges: 0,
   });
   await hub.sweepIdle();
   expect(seen).toHaveLength(0);

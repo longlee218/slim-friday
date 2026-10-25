@@ -26,6 +26,7 @@ function queued(id: string, p: Partial<WakeRow> = {}): WakeRow {
     cuts: 0,
     transientRetries: 0,
     setupFailures: 0,
+    nudges: 0,
     ...p,
   };
 }

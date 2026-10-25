@@ -46,6 +46,7 @@ test("the next claim after a graceful requeue adds the cut note and keeps cuts",
     cuts: 0,
     transientRetries: 0,
     setupFailures: 0,
+    nudges: 0,
   });
   await h.store.attempts.start({
     id: "w1:1",

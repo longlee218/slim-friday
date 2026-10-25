@@ -24,7 +24,8 @@ type RunDefaults =
   | "leaseFence"
   | "cuts"
   | "transientRetries"
-  | "setupFailures";
+  | "setupFailures"
+  | "nudges";
 
 /** What a caller gives for a new wake; the rest gets defaults. */
 export type NewWake = Omit<
@@ -74,6 +75,7 @@ export class WakeLog {
       cuts: 0,
       transientRetries: 0,
       setupFailures: 0,
+      nudges: 0,
       ...w,
       id,
       chainId: w.chainId ?? id,

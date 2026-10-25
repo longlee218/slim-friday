@@ -49,7 +49,7 @@ export const MessageDtoSchema = z.object({
   id: z.number().int(),
   conversationId: ConversationIdSchema,
   author: AuthorDtoSchema,
-  kind: z.enum(["text", "file", "relay"]),
+  kind: z.enum(["text", "file", "relay", "progress"]),
   text: z.string(),
   at: z.number(),
   replyTo: z

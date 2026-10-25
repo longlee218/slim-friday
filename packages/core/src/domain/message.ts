@@ -15,8 +15,8 @@ export interface Attachment {
 
 export type Author = { kind: "user" } | { kind: "bot"; botId: BotId } | { kind: "system" };
 
-/** How a message is shown: plain text, a file card, or a bot-to-bot relay. */
-export type MessageKind = "text" | "file" | "relay";
+/** How a message is shown: plain text, a file card, a bot-to-bot relay, or a progress update of a running turn. */
+export type MessageKind = "text" | "file" | "relay" | "progress";
 
 /** A stored file (an R2 object) attached to a message. */
 export interface FileRef {
@@ -52,6 +52,8 @@ export interface StoredMessage {
   /** Steps of the turn that produced this bot message. */
   run?: RunStep[];
   relay?: RelayInfo;
+  /** The wake (run) that produced this message; lets progress messages be counted per run. */
+  wakeId?: string;
 }
 
 /** A stored message with its row id (ids grow with time). */

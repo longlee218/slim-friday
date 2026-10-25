@@ -10,6 +10,7 @@ export * from "./domain/group";
 export * from "./domain/message";
 export * from "./domain/question";
 export * from "./domain/run";
+export * from "./domain/scratchpad";
 export * from "./domain/steering";
 export * from "./domain/tool";
 export * from "./domain/wake";
