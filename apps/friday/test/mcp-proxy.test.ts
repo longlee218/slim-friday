@@ -48,7 +48,11 @@ function stubManager(tokens: (string | undefined)[]) {
       i++;
       return m.tokens[Math.min(i, m.tokens.length - 1)];
     },
-    status: async () => "connected" as const,
+    // No token in these tests means a lost login (the transient case is in mcp-proxy-edge.test.ts).
+    status: async () =>
+      m.tokens[Math.min(i, m.tokens.length - 1)]
+        ? ("connected" as const)
+        : ("needs_login" as const),
   };
   return m;
 }

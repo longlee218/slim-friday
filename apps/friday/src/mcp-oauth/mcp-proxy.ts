@@ -2,7 +2,12 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 import type { Logger } from "pino";
 import { logEvent } from "../observability/logger";
 import type { McpOAuthManager, OAuthServerConf } from "./oauth-manager";
-import { OFFLINE_SESSION_PREFIX, offlineReply, rpcMethodOf } from "./offline-replies";
+import {
+  OFFLINE_SESSION_PREFIX,
+  offlineReply,
+  rpcMethodOf,
+  unreachableReply,
+} from "./offline-replies";
 
 import {
   PROXY_KEY_HEADER as KEY_HEADER,
@@ -29,6 +34,7 @@ const DROP_RESPONSE = new Set([
   "content-length",
   "transfer-encoding",
   "content-encoding",
+  "www-authenticate", // an upstream 401/403 challenge must not start the CLI's own auth.
 ]);
 
 /** A running proxy: SDK config per OAuth server, and shutdown. */
@@ -92,8 +98,19 @@ export function startMcpProxy(deps: McpProxyDeps): McpProxy {
     body: ArrayBuffer | undefined,
   ) => {
     const text = () => (body ? new TextDecoder().decode(body) : "");
+    /** No token: a lost login gets the offline replies; a transient failure just says "try again". */
+    const noToken = async () =>
+      (await deps.manager.status(server)) === "connected"
+        ? unreachableReply(server, req.method, text())
+        : offlineReply(server, req.method, text());
+    /** Upstream redirects are never followed or passed on (a Location could leak the bearer). */
+    const redirected = async (up: Response) => {
+      if (up.status < 300 || up.status >= 400) return undefined;
+      await up.body?.cancel();
+      return new Response(null, { status: 502 });
+    };
     let token = await deps.manager.accessToken(server);
-    if (!token) return offlineReply(server, req.method, text());
+    if (!token) return noToken();
     // A session opened while offline is unknown upstream: 404 makes the client start a new one.
     if (req.headers.get("mcp-session-id")?.startsWith(OFFLINE_SESSION_PREFIX)) {
       return new Response(null, { status: 404 });
@@ -102,13 +119,15 @@ export function startMcpProxy(deps: McpProxyDeps): McpProxy {
     if (up.status === 401) {
       await up.body?.cancel();
       token = await deps.manager.forceRefresh(server);
-      if (!token) return offlineReply(server, req.method, text());
+      if (!token) return noToken();
       up = await send(conf.url, req, body, token);
       if (up.status === 401) {
         await up.body?.cancel();
         return offlineReply(server, req.method, text());
       }
     }
+    const redirect = await redirected(up);
+    if (redirect) return redirect;
     return new Response(up.body, {
       status: up.status,
       statusText: up.statusText,
@@ -123,7 +142,12 @@ export function startMcpProxy(deps: McpProxyDeps): McpProxy {
     async fetch(req) {
       const started = Date.now();
       const match = /^\/mcp\/([^/]+)$/.exec(new URL(req.url).pathname);
-      const server = match ? decodeURIComponent(match[1] as string) : undefined;
+      let server: string | undefined;
+      try {
+        server = match ? decodeURIComponent(match[1] as string) : undefined;
+      } catch {
+        server = undefined; // malformed % escape: not a route.
+      }
       const conf = server ? deps.servers()[server] : undefined;
       if (!server || !conf) return new Response(null, { status: 404 });
       if (!keyMatches(req.headers.get(KEY_HEADER), proxyKey(secret, server))) {

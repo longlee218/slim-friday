@@ -182,9 +182,10 @@ async function runEngine(
     await api.stop();
   } finally {
     try {
-      await mcpProxy.stop();
-    } finally {
       await app.stop();
+    } finally {
+      // Last: runs still draining in app.stop() keep their MCP access.
+      await mcpProxy.stop();
     }
   }
 }

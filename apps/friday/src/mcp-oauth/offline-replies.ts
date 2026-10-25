@@ -82,6 +82,36 @@ export function offlineReply(server: string, method: string, body: string): Resp
   return Response.json(replyTo(server, msg), { headers });
 }
 
+/**
+ * Answer while `server` is logged in but has no token right now (a transient refresh failure):
+ * a plain "try again" error, with no offline session and no fake tools, so it never looks like
+ * a lost login. GET gets 405, DELETE 200, a notification 202.
+ */
+export function unreachableReply(server: string, method: string, body: string): Response {
+  if (method === "GET")
+    return new Response(null, { status: 405, headers: { allow: "POST, DELETE" } });
+  if (method === "DELETE") return new Response(null, { status: 200 });
+  const error = (id: RpcMessage["id"]) => ({
+    jsonrpc: "2.0",
+    id: id ?? null,
+    error: { code: -32000, message: `${server} is unreachable right now, try again.` },
+  });
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    return Response.json(error(null));
+  }
+  if (Array.isArray(parsed)) {
+    const requests = (parsed as RpcMessage[]).filter((m) => m?.id !== undefined);
+    if (requests.length === 0) return new Response(null, { status: 202 });
+    return Response.json(requests.map((m) => error(m.id)));
+  }
+  const msg = (parsed ?? {}) as RpcMessage;
+  if (msg.id === undefined) return new Response(null, { status: 202 });
+  return Response.json(error(msg.id));
+}
+
 /** JSON-RPC method of a POST body for the log (`batch` for an array, else undefined). */
 export function rpcMethodOf(body: string): string | undefined {
   try {
