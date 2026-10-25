@@ -27,12 +27,13 @@ apps/web/dev-dist/
 apps/web/test-results/
 apps/web/playwright-report/
 
-# Private: working notes, plans, design history and AI-workflow files (not published)
+# Private: working notes, plans, design history and AI-workflow files (kept on the owner machine, never committed)
 /plans/
 /.agents/
 /CLAUDE.md
 /AGENTS.md
 /skills-lock.json
+/.friday/
 /DESIGN.md
 /PRODUCT.md
 /docs/superpowers/
@@ -40,6 +41,7 @@ apps/web/playwright-report/
 /docs/references/
 /docs/rakazo-reference.md
 /docs/project-changelog.md
+/docs/project-changelog-archive.md
 /docs/development-roadmap.md
 
 # Local design tool state
