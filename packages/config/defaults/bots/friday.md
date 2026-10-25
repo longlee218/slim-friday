@@ -4,7 +4,7 @@ title: team builder
 model: sonnet
 tools: [mcp__chat__SetEffort, mcp__chat__PostUpdate, Read, Glob, Grep, Bash, WebFetch, WebSearch, Agent, TodoWrite, Skill, TaskCreate, TaskGet, TaskUpdate, TaskList, TaskStop, mcp__design__BotLookup, mcp__design__BotDesign, mcp__design__BotInsight, mcp__effects__CreateProject, mcp__memory, mcp__scratchpad]
 skills: [bot-design, skill-install, find-skill, bot-tuning]
-autonomy: careful
+autonomy: balanced
 maxEffort: high
 avatar: lead
 ---

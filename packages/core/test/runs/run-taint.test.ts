@@ -201,3 +201,26 @@ test("an owner run tainted by a tool result asks a card for UpdateProfile", asyn
     "park",
   );
 });
+
+test("a server the clean run already used (no card) is no first call once the run is tainted", async () => {
+  const h = hub();
+  const s = await ownerRunAfter(h, "search then read");
+  expect(await s.spec.decide({ tool: EXT, input: { q: "a" } })).toEqual({ behavior: "allow" });
+  s.emit({ type: "tool_call", toolUseId: "t2", tool: "Bash", input: {} });
+  s.emit({ type: "tool_result", toolUseId: "t2", ok: true });
+  await flush();
+  expect(only(h).tainted).toBe(true);
+  expect(await s.spec.decide({ tool: EXT, input: { q: "b" } })).toEqual({ behavior: "allow" });
+  expect(h.store.cardMap.size).toBe(0);
+});
+
+test("tainted: a fetch of an exact url a WebSearch returned needs no card, another url does", async () => {
+  const h = hub();
+  const s = await ownerRunAfter(h, "research it");
+  s.emit({ type: "tool_call", toolUseId: "s1", tool: "WebSearch", input: { query: "q" } });
+  s.emit({ type: "tool_result", toolUseId: "s1", ok: true, urls: ["https://found.test/a"] });
+  await flush();
+  expect(only(h).tainted).toBe(true);
+  expect(await s.spec.decide(fetch("https://found.test/a"))).toEqual({ behavior: "allow" });
+  expect((await s.spec.decide(fetch("https://found.test/b"))).behavior).toBe("park");
+});

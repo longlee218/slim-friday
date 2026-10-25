@@ -22,6 +22,8 @@ interface Loose {
           input?: Record<string, unknown>;
           tool_use_id?: string;
           is_error?: boolean;
+          /** On a tool_result: the result text, or text blocks. */
+          content?: string | { type: string; text?: string }[];
         }[];
   };
   task_id?: string;
@@ -45,6 +47,24 @@ function failureText(m: Loose): string {
 function blocks(m: Loose) {
   const c = m.message?.content;
   return Array.isArray(c) ? c : [];
+}
+
+/** Most urls kept from one tool result. */
+const MAX_RESULT_URLS = 50;
+const URL_IN_TEXT = /https?:\/\/[^\s"'<>\\]+/g;
+
+/** The http(s) urls in a tool result's text (trailing punctuation cut), at most `MAX_RESULT_URLS`. */
+function urlsOf(content: string | { type: string; text?: string }[] | undefined): string[] {
+  const text =
+    typeof content === "string"
+      ? content
+      : (content ?? []).map((c) => (c.type === "text" ? (c.text ?? "") : "")).join("\n");
+  const urls = new Set<string>();
+  for (const m of text.matchAll(URL_IN_TEXT)) {
+    urls.add(m[0].replace(/[.,;:)\]}]+$/, ""));
+    if (urls.size >= MAX_RESULT_URLS) break;
+  }
+  return [...urls];
 }
 
 /**
@@ -79,7 +99,15 @@ export function mapMessage(message: SDKMessage): RuntimeEvent[] {
     if (m.parent_tool_use_id) return [];
     return blocks(m)
       .filter((b) => b.type === "tool_result")
-      .map((b) => ({ type: "tool_result", toolUseId: b.tool_use_id ?? "", ok: !b.is_error }));
+      .map((b) => {
+        const urls = urlsOf(b.content);
+        return {
+          type: "tool_result",
+          toolUseId: b.tool_use_id ?? "",
+          ok: !b.is_error,
+          ...(urls.length > 0 && { urls }),
+        };
+      });
   }
   if (m.type === "system" && m.subtype === "task_started")
     return [

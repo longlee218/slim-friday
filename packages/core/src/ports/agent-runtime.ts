@@ -53,8 +53,11 @@ export interface SteerInput {
 export type RuntimeEvent =
   | { type: "text"; text: string }
   | { type: "tool_call"; toolUseId: string; tool: string; input: Record<string, unknown> }
-  /** The tool call `toolUseId` finished; `ok` is false when it failed. */
-  | { type: "tool_result"; toolUseId: string; ok: boolean }
+  /**
+   * The tool call `toolUseId` finished; `ok` is false when it failed. `urls` are the http(s) urls in its text
+   * result (capped), set only when there are some: the taint policy trusts the ones a `WebSearch` returned.
+   */
+  | { type: "tool_result"; toolUseId: string; ok: boolean; urls?: string[] }
   /** The model is thinking (no text is carried). */
   | { type: "thinking" }
   | { type: "task_started"; taskId: string; description: string; toolUseId?: string }

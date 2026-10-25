@@ -68,8 +68,13 @@ export interface TaintRun {
   sites: Set<string>;
   /** Registrable domains the owner approved on a taint card in this run. */
   approvedSites: Set<string>;
-  /** External MCP servers whose first tainted call the owner approved in this run. */
+  /**
+   * External MCP servers this run used while it was clean, or whose first tainted call the owner approved:
+   * their later calls need no "first call" card (a write still asks by the autonomy level).
+   */
   usedMcpServers: Set<string>;
+  /** Exact urls a `WebSearch` of this run returned (`urlKey` form): a fetch of one needs no site card. */
+  searchUrls?: Set<string>;
 }
 
 /** A taint ask: why, and whether it is mandatory (asked even when a grant would allow the call). */
@@ -112,6 +117,27 @@ export function fetchSiteOf(
   return host ? domainOf(host) : undefined;
 }
 
+/** A url in the form compared for search results (`URL.href`); undefined when it does not parse as http(s). */
+export function urlKey(url: unknown): string | undefined {
+  if (typeof url !== "string") return undefined;
+  try {
+    const u = new URL(url);
+    return u.protocol === "http:" || u.protocol === "https:" ? u.href : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Remember the urls a `WebSearch` returned: a fetch of exactly one of them is not a new destination (Rakazo). */
+export function noteSearchUrls(run: Pick<TaintRun, "searchUrls">, urls: string[]): void {
+  for (const url of urls) {
+    const key = urlKey(url);
+    if (!key) continue;
+    run.searchUrls ??= new Set();
+    run.searchUrls.add(key);
+  }
+}
+
 /**
  * A memory write that shapes later runs like an instruction: a lesson or preference note (they are read back into
  * the prompt of every session), or any edit of a saved note (it may rewrite one of those). Plain fact and decision
@@ -140,6 +166,8 @@ export function taintAskOf(
       mandatory: true,
     };
   if (call.tool === "WebFetch") {
+    const key = urlKey(call.input.url);
+    if (key && run.searchUrls?.has(key)) return undefined;
     const site = fetchSiteOf(call, domainOf);
     if (!site) return { reason: "web fetch to a url with no registrable site", mandatory: false };
     if (run.sites.has(site) || run.approvedSites.has(site)) return undefined;
@@ -161,15 +189,30 @@ export function taintAsk(
 }
 
 /**
+ * Remember an external MCP server a clean run used (its arguments came from the owner's request): a later
+ * tainted call to it is not a "first call" (Rakazo: a read on a connector the run already used is free).
+ */
+export function noteCleanServerUse(
+  call: Pick<ToolCall, "tool">,
+  run: Pick<TaintRun, "usedMcpServers">,
+): void {
+  const server = externalServerOf(call.tool);
+  if (server) run.usedMcpServers.add(server);
+}
+
+/**
  * Remember a call the owner allowed while the run was tainted: its site or external server needs no new taint
  * card in this run. Instruction changes are never remembered (they ask every time).
  */
 export function noteTaintAllowed(
   call: Pick<ToolCall, "tool" | "input">,
-  run: Pick<TaintRun, "approvedSites" | "usedMcpServers">,
+  run: Pick<TaintRun, "approvedSites" | "usedMcpServers" | "searchUrls">,
   domainOf: RegistrableDomain = exactHost,
 ): void {
   if (call.tool === "WebFetch") {
+    // Allowed as an exact search result: that trusts the url, never the whole site.
+    const key = urlKey(call.input.url);
+    if (key && run.searchUrls?.has(key)) return;
     const site = fetchSiteOf(call, domainOf);
     if (site) run.approvedSites.add(site);
     return;

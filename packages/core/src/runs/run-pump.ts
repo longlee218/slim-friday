@@ -75,7 +75,7 @@ async function onEvent(
     exec.lastWasToolResult = true;
     show(exec.steps.onToolResult(e, now));
     // The first result from outside taints the run, stored on the row (spec §6.10).
-    await onTaintResult(ctx, exec, e.toolUseId);
+    await onTaintResult(ctx, exec, e.toolUseId, e.urls);
     // This result followed the earlier pushes: the model read them. Then push what came while the tool ran.
     await answerPushed(ctx, exec);
     await deliverSteering(ctx, exec, false);

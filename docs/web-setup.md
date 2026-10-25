@@ -205,7 +205,7 @@ Main process (web, intake, sweeps, reconciler, config watch) plus `workers` work
 13. Effect replay: after a cut, the resumed model may send the exact same tool input again; the effect tool then returns the stored result or the "may already have run" warning. Check the warning is shown and nothing runs twice.
 
 ## Check owner and bot communication (not verified live)
-Settings in `<AGENT_HOME>/config/settings.yaml` (all optional; the example file lists them): `owner.timeZone` (IANA zone; default the machine's zone), `limits.toolSearch` (`on` default, `off`, `auto:<1-100>`), `limits.maxToolCallsPerTurn` (default 0 = no cap), `permissions.autoReview` (default `false`; also a switch in Settings, Approval rules).
+Settings in `<AGENT_HOME>/config/settings.yaml` (all optional; the example file lists them): `owner.timeZone` (IANA zone; default the machine's zone), `limits.toolSearch` (`on` default, `off`, `auto:<1-100>`), `limits.maxToolCallsPerTurn` (default 0 = no cap), `permissions.autoReview` (default `true`, set by the shipped `settings.yaml`; also a switch in Settings, Approval rules).
 1. Progress notes: give a bot a task that takes over a minute with several steps; at most 3 short notes (500 chars) appear in the chat while it works, none in the first 60 s, then one final answer.
 2. `NO_RESPONSE` on a ticket: assign a ticket to a bot; it works and posts nothing in the chat (comments go on the ticket); no unread badge and no finished toast. A message you send is never answered with silence (at worst `done.`).
 3. Nudge: make a bot stop right after a tool result (for example a task that ends on a tool call); the run continues up to 3 times, then shows "The tools finished, but the bot did not write a final answer. Rephrase the request and try again."
@@ -217,7 +217,7 @@ Settings in `<AGENT_HOME>/config/settings.yaml` (all optional; the example file 
 9. Tool search: add an external MCP server with many tools; the bot finds its tools through `ToolSearch` (check the run steps). Set `limits.toolSearch: off` and compare.
 10. A mutating external MCP tool asks: a tool named like `send_email`, `create_issue` or `delete_row` shows a card even at `autonomous`; a `get_*` / `list_*` tool runs without one. Add a server named `memory` to `mcp.yaml`: the config must refuse it.
 11. Site rule from "Always": answer a `WebFetch` card with "Always allow <site>"; Settings, Approval rules lists a site rule; the next fetch to that site (also in a tainted run) does not ask; remove the rule and it asks again.
-12. Auto Review pass: turn it on (Settings, Approval rules), set the level to `careful` or `balanced`, ask for a call that fits your message (for example "run the tests" with a Bash call): no card, the audit row has `review: pass`.
+12. Auto Review pass: check it is on (default; Settings, Approval rules), set the level to `careful` or `balanced`, ask for a call that fits your message (for example "run the tests" with a Bash call): no card, the audit row has `review: pass`.
 13. Auto Review ask: ask for a call that does not fit your message; the card shows the reason first. Irreversible calls, `BotDesign` and calls in a tainted run never use the judge.
 14. Finished toast: send a long task, switch to another chat or tab; one toast with the start of the final answer; a failed or stopped run shows none.
 

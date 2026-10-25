@@ -20,7 +20,7 @@ test("settings.example.yaml parses as shipped and with every setting turned on",
   expect(on.memory?.providers?.[0]?.id).toBe("honcho");
   expect(on.projectsDir).toBeDefined();
   expect(on.owner?.timeZone).toBe("Europe/Paris");
-  expect(on.permissions?.autoReview).toBe(false);
+  expect(on.permissions?.autoReview).toBe(true);
 });
 
 test("settings.example.yaml lists every core limit with its default value", () => {

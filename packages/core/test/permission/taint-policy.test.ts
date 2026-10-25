@@ -2,6 +2,8 @@ import { expect, test } from "bun:test";
 import type { PermissionSettings, ToolCall, ToolSpec } from "../../src";
 import { PermissionGate } from "../../src/permission/permission-gate";
 import {
+  noteCleanServerUse,
+  noteSearchUrls,
   noteTaintAllowed,
   type TaintRun,
   taintAsk,
@@ -208,4 +210,26 @@ test("tainted run: a lesson or preference note and any note edit ask; a fact or 
   expect(taintAsk(save("decision"), run(), rd)).toBeUndefined();
   expect(taintAsk(save(), run(), rd)).toBeUndefined();
   expect(taintAsk(save("lesson"), run({ tainted: false }), rd)).toBeUndefined();
+});
+
+test("tainted run: a fetch of an exact url a WebSearch returned needs no card; another url of that site does", () => {
+  const r = run({ sites: new Set() });
+  noteSearchUrls(r, ["https://docs.example.org/guide?x=1", "not a url", "ftp://x.org/f"]);
+  expect(taintAsk(fetch("https://docs.example.org/guide?x=1"), r, rd)).toBeUndefined();
+  // Compared as normalised urls: a trailing-slash-free host form of the same url still matches.
+  expect(taintAsk(fetch("https://DOCS.example.org/guide?x=1"), r, rd)).toBeUndefined();
+  expect(taintAsk(fetch("https://docs.example.org/other"), r, rd)).toBeDefined();
+  expect(
+    taintAsk(fetch("https://evil.com/?u=https://docs.example.org/guide?x=1"), r, rd),
+  ).toBeDefined();
+  expect(r.searchUrls?.size).toBe(1);
+});
+
+test("an external MCP server a clean run used is not a first call later; Friday's own servers are never noted", () => {
+  const r = run({ tainted: false });
+  noteCleanServerUse(call(EXT), r);
+  noteCleanServerUse(call("mcp__memory__MemorySearch"), r);
+  expect([...r.usedMcpServers]).toEqual(["ext"]);
+  expect(taintAsk(call(EXT), { ...r, tainted: true }, rd)).toBeUndefined();
+  expect(taintAsk(call("mcp__other__get"), { ...r, tainted: true }, rd)).toContain("first call");
 });

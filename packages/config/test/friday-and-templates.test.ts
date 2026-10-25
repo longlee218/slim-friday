@@ -91,10 +91,10 @@ test("a user bot file with the reserved id friday is reported and ignored", () =
   expect(problems.map((p) => p.message).join()).toContain("reserved");
 });
 
-test("Friday asks before it writes: shipped autonomy is careful", () => {
+test("Friday runs at balanced: its config writes go through BotDesign, which always asks", () => {
   const userDir = mkdtempSync(join(tmpdir(), "cfg-"));
   const { snapshot } = loadConfig({ defaultsDir: DEFAULTS_DIR, userDir });
-  expect(snapshot.bots.get("friday")?.autonomy).toBe("careful");
+  expect(snapshot.bots.get("friday")?.autonomy).toBe("balanced");
 });
 
 test("a group that lists the Friday bot as a member is refused", () => {

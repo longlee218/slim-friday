@@ -1,3 +1,7 @@
 # Default autonomy. Limits are not listed here: the core defaults apply.
 autonomy:
   level: balanced
+
+# Auto Review: a model may clear a plain level ask (Rakazo style: fewer cards). Turn it off in Settings, Approval rules.
+permissions:
+  autoReview: true

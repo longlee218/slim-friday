@@ -2,13 +2,22 @@ import type { ToolCall } from "../domain/tool";
 import type { WakeRow } from "../domain/wake";
 import type { HubContext } from "../hub/hub-context";
 import { ownerSites } from "../permission/owner-sites";
-import { noteTaintAllowed, type TaintRun, taints } from "../permission/taint-policy";
+import {
+  noteCleanServerUse,
+  noteSearchUrls,
+  noteTaintAllowed,
+  type TaintRun,
+  taints,
+} from "../permission/taint-policy";
 import type { RunExec } from "./run-exec";
 
 /** The taint state of one run beside `exec.tainted` (spec §6.10). */
 export interface RunTaint extends Omit<TaintRun, "tainted"> {
   /** Open main-thread tool calls by tool use id: true when the call's result will taint the run. */
   calls: Map<string, boolean>;
+  /** Tool use ids of open `WebSearch` calls: their result urls become trusted fetch targets. */
+  searchCalls: Set<string>;
+  searchUrls: Set<string>;
 }
 
 /** A fresh, empty taint state (`seedTaint` fills it once the run starts). */
@@ -18,6 +27,8 @@ export function newRunTaint(): RunTaint {
     approvedSites: new Set(),
     usedMcpServers: new Set(),
     calls: new Map(),
+    searchCalls: new Set(),
+    searchUrls: new Set(),
   };
 }
 
@@ -54,6 +65,7 @@ export function callTainted(exec: RunExec, call: { taskId?: string }): boolean {
 /** A main-thread tool call began: remember whether its result will taint the run. */
 export function onTaintCall(exec: RunExec, toolUseId: string, tool: string): void {
   exec.taint.calls.set(toolUseId, taints(tool));
+  if (tool === "WebSearch") exec.taint.searchCalls.add(toolUseId);
 }
 
 /**
@@ -64,7 +76,10 @@ export async function onTaintResult(
   ctx: HubContext,
   exec: RunExec,
   toolUseId: string,
+  urls: string[] = [],
 ): Promise<void> {
+  // The urls of a search result are the provider's, not text a page chose: a fetch of one is trusted.
+  if (exec.taint.searchCalls.delete(toolUseId)) noteSearchUrls(exec.taint, urls);
   const tainting = exec.taint.calls.get(toolUseId) ?? true;
   exec.taint.calls.delete(toolUseId);
   if (!tainting || exec.tainted) return;
@@ -87,6 +102,9 @@ export function noteAllowed(
 ): void {
   const taintApproval = card ? card.approval?.tainted === true : callTainted(exec, call);
   if (taintApproval) noteTaintAllowed(call, exec.taint, ctx.deps.gate.domainOf);
+  // Used cleanly with no card: its arguments came from the owner's request. A card approved in a clean run stays no
+  // taint approval (see above), so only a call the policy allowed counts.
+  else if (!card) noteCleanServerUse(call, exec.taint);
 }
 
 /**

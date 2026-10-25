@@ -34,11 +34,12 @@ test("the admin writes the owner's settings.yaml, a reload shows it, a symlink i
   writeFileSync(join(configDir, "settings.yaml"), "# keep me\nautonomy:\n  level: careful\n");
   const { config } = FileConfig.load({ defaultsDir: DEFAULTS_DIR, userDir: configDir });
   const admin = createPermissionsAdmin(config, home);
-  expect(admin.get()).toEqual({ autoReview: false });
-  admin.setAutoReview(true);
+  // On by default (the shipped settings.yaml), until the owner's file says otherwise.
+  expect(admin.get()).toEqual({ autoReview: true });
+  admin.setAutoReview(false);
   expect(readFileSync(join(configDir, "settings.yaml"), "utf8")).toContain("# keep me");
   config.reload();
-  expect(admin.get()).toEqual({ autoReview: true });
+  expect(admin.get()).toEqual({ autoReview: false });
   expect(config.settings().level).toBe("careful");
   rmSync(join(configDir, "settings.yaml"));
   symlinkSync(join(home, "elsewhere.yaml"), join(configDir, "settings.yaml"));

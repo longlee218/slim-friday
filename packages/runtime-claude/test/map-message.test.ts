@@ -177,3 +177,28 @@ test("events keep block order: thinking, tool calls, then the joined text", () =
   );
   expect(ev.map((e) => e.type)).toEqual(["thinking", "tool_call", "text"]);
 });
+
+test("a tool_result carries the urls of its text, cut of trailing punctuation; none when there are none", () => {
+  const result = (content: unknown) =>
+    mapMessage({
+      type: "user",
+      parent_tool_use_id: null,
+      message: { content: [{ type: "tool_result", tool_use_id: "t1", content }] },
+    } as never);
+  expect(
+    result(
+      'Links: [{"title":"A","url":"https://a.org/x?y=1"},{"url":"http://b.org/"}] see https://c.org/z.',
+    ),
+  ).toEqual([
+    {
+      type: "tool_result",
+      toolUseId: "t1",
+      ok: true,
+      urls: ["https://a.org/x?y=1", "http://b.org/", "https://c.org/z"],
+    },
+  ]);
+  expect(result([{ type: "text", text: "see https://d.org/p" }])).toEqual([
+    { type: "tool_result", toolUseId: "t1", ok: true, urls: ["https://d.org/p"] },
+  ]);
+  expect(result("no links here")).toEqual([{ type: "tool_result", toolUseId: "t1", ok: true }]);
+});

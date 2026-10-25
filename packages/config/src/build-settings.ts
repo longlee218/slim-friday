@@ -17,7 +17,7 @@ export type MemoryProviderEntry = { id: string } & Record<string, unknown>;
  * `autonomy.bots` and `autonomy.tools` merge; a limit overrides its core default. A bot file's own `autonomy`
  * wins over `autonomy.bots` for that bot. The last `projectsDir` wins (default `~/friday-projects`), and the last
  * `memory.providers` list (default none) the last `owner.timeZone` (default none: the app uses the machine's) and the last
- * `permissions.autoReview` (default off).
+ * `permissions.autoReview` (the shipped defaults file turns it on; no file at all: off).
  */
 export function buildSettings(
   files: SettingsFile[],
@@ -36,7 +36,7 @@ export function buildSettings(
   let projectsDir = join(homedir(), "friday-projects");
   let memoryProviders: MemoryProviderEntry[] = [];
   let ownerTimeZone: string | undefined;
-  // Auto Review is off unless a file turns it on (spec §6.14, as in Rakazo); the last file that sets it wins.
+  // Auto Review is off unless a file turns it on (the shipped defaults file does); the last file that sets it wins.
   let autoReview = false;
   for (const f of files) {
     if (f.permissions?.autoReview !== undefined) autoReview = f.permissions.autoReview;

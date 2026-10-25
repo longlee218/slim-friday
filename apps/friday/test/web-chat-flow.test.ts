@@ -36,11 +36,14 @@ test("send -> bot reply event with run steps", async () => {
   expect(page.map((m) => m.text)).toContain("done");
 });
 
+// CreateProject is a write: it asks at balanced (Bash is local and runs unasked).
 test("an approval parks the run; the answer through the API resumes it with the exact call allowed once", async () => {
   const h = await boot();
   await h.client.chat.send({ conversationId: "bot:friday", text: "hi" });
   await until(() => h.runtime.opened.length === 1);
-  const decided = await h.runtime.nth(0).spec.decide({ tool: "Bash", input: { command: "ls" } });
+  const decided = await h.runtime
+    .nth(0)
+    .spec.decide({ tool: "mcp__effects__CreateProject", input: { name: "ls" } });
   expect(decided.behavior).toBe("park");
   await until(() => h.of("approval.opened").length === 1);
   const cardId = (await h.client.approvals.pending())[0]?.cardId ?? "";
@@ -54,8 +57,12 @@ test("an approval parks the run; the answer through the API resumes it with the 
     () => h.runtime.resumed.length === 1 && h.runtime.resumed[0]?.session.sent.length === 1,
   );
   const resumed = h.runtime.resumed[0]?.session;
-  expect(resumed?.sent[0]?.text).toContain('The owner approved: Bash {"command":"ls"}.');
-  expect(await resumed?.spec.decide({ tool: "Bash", input: { command: "ls" } })).toEqual({
+  expect(resumed?.sent[0]?.text).toContain(
+    'The owner approved: mcp__effects__CreateProject {"name":"ls"}.',
+  );
+  expect(
+    await resumed?.spec.decide({ tool: "mcp__effects__CreateProject", input: { name: "ls" } }),
+  ).toEqual({
     behavior: "allow",
   });
   expect(h.of("approval.closed").length).toBe(1);
@@ -170,14 +177,16 @@ test("an open card is listed again after a restart and its answer resumes the ru
   const first = await webHarness();
   await first.client.chat.send({ conversationId: "bot:friday", text: "hi" });
   await until(() => first.runtime.opened.length === 1);
-  await first.runtime.nth(0).spec.decide({ tool: "Bash", input: { command: "ls" } });
+  await first.runtime
+    .nth(0)
+    .spec.decide({ tool: "mcp__effects__CreateProject", input: { name: "ls" } });
   await until(() => first.of("approval.opened").length === 1);
   await first.stop();
   // A new boot over the same home: the stored card is shown again, nothing re-asks.
   const h = await webHarness({}, first.home);
   stops.push(h.stop);
   const pending = await h.client.approvals.pending();
-  expect(pending.map((c) => c.tool)).toEqual(["Bash"]);
+  expect(pending.map((c) => c.tool)).toEqual(["mcp__effects__CreateProject"]);
   await h.client.approvals.answer({ cardId: pending[0]?.cardId ?? "", answer: "deny" });
   await until(() => h.runtime.created.length === 1 && h.runtime.created[0]?.sent.length === 1);
   expect(h.runtime.created[0]?.sent[0]?.text).toContain("The user denied this action.");
