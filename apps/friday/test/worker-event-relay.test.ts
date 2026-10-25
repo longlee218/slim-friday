@@ -109,3 +109,15 @@ test("a finished notice from a worker reaches main's surface", async () => {
   );
   expect(surface.finished).toEqual([{ conversationId: "c1", botId: "b1", preview: "done" }]);
 });
+
+test("a schedule change a worker reported is given to main's listener by id", async () => {
+  const seen: string[] = [];
+  const store = new FakeStore();
+  const surface = new FakeSurface();
+  await relayWorkerEvents({ t: "schedule", scheduleId: "s1" }, surface, store, undefined, (id) =>
+    seen.push(id),
+  );
+  // Without a listener the message is ignored.
+  await relayWorkerEvents({ t: "schedule", scheduleId: "s2" }, surface, store);
+  expect(seen).toEqual(["s1"]);
+});

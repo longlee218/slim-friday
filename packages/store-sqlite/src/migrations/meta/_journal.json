@@ -106,6 +106,13 @@
       "when": 1792944512210,
       "tag": "0014_rich_zemo",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "6",
+      "when": 1792948377503,
+      "tag": "0015_nervous_hex",
+      "breakpoints": true
     }
   ]
 }

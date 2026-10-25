@@ -29,6 +29,8 @@ export interface RelayTarget {
   store: Pick<Store, "messages" | "cards" | "bots" | "wakes" | "tickets">;
   /** Told about every ticket a worker saved (the web's ticket events). */
   onTicketChange?: (t: Ticket) => void;
+  /** Told about every schedule a worker changed (main's ticker kick and web event). */
+  onScheduleChange?: (scheduleId: string) => void;
 }
 
 /**
@@ -61,7 +63,9 @@ export function mainWorkers(d: MainWorkersDeps) {
           return;
         }
         const next = (chains.get(i) ?? Promise.resolve())
-          .then(() => relayWorkerEvents(m, t.surface, t.store, t.onTicketChange))
+          .then(() =>
+            relayWorkerEvents(m, t.surface, t.store, t.onTicketChange, t.onScheduleChange),
+          )
           .catch((e) => d.log.error({ worker: i, t: m.t, err: String(e) }, "worker.relay_failed"));
         chains.set(i, next);
       };

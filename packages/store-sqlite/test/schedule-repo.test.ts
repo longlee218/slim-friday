@@ -153,3 +153,17 @@ test("runs: update, open, addCost, list newest first, deleteBefore", async () =>
   expect(r1).toMatchObject({ costUsd: 0.04, status: "problem", endedAt: 15, error: "boom" });
   expect(await s.scheduleRuns.deleteBefore(25)).toBe(2);
 });
+
+test("runs: latest gives the newest run of each asked schedule, by firedAt", async () => {
+  const s = openEngineStore(":memory:");
+  await s.scheduleRuns.insert(run("a1", { scheduleId: "a", firedAt: 10 }));
+  await s.scheduleRuns.insert(run("a2", { scheduleId: "a", firedAt: 30 }));
+  await s.scheduleRuns.insert(run("a3", { scheduleId: "a", firedAt: 20 }));
+  await s.scheduleRuns.insert(run("b1", { scheduleId: "b", firedAt: 5, status: "ok" }));
+  await s.scheduleRuns.insert(run("c1", { scheduleId: "c", firedAt: 99 }));
+  const latest = await s.scheduleRuns.latest(["a", "b", "none"]);
+  expect([...latest.keys()].sort()).toEqual(["a", "b"]);
+  expect(latest.get("a")?.id).toBe("a2");
+  expect(latest.get("b")).toMatchObject({ id: "b1", status: "ok" });
+  expect((await s.scheduleRuns.latest([])).size).toBe(0);
+});

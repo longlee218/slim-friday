@@ -67,6 +67,8 @@ export function startWorker(d: WorkerAppDeps) {
         autoReviewer: appAutoReviewer(config),
         // A ticket a bot saved here reaches the web through main.
         onTicketChange: (t) => d.send({ t: "ticket", ticketId: t.id }),
+        // A schedule a bot changed here reaches main's ticker and the web through main.
+        onScheduleChange: (id) => d.send({ t: "schedule", scheduleId: id }),
         hubRuns: () => ({
           hints: new IpcHints(d.send),
           runner: { hints: incoming, bootId: d.bootId, name: workerName(d.index) },

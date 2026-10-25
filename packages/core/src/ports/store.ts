@@ -143,6 +143,8 @@ export interface Store {
     countInterim(wakeId: string): Promise<number>;
     /** The newest bot text message (`kind: "text"`) stored for a wake: an answer an earlier attempt already posted. */
     lastText(wakeId: string): Promise<string | undefined>;
+    /** The id of the newest message stored for a wake (any kind or author), if any. */
+    lastIdOf(wakeId: string): Promise<number | undefined>;
     /** Messages with an id above `afterId`, oldest first, at most `limit` (feeds the message index). */
     after(afterId: number, limit: number): Promise<IndexedMessage[]>;
   };
@@ -334,6 +336,8 @@ export interface Store {
     addCost(wakeId: string, usd: number): Promise<void>;
     /** Newest first by firedAt; `before` keeps only runs fired earlier than it. */
     list(scheduleId: string, limit: number, before?: number): Promise<ScheduleRun[]>;
+    /** The newest run (by firedAt) of each asked schedule; a schedule without runs has no entry. */
+    latest(scheduleIds: string[]): Promise<Map<string, ScheduleRun>>;
     /** Delete runs fired before `at`; returns the count. */
     deleteBefore(at: number): Promise<number>;
   };

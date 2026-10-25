@@ -54,6 +54,10 @@ export interface StoredMessage {
   relay?: RelayInfo;
   /** The wake (run) that produced this message; lets progress messages be counted per run. */
   wakeId?: string;
+  /** The schedule whose run posted this message (kept after the schedule and its wake are gone). */
+  scheduleId?: string;
+  /** That schedule's name when its run started; unset when the schedule was already gone. */
+  scheduleName?: string;
 }
 
 /** A stored message with its row id (ids grow with time). */

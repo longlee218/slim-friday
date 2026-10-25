@@ -51,6 +51,7 @@ async function boot(files: Record<string, string> = {}, before?: (home: string) 
     agentHome: home,
     log,
     onConfigChanged: () => surface.bus.publish({ type: "config.changed" }),
+    onScheduleChange: (id) => surface.bus.publish({ type: "schedule", id }),
   });
   stoppers.push(async () => {
     ac.abort();
@@ -280,4 +281,21 @@ test("a config that cannot load closes the given db", async () => {
     startApp({ surface, files, engine, runtime: new FakeRuntime(), agentHome: home, log }),
   ).rejects.toThrow();
   await expect(engine.conversations.list()).rejects.toThrow();
+});
+
+test("a schedule change reaches the caller's listener (the web's schedule event)", async () => {
+  const { app, events } = await boot();
+  const r = await app.hub.schedules.create(
+    {
+      name: "Brief",
+      botId: "friday",
+      task: "Write the brief.",
+      rule: { kind: "daily", at: "07:30" },
+      conversationId: "bot:friday",
+    },
+    { kind: "user" },
+  );
+  if (!r.ok) throw new Error(r.error);
+  const id = r.schedule.id;
+  await until(() => events.some((e) => e.type === "schedule" && e.id === id));
 });

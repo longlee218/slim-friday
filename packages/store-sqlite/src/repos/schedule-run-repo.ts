@@ -1,5 +1,5 @@
 import type { ScheduleRun, Store } from "@friday/core";
-import { and, desc, eq, lt, sql } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, inArray, lt, sql } from "drizzle-orm";
 import type { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import { scheduleRuns } from "../schema/engine-tables";
 
@@ -59,6 +59,22 @@ export function scheduleRunRepo(db: BunSQLiteDatabase): Store["scheduleRuns"] {
         .limit(limit)
         .all()
         .map(fromRow);
+    },
+    async latest(ids) {
+      if (ids.length === 0) return new Map();
+      // One query: rank each schedule's runs newest first and keep rank 1.
+      const ranked = db
+        .select({
+          ...getTableColumns(scheduleRuns),
+          rank: sql<number>`row_number() over (partition by ${scheduleRuns.scheduleId} order by ${scheduleRuns.firedAt} desc, ${scheduleRuns.id} desc)`.as(
+            "rank",
+          ),
+        })
+        .from(scheduleRuns)
+        .where(inArray(scheduleRuns.scheduleId, ids))
+        .as("ranked");
+      const rows = db.select().from(ranked).where(eq(ranked.rank, 1)).all();
+      return new Map(rows.map(({ rank: _, ...r }) => [r.scheduleId, fromRow(r)]));
     },
     async deleteBefore(at) {
       return db
