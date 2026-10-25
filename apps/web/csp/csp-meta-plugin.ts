@@ -1,5 +1,5 @@
 import type { Plugin } from "vite";
-import { buildCsp } from "./csp";
+import { buildCsp } from "./csp.ts";
 
 // Injects the CSP as the first element of <head> in production builds only: Vite dev serves
 // inline scripts (the React refresh preamble) that this policy would block.
