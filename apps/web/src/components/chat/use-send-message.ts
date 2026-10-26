@@ -39,7 +39,8 @@ export function useSendMessage() {
       for (const id of p.route.botIds) startRun(qc, p.payload.conversationId, id, Date.now());
       try {
         const { messageId, files } = await client.chat.send(p.payload);
-        swapTemp(qc, p.payload.conversationId, tempId, messageId, files);
+        // The client does not parse the output: an older engine sends no `files`.
+        swapTemp(qc, p.payload.conversationId, tempId, messageId, files ?? []);
         setPending(qc, tempId, null);
       } catch {
         // Any failure, CONFLICT included, is "Not sent"; a retry reuses the nonce and the engine replays.
