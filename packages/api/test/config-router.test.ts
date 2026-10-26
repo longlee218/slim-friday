@@ -164,3 +164,10 @@ test("toMcpDto redacts every env and header value that is not a reference", () =
   });
   expect(local).toMatchObject({ env: { K: "••••" } });
 });
+
+test("mcp.icon is null for an unknown or a stdio server, without a request", async () => {
+  const h = engineHarness();
+  h.settings.config.mcp.set("local", { name: "local", server: stdio, shipped: false, usedBy: [] });
+  expect(await h.client.config.mcp.icon({ name: "nobody" })).toEqual({ dataUrl: null });
+  expect(await h.client.config.mcp.icon({ name: "local" })).toEqual({ dataUrl: null });
+});

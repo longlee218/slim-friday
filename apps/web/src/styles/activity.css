@@ -1,29 +1,62 @@
-/* Activity page: prototype app.css .page, .table, .panel, .chart*, .bars, .bar*, .legend, .grid2 */
-.page { max-width: 1080px; margin: 0 auto; padding: 22px 28px 40px; }
-.page h2 { font: 650 13px var(--font); color: var(--label); margin: 26px 0 10px; display: flex; align-items: center; gap: 10px; }
-.page h2:first-child { margin-top: 4px; }
-.page h2 .aside { margin-left: auto; font-weight: 500; color: var(--label-2); font-size: 12.5px; }
+/* Workspace pages (Activity, Schedules): a centred page of grouped sections inside the solid main pane.
+   A .panel is a grouped surface: the well on the white pane, rows split by inset hairlines, no ring or shadow. */
+.page { max-width: 1080px; margin: 0 auto; padding: 18px 28px 40px; }
+.page h2 { font: 650 15px var(--font-display); letter-spacing: -0.01em; color: var(--label); margin: 30px 4px 10px; display: flex; align-items: center; gap: 10px; min-height: 30px; }
+.page h2:first-child { margin-top: 8px; }
+.page h2 .aside { margin-left: auto; display: inline-flex; align-items: center; gap: 10px; font: 500 12.5px var(--font); color: var(--label-2); }
+.panel { border-radius: var(--r-l); background: var(--well); overflow: hidden; }
+
+/* A grouped row: face, name over one line of detail, trailing value, pill and action. */
+.arow { position: relative; display: flex; align-items: center; gap: 12px; min-height: 58px; padding: 8px 12px 8px 16px; }
+.arow + .arow::before { content: ""; position: absolute; top: 0; right: 0; left: 60px; height: .5px; background: var(--sep-strong); }
+.arow .grow { flex: 1; min-width: 0; }
+.arow .t1 { font-weight: 600; font-size: 13.5px; }
+.arow .t2, .arow.t2 { font-size: 12.5px; color: var(--label-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.arow .a-cost { font-size: 13px; color: var(--label-2); min-width: 52px; text-align: right; }
+.arow .pill { min-width: 62px; justify-content: center; }
+.arow .ib { color: var(--label-2); }
+.arow .ib:hover { color: var(--red); background: var(--red-fill); }
+
+/* Data table inside a panel (Wakes). */
 .table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12.5px; }
-.table th { text-align: left; font-weight: 600; color: var(--label-2); font-size: 11.5px; padding: 6px 10px; border-bottom: 1px solid var(--sep); }
-.table td { padding: 0 10px; height: 40px; border-bottom: 1px solid var(--sep); }
+.table th { text-align: left; font-weight: 600; color: var(--label-2); font-size: 11.5px; padding: 10px 12px 8px; border-bottom: .5px solid var(--sep-strong); }
+.table td { padding: 0 12px; height: 44px; border-bottom: .5px solid var(--sep-strong); }
+.table th:first-child, .table td:first-child { padding-left: 16px; }
+.table th:last-child, .table td:last-child { padding-right: 16px; }
 .table tr:last-child td { border-bottom: 0; }
 .table tbody tr { transition: background var(--t-fast); }
 .table tbody tr:hover { background: var(--fill); }
 .table .r { text-align: right; }
-.panel { border-radius: 12px; box-shadow: 0 0 0 1px var(--sep-strong); background: var(--raised); overflow: hidden; }
-.chart { padding: 16px 18px 12px; }
-.chart-total { display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px; }
-.chart-total b { font: 650 22px var(--font-display); letter-spacing: -0.02em; }
+.table .t2 { color: var(--label-2); }
+.table .t3 { color: var(--label-3); }
+.table .w-id { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--label-2); }
+.w-cap { color: var(--label-2); }
+
+/* Spend chart: period total, stacked daily bars, legend. */
+.chart { padding: 16px 18px 14px; }
+.chart-total { display: flex; align-items: baseline; gap: 10px; margin-bottom: 16px; }
+.chart-total b { font: 700 24px var(--font-display); letter-spacing: -0.02em; }
 .chart-total span { color: var(--label-2); font-size: 12.5px; }
+.chart-none { padding: 14px 16px; line-height: 20px; font-size: 13px; color: var(--label-2); }
 .bars { display: grid; grid-template-columns: repeat(7, 1fr); gap: 16px; align-items: end; height: 150px; }
-.bar { display: flex; flex-direction: column-reverse; border-radius: 6px 6px 3px 3px; overflow: hidden; transform-origin: bottom; animation: grow 700ms var(--ease) both; position: relative; }
+.bar { display: flex; flex-direction: column-reverse; gap: 1.5px; border-radius: 7px 7px 4px 4px; overflow: hidden; transform-origin: bottom; animation: grow 700ms var(--ease) both; position: relative; min-height: 3px; }
 .bar i { display: block; }
 @keyframes grow { from { transform: scaleY(0); } }
-.bar-l { display: grid; grid-template-columns: repeat(7, 1fr); gap: 16px; font-size: 11.5px; color: var(--label-2); margin-top: 6px; text-align: center; }
-.legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 12px; font-size: 12px; color: var(--label-2); }
-.legend span { display: inline-flex; align-items: center; gap: 5px; }
-.legend i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
-.grid2 { display: grid; grid-template-columns: 1.35fr 1fr; gap: 16px; }
-@media (max-width: 1100px) { .grid2 { grid-template-columns: 1fr; } }
+.bar-l { display: grid; grid-template-columns: repeat(7, 1fr); gap: 16px; font-size: 11.5px; color: var(--label-2); margin-top: 7px; text-align: center; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 14px; font-size: 12px; color: var(--label-2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+
+/* Limits: one meter row per bot that spent today, then the note. */
+.limits { padding: 2px 16px; }
+.lim-row { padding: 12px 0; }
+.lim-row + .lim-row, .lim-row + .lim-note { border-top: .5px solid var(--sep-strong); }
+.lim-row.t2, .lim-note { font-size: 12.5px; color: var(--label-2); }
+.lim-h { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 8px; font-size: 13px; }
+.lim-h .t2 { color: var(--label-2); }
+.lim-note { padding: 12px 0; }
+
+.grid2 { display: grid; grid-template-columns: 1.4fr 1fr; gap: 18px; align-items: start; }
+@media (max-width: 1100px) { .grid2 { grid-template-columns: 1fr; gap: 0; } }
 /* The stagger is an inline delay; with Reduce Motion a delayed bar would sit at scaleY(0). */
 @media (prefers-reduced-motion: reduce) { .bar { animation-delay: 0s !important; } }

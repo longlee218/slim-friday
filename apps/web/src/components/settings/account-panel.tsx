@@ -61,11 +61,11 @@ export function AccountPanel() {
           </div>
         </div>
       </div>
-      <h3 style={{ fontSize: 13, margin: "0 0 8px" }}>Passkeys</h3>
+      <h3 className="grp-h">Passkeys</h3>
       <div className="list-panel">
         {(passkeys.data ?? []).map((p) => (
           <div className="srow" key={p.id}>
-            <span className="ico">
+            <span className="ico gray">
               <Fingerprint size={16} strokeWidth={1.75} />
             </span>
             <div className="grow">

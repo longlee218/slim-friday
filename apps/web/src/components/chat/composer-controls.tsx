@@ -1,8 +1,8 @@
 import { ArrowUp } from "lucide-react";
-import { type Ref, type RefObject, useLayoutEffect } from "react";
+import { type Ref, type RefObject, useEffect, useLayoutEffect } from "react";
 import { composerMaxHeight } from "./composer-rules";
 
-/** The round Send button: grey until the composer may send. */
+/** The round Send button: a quiet fill until the composer may send, then the gradient. */
 export function SendButton({ disabled, onClick }: { disabled: boolean; onClick(): void }) {
   return (
     <button
@@ -54,4 +54,31 @@ export function useAutosize(
     el.style.height = "auto";
     el.style.height = `${Math.min(el.scrollHeight, composerMaxHeight(phone))}px`;
   }, [ref, draft, phone]);
+}
+
+/** Distance from the bottom (px) within which the transcript stays pinned while the composer grows. */
+const PINNED_PX = 80;
+
+/**
+ * The composer floats over the transcript: publish its height as `--composer-h` on the chat pane
+ * (the transcript pads its bottom by it), and keep a transcript read at the bottom pinned there.
+ */
+export function useComposerHeight(ref: RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    const el = ref.current;
+    const pane = el?.parentElement;
+    if (!el || !pane || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => {
+      const scroll = pane.querySelector<HTMLElement>(".chat-scroll");
+      const pinned =
+        !!scroll && scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < PINNED_PX;
+      pane.style.setProperty("--composer-h", `${el.offsetHeight}px`);
+      if (scroll && pinned) scroll.scrollTop = scroll.scrollHeight;
+    });
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      pane.style.removeProperty("--composer-h");
+    };
+  }, [ref]);
 }

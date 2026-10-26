@@ -1,5 +1,6 @@
 import type { ApprovalCardDto, MessageDto, QuestionCardDto } from "@friday/contracts";
 import type { LiveRun, Receipt } from "../../events/client-keys";
+import { markRuns, type RunPlace } from "./bubble-layout";
 import { type ReactionCounts, reactionOfMessage } from "./reactions";
 
 /** One row of the transcript, in display order. */
@@ -12,10 +13,12 @@ export type TranscriptItem =
       pending?: "sending" | "failed";
       /** Emoji reactions folded under this message. */
       reactions?: ReactionCounts;
+      /** Place in a run of one author's messages (set last, by `markRuns`). */
+      place?: RunPlace;
     }
   | { kind: "approval"; key: string; card: ApprovalCardDto; receipt?: Receipt }
   | { kind: "question"; key: string; card: QuestionCardDto; receipt?: Receipt }
-  | { kind: "run"; key: string; run: LiveRun };
+  | { kind: "run"; key: string; run: LiveRun; place?: RunPlace };
 
 export interface BuildInput {
   /** Query pages, newest page first; each page is newest first too. */
@@ -38,7 +41,7 @@ const dayStart = (t: number): number => new Date(t).setHours(0, 0, 0, 0);
  * the first message of each local day, then the live runs, then this conversation's cards
  * (question receipts in arrival order, then the still-open ones; an answered approval is dropped): a card sits under the run block that
  * raised it, as in the prototype. A reaction whose target is loaded is no row of its own: it counts under that message.
- * Keys are stable across renders.
+ * Message and run rows carry their place in a run of one author. Keys are stable across renders.
  */
 export function buildTranscriptItems(input: BuildInput): TranscriptItem[] {
   const items: TranscriptItem[] = [];
@@ -106,5 +109,6 @@ export function buildTranscriptItems(input: BuildInput): TranscriptItem[] {
     }
   }
   items.push(...cards.values());
+  markRuns(items);
   return items;
 }

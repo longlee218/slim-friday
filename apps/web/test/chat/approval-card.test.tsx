@@ -6,7 +6,12 @@ import { orpc } from "../../src/api/client";
 import { ApprovalCard } from "../../src/components/chat/approval-card";
 import { ApprovalReceipt } from "../../src/components/chat/approval-receipt";
 import { ApprovalRow } from "../../src/components/chat/approval-row";
-import { approvalTitle, scopeLine, toolLabel } from "../../src/components/chat/approval-text";
+import {
+  approvalSubtitle,
+  approvalTitle,
+  scopeLine,
+  toolLabel,
+} from "../../src/components/chat/approval-text";
 import type { Receipt } from "../../src/events/client-keys";
 import { receiptsKey } from "../../src/events/client-keys";
 import { apprCard, cardClient } from "./cards-fixtures";
@@ -165,7 +170,7 @@ test("phone row: Review opens the sheet; Allow once answers and folds to the rec
   mocks.approve.mockResolvedValue({ ok: true });
   const card = apprCard();
   view(<ApprovalRow card={card} />, cardClient(card));
-  expect(screen.getByText("GitPush")).toBeTruthy();
+  expect(screen.getByText("Push the branch to origin.")).toBeTruthy();
   await userEvent.click(screen.getByRole("button", { name: "Review" }));
   const order = screen.getAllByRole("button").map((b) => b.textContent);
   expect(order.slice(-3)).toEqual(["Allow once", "Always allow", "Deny"]);
@@ -212,10 +217,17 @@ test("MCP tool ids show as their short name in titles, rows and receipts", () =>
   const mcp = apprCard({ tool: "mcp__effects__GitPush" });
   expect(approvalTitle(mcp)).toBe("Dev wants to use GitPush");
   view(<ApprovalRow card={mcp} />, cardClient(mcp));
-  expect(screen.getByText("GitPush")).toBeTruthy();
+  expect(screen.getByText("Dev wants to use GitPush")).toBeTruthy();
   view(<ApprovalReceipt receipt={r("deny", "mcp__effects__MergeBranch")} />);
   expect(screen.getByText("Denied: MergeBranch")).toBeTruthy();
   view(<ApprovalCard card={mcp} receipt={r("once", "mcp__effects__GitPush")} />);
   expect(screen.getByText(/You allowed once:/).textContent).toContain("GitPush");
   expect(screen.getByText(/You allowed once:/).textContent).not.toContain("mcp__");
+});
+
+test("phone row subtitle: the summary's first line, else the scope, never just the tool again", () => {
+  expect(approvalSubtitle(apprCard({ summary: "Push it.\nMore." }))).toBe("Push it.");
+  const tool = "mcp__effects__CreateProject";
+  expect(approvalSubtitle(apprCard({ tool, summary: "CreateProject" }))).toBe("feat/x");
+  expect(approvalSubtitle(apprCard({ tool, summary: tool, scope: {} }))).toBeUndefined();
 });

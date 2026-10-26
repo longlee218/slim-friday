@@ -3,9 +3,11 @@ import { Fragment, type ReactNode } from "react";
 import { useDirectory } from "../../api/directory";
 import { formatClock } from "../../lib/format";
 import { Avatar } from "../ui/avatar";
+import type { RunPlace } from "./bubble-layout";
 import { FileCard } from "./file-card";
 import { ImageGallery } from "./image-gallery";
 import { mentionSpans } from "./mentions";
+import { ownerTextParts } from "./owner-text";
 import { ROUTE_SUFFIX, type RouteInfo } from "./route-info";
 import { useBotFace } from "./use-bot-face";
 
@@ -17,7 +19,12 @@ export interface OwnerBubbleProps {
   onRetry?(): void;
   /** Bot ids of the conversation; only their `@name` is highlighted. */
   members?: string[];
+  /** Place in a run of the owner's messages (default: alone, head and tail). */
+  place?: RunPlace;
 }
+
+/** The single message of its run. */
+const ALONE: RunPlace = { head: true, tail: true };
 
 /** The quoted bot message above a reply: small face, name, one-line excerpt. */
 function ReplyQuote({ reply }: { reply: NonNullable<MessageDto["replyTo"]> }) {
@@ -66,44 +73,80 @@ function AtText({ text, names }: { text: string; names: string[] }) {
   return <>{parts}</>;
 }
 
+/** The owner's text: code fences as mono blocks, backtick spans as inline chips, the rest plain with `@name` marks. */
+function OwnerText({ text, names }: { text: string; names: string[] }) {
+  return (
+    <>
+      {ownerTextParts(text).map((part, i) =>
+        part.kind === "fence" ? (
+          // biome-ignore lint/suspicious/noArrayIndexKey: parts of one fixed text
+          <pre key={i} className="o-fence">
+            <code>{part.text}</code>
+          </pre>
+        ) : part.kind === "code" ? (
+          // biome-ignore lint/suspicious/noArrayIndexKey: parts of one fixed text
+          <code key={i} className="o-code">
+            {part.text}
+          </code>
+        ) : (
+          // biome-ignore lint/suspicious/noArrayIndexKey: parts of one fixed text
+          <AtText key={i} text={part.text} names={names} />
+        ),
+      )}
+    </>
+  );
+}
+
 /**
- * The owner's message: right-aligned bubble, optional reply quote, the files sent with it
- * (images as a gallery, others as file cards; no empty bubble for a files-only message), time
- * and route line.
+ * The owner's message: right-aligned gradient bubble, optional reply quote, the files sent with it
+ * (images as a gallery, others as file cards; no empty bubble for a files-only message). The time
+ * and route line show under the last message of a run, and always while sending or failed; inside a
+ * run the time is the bubble's tooltip.
  */
-export function OwnerBubble({ message, route, pending, onRetry, members = [] }: OwnerBubbleProps) {
+export function OwnerBubble({
+  message,
+  route,
+  pending,
+  onRetry,
+  members = [],
+  place = ALONE,
+}: OwnerBubbleProps) {
   const dir = useDirectory();
   const names = members.map((id) => dir.botName(id));
   const images = message.files.filter((f) => f.kind === "image");
   const others = message.files.filter((f) => f.kind !== "image");
+  const time = formatClock(message.at, Date.now());
+  const cls = ["msg", "owner", place.head && "first", place.tail && "last"];
   return (
-    <div className="msg owner">
+    <div className={cls.filter(Boolean).join(" ")}>
       <div>
         {message.replyTo && <ReplyQuote reply={message.replyTo} />}
         {message.text && (
-          <div className="bubble">
-            <AtText text={message.text} names={names} />
+          <div className="bubble" title={place.tail ? undefined : time}>
+            <OwnerText text={message.text} names={names} />
           </div>
         )}
         {images.length > 0 && <ImageGallery files={images} message={message} />}
         {others.map((f) => (
           <FileCard key={f.id} file={f} />
         ))}
-        <div className="owner-meta">
-          {pending === "failed" ? (
-            <>
-              Not sent ·{" "}
-              <button type="button" className="link-btn" onClick={onRetry}>
-                Retry
-              </button>
-            </>
-          ) : (
-            <>
-              {pending === "sending" ? "Sending…" : formatClock(message.at, Date.now())}
-              {route && <RouteMeta route={route} />}
-            </>
-          )}
-        </div>
+        {(place.tail || pending || route) && (
+          <div className="owner-meta">
+            {pending === "failed" ? (
+              <>
+                Not sent ·{" "}
+                <button type="button" className="link-btn" onClick={onRetry}>
+                  Retry
+                </button>
+              </>
+            ) : (
+              <>
+                {pending === "sending" ? "Sending…" : time}
+                {route && <RouteMeta route={route} />}
+              </>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

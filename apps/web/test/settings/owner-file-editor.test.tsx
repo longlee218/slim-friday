@@ -63,3 +63,15 @@ test("Preview renders markdown as a heading", async () => {
   await userEvent.click(screen.getByRole("button", { name: "Preview" }));
   expect(screen.getByRole("heading", { name: "Tone" })).toBeTruthy();
 });
+
+test("phone: Save is the bar's plain-text action, like other phone forms", () => {
+  window.innerWidth = 390;
+  try {
+    setup();
+    const save = screen.getByRole("button", { name: "Save" });
+    expect(save.closest(".ios-nav")).not.toBeNull();
+    expect(save.className).toBe("nb strong");
+  } finally {
+    window.innerWidth = 1024;
+  }
+});

@@ -2,6 +2,7 @@ import type { McpServerDto, McpTestDto } from "@friday/contracts";
 import type { McpEntry, McpProbeResult } from "@friday/core";
 import { ORPCError } from "@orpc/server";
 import type { McpAuthAdmin } from "../../mcp-auth";
+import { createIconCache } from "../../mcp-icon";
 import { authed } from "../../rpc/implementer";
 import { adminCall } from "./admin-error";
 import { toMcpDto } from "./to-dto";
@@ -24,8 +25,17 @@ async function withAuth(e: McpEntry, mcpAuth: McpAuthAdmin): Promise<McpServerDt
   return { ...dto, auth: { status, ...(lastRefreshAt !== undefined && { lastRefreshAt }) } };
 }
 
+/** Site icons of http servers, kept until the engine restarts. */
+const icons = createIconCache();
+
 /** MCP servers as data, a connection test and the recent permission decisions per server. */
 export const mcpRouter = {
+  // Only a saved http server's url is ever fetched; the owner's own config names it.
+  icon: authed.config.mcp.icon.handler(async ({ input, context }) => {
+    const e = context.deps.settings.config.listMcp().find((m) => m.name === input.name);
+    if (e?.server.type !== "http") return { dataUrl: null };
+    return { dataUrl: await icons.get(e.server.url) };
+  }),
   list: authed.config.mcp.list.handler(({ context }) =>
     Promise.all(
       context.deps.settings.config.listMcp().map((e) => withAuth(e, context.deps.mcpAuth)),

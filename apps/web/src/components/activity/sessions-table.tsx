@@ -14,59 +14,53 @@ export interface SessionsTableProps {
   onStop: (botId: string) => void;
 }
 
-/** Sessions: Bot, State (working / idle / stopping), Now, Session length, Today, Stop. */
+/**
+ * Sessions as a grouped list: face, name, what it is doing and for how long, today's spend, the
+ * state pill (working / idle / stopping) and Stop.
+ */
 export function SessionsTable({ bots, now, stopping, onStop }: SessionsTableProps) {
   const dir = useDirectory();
   return (
     <div className="panel">
-      <table className="table">
-        <thead>
-          <tr>
-            <th>Bot</th>
-            <th>State</th>
-            <th>Now</th>
-            <th className="r">Session</th>
-            <th className="r">Today</th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          {bots.map((b) => {
-            const stop = b.working && stopping.has(b.botId);
-            return (
-              <tr key={b.botId}>
-                <td>
-                  <span className="who-cell">
-                    <Avatar src={dir.bots.get(b.botId)?.avatarUrl} name={b.name} size={22} />
-                    <b>{b.name}</b>
-                  </span>
-                </td>
-                <td>
-                  <Pill tone={stop ? "amber" : b.working ? "blue" : "gray"}>
-                    {stop ? "stopping" : b.working ? "working" : "idle"}
-                  </Pill>
-                </td>
-                <td style={{ color: "var(--label-2)" }}>{b.working ? (b.label ?? "—") : "—"}</td>
-                <td className="r num">
-                  {b.working && b.startedAt !== undefined ? formatDuration(now - b.startedAt) : "—"}
-                </td>
-                <td className="r num">{formatCost(b.spendToday)}</td>
-                <td className="r">
-                  {b.working && (
-                    <IconButton
-                      label={`Stop ${b.name}`}
-                      disabled={stop}
-                      onClick={() => onStop(b.botId)}
-                    >
-                      <CircleStop size={16} strokeWidth={1.75} />
-                    </IconButton>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      {bots.map((b) => {
+        const stop = b.working && stopping.has(b.botId);
+        const since =
+          b.working && b.startedAt !== undefined ? formatDuration(now - b.startedAt) : null;
+        return (
+          <div className="arow" key={b.botId}>
+            <Avatar
+              src={dir.bots.get(b.botId)?.avatarUrl}
+              name={b.name}
+              size={32}
+              working={b.working && !stop}
+            />
+            <div className="grow">
+              <div className="t1">{b.name}</div>
+              <div className="t2">
+                {b.working ? (b.label ?? "Working") : "No session"}
+                {since && (
+                  <>
+                    {" · "}
+                    <span className="num">{since}</span>
+                  </>
+                )}
+              </div>
+            </div>
+            <span className="a-cost num" title="Spent today">
+              {formatCost(b.spendToday)}
+            </span>
+            <Pill tone={stop ? "amber" : b.working ? "blue" : "gray"}>
+              {stop ? "stopping" : b.working ? "working" : "idle"}
+            </Pill>
+            {b.working && (
+              <IconButton label={`Stop ${b.name}`} disabled={stop} onClick={() => onStop(b.botId)}>
+                <CircleStop size={16} strokeWidth={1.75} />
+              </IconButton>
+            )}
+          </div>
+        );
+      })}
+      {bots.length === 0 && <div className="arow t2">No bots yet.</div>}
     </div>
   );
 }

@@ -1,15 +1,22 @@
 import type { BotDto, BotStatusDto, GroupDto } from "@friday/contracts";
 import { useQuery } from "@tanstack/react-query";
-import { CircleStop, LoaderCircle, SlidersHorizontal } from "lucide-react";
+import {
+  Activity,
+  CircleStop,
+  Info,
+  LoaderCircle,
+  SlidersHorizontal,
+  UsersRound,
+} from "lucide-react";
 import { orpc } from "../../api/client";
 import { useDirectory } from "../../api/directory";
 import { formatCost } from "../../lib/format";
 import { conversationParts } from "../chat/conversation-parts";
 import { Avatar } from "../ui/avatar";
-import { Button } from "../ui/button";
 import { Pill } from "../ui/pill";
 import { MemorySection, OpenTicketsSection, ScratchpadSection } from "./bot-inspector-sections";
-import { InspectorSection, Prop } from "./inspector-parts";
+import { PairFace } from "./chat-rows";
+import { InspectorSection, Prop, QuickAction } from "./inspector-parts";
 import { useAppNavigate } from "./use-app-navigate";
 import { useStopRun } from "./use-stop-run";
 
@@ -21,21 +28,25 @@ function BotInspector({ bot, status }: { bot: BotDto; status?: BotStatusDto }) {
   return (
     <>
       <div className="insp-hero">
-        <Avatar src={bot.avatarUrl} name={bot.name} size={72} working={working} />
+        <Avatar src={bot.avatarUrl} name={bot.name} size={88} working={working} />
         <h2>{bot.name}</h2>
         <div className="r">{`${bot.title} · ${bot.model}`}</div>
         <div className="insp-actions">
-          <Button onClick={() => go(`/settings/bot/${bot.id}`)}>
-            <SlidersHorizontal strokeWidth={1.75} />
-            Edit
-          </Button>
-          <Button variant="danger" disabled={!working} onClick={() => void stop({ botId: bot.id })}>
-            <CircleStop strokeWidth={1.75} />
-            Stop
-          </Button>
+          <QuickAction
+            icon={<SlidersHorizontal strokeWidth={1.75} />}
+            label="Edit"
+            onClick={() => go(`/settings/bot/${bot.id}`)}
+          />
+          <QuickAction
+            icon={<CircleStop strokeWidth={1.75} />}
+            label="Stop"
+            danger
+            disabled={!working}
+            onClick={() => void stop({ botId: bot.id })}
+          />
         </div>
       </div>
-      <InspectorSection title="Now">
+      <InspectorSection title="Now" icon={<Activity strokeWidth={1.75} />} tone="blue">
         {working ? (
           <div className="task" style={{ padding: "6px 0" }}>
             <LoaderCircle className="spin" strokeWidth={1.75} />
@@ -53,7 +64,7 @@ function BotInspector({ bot, status }: { bot: BotDto; status?: BotStatusDto }) {
         )}
       </InspectorSection>
       <MemorySection bot={bot} />
-      <InspectorSection title="About">
+      <InspectorSection title="About" icon={<Info strokeWidth={1.75} />} tone="gray">
         <Prop label="Effort">{bot.effort ?? "Default"}</Prop>
         <Prop label="Spend today">{formatCost(status?.spendToday ?? 0)}</Prop>
         {bot.workspaces.map((w) => (
@@ -77,34 +88,34 @@ function GroupInspector({ group, status }: { group: GroupDto; status: BotStatusD
   return (
     <>
       <div className="insp-hero">
-        <span className="stack">
-          {group.members.map((id) => (
-            <Avatar
-              key={id}
-              src={dir.bots.get(id)?.avatarUrl}
-              name={dir.botName(id)}
-              size={40}
-              working={busy(id)}
-            />
-          ))}
-        </span>
-        <h2 style={{ marginTop: 8 }}>{group.name}</h2>
+        {group.avatarUrl ? (
+          <Avatar src={group.avatarUrl} name={group.name} size={88} />
+        ) : (
+          <PairFace
+            faces={group.members.map((id) => ({ src: dir.bots.get(id)?.avatarUrl, name: "" }))}
+            size={88}
+          />
+        )}
+        <h2>{group.name}</h2>
+        <div className="r">
+          {group.members.length} members · {group.members.filter(busy).length} working
+        </div>
         <div className="insp-actions">
-          <Button onClick={() => go(`/settings/group/${group.id}`)}>
-            <SlidersHorizontal strokeWidth={1.75} />
-            Edit
-          </Button>
-          <Button
-            variant="danger"
+          <QuickAction
+            icon={<SlidersHorizontal strokeWidth={1.75} />}
+            label="Edit"
+            onClick={() => go(`/settings/group/${group.id}`)}
+          />
+          <QuickAction
+            icon={<CircleStop strokeWidth={1.75} />}
+            label="Stop all"
+            danger
             disabled={!group.members.some(busy)}
             onClick={() => void stop({ conversationId: `group:${group.id}` })}
-          >
-            <CircleStop strokeWidth={1.75} />
-            Stop all
-          </Button>
+          />
         </div>
       </div>
-      <InspectorSection title="Members">
+      <InspectorSection title="Members" icon={<UsersRound strokeWidth={1.75} />} tone="teal">
         {group.members.map((id) => {
           const s = status.find((b) => b.botId === id);
           return (
@@ -112,7 +123,7 @@ function GroupInspector({ group, status }: { group: GroupDto; status: BotStatusD
               <Avatar
                 src={dir.bots.get(id)?.avatarUrl}
                 name={dir.botName(id)}
-                size={26}
+                size={32}
                 working={s?.working ?? false}
               />
               <div className="grow">
@@ -127,7 +138,7 @@ function GroupInspector({ group, status }: { group: GroupDto; status: BotStatusD
   );
 }
 
-/** Right panel of a chat (312 px): the bot or the group behind `conversationId`. */
+/** Right pane of a chat (chat info, 320 px): the bot or the group behind `conversationId`. */
 export function Inspector({ conversationId }: { conversationId: string }) {
   const dir = useDirectory();
   const status = useQuery(orpc.control.status.queryOptions()).data ?? [];

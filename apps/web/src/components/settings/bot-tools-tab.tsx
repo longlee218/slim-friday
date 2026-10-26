@@ -3,7 +3,7 @@ import { ChevronDown, ChevronRight, Globe, Terminal } from "lucide-react";
 import { useState } from "react";
 import { orpc } from "../../api/client";
 import type { BotTabProps } from "./bot-profile-tab";
-import { Row, Switch } from "./form-parts";
+import { Group, Switch } from "./form-parts";
 import { isServerEntry, serverRef, toolSummary, withoutServer } from "./mcp-tool-entries";
 import { McpToolPicker } from "./mcp-tool-picker";
 import { TokenList } from "./token-list";
@@ -50,41 +50,39 @@ export function BotToolsTab({ form, readOnly }: BotTabProps) {
 
   return (
     <>
-      <div className="formgroup">
-        <Row
-          label="Tools"
-          top
-          help="Risky tools still ask you before each use, unless you chose “Always allow”."
-        >
-          <TokenList
-            values={shown}
-            options={TOOLS}
-            addLabel="Add tool"
-            disabled={readOnly}
-            onChange={(next) => set("tools", [...next, ...hidden])}
-          />
-        </Row>
-        <Row label="Skills" top>
-          <TokenList
-            values={v.skills}
-            options={skills.map((s) => s.name)}
-            addLabel="Add skill"
-            disabled={readOnly}
-            onChange={(next) => set("skills", next)}
-          />
-        </Row>
-        <Row label="Workspaces" top help="Full read and write for this bot.">
-          <TokenList
-            values={v.workspaces}
-            options={[]}
-            addLabel="Grant folder"
-            placeholder="Type a folder path"
-            disabled={readOnly}
-            onChange={(next) => set("workspaces", next)}
-          />
-        </Row>
-      </div>
-      <h3 style={{ fontSize: 13, margin: "0 0 8px" }}>MCP servers</h3>
+      <Group
+        title="Tools"
+        foot="Risky tools still ask you before each use, unless you chose “Always allow”."
+        wide
+      >
+        <TokenList
+          values={shown}
+          options={TOOLS}
+          addLabel="Add tool"
+          disabled={readOnly}
+          onChange={(next) => set("tools", [...next, ...hidden])}
+        />
+      </Group>
+      <Group title="Skills" wide>
+        <TokenList
+          values={v.skills}
+          options={skills.map((s) => s.name)}
+          addLabel="Add skill"
+          disabled={readOnly}
+          onChange={(next) => set("skills", next)}
+        />
+      </Group>
+      <Group title="Workspaces" foot="Full read and write for this bot." wide>
+        <TokenList
+          values={v.workspaces}
+          options={[]}
+          addLabel="Grant folder"
+          placeholder="Type a folder path"
+          disabled={readOnly}
+          onChange={(next) => set("workspaces", next)}
+        />
+      </Group>
+      <h3 className="grp-h">MCP servers</h3>
       <div className="list-panel">
         {servers.length === 0 && (
           <div className="srow">
@@ -97,7 +95,7 @@ export function BotToolsTab({ form, readOnly }: BotTabProps) {
           return (
             <div key={s.name}>
               <div className="srow">
-                <span className="ico">
+                <span className="ico orange">
                   {s.type === "http" ? (
                     <Globe size={16} strokeWidth={1.75} />
                   ) : (

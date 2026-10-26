@@ -67,7 +67,7 @@ export function TicketCard({ ticket: t, dir, selected, fresh, onSelect, onOpen }
         <span>{formatAge(t.updatedAt, Date.now())}</span>
       </div>
       {t.status === "blocked" && t.blockedReason && (
-        <div className="meta" style={{ marginTop: 6, color: "var(--red)" }}>
+        <div className="meta tc-block">
           <OctagonAlert strokeWidth={1.75} />
           {t.blockedReason}
         </div>

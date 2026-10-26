@@ -3,8 +3,8 @@ import { useDirectory } from "../../api/directory";
 import { useIsPhone } from "../../app/use-is-phone";
 import { useFormState } from "../settings/use-form-state";
 import { BottomSheet } from "../ui/bottom-sheet";
-import { Button } from "../ui/button";
 import { Sheet } from "../ui/sheet";
+import { SheetForm } from "../ui/sheet-bar";
 import { FormErrorLine, ScheduleForm } from "./schedule-form";
 import { checkForm, isFieldError, localToday, newScheduleForm } from "./schedule-form-state";
 import { FORM_ERROR_ID, formError, refusal, sendSchedule } from "./schedule-save";
@@ -45,32 +45,34 @@ function NewScheduleForm({ onOpenChange, onCreated }: Omit<NewScheduleSheetProps
       onCreated?.(s);
     });
 
+  const submit = () => {
+    if (canCreate) void save();
+  };
+  const describedBy = formError(form.errors) ? FORM_ERROR_ID : undefined;
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (canCreate) void save();
-      }}
+    <SheetForm
+      title="New schedule"
+      onCancel={() => onOpenChange(false)}
+      onSubmit={submit}
+      action={
+        <button
+          type="submit"
+          className="nb strong"
+          disabled={!canCreate}
+          aria-label="Create schedule"
+          aria-describedby={describedBy}
+        >
+          {form.saving ? "Creating…" : "Create"}
+        </button>
+      }
     >
-      <h3>New schedule</h3>
       <ScheduleForm value={v} set={form.set} errors={form.errors} mode="create" />
       <FormErrorLine errors={form.errors} />
-      <div className="acts">
-        <Button onClick={() => onOpenChange(false)}>Cancel</Button>
-        <Button
-          type="submit"
-          variant="primary"
-          disabled={!canCreate}
-          aria-describedby={formError(form.errors) ? FORM_ERROR_ID : undefined}
-        >
-          {form.saving ? "Creating…" : "Create schedule"}
-        </Button>
-      </div>
-    </form>
+    </SheetForm>
   );
 }
 
-/** New-schedule sheet: drops from the toolbar on desktop, rises from the bottom on the phone. */
+/** New-schedule sheet: a centred glass sheet on desktop, rises from the bottom on the phone. */
 export function NewScheduleSheet(props: NewScheduleSheetProps) {
   const phone = useIsPhone();
   const form = <NewScheduleForm onOpenChange={props.onOpenChange} onCreated={props.onCreated} />;

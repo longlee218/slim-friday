@@ -1,5 +1,6 @@
 import { Dialog } from "@base-ui/react/dialog";
 import { type PointerEvent, type ReactNode, useRef } from "react";
+import { useKeyboardInset } from "./use-keyboard-inset";
 
 /** Drag distance (px) past which a release closes the sheet. */
 const DISMISS_PX = 110;
@@ -11,6 +12,23 @@ const DIM_FADE_PX = 400;
 /** True when a downward drag of `dy` px is far enough to dismiss. */
 export function shouldDismissSheet(dy: number): boolean {
   return dy > DISMISS_PX;
+}
+
+/**
+ * True when a press on `target` may start a drag-to-dismiss: anywhere but the sheet's scrolling
+ * body (`.bs-body`), where a swipe scrolls the form instead.
+ */
+export function canStartSheetDrag(target: Element | null): boolean {
+  return !target?.closest(".bs-body");
+}
+
+/**
+ * Where focus lands when a sheet opens: a form sheet's first field (not the bar's Cancel). A
+ * touch open keeps Base UI's default (the sheet itself), so the keyboard does not pop up.
+ */
+export function firstField(popup: HTMLElement | null, openType: string): HTMLElement | true {
+  if (openType === "touch") return true;
+  return popup?.querySelector<HTMLElement>(".bs-body :is(input, textarea, select)") ?? true;
 }
 
 export interface BottomSheetProps {
@@ -27,12 +45,15 @@ export function BottomSheet({ open, onOpenChange, children }: BottomSheetProps) 
   const startY = useRef<number | null>(null);
   const dy = useRef(0);
   const dim = useRef<HTMLDivElement>(null);
+  const popup = useRef<HTMLDivElement>(null);
+  useKeyboardInset(popup, open);
 
   const dragging = useRef(false);
 
   // The pointer is captured only once the press moves down: capturing on press would send the
   // click to the sheet instead of the button under the finger.
   const onDown = (e: PointerEvent<HTMLDivElement>) => {
+    if (!canStartSheetDrag(e.target as Element)) return;
     startY.current = e.clientY;
     dragging.current = false;
   };
@@ -70,7 +91,9 @@ export function BottomSheet({ open, onOpenChange, children }: BottomSheetProps) 
       <Dialog.Portal>
         <Dialog.Backdrop className="dim" ref={dim} />
         <Dialog.Popup
+          ref={popup}
           className="bsheet"
+          initialFocus={(openType) => firstField(popup.current, openType)}
           onPointerDown={onDown}
           onPointerMove={onMove}
           onPointerUp={onUp}

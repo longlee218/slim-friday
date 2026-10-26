@@ -74,3 +74,16 @@ test("an expired lookup is shown with a way to look it up again", async () => {
   await userEvent.click(screen.getByRole("button", { name: "Look up again" }));
   await waitFor(() => expect(api.lookup).toHaveBeenCalledTimes(2));
 });
+
+test("phone: Look up sits in the bar next to Cancel", async () => {
+  window.innerWidth = 390;
+  try {
+    setup();
+    const bar = document.querySelector(".bsheet .bs-bar") as HTMLElement;
+    expect(bar.contains(screen.getByRole("button", { name: "Look up" }))).toBe(true);
+    expect(bar.querySelector("button")?.textContent).toBe("Cancel");
+    expect(document.querySelector(".bsheet .acts")).toBeNull();
+  } finally {
+    window.innerWidth = 1024;
+  }
+});

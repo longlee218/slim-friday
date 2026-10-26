@@ -1,10 +1,14 @@
 import { readFileSync } from "node:fs";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
 import { Avatar, AvatarStack } from "../../src/components/ui/avatar";
 import { Badge } from "../../src/components/ui/badge";
-import { BottomSheet, shouldDismissSheet } from "../../src/components/ui/bottom-sheet";
+import {
+  BottomSheet,
+  canStartSheetDrag,
+  shouldDismissSheet,
+} from "../../src/components/ui/bottom-sheet";
 import { Button, IconButton } from "../../src/components/ui/button";
 import { Kbd } from "../../src/components/ui/kbd";
 import { Pill } from "../../src/components/ui/pill";
@@ -102,6 +106,70 @@ describe("sheets", () => {
       </Sheet>,
     );
     expect(screen.queryByText("x")).toBeNull();
+  });
+  test("canStartSheetDrag is false inside the scrolling body", () => {
+    const body = document.createElement("div");
+    body.className = "bs-body";
+    const input = document.createElement("input");
+    body.append(input);
+    const grab = document.createElement("div");
+    expect(canStartSheetDrag(grab)).toBe(true);
+    expect(canStartSheetDrag(input)).toBe(false);
+    expect(canStartSheetDrag(null)).toBe(true);
+  });
+  test("BottomSheet ignores a drag that starts in the scrolling body", () => {
+    const onOpenChange = vi.fn();
+    render(
+      <BottomSheet open onOpenChange={onOpenChange}>
+        <div className="bs-body">Scroll me</div>
+      </BottomSheet>,
+    );
+    const body = screen.getByText("Scroll me");
+    fireEvent.pointerDown(body, { clientY: 100, pointerId: 1 });
+    fireEvent.pointerMove(body, { clientY: 300, pointerId: 1 });
+    fireEvent.pointerUp(body, { clientY: 300, pointerId: 1 });
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+  test("BottomSheet focuses the first field of a form sheet, not the bar's Cancel", async () => {
+    render(
+      <BottomSheet open onOpenChange={() => {}}>
+        <button type="button">Cancel</button>
+        <div className="bs-body">
+          <input aria-label="Name" />
+        </div>
+      </BottomSheet>,
+    );
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText("Name")));
+  });
+  test("Sheet (desktop) focuses the first field of a form sheet, not the bar's Cancel", async () => {
+    render(
+      <Sheet open onOpenChange={() => {}}>
+        <button type="button">Cancel</button>
+        <div className="bs-body">
+          <input aria-label="Title" />
+        </div>
+      </Sheet>,
+    );
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText("Title")));
+  });
+  test("BottomSheet sits on top of the iOS keyboard (visual viewport)", () => {
+    const vv = Object.assign(new EventTarget(), { height: 844, offsetTop: 0 });
+    vi.stubGlobal("visualViewport", vv);
+    window.innerHeight = 844;
+    try {
+      render(
+        <BottomSheet open onOpenChange={() => {}}>
+          Body
+        </BottomSheet>,
+      );
+      const sheet = document.querySelector(".bsheet") as HTMLElement;
+      vv.height = 500;
+      vv.dispatchEvent(new Event("resize"));
+      expect(sheet.style.getPropertyValue("--vv-h")).toBe("500px");
+      expect(sheet.style.getPropertyValue("--kb-h")).toBe("344px");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
   test("BottomSheet shows a grab handle", () => {
     render(

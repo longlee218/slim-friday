@@ -4,10 +4,11 @@ html, body { margin: 0; height: 100%; }
 /* No double-tap zoom (pinch zoom stays) and no iOS text inflation on rotation. */
 html { touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 body {
-  font: 13px/1.45 var(--font); color: var(--label); background: var(--ground);
+  font: 13px/1.45 var(--font); color: var(--label); background: var(--wall-light), var(--wall); background-attachment: fixed;
   -webkit-font-smoothing: antialiased; overflow: hidden; letter-spacing: -0.003em;
 }
-::selection { background: var(--sel); }
+::selection { background: color-mix(in srgb, var(--tint) 24%, transparent); }
+* { caret-color: var(--tint); }
 button, input, textarea, select { font: inherit; color: inherit; }
 button { cursor: default; }
 :focus-visible { outline: 3px solid color-mix(in srgb, var(--tint) 45%, transparent); outline-offset: 1px; border-radius: var(--r-s); }
@@ -35,23 +36,26 @@ svg.lucide { width: 16px; height: 16px; stroke-width: 1.75; flex: none; }
 .stack .av + .av { margin-left: -6px; }
 
 /* buttons */
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 28px; padding: 0 12px; border-radius: 7px;
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 30px; padding: 0 14px; border-radius: 999px;
   border: 0; background: var(--fill); color: var(--label); font-weight: 500; transition: background var(--t-fast), transform var(--t-fast), opacity var(--t-fast); white-space: nowrap; }
 .btn:hover { background: var(--fill-strong); }
 .btn:active { transform: scale(.97); }
-.btn.primary { background: var(--tint-fill); color: #fff; }
+.btn.primary { background: var(--grad); color: #fff; box-shadow: 0 4px 14px -6px color-mix(in srgb, var(--tint) 70%, transparent), inset 0 1px 0 rgba(255, 255, 255, .22); }
 :root[data-theme="dark"] .btn.primary { color: #fff; }
-.btn.primary:hover { background: var(--tint-fill-hover); }
+.btn.primary:hover { background: var(--grad-hover); }
 .btn.danger { color: var(--red); }
-.btn[disabled] { opacity: .45; pointer-events: none; }
-.btn.lg { height: 36px; padding: 0 16px; border-radius: 9px; font-size: 14px; }
-.ib { width: 30px; height: 28px; display: inline-grid; place-items: center; border: 0; border-radius: 7px; background: transparent; color: var(--label-2); transition: background var(--t-fast), color var(--t-fast); position: relative; }
+.btn[disabled] { opacity: .42; pointer-events: none; box-shadow: none; }
+.btn.lg { height: 38px; padding: 0 20px; font-size: 14px; }
+.ib { width: 32px; height: 32px; display: inline-grid; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--label-2); transition: background var(--t-fast), color var(--t-fast); position: relative; }
 .ib:hover { background: var(--fill); color: var(--label); }
 .ib.on { color: var(--tint); }
-.seg { display: inline-flex; padding: 2px; background: var(--fill); border-radius: 8px; position: relative; }
-.seg button { position: relative; z-index: 1; border: 0; background: transparent; height: 24px; padding: 0 12px; border-radius: 6px; color: var(--label-2); font-weight: 500; display: inline-flex; gap: 5px; align-items: center; white-space: nowrap; }
+.seg { display: inline-flex; padding: 2px; background: var(--fill); border-radius: 999px; position: relative; }
+.seg button { position: relative; z-index: 1; border: 0; background: transparent; height: 26px; padding: 0 13px; border-radius: 999px; color: var(--label-2); font-weight: 500; display: inline-flex; gap: 5px; align-items: center; white-space: nowrap; }
 .seg button.on { color: var(--label); }
-.seg .thumb { position: absolute; top: 2px; bottom: 2px; border-radius: 6px; background: var(--raised); box-shadow: 0 1px 3px rgba(0, 0, 0, .12), 0 0 0 .5px rgba(0, 0, 0, .06); transition: left var(--t-mid) var(--ease), width var(--t-mid) var(--ease); }
+.seg .thumb { position: absolute; top: 2px; bottom: 2px; border-radius: 999px; background: var(--raised); box-shadow: 0 2px 6px rgba(20, 22, 50, .14), 0 0 0 .5px rgba(20, 22, 50, .08); transition: left var(--t-mid) var(--ease), width var(--t-mid) var(--ease); }
+/* In dark the raised thumb needs a lift to show on the fill track. */
+:root[data-theme="dark"] .seg .thumb { background: var(--fill-strong); box-shadow: inset 0 0 0 .5px rgba(255, 255, 255, .12); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .seg .thumb { background: var(--fill-strong); box-shadow: inset 0 0 0 .5px rgba(255, 255, 255, .12); } }
 .pill { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 7px; border-radius: 10px; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
 .pill.amber { background: var(--amber-fill); color: var(--amber); }
 .pill.green { background: var(--green-fill); color: var(--green); }
@@ -63,18 +67,19 @@ svg.lucide { width: 16px; height: 16px; stroke-width: 1.75; flex: none; }
 .sdot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 .av.none { display: inline-grid; place-items: center; background: none; box-shadow: inset 0 0 0 1.5px var(--sep-strong); border-radius: 50%; color: var(--label-3); }
 .av.none svg { width: 15px; height: 15px; }
-.badge { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--fill-strong); color: var(--label-2); font-size: 11px; font-weight: 600; display: inline-grid; place-items: center; }
-.badge.tint { background: var(--tint-fill); color: #fff; }
+.badge { min-width: 20px; height: 20px; padding: 0 5px; border-radius: 9px; background: var(--fill-strong); color: var(--label-2); font-size: 11px; font-weight: 600; display: inline-grid; place-items: center; }
+.badge.tint { background: var(--grad); color: #fff; }
 .badge.amber { background: var(--amber-dot); color: #2b1600; }
-.field { width: 100%; height: 30px; padding: 0 10px; border-radius: 7px; border: 1px solid var(--sep-strong); background: var(--raised); outline: 0; transition: box-shadow var(--t-fast), border-color var(--t-fast); }
+.field { width: 100%; height: 34px; padding: 0 12px; border-radius: 10px; border: 1px solid transparent; background: var(--fill); outline: 0; transition: box-shadow var(--t-fast), border-color var(--t-fast); }
 /* Native select arrow replaced by a chevron with room on the right (the native one sits on the edge). */
 select.field { appearance: none; -webkit-appearance: none; padding-right: 30px; cursor: pointer;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 15 5 5 5-5'/%3E%3Cpath d='m7 9 5-5 5 5'/%3E%3C/svg%3E");
-  background-repeat: no-repeat; background-position: right 9px center; background-size: 13px; }
-.field:focus { border-color: var(--tint); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tint) 28%, transparent); }
-textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height: 1.5; }
-/* Instructions and other code-like text: mono, a step smaller (raised to 16px on touch screens below). */
-textarea.field.code { font-family: var(--mono); font-size: 12.5px; }
+  background-repeat: no-repeat; background-position: right 11px center; background-size: 13px; }
+.field:focus { background: var(--raised); border-color: var(--tint); box-shadow: 0 0 0 4px color-mix(in srgb, var(--tint) 20%, transparent); }
+.field::placeholder { color: var(--label-3); }
+textarea.field { height: auto; padding: 9px 12px; resize: vertical; line-height: 1.5; }
+/* Instructions (prose prompt text): body face with reading leading (raised to 16px on touch screens below). */
+textarea.field.code { font-size: 13.5px; line-height: 1.5; }
 .field.err { border-color: var(--red); box-shadow: 0 0 0 3px var(--red-fill); }
 .spin { animation: spin 1s linear infinite; }
 .status { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; }
@@ -85,5 +90,5 @@ textarea.field.code { font-family: var(--mono); font-size: 12.5px; }
    set a smaller size are raised by name. */
 @media (pointer: coarse) {
   input, textarea, select { font-size: 16px; }
-  :root :is(.sb-search .field, .composer textarea, textarea.field.code) { font-size: 16px; }
+  :root :is(.sb-search .field, .composer textarea, textarea.field.code, .of-edit, .field.mono) { font-size: 16px; }
 }

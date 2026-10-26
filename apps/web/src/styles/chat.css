@@ -1,12 +1,18 @@
-/* Chat messages, ported from docs/design/prototype/app.css (transcript, relay, files, gallery, viewer). */
-.day { text-align: center; font-size: 11.5px; color: var(--label-3); margin: 8px 0 18px; font-weight: 500; }
-.msg { position: relative; display: flex; gap: 12px; padding: 6px 0; }
+/* Chat messages, Messenger style: owner bubbles right on the gradient, bot bubbles left in grey with the face at the
+   bottom-left of a run; a run of one author's messages joins its inner corners (6px). Relay, files, gallery, viewer. */
+.day { width: fit-content; margin: 14px auto 12px; padding: 3px 10px; border-radius: 999px; background: var(--fill); font-size: 11.5px; font-weight: 600; color: var(--label-2); }
+.msg { position: relative; display: flex; align-items: flex-end; gap: 8px; padding: 1px 0 10px; }
+.msg.first { padding-top: 4px; }
+.msg.bot:not(.last), .msg.owner:not(.last) { padding-bottom: 1px; }
 .msg.new { animation: msgIn 340ms var(--ease); }
-.msg .av { width: 30px; height: 30px; margin-top: 2px; }
+/* The face column: the avatar sits at the bottom of the run's last message (cards keep the column empty). */
+.msg .face { width: 30px; flex: none; align-self: flex-end; display: flex; }
+.msg:has(> .body > .meta) .face { margin-bottom: 19px; }
 .msg .body { min-width: 0; flex: 1; }
-.msg .who { display: flex; align-items: baseline; gap: 8px; margin-bottom: 2px; }
-.msg .who b { font-weight: 650; font-size: 13.5px; }
-.msg .who time { font-size: 11.5px; color: var(--label-3); }
+.msg .who { margin: 0 0 3px 12px; font-size: 12px; color: var(--label-2); }
+.msg .who b { font-weight: 600; }
+.msg .meta { display: flex; align-items: center; gap: 6px; min-height: 16px; margin: 3px 0 0 12px; font-size: 11px; color: var(--label-3); }
+.msg .meta time { font-variant-numeric: tabular-nums; }
 /* A message from a scheduled run names its schedule (prototype .sched-tag); a deleted one is plain text. */
 .sched-tag { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 8px; border-radius: 10px; background: var(--tint-soft); color: var(--tint-text); font-size: 11.5px; font-weight: 600; text-decoration: none; white-space: nowrap; transition: background var(--t-fast); }
 .sched-tag svg { width: 12px; height: 12px; flex: none; }
@@ -15,34 +21,62 @@ a.sched-tag:active { background: var(--sel); filter: brightness(.92); }
 a.sched-tag:focus-visible { border-radius: 10px; }
 .sched-tag.gone { background: var(--fill); color: var(--label-2); }
 .md { font-size: 14px; line-height: 1.55; }
+
+/* Bubbles. One shape for both sides; the joined side of a run gets the 6px corner. */
+.bubble { min-width: 0; padding: 8px 13px; border-radius: 20px; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.bubble + .bubble { margin-top: 2px; }
 .msg.owner { justify-content: flex-end; }
-.msg.owner > div { display: flex; flex-direction: column; align-items: flex-end; max-width: 80%; }
-.msg.owner > div .bubble { max-width: 100%; }
-.bubble { max-width: min(560px, 80%); background: var(--owner-bubble); color: var(--owner-ink); padding: 8px 13px; border-radius: 18px 18px 6px 18px; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; white-space: pre-wrap; }
-.bubble + .bubble { margin-top: 4px; }
+.msg.owner > div { display: flex; flex-direction: column; align-items: flex-end; max-width: min(640px, 78%); min-width: 0; }
+.msg.owner .bubble { max-width: 100%; background: var(--grad); color: #fff; white-space: pre-wrap; }
+.msg.owner:not(.last) .bubble { border-bottom-right-radius: 6px; }
+.msg.owner:not(.first) .bubble { border-top-right-radius: 6px; }
+.msg.bot .bubble { max-width: min(640px, 78%); background: var(--bubble-bot); color: var(--label); }
+.msg.bot:not(.last) .bubble { border-bottom-left-radius: 6px; }
+.msg.bot:not(.first) .bubble { border-top-left-radius: 6px; }
+/* Inline marks inside a grey bubble need a step more fill to read. */
+.msg.bot .bubble code { background: var(--fill-strong); }
+/* Code the owner typed: translucent white mono on the gradient (no other markdown in owner bubbles). */
+.o-code { font: 12.5px var(--mono); padding: 1px 5px; border-radius: 5px; background: rgba(255, 255, 255, .2); }
+.o-fence { margin: 6px -5px 4px; padding: 8px 10px; border-radius: var(--r-m); background: rgba(10, 12, 40, .22); font: 12.5px/1.5 var(--mono); white-space: pre; overflow-x: auto; }
+.o-fence:last-child { margin-bottom: 0; }
 .at { font-weight: 600; background: rgba(255, 255, 255, .22); padding: 0 4px; border-radius: 4px; }
-.owner-meta { text-align: right; font-size: 11.5px; color: var(--label-3); margin: 2px 4px 6px; }
+/* The bubble row: the bubble (or the attachments of a files-only message) and the hover actions beside it. */
+.brow { display: flex; align-items: center; gap: 4px; min-width: 0; }
+/* Block content (code, tables, diagrams) drops the fill and takes the column; its actions float at its top right. */
+.msg.rich .brow { position: relative; display: block; }
+.md.rich { padding: 2px 2px 0 12px; }
+.msg.rich .msg-acts { position: absolute; top: -18px; right: 0; padding: 2px; border-radius: 999px; background: var(--raised); box-shadow: var(--shadow-pop); }
+.owner-meta { display: flex; align-items: center; justify-content: flex-end; min-height: 16px; margin: 3px 6px 0; font-size: 11px; color: var(--label-3); font-variant-numeric: tabular-nums; }
 .owner-meta .link-btn { border: 0; background: none; padding: 0; font: inherit; color: var(--tint-text); font-weight: 600; }
 .route-meta { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; color: var(--label-2); }
 .route-meta .av { width: 14px; height: 14px; }
-.quote { display: flex; align-items: center; gap: 6px; max-width: 100%; margin-bottom: 4px; padding: 4px 10px; border-left: 3px solid var(--tint); border-radius: 6px; background: var(--fill); font-size: 12px; color: var(--label-2); }
+/* The quoted bot message above a reply: a quiet grey pill, no coloured rule. */
+.quote { display: flex; align-items: center; gap: 6px; max-width: 100%; margin-bottom: 2px; padding: 5px 12px 5px 6px; border-radius: 16px; background: var(--fill); font-size: 12px; color: var(--label-2); }
 .quote b { color: var(--label); font-weight: 600; flex: none; }
 .quote span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.quote .av { width: 16px; height: 16px; }
+.quote .av { width: 18px; height: 18px; }
 .sys { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 12px; color: var(--label-2); padding: 8px 0; }
 .sys svg { width: 14px; height: 14px; color: var(--label-3); }
 
-/* Reply and Copy sit under the message, quiet until hover or focus; the space stays reserved. */
-.msg .msg-acts { display: flex; gap: 2px; width: max-content; margin: 4px 0 -4px -6px; opacity: 0; pointer-events: none; transition: opacity var(--t-fast); }
+/* Reply, React and Copy beside the bubble, quiet until hover or focus. */
+.msg-acts { position: relative; display: flex; flex: none; gap: 0; opacity: 0; pointer-events: none; transition: opacity var(--t-fast); }
 .msg:hover .msg-acts, .msg:focus-within .msg-acts { opacity: 1; pointer-events: auto; }
-.msg-acts .ib { width: 26px; height: 26px; color: var(--label-3); }
+.msg-acts .ib { width: 28px; height: 28px; color: var(--label-3); }
 .msg-acts .ib:hover { color: var(--label); }
+.msg-acts .ib svg { width: 16px; height: 16px; }
 @media (hover: none) { .msg-acts { display: none; } }
 
-/* Relay card: one bot asking, handing off to or answering another. */
-.relay { display: flex; gap: 10px; align-items: flex-start; margin: 6px 0 6px 42px; padding: 9px 12px; border-radius: 12px; background: var(--well); max-width: 560px; font-size: 13px; }
-:root[data-theme="dark"] .relay { background: #242427; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .relay { background: #242427; } }
+/* Reactions: chips under the bubble, the emoji row inside the actions, and the phone reaction bar. */
+.msg-reacts { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.react-chip { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: 999px; background: var(--fill); font-size: 13px; line-height: 1; }
+.react-chip b { font-size: 11px; font-weight: 600; color: var(--label-2); }
+.react-row { display: flex; gap: 2px; margin: 0 0 0 4px; padding: 0; border: 0; }
+.react-pick { width: 28px; height: 28px; border: 0; border-radius: 999px; background: transparent; font-size: var(--emoji, 16px); cursor: pointer; }
+.react-pick:hover { background: var(--fill); }
+
+
+/* Relay card: one bot asking, handing off to or answering another (solid, no ring). */
+.relay { display: flex; gap: 10px; align-items: flex-start; margin: 6px 0 12px 38px; padding: 10px 14px; border-radius: var(--r-l); background: var(--well); max-width: 560px; font-size: 13px; }
 .relay .pair { display: inline-flex; align-items: center; gap: 4px; flex: none; margin-top: 1px; }
 .relay .pair .av { width: 20px; height: 20px; }
 .relay .pair svg { width: 13px; height: 13px; color: var(--label-3); }
@@ -53,21 +87,23 @@ a.sched-tag:focus-visible { border-radius: 10px; }
 .relay .rl3 svg { width: 12px; height: 12px; }
 .relay > div:last-child { min-width: 0; overflow-wrap: anywhere; }
 
-/* File card */
-.file { display: flex; align-items: center; gap: 10px; width: 300px; max-width: 100%; padding: 10px 12px; margin: 6px 0; border-radius: 12px; border: 1px solid var(--sep-strong); background: var(--raised); transition: background var(--t-fast); }
+/* Attachments: file cards and the gallery stack under (or, without text, in place of) the bubble. */
+.atts { display: flex; flex-direction: column; align-items: inherit; gap: 4px; min-width: 0; max-width: 100%; }
+.msg.bot .atts { align-items: flex-start; }
+.file { display: flex; align-items: center; gap: 10px; width: 300px; max-width: 100%; padding: 10px 10px 10px 12px; margin: 4px 0 0; border-radius: var(--r-l); background: var(--raised); box-shadow: 0 0 0 1px var(--sep-strong); transition: background var(--t-fast); }
 .file:hover { background: var(--well); }
-.file .fi { width: 32px; height: 38px; border-radius: 5px; background: var(--tint-soft); color: var(--tint); display: grid; place-items: center; flex: none; }
+.file .fi { width: 34px; height: 34px; border-radius: 10px; background: var(--tint-soft); color: var(--tint); display: grid; place-items: center; flex: none; }
 .file .fn { font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .file .fs { font-size: 12px; color: var(--label-2); }
 .file .grow { flex: 1; min-width: 0; }
 
 /* Image gallery */
-.gallery { display: grid; gap: 6px; margin-top: 8px; max-width: 520px; }
+.gallery { display: grid; gap: 4px; margin-top: 4px; width: 100%; max-width: 520px; }
 .gallery.n1 { max-width: 460px; }
 .gallery.n2, .gallery.n4 { grid-template-columns: 1fr 1fr; }
 .gallery.n3 { grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 1fr; }
 .gallery.n3 .shot:first-child { grid-row: span 2; }
-.shot { border: 0; padding: 0; border-radius: 10px; overflow: hidden; background: var(--well); box-shadow: 0 0 0 1px var(--sep); cursor: zoom-in; transition: transform var(--t-fast) var(--ease), box-shadow var(--t-fast); }
+.shot { border: 0; padding: 0; border-radius: var(--r-l); overflow: hidden; background: var(--well); box-shadow: 0 0 0 1px var(--sep); cursor: zoom-in; transition: transform var(--t-fast) var(--ease), box-shadow var(--t-fast); }
 .shot:hover { box-shadow: 0 0 0 1px var(--sep-strong), 0 6px 18px -8px rgba(0, 0, 0, .25); }
 .shot:active { transform: scale(.985); }
 .shot img, .shot-wait { display: block; width: 100%; height: 100%; object-fit: cover; aspect-ratio: 16 / 10; }
@@ -90,98 +126,6 @@ a.sched-tag:focus-visible { border-radius: 10px; }
 .vw-nav:disabled { opacity: .3; }
 .vw-count { text-align: center; padding-bottom: 18px; font-size: 12px; color: rgba(255, 255, 255, .6); }
 @media (max-width: 639px) { .vw-nav { display: none; } }
-
-/* live run: thinking -> doing -> writing -> done */
-.run { margin: 2px 0 8px; border-radius: 12px; background: var(--well); padding: 8px 12px 9px; max-width: 560px; font-size: 12.5px; }
-:root[data-theme="dark"] .run { background: #242427; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .run { background: #242427; } }
-.run-h { display: flex; align-items: center; gap: 8px; color: var(--label); font-weight: 550; }
-.run-h .run-time { margin-left: auto; color: var(--label-2); font-weight: 400; }
-.run-d summary { list-style: none; cursor: pointer; user-select: none; }
-.run-d summary::-webkit-details-marker { display: none; }
-.run-d .chev { transition: transform var(--t-mid) var(--ease); width: 14px; height: 14px; }
-.run-d[open] .chev { transform: rotate(90deg); }
-.run-label { animation: breathe 1.6s ease-in-out infinite; }
-@keyframes breathe { 50% { opacity: .45; } }
-.run[data-state="done"] .run-label { animation: none; }
-.run-steps { list-style: none; margin: 6px 0 0; padding: 0; }
-.run-steps li { display: flex; align-items: center; gap: 8px; padding: 3px 0; color: var(--label-2); animation: stepIn 300ms var(--ease); }
-@keyframes stepIn { from { opacity: 0; transform: translateY(-3px); } }
-.run-steps li .mono { color: var(--label); }
-.run-steps li svg { width: 14px; height: 14px; }
-.run-steps li.done > svg { color: var(--green); }
-.run-steps li.active > svg { color: var(--tint); }
-/* App addition: a failed step (the prototype has none) shows a red x in the glyph's place. */
-.run-steps li.failed > svg { color: var(--red); }
-.run-steps .delta { font: 11.5px var(--mono); }
-.run-steps .delta .add { color: var(--green); } .run-steps .delta .del { color: var(--red); }
-.tail { margin: 2px 0 2px 22px; font: 11.5px/1.5 var(--mono); color: var(--label-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.worked { margin: 0 0 6px; }
-.worked summary { list-style: none; display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--label-2); padding: 3px 8px 3px 4px; border-radius: 6px; user-select: none; }
-.worked summary::-webkit-details-marker { display: none; }
-.worked summary:hover { background: var(--fill); }
-.worked summary .chev { transition: transform var(--t-mid) var(--ease); width: 14px; height: 14px; }
-.worked[open] summary .chev { transform: rotate(90deg); }
-.worked .run-steps { margin: 2px 0 6px 10px; padding-left: 12px; border-left: 1px solid var(--sep-strong); }
-
-/* typing dots */
-.dots { display: inline-flex; gap: 3px; }
-.dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--label-3); animation: dot 1.2s infinite var(--ease); }
-.dots i:nth-child(2) { animation-delay: .15s; } .dots i:nth-child(3) { animation-delay: .3s; }
-@keyframes dot { 0%, 60%, 100% { transform: translateY(0); opacity: .5; } 30% { transform: translateY(-3px); opacity: 1; } }
-
-/* Composer: prototype app.css .composer*, .comp-bar, .send, .chips, .mention-pop*, .route*, .reply-bar*, .ios-composer*. */
-.composer-wrap { flex: none; padding: 0 28px 18px; background: linear-gradient(to top, var(--ground) 70%, transparent); }
-.composer { max-width: 744px; margin: 0 auto; border-radius: 14px; background: var(--raised); box-shadow: 0 0 0 1px var(--sep-strong), 0 4px 16px -6px rgba(0, 0, 0, .12); transition: box-shadow var(--t-mid); }
-.composer:focus-within { box-shadow: 0 0 0 1px var(--tint), 0 0 0 4px color-mix(in srgb, var(--tint) 20%, transparent), 0 4px 16px -6px rgba(0, 0, 0, .12); }
-.composer textarea { display: block; width: 100%; border: 0; outline: 0; resize: none; background: transparent; padding: 11px 14px 4px; font-size: 14px; line-height: 1.5; max-height: 200px; min-height: 44px; }
-.composer textarea::placeholder { color: var(--label-3); }
-.comp-bar { display: flex; align-items: center; gap: 2px; padding: 4px 6px 6px 8px; }
-.comp-bar .hint { margin-left: auto; margin-right: 8px; font-size: 11.5px; color: var(--label-3); }
-.send { width: 28px; height: 28px; border-radius: 50%; border: 0; display: grid; place-items: center; background: var(--tint-fill); color: #fff; transition: transform var(--t-fast) var(--ease), opacity var(--t-fast), background var(--t-fast); }
-.send[disabled] { background: var(--fill-strong); color: var(--label-3); }
-.send:not([disabled]):active { transform: scale(.9); }
-.send svg { width: 16px; height: 16px; stroke-width: 2.25; }
-.chips { display: flex; gap: 6px; padding: 8px 10px 0; flex-wrap: wrap; }
-.chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 6px 0 9px; border-radius: 7px; background: var(--fill); font-size: 12px; animation: msgIn 260ms var(--ease); }
-.chip .ib { width: 18px; height: 18px; }
-.ios-composer { flex: none; display: flex; align-items: flex-end; gap: 8px; padding: 8px 10px calc(8px + var(--safe-b)); background: var(--toolbar); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); border-top: .5px solid var(--sep-strong); }
-.ios-composer .plus { width: 34px; height: 34px; border-radius: 50%; border: 0; background: var(--fill); display: grid; place-items: center; color: var(--label-2); flex: none; }
-.ios-composer .plus svg { width: 20px; height: 20px; }
-.ios-composer .box { flex: 1; display: flex; align-items: flex-end; border-radius: 18px; box-shadow: 0 0 0 1px var(--sep-strong) inset; background: var(--ground); padding: 3px 3px 3px 12px; }
-.ios-composer textarea { flex: 1; border: 0; outline: 0; resize: none; background: transparent; font-size: 17px; line-height: 1.35; padding: 4px 0; max-height: 120px; height: 30px; }
-.ios-composer .send { width: 30px; height: 30px; flex: none; }
-.mention-pop { position: absolute; left: 10px; bottom: calc(100% + 6px); width: 280px; background: var(--raised); border-radius: 12px; box-shadow: var(--shadow-pop); padding: 6px; z-index: 20; animation: popIn 160ms var(--ease); transform-origin: bottom left; }
-.mention-pop .grp { font-size: 11.5px; font-weight: 600; color: var(--label-3); padding: 4px 8px 4px; }
-.mention-pop .it { display: flex; align-items: center; gap: 9px; height: 36px; padding: 0 8px; border-radius: 8px; }
-.mention-pop .it.on { background: var(--tint-fill); color: #fff; }
-.mention-pop .it.on .r { color: rgba(255, 255, 255, .8); }
-.mention-pop .it .av { width: 22px; height: 22px; }
-.mention-pop .it .r { margin-left: auto; font-size: 12px; color: var(--label-2); }
-.composer { position: relative; }
-.route { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px 0 4px; border-radius: 999px; background: var(--fill); font-size: 12px; color: var(--label-2); margin-left: 6px; transition: background var(--t-fast); }
-.route .av { width: 16px; height: 16px; }
-.route b { color: var(--label); font-weight: 600; }
-.route.flash { animation: bump 380ms var(--ease); }
-.reply-bar { display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 10px; margin: -4px -4px 6px; border-radius: 10px; background: var(--tint-soft); font-size: 12.5px; animation: popIn 180ms var(--ease); }
-.reply-bar > svg { width: 15px; height: 15px; color: var(--tint-text); flex: none; }
-.reply-bar .grow { flex: 1; min-width: 0; display: flex; gap: 6px; }
-.reply-bar .grow span { color: var(--label-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ios-composer .reply-bar { position: absolute; left: 10px; right: 10px; bottom: calc(100% + 4px); margin: 0; background: var(--raised); box-shadow: var(--shadow-card); z-index: 6; }
-.ios-composer { position: relative; flex-wrap: wrap; }
-.ios-composer .route-row { flex-basis: 100%; display: flex; padding: 0 0 6px 42px; }
-.ios-composer .route-row .route { margin: 0; background: var(--fill); }
-.ios-composer .route .av { width: 16px; height: 16px; }
-.chips { flex-basis: 100%; }
-/* Not in the prototype: upload progress and failure note inside a chip. */
-.chip .note { color: var(--label-2); }
-.chip.failed .note { color: var(--red); }
-.msg-reacts { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
-.react-chip { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: 999px; background: var(--fill); font-size: 13px; line-height: 1; }
-.react-chip b { font-size: 11px; font-weight: 600; color: var(--label-2); }
-.react-row { display: flex; gap: 2px; margin: 0 0 0 4px; padding: 0; border: 0; }
-.react-pick { width: 28px; height: 28px; border: 0; border-radius: 999px; background: transparent; font-size: var(--emoji, 16px); cursor: pointer; }
-.react-pick:hover { background: var(--fill); }
 
 /* Phone reaction bar: a popover over the held message (soft neutral shadow, one elevation), the item under the finger lifts. */
 .rbar-scrim { position: fixed; inset: 0; z-index: 60; touch-action: none; }

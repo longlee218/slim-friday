@@ -15,9 +15,18 @@ const call = (t: { handler: (a: never, e: unknown) => Promise<unknown> }, args: 
   t.handler(args as never, {}) as Promise<Result>;
 const text = (r: Result) => r.content[0]?.text ?? "";
 
-/** Run git in `cwd` and return stdout (throws on failure). */
+/**
+ * Run git in `cwd` and return stdout (throws on failure). The env is passed explicitly: Bun's default
+ * is the startup env, which still holds a calling hook's GIT_DIR (the test preload drops it from
+ * `process.env` only), and with it `git init --bare` would turn the real repo bare.
+ */
 function git(cwd: string, ...args: string[]): string {
-  const p = Bun.spawnSync(["git", ...args], { cwd, stdout: "pipe", stderr: "pipe" });
+  const p = Bun.spawnSync(["git", ...args], {
+    cwd,
+    stdout: "pipe",
+    stderr: "pipe",
+    env: { ...process.env },
+  });
   if (p.exitCode !== 0) throw new Error(p.stderr.toString());
   return p.stdout.toString().trim();
 }

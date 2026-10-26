@@ -17,9 +17,9 @@ export interface PhoneNavBarProps {
 }
 
 /**
- * 44 px iOS bar. Root tabs start transparent with the large title below and turn translucent
- * with a hairline once scrolled past it; pushed views are solid with a tint back chevron.
- * Back pops the navigation stack.
+ * iOS 26 bar: glass round buttons over the content. Root tabs show the large title below and
+ * fade in the scroll edge and the inline title once scrolled past it; pushed views always show
+ * them. Back (a chevron circle; its label is read out, not shown) pops the navigation stack.
  */
 export function PhoneNavBar({ title, large, back, right, scrollRef }: PhoneNavBarProps) {
   const { back: pop } = usePhoneStack();
@@ -38,7 +38,7 @@ export function PhoneNavBar({ title, large, back, right, scrollRef }: PhoneNavBa
       {back ? (
         <button type="button" className="nb back" onClick={pop}>
           <ChevronLeft strokeWidth={1.75} />
-          {back}
+          <span className="nb-label">{back}</span>
         </button>
       ) : (
         <span />

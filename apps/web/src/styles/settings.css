@@ -1,70 +1,143 @@
-/* Settings forms (prototype app.css: .set-form, .formgroup, .toks, .switch, .savebar, .name-edit, .list-panel, .srow, .page-head, ...). Copied verbatim; .frow, .popbtn are in tickets.css. */
-.set { display: grid; grid-template-columns: 240px minmax(0, 1fr); height: 100%; }
-.set-list { border-right: 1px solid var(--sep); overflow-y: auto; padding: 14px 10px; }
-.set-list .sb-sec { padding-left: 8px; }
+/* Settings and every create/edit form: Messenger profile pages of iOS grouped rows. Label left, value or
+   control right; a tall control (token list, instructions) is its own full-width group. Sections are solid
+   cells on the pane; only the save bar and the sheets are glass. .frow and .popbtn base rules are in tickets.css. */
+
+/* Cells inside a glass sheet: solid, a step off the glass in both themes. */
+:root { --cell-glass: #ffffff; }
+:root[data-theme="dark"] { --cell-glass: #2e2e36; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --cell-glass: #2e2e36; } }
+
+/* Desktop frame: the list column and the form pane. */
+.set { display: grid; grid-template-columns: 260px minmax(0, 1fr); height: 100%; }
+.set-list { border-right: .5px solid var(--sep-strong); overflow-y: auto; padding: 8px 10px 18px; }
+.set-list .sb-sec { padding-left: 9px; }
+.set-list .sb-row { height: 38px; }
 .set-list .count { color: var(--label-3); font-size: 12px; }
 /* The bot name keeps its width; a long title is the one that gets cut. */
 .set-list .sb-row .name:has(+ .sub) { flex: 0 1 auto; min-width: 0; }
 .set-list .sb-row .sub { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-align: right; }
-.set-form { overflow-y: auto; padding: 22px 32px 40px; }
-.set-form .inner { max-width: 620px; margin: 0 auto; }
-/* Narrow form pane (small window, sidebar open): tighter labels and segmented controls. */
-.set-form { container-type: inline-size; }
+/* Coloured icon tiles, as on the phone Settings tab. */
+.set-list .sq { width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; color: #fff; flex: none; }
+.set-list .sq svg { width: 15px; height: 15px; }
+.set-list .sq.add { background: var(--fill); color: var(--tint-text); }
+.set-list .sb-row .av { width: 26px; height: 26px; }
+.set-form { overflow-y: auto; padding: 28px 32px 40px; container-type: inline-size; }
+.set-form .inner { max-width: 640px; margin: 0 auto; }
+
+/* Profile head (bot, group): big centred face, large title, subtitle, round quick actions. */
+.profile-head { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 2px; padding: 0 0 22px; }
+.profile-head > .av, .profile-head > .stack, .profile-head > .av-edit { margin-bottom: 10px; }
+.profile-head .av.none { width: 96px; height: 96px; background: var(--well); box-shadow: none; color: var(--label-3); }
+.profile-head .av.none svg { width: 40px; height: 40px; }
+.profile-head h2 { margin: 0; font: 700 26px/1.2 var(--font-display); letter-spacing: -0.025em; text-wrap: balance; }
+.profile-head .r { color: var(--label-2); font-size: 14px; }
+.profile-head .insp-actions { margin-top: 14px; }
+.profile-head .qa-ico { background: var(--well); box-shadow: none; }
+.profile-head .qa:hover .qa-ico { background: var(--fill-strong); }
+a.qa { color: var(--label); text-decoration: none; }
+.ios .profile-head h2 { font-size: 28px; }
+/* Phone: the page is the grouped grey, so the quick action is a white circle like the cards. */
+.ios .profile-head .qa-ico { background: var(--raised); }
+
+/* Bot tabs: a pill segmented control centred under the head. */
+.tabs { display: flex; justify-content: center; margin-bottom: 24px; }
+.tabs .seg { display: inline-grid; grid-auto-flow: column; grid-auto-columns: 1fr; min-width: 440px; }
+.tabs .seg button { justify-content: center; height: 30px; padding: 0 14px; }
+/* Phone: the four bot tabs share the row and fit a 320 px screen. */
+.ios .tabs .seg { width: 100%; min-width: 0; grid-auto-columns: auto; }
+.ios .tabs .seg button { min-width: 0; padding: 0 4px; font-size: 13px; }
+
+/* Grouped sections: an optional header above, a footnote (or the error, red) below. */
+.grp { margin-bottom: 26px; }
+.grp > .grp-h, .grp-h { margin: 0 0 7px 14px; font: 600 13px var(--font); letter-spacing: 0; color: var(--label-2); }
+.grp-h label { font: inherit; color: inherit; }
+.grp-f { margin: 7px 14px 0; font-size: 12px; line-height: 1.45; color: var(--label-2); }
+.grp-f.err { color: var(--red); }
+.formgroup { border-radius: var(--r-m); background: var(--well); margin-bottom: 26px; }
+.grp > .formgroup { margin-bottom: 0; }
+
+/* A row: label left, the control right; help or the error is a line under it. */
+.formgroup .frow { display: flex; flex-wrap: wrap; align-items: center; gap: 0 14px; min-height: 46px; padding: 6px 14px; border-bottom: 0; position: relative; }
+.formgroup .frow + .frow::before { content: ""; position: absolute; top: 0; left: 14px; right: 0; height: .5px; background: var(--sep-strong); }
+.formgroup .frow > label, .formgroup .frow > span:first-child { flex: none; font-weight: 400; font-size: 13.5px; color: var(--label); }
+.formgroup .frow > .ctl { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; }
+.formgroup .frow > .help { flex: 0 0 100%; margin: 2px 0 4px; font-size: 12px; color: var(--label-2); }
+.formgroup .frow > .help.err { color: var(--red); }
+/* Tall control: label above, the control across the row. */
+.formgroup .frow.top { flex-direction: column; align-items: stretch; padding: 10px 14px; }
+.formgroup .frow.top > label { margin-bottom: 8px; }
+.formgroup .frow.top > .ctl { justify-content: flex-start; }
+/* Single-line fields sit in the row, right aligned, with no box until hovered or focused. */
+.formgroup .frow .ctl > input.field { flex: 1 1 160px; width: auto; min-width: 0; text-align: right; background: transparent; padding: 0 10px; margin-right: -10px; }
+.formgroup .frow .ctl > input.field:hover:not(:disabled):not(:focus) { background: var(--fill); }
+.formgroup .frow .ctl > input.field:focus { background: var(--raised); }
+.formgroup .field.err { border-color: var(--red); box-shadow: 0 0 0 3px var(--red-fill); }
+.formgroup .field:disabled { color: var(--label-2); }
+/* Pickers read as a value with chevrons, as in iOS Settings. */
+.formgroup .frow .popbtn { background: transparent; color: var(--label-2); font-size: 13.5px; font-weight: 400; margin-right: -8px; }
+.formgroup .frow .popbtn:hover { background: var(--fill); }
+.formgroup .frow .popbtn[data-popup-open] { background: var(--sel); }
+/* An action row (Test connection): tint text across the row. */
+.formgroup button.frow.link { width: 100%; border: 0; background: none; font: inherit; font-size: 13.5px; font-weight: 500; color: var(--tint-text); text-align: left; border-radius: 0; }
+.formgroup button.frow.link:last-child { border-radius: 0 0 var(--r-m) var(--r-m); }
+.formgroup button.frow.link:hover:not(:disabled) { background: var(--fill); }
+.formgroup button.frow.link:disabled { color: var(--label-3); }
+
+/* A full-width group: the text area or token list fills it. */
+.formgroup.wide > .field { display: block; width: 100%; min-height: 120px; padding: 12px 14px; border-radius: inherit; background: transparent; }
+.formgroup.wide > .field:focus { background: var(--raised); }
+.formgroup.wide > .toks { padding: 10px 12px; }
+
+/* Narrow form pane (small window): a segmented control takes its own line under the label. */
 @container (max-width: 560px) {
-  .set-form .frow { grid-template-columns: 104px minmax(0, 1fr); }
-  .set-form .seg { max-width: 100%; }
+  .set-form .formgroup .frow:has(> .ctl > .seg) { flex-direction: column; align-items: stretch; gap: 8px; padding: 10px 14px; }
+  .set-form .formgroup .frow > .ctl > .seg { width: 100%; }
   .set-form .seg button { min-width: 0; padding: 0 8px; }
 }
-.formgroup { border-radius: 12px; background: var(--well); padding: 2px 14px; margin-bottom: 18px; }
-:root[data-theme="dark"] .formgroup { background: #252528; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .formgroup { background: #252528; } }
+
+/* Token lists (tools, skills, folders). */
 .toks { display: flex; flex-wrap: wrap; gap: 6px; }
-.tok { border: 0; display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 4px 0 8px; border-radius: 6px; background: var(--raised); box-shadow: 0 0 0 1px var(--sep-strong); font: 12px var(--mono); }
+.tok { border: 0; display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 4px 0 9px; border-radius: 999px; background: var(--raised); box-shadow: 0 0 0 .5px var(--sep-strong); font: 12px var(--mono); }
 .tok .ib { width: 18px; height: 18px; }
-.tok.add { padding: 0 8px; color: var(--tint-text); font-family: var(--font); font-weight: 500; box-shadow: 0 0 0 1px var(--sep-strong) inset; background: transparent; }
-.set-head { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; }
-.set-head .av { width: 56px; height: 56px; }
-.set-head h2 { margin: 0; font: 650 20px var(--font-display); letter-spacing: -0.02em; }
-.set-head .r { color: var(--label-2); }
-.set-head .grow { flex: 1; }
-.switch { width: 38px; height: 22px; border-radius: 11px; background: var(--fill-strong); position: relative; border: 0; transition: background var(--t-mid); }
-.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .25); transition: transform var(--t-mid) var(--ease); }
+.tok.add { padding: 0 10px; color: var(--tint-text); font-family: var(--font); font-weight: 500; background: var(--tint-soft); box-shadow: none; }
+/* Members as rows with faces; "Add member" is the last row. */
+.formgroup.wide > .toks.rows { display: block; padding: 0; }
+.mrow { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 50px; padding: 0 8px 0 14px; position: relative; border: 0; background: none; font: inherit; font-size: 13.5px; color: inherit; text-align: left; }
+.mrow + .mrow::before { content: ""; position: absolute; top: 0; left: 56px; right: 0; height: .5px; background: var(--sep-strong); }
+.mrow .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mrow.add { color: var(--tint-text); font-weight: 500; border-radius: 0 0 var(--r-m) var(--r-m); }
+.mrow.add:only-child { border-radius: var(--r-m); }
+.mrow.add:hover, .mrow.add[data-popup-open] { background: var(--fill); }
+.mrow .add-ico { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--tint-soft); }
+
+/* Switch (iOS). */
+.switch { width: 44px; height: 26px; border-radius: 13px; background: var(--fill-strong); position: relative; border: 0; flex: none; transition: background var(--t-mid); }
+.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 2px 5px rgba(0, 0, 0, .2), 0 0 0 .5px rgba(0, 0, 0, .04); transition: transform var(--t-mid) var(--ease); }
 .switch.on { background: var(--green-dot); }
-.switch.on::after { transform: translateX(16px); }
-/* Solid ground and a hairline: no half-covered line of text shows through. */
-.savebar { position: sticky; bottom: 0; display: flex; justify-content: flex-end; gap: 8px; padding: 12px 0; background: var(--ground); box-shadow: 0 -1px 0 var(--sep); }
-/* .set-form's 40px bottom padding would lift the bar off the edge, with content showing below it. */
-.set-form .savebar { bottom: -40px; }
-/* Phone pages without a tab bar: the same for the scroll view's 8px, and the bar clears the home indicator. */
-.ios-scroll.nt .savebar { bottom: -8px; padding-bottom: calc(12px + var(--safe-b)); }
+.switch.on::after { transform: translateX(18px); }
+.switch:disabled { opacity: .5; }
+
+/* Save bar: at the end of the form while nothing changed; on a change it wakes into a glass pill that floats
+   over the scrolling form. */
+.savebar { position: relative; z-index: 3; display: flex; gap: 8px; width: fit-content; margin: 4px 0 0 auto; padding: 6px; border-radius: 999px; }
+.savebar.on { position: sticky; bottom: 16px; background: var(--glass-strong); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-edge), var(--glass-shadow); animation: saveWake var(--t-mid) var(--ease); }
+@keyframes saveWake { from { transform: translateY(6px); box-shadow: var(--glass-edge); } }
+/* .set-form's bottom padding would lift the bar off the edge; this leaves 16px under it. */
+.set-form .savebar.on { bottom: -24px; }
+/* Phone pages without a tab bar: the bar clears the home indicator. */
+.ios-scroll.nt .savebar.on { bottom: calc(8px + var(--safe-b)); }
+
+/* Dark: the segmented thumb needs a step above the track to read. */
+:root[data-theme="dark"] :is(.tabs, .formgroup) .seg .thumb { background: #3c3c47; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) :is(.tabs, .formgroup) .seg .thumb { background: #3c3c47; } }
+
+/* Avatar picker trigger and popover. */
 .av-edit { position: relative; border: 0; padding: 0; background: none; border-radius: 50%; cursor: pointer; }
 .av-edit .av { width: 64px; height: 64px; transition: transform var(--t-mid) var(--ease); }
 .av-edit .ov { position: absolute; inset: 0; border-radius: 50%; display: grid; place-items: center; background: rgba(0, 0, 0, .45); color: #fff; opacity: 0; transition: opacity var(--t-fast); font-size: 11px; font-weight: 600; }
 .av-edit:hover .ov, .av-edit:focus-visible .ov { opacity: 1; }
 .av-edit.popped .av { animation: pop 460ms var(--ease); }
-.tabs { margin-bottom: 18px; }
-.list-panel { border-radius: 12px; background: var(--well); overflow: hidden; margin-bottom: 18px; }
-:root[data-theme="dark"] .list-panel { background: #252528; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .list-panel { background: #252528; } }
-.list-panel .add-row { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--sep); background: var(--raised); }
-.foot-note { font-size: 12px; color: var(--label-2); margin: -8px 0 18px 2px; }
-.srow { display: flex; align-items: center; gap: 12px; padding: 0 14px; min-height: 52px; border-bottom: 1px solid var(--sep); transition: background var(--t-fast); }
-.srow:last-child { border-bottom: 0; }
-.srow:hover { background: var(--fill); }
-.srow .grow { flex: 1; min-width: 0; padding: 9px 0; }
-.srow .t2 { font-size: 12px; color: var(--label-2); }
-.srow .ico { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; background: var(--raised); box-shadow: 0 0 0 1px var(--sep-strong); flex: none; color: var(--label-2); }
-.srow .stack .av { width: 20px; height: 20px; box-shadow: 0 0 0 2px var(--well); }
-.page-head { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
-.page-head h2 { margin: 0; font: 650 20px var(--font-display); letter-spacing: -0.02em; }
-.page-head .grow { flex: 1; }
-.page-head .r { color: var(--label-2); font-size: 13px; }
-.ios .page-head { display: none; }
-.ios .formgroup .frow { grid-template-columns: 1fr; gap: 6px; }
-.ios .list-panel, .ios .formgroup { margin-bottom: 18px; }
-/* Phone forms: a segmented control spans the row and its segments share the width. */
-.ios .formgroup .seg { display: flex; width: 100%; }
-.ios .formgroup .seg button { flex: 1 1 0; justify-content: center; padding: 0 4px; }
 .av-grid { display: grid; grid-template-columns: repeat(5, 48px); gap: 10px; padding: 8px; }
 .av-grid button { border: 0; padding: 0; background: none; border-radius: 50%; width: 48px; height: 48px; position: relative; transition: transform var(--t-fast) var(--ease); }
 .av-grid button:hover { transform: scale(1.06); }
@@ -75,6 +148,58 @@
 .av-actions .btn { flex: 1; justify-content: center; }
 .av-note { padding: 2px 8px 6px; font-size: 12px; color: var(--label-2); }
 .av-note.err { color: var(--red, #ff3b30); }
+
+/* Lists of rows (servers, skills, passkeys, rules): solid grouped cells with coloured icon tiles. */
+.list-panel { border-radius: var(--r-m); background: var(--well); overflow: hidden; margin-bottom: 26px; }
+.list-panel .add-row { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 14px; border-top: .5px solid var(--sep-strong); }
+.foot-note { font-size: 12px; color: var(--label-2); margin: -18px 14px 26px; }
+.srow { display: flex; align-items: center; gap: 12px; padding: 0 14px; min-height: 46px; position: relative; transition: background var(--t-fast); }
+.srow:not(:last-child)::after { content: ""; position: absolute; left: 14px; right: 0; bottom: 0; height: .5px; background: var(--sep-strong); }
+.srow:has(> .ico):not(:last-child)::after { left: 56px; }
+a.srow { color: inherit; text-decoration: none; }
+a.srow:hover, button.srow:hover { background: var(--fill); }
+.srow .grow { flex: 1; min-width: 0; padding: 9px 0; }
+.srow .t2 { font-size: 12px; color: var(--label-2); }
+.srow .ico { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; flex: none; color: #fff; background: var(--tint-fill); }
+.srow .ico svg { width: 17px; height: 17px; }
+.srow .ico.orange { background: #ff9f0a; }
+/* An MCP server's own site icon: white tile, icon inset (favicons are often small or square-edged). */
+.srow .ico.site { background: #fff; box-shadow: inset 0 0 0 .5px var(--sep-strong); }
+.srow .ico.site img { width: 20px; height: 20px; object-fit: contain; }
+.srow .ico.purple { background: #af52de; }
+.srow .ico.teal { background: #30b0c7; }
+.srow .ico.gray { background: #8e8e93; }
+.srow .stack .av { width: 20px; height: 20px; box-shadow: 0 0 0 2px var(--well); }
+
+/* Page head of list pages (MCP, skills, approvals, account, owner files): a large title. */
+.page-head { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
+.page-head h2 { margin: 0; font: 700 26px/1.2 var(--font-display); letter-spacing: -0.025em; }
+.page-head .grow { flex: 1; }
+.page-head .r { color: var(--label-2); font-size: 13px; margin-top: 2px; }
+.ios .page-head { display: none; }
+
+/* Phone: iOS sizes; a segmented control takes its own line. Form sheets (`.bs-form`, phone and desktop) too. */
+/* Phone views with grouped sections sit on the grouped grey (phone.css `--view-bg`); the cells are solid white. */
+.ios :is(.formgroup, .list-panel) { background: var(--raised); border-radius: var(--r-l); }
+.ios .formgroup .frow { min-height: 44px; padding: 5px 16px; }
+.ios .formgroup .frow > label, .ios .formgroup .frow > span:first-child, .ios .formgroup button.frow.link, .ios .mrow { font-size: 16px; }
+.ios .formgroup .frow + .frow::before { left: 16px; }
+:is(.ios .formgroup, .bsheet .formgroup) .frow:has(> .ctl > .seg) { flex-direction: column; align-items: stretch; gap: 8px; padding-top: 10px; padding-bottom: 10px; }
+:is(.ios .formgroup, .bsheet .bs-form) .seg { display: flex; width: 100%; }
+.ios .formgroup .seg button { flex: 1 1 0; justify-content: center; min-width: 0; padding: 0 4px; }
+/* Form sheets: five Repeat choices still fit a 320 px screen. */
+.bs-form .seg button { flex: 1 1 0; justify-content: center; min-width: 0; padding: 0 2px; font-size: 12.5px; }
+
+/* Form sheets (SheetForm): Cancel | title | action on top, then the grouped rows on the glass. */
+.sheet:has(> .bs-form) { display: flex; flex-direction: column; padding: 12px 14px 14px; overflow: hidden; }
+.sheet .bs-bar { margin: 0 0 12px; }
+.sheet .bs-body { padding: 2px 2px 4px; }
+/* Desktop sheets have room: a segmented control stays in its row at the normal size. */
+.sheet .bs-form .seg button { padding: 0 12px; font-size: 13px; }
+:is(.sheet, .bsheet) .formgroup, :is(.sheet, .bsheet) .list-panel { background: var(--cell-glass); }
+:is(.sheet, .bsheet) .grp { margin-bottom: 18px; }
+:is(.sheet, .bsheet) .grp:last-child { margin-bottom: 4px; }
+:is(.sheet, .bsheet) .formgroup .frow .ctl > input.field:focus { background: var(--well); }
 
 /* Memory panel and rule list (prototype app.css: .note, .mem-head, .journal-day, .rule) */
 .note { display: flex; gap: 10px; align-items: flex-start; padding: 10px 14px; border-bottom: 1px solid var(--sep); transition: background var(--t-fast); }
@@ -108,7 +233,7 @@
 .conn.ok svg { color: var(--green); } .conn.warn svg { color: var(--amber); } .conn.bad svg { color: var(--red); }
 .skill-body { padding: 4px 16px 12px; }
 .skill-body .md h3 { font-size: 13px; margin: 12px 0 4px; }
-.of-edit { width: 100%; min-height: 420px; font: 13px/1.6 var(--mono); padding: 14px 16px; resize: vertical; }
+.of-edit { width: 100%; min-height: 420px; background: var(--well); border-radius: var(--r-m); font: 13px/1.6 var(--mono); padding: 14px 16px; resize: vertical; }
 .ios .of-edit { min-height: 360px; font-size: 14px; }
 .of-preview { padding: 6px 20px 14px; min-height: 420px; }
 .of-foot { display: flex; align-items: center; gap: 6px; margin: 8px 2px 18px; font-size: 12px; color: var(--label-2); }

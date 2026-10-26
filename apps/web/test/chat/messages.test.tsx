@@ -99,13 +99,54 @@ test("owner bubble failed state retries", async () => {
 test("bot message splits images and files", () => {
   const m = msg({ files: [image("a"), image("b"), doc()] });
   const { container } = view(
-    <BotMessage message={m} phone={false} onReply={() => {}} />,
+    <BotMessage message={m} phone={false} group onReply={() => {}} />,
     chatClient(["a", "b"]),
   );
   expect(container.querySelector(".gallery.n2")).toBeTruthy();
   expect(container.querySelectorAll(".file")).toHaveLength(1);
   expect(screen.getByText("Dev")).toBeTruthy();
   expect(screen.getByText("14:09")).toBeTruthy();
+});
+
+test("in a 1:1 chat the name is left out; inside a run the face and time are too", () => {
+  const { container, unmount } = view(
+    <BotMessage message={msg()} phone={false} onReply={() => {}} />,
+  );
+  expect(container.querySelector(".who")).toBeNull();
+  expect(container.querySelector(".face .av")).toBeTruthy();
+  unmount();
+  const mid = view(
+    <BotMessage
+      message={msg({ text: "More" })}
+      phone={false}
+      group
+      place={{ head: false, tail: false }}
+      onReply={() => {}}
+    />,
+  );
+  expect(mid.container.querySelector(".who")).toBeNull();
+  expect(mid.container.querySelector(".face .av")).toBeNull();
+  expect(mid.container.querySelector("time")).toBeNull();
+  expect(screen.getByText("More").closest(".bubble")?.getAttribute("title")).toBe("14:09");
+});
+
+test("a bot answer with a table or code drops the bubble", () => {
+  const { container } = view(
+    <BotMessage message={msg({ text: "```ts\nx\n```" })} phone={false} onReply={() => {}} />,
+  );
+  expect(container.querySelector(".msg.rich .md.rich")).toBeTruthy();
+  expect(container.querySelector(".bubble")).toBeNull();
+});
+
+test("an owner message inside a run hides its time; a sending one still says so", () => {
+  const m = msg({ author: { kind: "user" }, text: "Next" });
+  const mid = { head: false, tail: false };
+  const a = view(<OwnerBubble message={m} place={mid} />);
+  expect(a.container.querySelector(".owner-meta")).toBeNull();
+  expect(a.container.querySelector(".msg.owner.first")).toBeNull();
+  a.unmount();
+  view(<OwnerBubble message={m} place={mid} pending="sending" />);
+  expect(screen.getByText("Sending…")).toBeTruthy();
 });
 
 test("bot message on the phone has a 28 px avatar and no actions", () => {

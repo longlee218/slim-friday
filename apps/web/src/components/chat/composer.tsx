@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { useDirectory } from "../../api/directory";
 import { IconButton } from "../ui/button";
 import { ComposerChips } from "./composer-chips";
-import { FilePicker, SendButton, useAutosize } from "./composer-controls";
+import { FilePicker, SendButton, useAutosize, useComposerHeight } from "./composer-controls";
 import { placeholderFor, sendOnEnter } from "./composer-rules";
 import { MentionPopover } from "./mention-popover";
 import { ReplyBar } from "./reply-bar";
@@ -42,7 +42,7 @@ export interface ComposerProps {
 
 const ATTACH = "Attach files (up to 5, 20 MB each)";
 
-/** Composer: autosize textarea, file chips, @mentions, route chip, reply bar and optimistic send. */
+/** Composer: a floating pill with autosize textarea, file chips, @mentions, route chip, reply bar and optimistic send. */
 export function Composer(props: ComposerProps) {
   const { conversation, group, phone, reply, draft, onDraft } = props;
   const dir = useDirectory();
@@ -64,6 +64,8 @@ export function Composer(props: ComposerProps) {
   useImperativeHandle(props.handleRef, () => ({ addFiles, focus: () => input.current?.focus() }));
 
   useAutosize(input, draft, phone);
+  const wrap = useRef<HTMLDivElement>(null);
+  useComposerHeight(wrap);
 
   const { route, ready, submit } = useComposerSubmit({
     ...props,
@@ -127,54 +129,35 @@ export function Composer(props: ComposerProps) {
     />
   );
   const send = <SendButton disabled={!ready} onClick={submit} />;
-  const chips = <ComposerChips uploads={uploads} onRemove={remove} />;
+  const routeChip = group && route && <RouteChip route={route} />;
   const attach = () => fileInput.current?.click();
 
-  if (phone) {
-    return (
-      <div className="ios-composer">
-        {popover}
-        {replyBar}
-        {group && route && (
-          <div className="route-row">
-            <RouteChip route={route} />
-          </div>
-        )}
-        {chips}
-        <FilePicker inputRef={fileInput} onFiles={addFiles} />
-        <IconButton label={ATTACH} className="plus" onClick={attach}>
-          <Plus strokeWidth={1.75} />
-        </IconButton>
-        <div className="box">
-          {textarea}
-          {send}
-        </div>
-      </div>
-    );
-  }
+  // One floating glass pill on both widths: tools on the left, the growing text, the round Send.
+  // The reply bar and the group's route chip ride above it; the transcript scrolls under all of it.
   return (
-    <div className="composer-wrap">
+    <div ref={wrap} className={phone ? "chat-composer phone" : "chat-composer"}>
+      {(replyBar || routeChip) && (
+        <div className="comp-above">
+          {replyBar}
+          {routeChip}
+        </div>
+      )}
       <div className="composer">
         {popover}
-        {replyBar}
-        {chips}
-        {textarea}
         <FilePicker inputRef={fileInput} onFiles={addFiles} />
-        <div className="comp-bar">
-          <IconButton label={ATTACH} onClick={attach}>
-            <Paperclip size={17} strokeWidth={1.75} />
+        <IconButton label={ATTACH} className="comp-ib" onClick={attach}>
+          {phone ? <Plus strokeWidth={1.75} /> : <Paperclip strokeWidth={1.75} />}
+        </IconButton>
+        {!phone && group && route && (
+          <IconButton label="Mention a member" className="comp-ib" onClick={mention.startMention}>
+            <AtSign strokeWidth={1.75} />
           </IconButton>
-          {group && route && (
-            <>
-              <IconButton label="Mention a member" onClick={mention.startMention}>
-                <AtSign size={17} strokeWidth={1.75} />
-              </IconButton>
-              <RouteChip route={route} />
-            </>
-          )}
-          <span className="hint">↩ send · ⇧↩ new line</span>
-          {send}
+        )}
+        <div className="comp-field">
+          <ComposerChips uploads={uploads} onRemove={remove} />
+          {textarea}
         </div>
+        {send}
       </div>
     </div>
   );

@@ -109,7 +109,7 @@ function Loaded({ skill }: { skill: SkillDto }) {
         </Row>
       </div>
       <SkillUsedBy name={skill.name} usedBy={skill.usedBy} />
-      <h3 style={{ fontSize: 13, margin: "0 0 8px" }}>SKILL.md</h3>
+      <h3 className="grp-h">SKILL.md</h3>
       <div className="list-panel skill-body">
         {/* Third-party text: BotMarkdown renders no raw HTML. */}
         <BotMarkdown text={skill.body} />

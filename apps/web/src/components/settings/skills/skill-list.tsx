@@ -24,11 +24,11 @@ function Section({
   const dir = useDirectory();
   return (
     <>
-      <h3 style={{ fontSize: 13, margin: "0 0 8px" }}>{title}</h3>
+      <h3 className="grp-h">{title}</h3>
       <div className="list-panel">
         {skills.map((s) => (
           <Link key={s.name} className="srow" to={`/settings/skills/${s.name}`}>
-            <span className="ico">
+            <span className="ico purple">
               <Puzzle size={16} strokeWidth={1.75} />
             </span>
             <div className="grow">
@@ -73,7 +73,20 @@ export function SkillList() {
     skills.filter((_, i) => checks[i]?.data?.updateAvailable).map((s) => s.name),
   );
   return (
-    <SettingsPage title="Skills & plugins">
+    <SettingsPage
+      title="Skills & plugins"
+      // The phone hides the page head, so "Install skill" lives in the nav bar there.
+      right={
+        <button
+          type="button"
+          className="nb"
+          aria-label="Install skill"
+          onClick={() => setInstalling(true)}
+        >
+          <Plus strokeWidth={1.75} />
+        </button>
+      }
+    >
       <div className="page-head">
         <div className="grow">
           <h2>Skills & plugins</h2>

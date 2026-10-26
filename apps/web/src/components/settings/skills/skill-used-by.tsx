@@ -28,7 +28,7 @@ export function SkillUsedBy({ name, usedBy }: { name: string; usedBy: string[] }
   };
   return (
     <>
-      <h3 style={{ fontSize: 13, margin: "0 0 8px" }}>Used by</h3>
+      <h3 className="grp-h">Used by</h3>
       <div className="list-panel">
         {[...dir.bots.values()].map((b) => (
           <div className="srow" key={b.id}>

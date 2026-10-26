@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import { client, orpc } from "../../api/client";
 import { useIsPhone } from "../../app/use-is-phone";
 import { BotMarkdown } from "../markdown/bot-markdown";
-import { Button } from "../ui/button";
 import { SaveBar, Segmented } from "./form-parts";
 import { SettingsPage } from "./settings-page";
 import { useFormState } from "./use-form-state";
@@ -43,9 +42,9 @@ function EditorForm({ file, text }: { file: keyof typeof FILES; text: string }) 
       title={title}
       right={
         phone && (
-          <Button variant="primary" disabled={!canSave} onClick={save}>
-            Save
-          </Button>
+          <button type="button" className="nb strong" disabled={!canSave} onClick={save}>
+            {form.saving ? "Saving…" : "Save"}
+          </button>
         )
       }
     >

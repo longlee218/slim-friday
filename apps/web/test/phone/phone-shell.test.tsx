@@ -76,7 +76,9 @@ test("opening a row pushes the chat; its title opens the bot settings with back 
 
 test("back pops a deep-linked chat to the Chats list", () => {
   const { router } = renderPhone(phoneClient(), "/c/bot:dev");
-  fireEvent.click(screen.getByText("Chats", { selector: ".nb.back" }));
+  const nav = document.querySelector(".chatnav") as HTMLElement;
+  // The back button is a chevron circle; its title stays its accessible name.
+  fireEvent.click(within(nav).getByRole("button", { name: "Chats" }));
   expect(router.state.location.pathname).toBe("/");
 });
 
