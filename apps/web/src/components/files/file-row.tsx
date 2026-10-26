@@ -2,12 +2,15 @@ import type { FileLibraryItemDto } from "@friday/contracts";
 import { FileText, Image } from "lucide-react";
 import { fileTypeLabel, formatClock, formatSize } from "../../lib/format";
 
-/** One uploaded file: type tile, name, "<size> · <type>" and when it was sent. */
+/** One uploaded file: type tile, name, "<size> · <type> · <chat>" and when it was sent. */
 export function FileRow({
   file,
+  chat,
   onOpen,
 }: {
   file: FileLibraryItemDto;
+  /** The bot or group the file was sent to. */
+  chat: string;
   onOpen(file: FileLibraryItemDto): void;
 }) {
   const Icon = file.kind === "image" ? Image : FileText;
@@ -18,7 +21,7 @@ export function FileRow({
       </span>
       <span className="grow">
         <span className="fn">{file.name}</span>
-        <span className="fs">{`${formatSize(file.size)} · ${fileTypeLabel(file.mimeType, file.name)}`}</span>
+        <span className="fs">{`${formatSize(file.size)} · ${fileTypeLabel(file.mimeType, file.name)} · ${chat}`}</span>
       </span>
       <span className="fs">{formatClock(file.at, Date.now())}</span>
     </button>

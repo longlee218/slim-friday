@@ -16,9 +16,10 @@ import { useFileLibrary } from "./use-file-library";
 export function FilesRoute() {
   const phone = useIsPhone();
   const [kind, setKind] = useState<KindFilter>(undefined);
+  const [conversationId, setConversationId] = useState<string | undefined>(undefined);
   const [shown, setShown] = useState<string | null>(null);
   const [pdf, setPdf] = useState<FileLibraryItemDto | null>(null);
-  const library = useFileLibrary({ kind });
+  const library = useFileLibrary({ kind, conversationId });
   const download = useDownloadFile();
   const images = library.items.filter((f) => f.kind === "image");
   const index = images.findIndex((f) => f.id === shown);
@@ -28,7 +29,14 @@ export function FilesRoute() {
     else if (kind === "pdf") setPdf(f);
     else void download(f);
   };
-  const view = { kind, onKind: setKind, library, onOpen };
+  const view = {
+    kind,
+    onKind: setKind,
+    conversationId,
+    onConversation: setConversationId,
+    library,
+    onOpen,
+  };
   return (
     <>
       {phone ? <PhoneFiles {...view} /> : <FilesPage {...view} />}

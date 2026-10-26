@@ -59,7 +59,7 @@ Browser --presigned PUT / GET--> Cloudflare R2;  images --> optional CDN custom 
 - **Messages and cards:** `post` stores nothing itself (the hub does) and publishes a `message` event with a `MessageDto` (author, text, files, `replyTo`, relay cards for `SendToBot` / `HandOff`). Approval cards and question cards (`card-desk.ts`) are rows that stay open until answered or withdrawn (no timeout, see Cards below); the first answer wins, later answers get `CONFLICT`; open cards stay open across a restart and are shown again.
 - **Run steps:** `showRun` publishes `run` events (thinking, tool, skill, mcp, subagent, command, writing); on turn end the steps are stored in `messages.run`.
 - **Inbound:** `chat.send` is the only way a message enters (`replyTo` supported); the upload is checked (`stat`; the type is decided by the file extension from a fixed list, an image also by its first bytes) and copied to `<AGENT_HOME>/inbox/<conversationId>/<epoch>-<id>/` for the bot. `postFile` stores the file through `FileStore` and writes a `files` row and a message.
-- **Reading office files:** the shipped skill `office-files` reads docx and xlsx through `uvx` with `markitdown`, and a PDF with `Read` or `pdftotext`.
+- **Reading office files:** the shipped skill `office-files` reads docx and xlsx through `uvx` with `markitdown`, and a PDF with `Read` or `pdftotext`. Only bots that list `office-files` in `skills` (and have `Bash` and `Read`) read Office files; any other bot must be given the skill.
 - **Boundary:** core, contracts (types only), `image-size` and node (`packages/surface-web/test/boundary.test.ts`).
 
 ## `packages/store-r2` and files

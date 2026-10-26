@@ -35,7 +35,7 @@ export const chat = {
       z.object({
         kind: FileKindSchema.optional(),
         conversationId: ConversationIdSchema.optional(),
-        cursor: z.string().optional(),
+        cursor: z.string().max(256).optional(),
         limit: z.number().int().min(1).max(MAX_PAGE).default(30),
       }),
     )

@@ -10,7 +10,7 @@
 .file-row .fs { font-size: 12px; color: var(--label-2); flex: none; white-space: nowrap; }
 .files-note { padding: 48px 20px; text-align: center; color: var(--label-2); display: grid; gap: 12px; justify-items: center; }
 .files-more { display: flex; justify-content: center; margin-top: 12px; }
-.files-chips { padding: 0 16px 12px; }
+.files-chips { padding: 0 16px 12px; display: flex; flex-wrap: wrap; gap: 8px; }
 @media (max-width: 719px) {
   .files-list { border-radius: 12px; box-shadow: none; background: var(--well); margin: 0 16px; }
   .files-more, .files-note { margin-left: 16px; margin-right: 16px; }

@@ -1,9 +1,16 @@
 import { Files } from "lucide-react";
 import { Toolbar } from "../shell/toolbar";
-import { FilesBody, type FilesViewProps, KindChips } from "./files-body";
+import { ConversationSelect, FilesBody, type FilesViewProps, KindChips } from "./files-body";
 
-/** `/files` on desktop: toolbar with the type filter over the list of uploaded files. */
-export function FilesPage({ kind, onKind, library, onOpen }: FilesViewProps) {
+/** `/files` on desktop: toolbar with the type and chat filters over the list of uploaded files. */
+export function FilesPage({
+  kind,
+  onKind,
+  conversationId,
+  onConversation,
+  library,
+  onOpen,
+}: FilesViewProps) {
   return (
     <section className="pane">
       <Toolbar
@@ -18,7 +25,12 @@ export function FilesPage({ kind, onKind, library, onOpen }: FilesViewProps) {
             </div>
           </>
         }
-        actions={<KindChips kind={kind} onKind={onKind} />}
+        actions={
+          <>
+            <ConversationSelect conversationId={conversationId} onConversation={onConversation} />
+            <KindChips kind={kind} onKind={onKind} />
+          </>
+        }
       />
       <div className="content">
         <div className="page files-page">

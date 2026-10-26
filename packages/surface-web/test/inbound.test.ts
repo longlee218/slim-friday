@@ -116,6 +116,18 @@ test("createUpload ignores the declared type: csv from Windows is stored as text
   expect(await store.uploads.get(r.uploadId)).toMatchObject({ mimeType: "text/csv" });
 });
 
+test("createUpload signs the presigned PUT with the stored mime, not the declared one", async () => {
+  const r = await surface.createUpload({
+    conversationId: "bot:a",
+    name: "data.csv",
+    type: "application/vnd.ms-excel",
+    size: 4,
+  });
+  const stored = await store.uploads.get(r.uploadId);
+  expect(stored?.mimeType).toBe("text/csv");
+  expect(r.putUrl).toEndWith("&type=text/csv");
+});
+
 test("send refuses an unknown conversation, empty input and a foreign reply", async () => {
   await expect(surface.send({ conversationId: "bot:x", text: "t" })).rejects.toMatchObject({
     code: "NOT_FOUND",

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadBootState } from "../src/lifecycle/boot-checks";
 import { checkTools } from "../src/lifecycle/tool-check";
+import { captureLogs } from "../src/observability/logger";
 
 let home: string;
 beforeEach(() => {
@@ -31,4 +32,19 @@ test("loadBootState still returns a state when both tools are missing", () => {
   const state = loadBootState({ AGENT_HOME: home, CLAUDE_CODE_OAUTH_TOKEN: "tok" }, () => null);
   expect(state.config.agentHome).toBe(home);
   expect(state.toolWarnings.map((w) => w.tool)).toEqual(["uvx", "pdftotext"]);
+});
+
+test("checkTools logs one warn per missing tool carrying the tool name only", () => {
+  const cap = captureLogs();
+  try {
+    checkTools(() => null);
+  } finally {
+    cap.stop();
+  }
+  const warns = cap.lines.filter((l) => l.module === "tool-check");
+  expect(warns).toHaveLength(2);
+  for (const [i, tool] of ["uvx", "pdftotext"].entries()) {
+    expect(warns[i]).toMatchObject({ level: 40, msg: "tool.missing", tool });
+    expect(warns[i]).not.toHaveProperty("hint");
+  }
 });

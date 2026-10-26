@@ -270,7 +270,11 @@ Nothing below is verified live until you tick it.
 - [ ] Reactions: hover a bot message, React, pick 👍; a chip shows under the message and the bot answers only if it has something to say (otherwise nothing is posted); react again within 30 s: no second turn. 👍 on the message of a run waiting on a question answers it "yes".
 - [ ] Upload: an image and a PDF reach the bot; 6 files, or one over 20 MB, are refused by name; a bot's `PostFile` image shows in the gallery and survives a reload.
 - [ ] A docx and an xlsx sent to a bot are read through the `office-files` skill in a real session; check that `uvx` is allowed in the worker sandbox.
-- [ ] A PDF previews from the Files screen on desktop and on iPhone Safari.
+- [ ] A text PDF previews from the Files screen on desktop and on iPhone Safari.
+- [ ] A scanned PDF (image pages) previews on desktop and on iPhone Safari, or shows the error line with Download.
+- [ ] A corrupt PDF shows the error line with Download on desktop and on iPhone Safari, and nothing crashes.
+- [ ] A PDF opened from a chat file card previews the same way.
+- [ ] An iPhone library photo chosen through Attach is accepted (HEIC may be refused by the extension-only filter; note what happens).
 - [ ] The R2 bucket CORS allows GET from `WEB_ORIGIN` (the PDF viewer fetches the file); without it the preview fails.
 - [ ] The Camera button in the composer opens the camera on a phone; check whether iOS gives JPEG, not HEIC.
 - [ ] On a machine without `uvx` or `pdftotext`, the missing-tool banner shows with the install hint.
