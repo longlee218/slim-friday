@@ -19,7 +19,8 @@ interface Store {
     recent(c, limit);                                        // oldest first
     after(afterId, limit);                                   // feeds the message index
   };
-  files: { insert(f); get(id); delete(id) };                 // stored files a message can carry
+  files: { insert(f); get(id); delete(id); hasKey(key);
+           listUploads({ limit, cursor?, kind?, conversationId? }) };  // stored files a message can carry
   uploads: { insert(u); get(id); markUsed(id, messageId); claim(id); release(id);
              pendingBefore(at); delete(id) };                // pending -> claimed -> used
   reads: { get(c); set(c, messageId); unread(c) };           // the owner's read position
@@ -34,6 +35,7 @@ interface Store {
 
 - Session keys are `<botId>` (direct) or `<botId>@<groupId>` (group).
 - `uploads.claim` is atomic: it returns `false` when the upload was not `pending`; `release` gives a claimed upload back.
+- `files.listUploads` returns the owner's uploads (`source = "upload"`) newest first by `(at, id)`; `cursor` is the last row of the previous page.
 - `bots` and `groups` are read-only to the engine; the app serves them from files.
 - Nothing here may hold secrets. Message text can be sensitive: keep the db file owner-only.
 - The file bytes are not in the store: `files` and `uploads` hold rows that point to a key of the [FileStore](file-store.md).
