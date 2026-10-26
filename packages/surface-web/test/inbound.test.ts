@@ -196,7 +196,7 @@ test("send refuses an image whose bytes are not an image, before any write", asy
 
 test("happy path: saved under inbox, files rows, upload used, handler gets both", async () => {
   await seed("png", { mimeType: "image/png", bytes: PNG, size: PNG.length });
-  const { messageId } = await send(["png"], { text: "look" });
+  const { messageId, files } = await send(["png"], { text: "look" });
   expect(messageId).toBe(7);
   const path = handled[0]?.attachments?.[0]?.path as string;
   expect(handled[0]).toMatchObject({
@@ -215,6 +215,10 @@ test("happy path: saved under inbox, files rows, upload used, handler gets both"
     conversationId: "bot:a",
   });
   expect(await store.uploads.get("png")).toMatchObject({ state: "used", messageId });
+  // The web app shows the saved files on its own copy of the message; no event carries it back.
+  expect(files).toMatchObject([
+    { id: fileId, name: "f.bin", mimeType: "image/png", size: PNG.length, kind: "image" },
+  ]);
 });
 
 test("an image upload carries its pixel size; a non-image has none", async () => {
@@ -387,6 +391,9 @@ test("a nonce replay after a crash mid-send marks the uploads used and carries t
   });
   const r = await send(["c1"], { clientNonce: "k3" });
   expect(r.messageId).toBe(id);
+  expect(r.files).toEqual([
+    { id: "f1", name: "f.bin", mimeType: "image/png", size: PNG.length, kind: "image" },
+  ]);
   expect(await store.uploads.get("c1")).toMatchObject({ state: "used", messageId: id });
   expect(handled[0]?.files).toEqual(files);
   expect(handled[0]?.attachments?.[0]).toMatchObject({ name: "1-f.bin", mimeType: "image/png" });

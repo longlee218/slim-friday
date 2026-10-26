@@ -38,8 +38,8 @@ export function useSendMessage() {
       setPending(qc, tempId, { ...p, state: "sending" });
       for (const id of p.route.botIds) startRun(qc, p.payload.conversationId, id, Date.now());
       try {
-        const { messageId } = await client.chat.send(p.payload);
-        swapTemp(qc, p.payload.conversationId, tempId, messageId);
+        const { messageId, files } = await client.chat.send(p.payload);
+        swapTemp(qc, p.payload.conversationId, tempId, messageId, files);
         setPending(qc, tempId, null);
       } catch {
         // Any failure, CONFLICT included, is "Not sent"; a retry reuses the nonce and the engine replays.

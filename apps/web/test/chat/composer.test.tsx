@@ -28,7 +28,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.stubGlobal("fetch", fetchMock);
   fetchMock.mockResolvedValue({ ok: true });
-  mocks.send.mockResolvedValue({ messageId: 50 });
+  mocks.send.mockResolvedValue({ messageId: 50, files: [] });
   mocks.uploadCreate.mockResolvedValue({
     uploadId: "11111111-1111-4111-8111-111111111111",
     putUrl: "https://r2/p",
@@ -149,7 +149,7 @@ test("Cancel reply closes the bar", async () => {
 });
 
 test("optimistic message shows at once under a negative id, then swaps to the real id", async () => {
-  let done: (v: { messageId: number }) => void = () => {};
+  let done: (v: { messageId: number; files: [] }) => void = () => {};
   mocks.send.mockReturnValue(new Promise((r) => (done = r)));
   const u = userEvent.setup();
   const qc = client();
@@ -159,13 +159,13 @@ test("optimistic message shows at once under a negative id, then swaps to the re
   const [tempId] = ids(qc, "bot:dev") ?? [];
   expect(tempId).toBeLessThan(0);
   expect(screen.getByRole("button", { name: `sending ${tempId}` })).toBeTruthy();
-  await act(async () => done({ messageId: 50 }));
+  await act(async () => done({ messageId: 50, files: [] }));
   expect(ids(qc, "bot:dev")).toEqual([50]);
   await waitFor(() => expect(screen.queryByRole("button", { name: /sending/ })).toBeNull());
 });
 
 test("temp id is dropped when the real message already arrived by event", async () => {
-  let done: (v: { messageId: number }) => void = () => {};
+  let done: (v: { messageId: number; files: [] }) => void = () => {};
   mocks.send.mockReturnValue(new Promise((r) => (done = r)));
   const u = userEvent.setup();
   const qc = client();
@@ -174,7 +174,7 @@ test("temp id is dropped when the real message already arrived by event", async 
   await u.click(sendBtn());
   act(() => appendMessage(qc, msg({ id: 50, author: { kind: "user" }, text: "hi" })));
   expect(ids(qc, "bot:dev")).toHaveLength(2);
-  await act(async () => done({ messageId: 50 }));
+  await act(async () => done({ messageId: 50, files: [] }));
   expect(ids(qc, "bot:dev")).toEqual([50]);
 });
 
@@ -338,6 +338,29 @@ test("send waits for the upload, then sends its id", async () => {
   expect(screen.queryByText("a.png")).toBeNull();
 });
 
+test("the sent message gets the files the engine stored", async () => {
+  const stored = {
+    id: "f1",
+    name: "a.png",
+    mimeType: "image/png",
+    size: 3,
+    kind: "image" as const,
+  };
+  mocks.send.mockResolvedValue({ messageId: 50, files: [stored] });
+  const u = userEvent.setup();
+  const qc = client();
+  view(<Harness conversation={devConv} />, qc);
+  await u.upload(
+    screen.getByTestId("file-input"),
+    new File(["abc"], "a.png", { type: "image/png" }),
+  );
+  await waitFor(() => expect(sendBtn().disabled).toBe(false));
+  await u.click(sendBtn());
+  await waitFor(() => expect(ids(qc, "bot:dev")).toEqual([50]));
+  const sent = qc.getQueryData<InfiniteData<MessageDto[]>>(messagesKey("bot:dev"))?.pages[0]?.[0];
+  expect(sent?.files).toEqual([stored]);
+});
+
 test("a failed PUT keeps Send disabled and says why", async () => {
   fetchMock.mockResolvedValue({ ok: false, status: 403 });
   const u = userEvent.setup();
@@ -414,7 +437,7 @@ test("a CONFLICT is a failed send, not a delivered one", async () => {
 });
 
 test("a double click on Retry sends once", async () => {
-  let done: (v: { messageId: number }) => void = () => {};
+  let done: (v: { messageId: number; files: [] }) => void = () => {};
   mocks.send.mockRejectedValueOnce(new Error("down"));
   mocks.send.mockReturnValueOnce(new Promise((r) => (done = r)));
   const u = userEvent.setup();
@@ -424,7 +447,7 @@ test("a double click on Retry sends once", async () => {
   const failed = await screen.findByRole("button", { name: /^failed -\d+$/ });
   await u.dblClick(failed);
   expect(mocks.send).toHaveBeenCalledTimes(2);
-  await act(async () => done({ messageId: 50 }));
+  await act(async () => done({ messageId: 50, files: [] }));
 });
 
 test("a settled send sweeps pending entries whose temp message is gone", async () => {

@@ -16,7 +16,7 @@ function excerptOf(text: string): string {
 }
 
 /** A stored file reference as the contract's file. */
-function toFileDto(f: FileRef): FileDto {
+export function toFileDto(f: FileRef): FileDto {
   return {
     id: f.fileId,
     name: f.name,
