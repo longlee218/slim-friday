@@ -88,6 +88,8 @@
 .ios-banner:has(+ .tabbar:not(.hidden)) { top: calc(var(--safe-t) + var(--nav-h)); }
 /* ...and push a tab root's content down by the banner's 30px so it never covers the large title. */
 .ios:has(.ios-banner .banner):has(.tabbar:not(.hidden)) .ios-scroll { padding-top: calc(var(--safe-t) + var(--nav-h) + 30px); }
+/* Connection and tool-warning banners stack: reserve both. */
+.ios:has(.ios-banner > div > .banner):has(.ios-banner > .banner):has(.tabbar:not(.hidden)) .ios-scroll { padding-top: calc(var(--safe-t) + var(--nav-h) + 60px); }
 /* Rows are links and the live row a button here: neutral their default look. */
 a.crow { color: inherit; text-decoration: none; }
 button.live { border: 0; width: calc(100% - 32px); text-align: left; color: inherit; font: inherit; }

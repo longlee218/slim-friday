@@ -38,3 +38,21 @@ test("dismiss hides the banner for the session", async () => {
   const again = setup([{ tool: "uvx", hint: "brew install uv" }]);
   expect(again.container.querySelector(".banner")).toBeNull();
 });
+
+test("a failing or still-loading query renders nothing", async () => {
+  const qc = seededClient({});
+  qc.setQueryDefaults(orpc.control.toolCheck.queryKey(), { retry: false });
+  const { container, rerender } = render(
+    <QueryClientProvider client={qc}>
+      <ToolWarningBanner />
+    </QueryClientProvider>,
+  );
+  expect(container.querySelector(".banner")).toBeNull();
+  rerender(
+    <QueryClientProvider client={qc}>
+      <ToolWarningBanner />
+    </QueryClientProvider>,
+  );
+  await new Promise((r) => setTimeout(r, 20));
+  expect(container.querySelector(".banner")).toBeNull();
+});

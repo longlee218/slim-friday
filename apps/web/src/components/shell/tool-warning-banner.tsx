@@ -24,9 +24,12 @@ function writeDismissed() {
 /** Amber band next to the connection banner while a helper tool (uvx, pdftotext) is missing. */
 export function ToolWarningBanner() {
   const [dismissed, setDismissed] = useState(readDismissed);
-  const warnings = useQuery(orpc.control.toolCheck.queryOptions()).data ?? [];
+  const warnings =
+    useQuery(orpc.control.toolCheck.queryOptions({ staleTime: Number.POSITIVE_INFINITY })).data ??
+    [];
   if (dismissed || warnings.length === 0) return null;
 
+  const text = warnings.map((w) => `${w.tool} is missing: ${w.hint}`).join(" · ");
   const dismiss = () => {
     writeDismissed();
     setDismissed(true);
@@ -34,8 +37,10 @@ export function ToolWarningBanner() {
   return (
     <div className="banner" role="status">
       <TriangleAlert size={14} strokeWidth={1.75} aria-hidden="true" />
-      {warnings.map((w) => `${w.tool} is missing: ${w.hint}`).join(" · ")}
-      <button type="button" aria-label="Dismiss" onClick={dismiss}>
+      <span className="banner-text" title={text}>
+        {text}
+      </span>
+      <button type="button" className="banner-dismiss" aria-label="Dismiss" onClick={dismiss}>
         <X size={14} strokeWidth={1.75} aria-hidden="true" />
       </button>
     </div>
