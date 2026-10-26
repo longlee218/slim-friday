@@ -155,3 +155,11 @@ a.irow.danger, button.irow.danger { color: var(--red); }
 :is(.ios, .bs-form) .popbtn { height: 32px; }
 :is(.ios, .bs-form) .seg button { height: 32px; }
 .ios .field, .bs-form .field:not(textarea) { height: 36px; }
+
+/* Swipe-left quick action on a chat row: the red Delete grows from the right edge as the row slides. */
+.swrow { position: relative; overflow: hidden; border-radius: 14px; }
+.swrow-slide { transform: translateX(var(--dx, 0)); touch-action: pan-y; transition: transform 240ms var(--ease); }
+.swrow.drag .swrow-slide, .swrow.drag .swrow-del { transition: none; }
+.swrow-del { position: absolute; top: 0; right: 0; bottom: 0; width: calc(var(--dx, 0) * -1); overflow: hidden; display: flex; justify-content: flex-end; border: 0; padding: 0; background: var(--red); color: #fff; font: 600 13px var(--font); transition: width 240ms var(--ease); }
+.swrow-del span { flex: none; width: 80px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
+.swrow-del:active { opacity: .85; }

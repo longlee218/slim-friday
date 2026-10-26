@@ -80,7 +80,7 @@ export function engineHarness() {
   const addBot = (id: string, name: string) => {
     store.botMap.set(id, bot(id, name));
     const { subagents: _s, ...input } = bot(id, name);
-    settings.config.bots.set(id, { ...input, shipped: false });
+    settings.config.bots.set(id, { ...input, shipped: false, deletable: true });
   };
   const addGroup = (g: Partial<Group> & { id: string; name: string }) => {
     const full = { members: [], entryBot: "", workspaces: [], instructions: "", ...g };

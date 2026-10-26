@@ -79,3 +79,9 @@ test("the BotDesign tool still refuses the id friday, even with the owner list s
   expect(r.isError).toBe(true);
   expect(textOf(r)).toContain("reserved");
 });
+
+test("Friday is never deletable, before or after an override", () => {
+  expect(admin.getBot("friday").deletable).toBe(false);
+  admin.saveBot(friday, "update");
+  expect(admin.getBot("friday").deletable).toBe(false);
+});

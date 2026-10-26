@@ -1,5 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider, useLocation } from "react-router";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -33,7 +33,7 @@ function renderSidebar(seed: Parameters<typeof seededClient>[0], onPalette = vi.
 }
 
 const seed = {
-  bots: [bot("dev", "Dev"), bot("pia", "Pia"), bot("ray", "Ray")],
+  bots: [bot("dev", "Dev"), { ...bot("pia", "Pia"), deletable: true }, bot("ray", "Ray")],
   groups: [group("core", "Core team", ["dev", "pia"])],
   conversations: [conv("bot:dev", 3), conv("bot:pia", 2), conv("group:core", 0)],
   status: [status("ray", "Ray", true, "Reading"), status("dev", "Dev", false)],
@@ -118,4 +118,13 @@ test("every bot and group is a chat row, even before its first message", () => {
   renderSidebar({ ...seed, bots: [...many, bot("dev", "Dev")] });
   expect(screen.getByRole("link", { name: /^I\b/ })).toBeTruthy();
   expect(screen.getByRole("link", { name: /Dev/ })).toBeTruthy();
+});
+
+test("a row's Delete from the right-click menu opens the confirm sheet", async () => {
+  renderSidebar(seed);
+  fireEvent.contextMenu(screen.getByRole("link", { name: /Pia/ }));
+  await userEvent.click(await screen.findByRole("menuitem", { name: "Delete bot…" }));
+  const sheet = await screen.findByRole("dialog");
+  expect(within(sheet).getByText("Delete Pia?")).toBeTruthy();
+  expect(within(sheet).getByText("Removed from Core team.")).toBeTruthy();
 });

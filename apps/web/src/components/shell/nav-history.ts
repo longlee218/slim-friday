@@ -1,4 +1,5 @@
-const DEFAULT_CHAT = "/c/bot:friday";
+/** The chat a desktop session opens when none was visited (and where it goes after a chat is deleted). */
+export const DEFAULT_CHAT = "/c/bot:friday";
 const isChat = (path: string) => path.startsWith("/c/");
 
 export interface NavHistory {

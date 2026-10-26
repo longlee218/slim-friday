@@ -71,6 +71,7 @@ export function getBotEntry(ctx: DesignContext, rawId: string): BotEntry {
       ...opt("autonomy"),
       ...(typeof h.avatar === "string" && { avatar: h.avatar }),
       shipped: !isOwnerBot(ctx, id) && !isOverridable(ctx, id),
+      deletable: isOwnerBot(ctx, id) && !ctx.reservedBotIds.includes(id),
     };
   });
 }
@@ -146,13 +147,19 @@ function writeBotFile(ctx: DesignContext, b: BotInput, mode: "create" | "update"
   atomicWrite(insideConfig(ctx.configDir, file), text);
 }
 
+/** The plain id of a bot the owner may delete; BAD_REQUEST for a reserved or shipped bot, NOT_FOUND for none. */
+export function requireDeletableBot(ctx: DesignContext, rawId: string): string {
+  const id = plainId(rawId);
+  if (ctx.reservedBotIds.includes(id))
+    throw new AdminError("BAD_REQUEST", `bot "${id}" is reserved and cannot be deleted`, "id");
+  requireOwnerBot(ctx, id);
+  return id;
+}
+
 /** Move an owner bot (file and memory) to the 7-day trash, as `BotDesign` `delete_bot` does; refused while a group has it. */
 export function deleteBotFile(ctx: DesignContext, rawId: string, groups: GroupEntry[]): void {
   guarded(() => {
-    const id = plainId(rawId);
-    if (ctx.reservedBotIds.includes(id))
-      throw new AdminError("BAD_REQUEST", `bot "${id}" is reserved and cannot be deleted`, "id");
-    requireOwnerBot(ctx, id);
+    const id = requireDeletableBot(ctx, rawId);
     const inGroups = groups.filter((g) => g.members.includes(id)).map((g) => g.id);
     if (inGroups.length)
       throw new AdminError(
@@ -160,6 +167,7 @@ export function deleteBotFile(ctx: DesignContext, rawId: string, groups: GroupEn
         `bot "${id}" is in group ${inGroups.join(", ")}; remove it from the group first`,
       );
     insideConfig(ctx.configDir, join(ctx.configDir, "bots", `${id}.md`));
-    deleteBot(ctx, { action: "delete_bot", id });
+    // `groups` is read from disk; the context's own list is the app's snapshot, stale for ~300 ms after a group write.
+    deleteBot({ ...ctx, groupSummaries: () => groups }, { action: "delete_bot", id });
   });
 }

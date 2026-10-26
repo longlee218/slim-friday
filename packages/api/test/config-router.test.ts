@@ -171,3 +171,11 @@ test("mcp.icon is null for an unknown or a stdio server, without a request", asy
   expect(await h.client.config.mcp.icon({ name: "nobody" })).toEqual({ dataUrl: null });
   expect(await h.client.config.mcp.icon({ name: "local" })).toEqual({ dataUrl: null });
 });
+
+test("bots.delete passes cascade to the admin; bots carry deletable", async () => {
+  const h = engineHarness();
+  h.addBot("ann", "Ann");
+  expect((await h.client.config.bots.get({ id: "ann" })).deletable).toBe(true);
+  expect(await h.client.config.bots.delete({ id: "ann", cascade: true })).toEqual({ ok: true });
+  expect(h.settings.config.calls.at(-1)).toEqual(["deleteBot", "ann", { cascade: true }]);
+});

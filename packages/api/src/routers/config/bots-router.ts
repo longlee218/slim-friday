@@ -75,7 +75,9 @@ export const botsRouter = {
     return botDto(context.deps, input.id);
   }),
   delete: authed.config.bots.delete.handler(async ({ input, context }) => {
-    await adminCall(() => context.deps.settings.config.deleteBot(input.id));
+    await adminCall(() =>
+      context.deps.settings.config.deleteBot(input.id, { cascade: input.cascade }),
+    );
     return { ok: true as const };
   }),
 };

@@ -260,3 +260,51 @@ test("extra runtime keys on the input do not get through", () => {
   admin.saveGroup({ ...group, avatar: "owl" } as unknown as GroupInput, "update");
   expect(admin.getGroup("team").avatar).toBe("fox");
 });
+
+test("cascade delete: a one-member group goes, an entry bot is replaced, then the bot goes", () => {
+  admin.saveBot(dev, "create");
+  admin.saveBot({ ...dev, id: "ann", name: "Ann" }, "create");
+  admin.saveGroup({ ...group, id: "solo", name: "Solo" }, "create");
+  admin.saveGroup({ ...group, members: ["dev", "ann"] }, "create");
+  admin.deleteBot("dev", { cascade: true });
+  expect(existsSync(join(configDir, "groups", "solo.yaml"))).toBe(false);
+  expect(admin.getGroup("team")).toMatchObject({ members: ["ann"], entryBot: "ann" });
+  expect(existsSync(join(configDir, "bots", "dev.md"))).toBe(false);
+});
+
+test("cascade delete of a shipped bot is refused before any group changes", () => {
+  expect(() => admin.deleteBot("friday", { cascade: true })).toThrow(
+    expect.objectContaining({ code: "BAD_REQUEST" }),
+  );
+});
+
+test("deletable: true for an owner bot, false for a shipped one", () => {
+  admin.saveBot(dev, "create");
+  expect(admin.getBot("dev").deletable).toBe(true);
+  expect(admin.getBot("friday").deletable).toBe(false);
+});
+
+test("cascade delete works while the app's group snapshot is still stale", () => {
+  // The real app reads groups from a snapshot that refreshes ~300 ms after a file write.
+  const s = setup();
+  const frozen = [{ id: "team", name: "Team", members: ["dev", "ann"] }];
+  const stale = createConfigAdmin({
+    ...s.ctx,
+    checkBot: (id, text) => void parseBotFile(id, text),
+    checkGroup: (id, text) => void parseGroupFile(id, text),
+    botSummaries: () =>
+      idsIn(join(s.configDir, "bots"), ".md").map((id) => ({ id, name: id, title: "" })),
+    groupSummaries: () => frozen,
+    presetAvatars: () => [],
+    readBotFile: (id) => {
+      const f = join(s.configDir, "bots", `${id}.md`);
+      return existsSync(f) ? readFileSync(f, "utf8") : undefined;
+    },
+  });
+  stale.saveBot(dev, "create");
+  stale.saveBot({ ...dev, id: "ann", name: "Ann" }, "create");
+  stale.saveGroup({ ...group, members: ["dev", "ann"] }, "create");
+  stale.deleteBot("dev", { cascade: true });
+  expect(existsSync(join(s.configDir, "bots", "dev.md"))).toBe(false);
+  expect(stale.getGroup("team")).toMatchObject({ members: ["ann"], entryBot: "ann" });
+});
