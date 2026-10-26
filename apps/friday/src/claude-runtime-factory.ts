@@ -72,7 +72,7 @@ export function claudeRuntimeFactory(config: AgentConfig, agentHome: string, log
             env,
             oauthToken: config.oauthToken,
             today: localDay(new Date()),
-          }),
+          }).then((notes) => notes.map((n) => n.note)),
         log,
         parts.memoryChanged,
       ),

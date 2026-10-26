@@ -11,6 +11,12 @@ export interface PromotedNote {
   replaces?: number;
 }
 
+/** A note the flush extraction picked, with the memory it belongs to: this bot's or its group's. */
+export interface FlushNote {
+  note: string;
+  about: "bot" | "group";
+}
+
 /**
  * Kinds of a bot's own notes a group session is given (prompt, recall, memory tools): the owner's rules and the
  * lessons apply everywhere; facts and decisions may come from the owner's direct chat and stay out of groups.

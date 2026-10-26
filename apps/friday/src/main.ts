@@ -129,7 +129,11 @@ async function runEngine(
     env,
     autoReviewer: appAutoReviewer(config),
     flushNotes: (transcript) =>
-      extractNotes(transcript, { ...haiku, source: "transcript", today: localDay(new Date()) }),
+      extractNotes(transcript, {
+        ...haiku,
+        source: "transcript",
+        today: localDay(new Date()),
+      }).then((notes) => notes.map((n) => n.note)),
     consolidate: (memory, notes) =>
       consolidateNotes({ memory, notes, today: localDay(new Date()) }, haiku),
     onConfigChanged: () => surface.bus.publish({ type: "config.changed" }),
