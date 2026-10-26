@@ -10,11 +10,14 @@ import {
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { useLocation } from "react-router";
+import { useDirectory } from "../../api/directory";
 import { enabledCount, useSchedules } from "../schedules/use-schedules";
 import { openCount, useAllTickets } from "../tickets/use-tickets";
 import { IconButton } from "../ui/button";
 import { Kbd } from "../ui/kbd";
-import { ChatRow, useChatRows } from "./chat-rows";
+import { ChatRowMenu } from "./chat-row-menu";
+import { ChatRow, canDelete, targetOf, useChatRows } from "./chat-rows";
+import { DeleteChatSheet, type DeleteTarget } from "./delete-chat-sheet";
 import { useAppNavigate } from "./use-app-navigate";
 
 /** Chat list filters (Messenger's chips). */
@@ -78,6 +81,8 @@ export function Sidebar({ onPalette }: { onPalette: () => void }) {
   const { tickets } = useAllTickets();
   const { schedules } = useSchedules();
   const [filter, setFilter] = useState<Filter>("All");
+  const [deleting, setDeleting] = useState<DeleteTarget | null>(null);
+  const dir = useDirectory();
   const shown = rows.filter(
     (r) => filter === "All" || (filter === "Bots" ? r.kind === "bot" : r.kind === "group"),
   );
@@ -111,7 +116,16 @@ export function Sidebar({ onPalette }: { onPalette: () => void }) {
       </div>
       <div className="sb-scroll">
         {shown.map((r) => (
-          <ChatRow key={r.id} row={r} size={44} on={pathname === `/c/${r.id}`} onOpen={go} />
+          <ChatRowMenu
+            key={r.id}
+            target={targetOf(r)}
+            name={r.name}
+            deletable={canDelete(r, dir)}
+            onOpen={() => go(`/c/${r.id}`)}
+            onDelete={setDeleting}
+          >
+            <ChatRow row={r} size={44} on={pathname === `/c/${r.id}`} onOpen={go} />
+          </ChatRowMenu>
         ))}
         {filter !== "Groups" && (
           <AddRow
@@ -128,6 +142,7 @@ export function Sidebar({ onPalette }: { onPalette: () => void }) {
           />
         )}
       </div>
+      <DeleteChatSheet target={deleting} onClose={() => setDeleting(null)} />
       <nav className="sb-dock" aria-label="Workspace">
         <a
           className="me"

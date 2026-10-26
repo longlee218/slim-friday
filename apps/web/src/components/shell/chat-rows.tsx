@@ -45,6 +45,18 @@ export interface ChatRowData {
   unread: boolean;
 }
 
+/** The bot or group behind a chat row (`bot:<id>` / `group:<id>`). */
+export const targetOf = (r: ChatRowData): { kind: "bot" | "group"; id: string } => ({
+  kind: r.kind,
+  id: r.id.slice(r.id.indexOf(":") + 1),
+});
+
+/** True when the row may offer Delete: any group, or a bot the engine marks deletable. */
+export const canDelete = (r: ChatRowData, dir: Directory): boolean =>
+  r.kind === "group"
+    ? dir.groups.has(targetOf(r).id)
+    : dir.bots.get(targetOf(r).id)?.deletable === true;
+
 /** Newest message first; chats without one keep their order at the end. */
 const byRecent = (a: ChatRowData, b: ChatRowData) => (b.last?.at ?? 0) - (a.last?.at ?? 0);
 
