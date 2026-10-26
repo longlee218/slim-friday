@@ -15,6 +15,8 @@ test("tabOf maps paths to tabs (chats own / and /c/*)", () => {
   expect(tabOf("/settings/bot/dev")).toBe("settings");
   expect(tabOf("/schedules")).toBe("settings");
   expect(tabOf("/schedules/a")).toBe("settings");
+  expect(tabOf("/files")).toBe("settings");
+  expect(phoneStackFor("/files")).toEqual(["/settings", "/files"]);
 });
 
 test("phoneStackFor seeds the chat", () => {

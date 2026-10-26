@@ -1,6 +1,7 @@
 import { Link, Navigate, type RouteObject } from "react-router";
 import { ActivityRoute } from "../components/activity/activity-route";
 import { ChatView } from "../components/chat/chat-view";
+import { FilesRoute } from "../components/files/files-route";
 import { ChatsList } from "../components/phone/chats-list";
 import { PhoneChat } from "../components/phone/phone-chat";
 import { SchedulePageRoute } from "../components/schedules/schedule-page-route";
@@ -49,6 +50,7 @@ export const protectedChildren: RouteObject[] = [
   { path: "/tickets/:ref", element: <TicketPageRoute /> },
   { path: "/schedules", element: <SchedulesRoute /> },
   { path: "/schedules/:id", element: <SchedulePageRoute /> },
+  { path: "/files", element: <FilesRoute /> },
   { path: "/ops", element: <ActivityRoute /> },
   ...settingsRoutes,
   { path: "*", element: <NotFound /> },

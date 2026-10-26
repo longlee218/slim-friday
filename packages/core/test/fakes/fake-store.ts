@@ -6,6 +6,8 @@ import type {
   CardRow,
   Conversation,
   ConversationId,
+  FileCursor,
+  FileKind,
   FileRow,
   Grant,
   Group,
@@ -24,6 +26,7 @@ import type {
   WakeRow,
   WakeStatus,
 } from "../../src";
+import { fileKindOf } from "../../src";
 import { fakeSchedules } from "./fake-schedules";
 
 /** Statuses of a wake not finished yet. */
@@ -106,6 +109,22 @@ export class FakeStore implements Store {
       this.fileMap.delete(id);
     },
     hasKey: async (key: string) => [...this.fileMap.values()].some((f) => f.key === key),
+    listUploads: async (q: {
+      limit: number;
+      cursor?: FileCursor;
+      kind?: FileKind;
+      conversationId?: ConversationId;
+    }) =>
+      [...this.fileMap.values()]
+        .filter(
+          (f) =>
+            f.source === "upload" &&
+            (!q.kind || fileKindOf(f.mimeType) === q.kind) &&
+            (!q.conversationId || f.conversationId === q.conversationId) &&
+            (!q.cursor || f.at < q.cursor.at || (f.at === q.cursor.at && f.id < q.cursor.id)),
+        )
+        .sort((a, b) => b.at - a.at || (a.id < b.id ? 1 : -1))
+        .slice(0, q.limit),
   };
   uploadMap = new Map<string, UploadRow>();
   uploads = {

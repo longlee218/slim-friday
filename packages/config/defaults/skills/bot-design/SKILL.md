@@ -25,7 +25,7 @@ Quality over speed: research before you propose. A weak request must become a fe
 |---|---|
 | id / name | id lowercase (`blog-writer`); name one word (`Quill`). |
 | model, effort, tools | `references/tools-guide.md`; names only from `list`. |
-| skills | Only names from `list` or installed in step 8. |
+| skills | Only names from `list` or installed in step 8. A bot with `Bash` and `Read` lists `office-files` to read docx and xlsx the owner sends. |
 | autonomy | `careful` (asks before effects) by default; `balanced` when the owner asks. `autonomous` is refused: only the owner sets it by hand. |
 
 ## Subagents

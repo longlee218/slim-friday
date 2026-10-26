@@ -20,5 +20,6 @@ export const controlRouter = {
     if (conv.kind === "direct") return { stopped: await hub.stop(conv.botId, "direct") };
     return { stopped: await hub.stopGroup(conv.groupId) };
   }),
+  toolCheck: authed.control.toolCheck.handler(({ context }) => context.deps.toolWarnings),
   purge: authed.control.purge.handler(({ context }) => ({ purged: context.deps.purge() })),
 };

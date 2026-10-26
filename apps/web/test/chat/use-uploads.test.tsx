@@ -33,13 +33,13 @@ test("upload refuses before any network call", () => {
 
 test("a 21 MB file is refused locally", () => {
   const { result } = renderHook(() => useUploads("bot:dev"));
-  const big = new File(["x"], "big.mov");
+  const big = new File(["x"], "big.pdf");
   Object.defineProperty(big, "size", { value: 21 * 1024 * 1024 });
   let err: string | null = null;
   act(() => {
     err = result.current.add([big]);
   });
-  expect(err).toBe("big.mov is over 20 MB.");
+  expect(err).toBe("big.pdf is over 20 MB.");
   expect(mocks.uploadCreate).not.toHaveBeenCalled();
 });
 
@@ -64,16 +64,24 @@ test("upload PUTs with the declared type, no cookies, and marks done", async () 
   expect(result.current.uploads[0]?.uploadId).toBe("u1");
 });
 
-test("a file without a type is declared application/octet-stream", async () => {
+test("the PUT carries the type of the file name, not the browser's (Windows csv)", async () => {
   const { result } = renderHook(() => useUploads("bot:dev"));
   act(() => {
-    result.current.add([file("blob", "")]);
+    result.current.add([file("data.csv", "application/vnd.ms-excel")]);
+  });
+  await waitFor(() => expect(result.current.uploads[0]?.state).toBe("done"));
+  expect((fetchMock.mock.calls[0] as [string, RequestInit])[1].headers).toEqual({
+    "Content-Type": "text/csv",
+  });
+});
+
+test("a file without a type is still declared to the server", async () => {
+  const { result } = renderHook(() => useUploads("bot:dev"));
+  act(() => {
+    result.current.add([file("notes.txt", "")]);
   });
   await waitFor(() => expect(result.current.uploads[0]?.state).toBe("done"));
   expect(mocks.uploadCreate.mock.calls[0]?.[0].type).toBe("application/octet-stream");
-  expect((fetchMock.mock.calls[0] as [string, RequestInit])[1].headers).toEqual({
-    "Content-Type": "application/octet-stream",
-  });
 });
 
 test("failed PUT marks the chip failed", async () => {

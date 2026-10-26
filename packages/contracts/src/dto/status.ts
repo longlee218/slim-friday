@@ -12,6 +12,10 @@ export const BotStatusDtoSchema = z.object({
 });
 export type BotStatusDto = z.infer<typeof BotStatusDtoSchema>;
 
+/** A tool the file skills need that is not installed, with how to install it. */
+export const ToolWarningDtoSchema = z.object({ tool: z.string(), hint: z.string() });
+export type ToolWarningDto = z.infer<typeof ToolWarningDtoSchema>;
+
 /** The result of a call that returns nothing else. */
 export const OkDtoSchema = z.object({ ok: z.literal(true) });
 export type OkDto = z.infer<typeof OkDtoSchema>;

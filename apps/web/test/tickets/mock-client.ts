@@ -15,7 +15,7 @@ export function mockApi(tickets: Record<string, unknown>) {
     },
     config: { bots: { list: empty }, groups: { list: empty } },
     conversations: { list: empty },
-    control: { status: empty },
+    control: { status: empty, toolCheck: empty },
     approvals: { pending: empty },
     questions: { pending: empty },
   };

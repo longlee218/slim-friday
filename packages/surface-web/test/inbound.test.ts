@@ -67,7 +67,7 @@ beforeEach(async () => {
 });
 
 test("createUpload refuses an unknown conversation and a bad size", async () => {
-  const i = { name: "a", type: "text/plain" };
+  const i = { name: "a.txt", type: "text/plain" };
   await expect(
     surface.createUpload({ ...i, conversationId: "bot:x", size: 1 }),
   ).rejects.toMatchObject({ code: "NOT_FOUND" });
@@ -94,6 +94,38 @@ test("createUpload stores a pending row and presigns the engine's key", async ()
     key: `uploads/bot:a/${r.uploadId}/b.txt`.replace("b.txt", "a_b.txt"),
   });
   expect(r.putUrl).toContain(`${row?.key}?exp=600`);
+});
+
+test("createUpload refuses a name outside the accepted list and stores nothing", async () => {
+  await expect(
+    surface.createUpload({ conversationId: "bot:a", name: "x.exe", type: "text/plain", size: 4 }),
+  ).rejects.toMatchObject({
+    code: "BAD_REQUEST",
+    message: expect.stringContaining("x.exe"),
+  });
+  expect(store.uploadMap.size).toBe(0);
+});
+
+test("createUpload ignores the declared type: csv from Windows is stored as text/csv", async () => {
+  const r = await surface.createUpload({
+    conversationId: "bot:a",
+    name: "data.csv",
+    type: "application/vnd.ms-excel",
+    size: 4,
+  });
+  expect(await store.uploads.get(r.uploadId)).toMatchObject({ mimeType: "text/csv" });
+});
+
+test("createUpload signs the presigned PUT with the stored mime, not the declared one", async () => {
+  const r = await surface.createUpload({
+    conversationId: "bot:a",
+    name: "data.csv",
+    type: "application/vnd.ms-excel",
+    size: 4,
+  });
+  const stored = await store.uploads.get(r.uploadId);
+  expect(stored?.mimeType).toBe("text/csv");
+  expect(r.putUrl).toEndWith("&type=text/csv");
 });
 
 test("send refuses an unknown conversation, empty input and a foreign reply", async () => {

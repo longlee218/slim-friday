@@ -1,11 +1,17 @@
 import type { BotDto, ConversationDto, GroupDto } from "@friday/contracts";
-import { AtSign, Paperclip, Plus } from "lucide-react";
+import { AtSign, Camera, Paperclip, Plus } from "lucide-react";
 import { type Ref, useImperativeHandle, useRef } from "react";
 import { toast } from "sonner";
 import { useDirectory } from "../../api/directory";
 import { IconButton } from "../ui/button";
 import { ComposerChips } from "./composer-chips";
-import { FilePicker, SendButton, useAutosize, useComposerHeight } from "./composer-controls";
+import {
+  CameraPicker,
+  FilePicker,
+  SendButton,
+  useAutosize,
+  useComposerHeight,
+} from "./composer-controls";
 import { placeholderFor, sendOnEnter } from "./composer-rules";
 import { MentionPopover } from "./mention-popover";
 import { ReplyBar } from "./reply-bar";
@@ -49,6 +55,7 @@ export function Composer(props: ComposerProps) {
   const { uploads, add, remove, clear } = useUploads(conversation.id);
   const input = useRef<HTMLTextAreaElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const cameraInput = useRef<HTMLInputElement>(null);
 
   const names = new Map([...dir.bots].map(([id, b]) => [id, b.name]));
   const members = (group?.members ?? [])
@@ -145,9 +152,19 @@ export function Composer(props: ComposerProps) {
       <div className="composer">
         {popover}
         <FilePicker inputRef={fileInput} onFiles={addFiles} />
+        {phone && <CameraPicker inputRef={cameraInput} onFiles={addFiles} />}
         <IconButton label={ATTACH} className="comp-ib" onClick={attach}>
           {phone ? <Plus strokeWidth={1.75} /> : <Paperclip strokeWidth={1.75} />}
         </IconButton>
+        {phone && (
+          <IconButton
+            label="Take a photo"
+            className="comp-ib"
+            onClick={() => cameraInput.current?.click()}
+          >
+            <Camera strokeWidth={1.75} />
+          </IconButton>
+        )}
         {!phone && group && route && (
           <IconButton label="Mention a member" className="comp-ib" onClick={mention.startMention}>
             <AtSign strokeWidth={1.75} />

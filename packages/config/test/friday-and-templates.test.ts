@@ -45,7 +45,13 @@ test("the shipped Friday bot designs through BotDesign: no write tools, its skil
   // A server name (`mcp__memory`) stands for every catalog tool under it.
   const known = (t: string) => catalog.has(t) || [...catalog].some((c) => c.startsWith(`${t}__`));
   expect(tools.filter((t) => !known(t))).toEqual([]);
-  expect(f?.skills).toEqual(["bot-design", "skill-install", "find-skill", "bot-tuning"]);
+  expect(f?.skills).toEqual([
+    "bot-design",
+    "skill-install",
+    "find-skill",
+    "bot-tuning",
+    "office-files",
+  ]);
   for (const s of f?.skills ?? [])
     expect(existsSync(join(DEFAULT_SKILLS_DIR, s, "SKILL.md"))).toBe(true);
   expect(f?.workspaces).toEqual([]);
@@ -76,6 +82,21 @@ for (const [name, entry] of [
     }
   });
 }
+
+test("office-files is listed by Friday and by every template bot that has both Bash and Read", () => {
+  const userDir = mkdtempSync(join(tmpdir(), "cfg-"));
+  const { snapshot } = loadConfig({ defaultsDir: DEFAULTS_DIR, userDir });
+  expect(snapshot.bots.get("friday")?.skills).toContain("office-files");
+  const withBoth: string[] = [];
+  for (const name of ["code", "social-content", "research"]) {
+    for (const b of loadTemplate(name).bots) {
+      if (!b.tools.includes("Bash") || !b.tools.includes("Read")) continue;
+      withBoth.push(`${name}/${b.id}`);
+      expect(b.skills).toContain("office-files");
+    }
+  }
+  expect(withBoth.sort()).toEqual(["code/coder", "code/reviewer"]);
+});
 
 test("the owner's user file for the id friday overrides the shipped bot", () => {
   const userDir = mkdtempSync(join(tmpdir(), "cfg-"));

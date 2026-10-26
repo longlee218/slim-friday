@@ -1,6 +1,7 @@
 import {
   Bot,
   CalendarClock,
+  Files,
   Gauge,
   Search,
   Settings,
@@ -171,6 +172,9 @@ export function Sidebar({ onPalette }: { onPalette: () => void }) {
           count={enabledCount(schedules)}
         >
           <CalendarClock size={18} strokeWidth={1.75} />
+        </DockLink>
+        <DockLink href="/files" label="Files" on={pathname.startsWith("/files")}>
+          <Files size={18} strokeWidth={1.75} />
         </DockLink>
         <DockLink href="/ops" label="Activity" on={pathname.startsWith("/ops")}>
           <Gauge size={18} strokeWidth={1.75} />

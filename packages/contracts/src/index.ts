@@ -12,6 +12,7 @@ export * from "./dto/status";
 export * from "./dto/tickets";
 export * from "./errors";
 export * from "./events";
+export * from "./file-types";
 export * from "./ids";
 export * from "./limits";
 export * from "./procedure-paths";

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Attachment, FileRef, FileRow, InboundMessage, UploadRow } from "@friday/core";
+import { acceptedMimeForName } from "./accepted-types";
 import {
   checkObjects,
   checkSendInput,
@@ -25,6 +26,8 @@ export async function createUpload(
   }
   if (i.size > MAX_UPLOAD_BYTES) throw new SurfaceError("PAYLOAD_TOO_LARGE", "file too large");
   if (!(i.size > 0)) throw new SurfaceError("BAD_REQUEST", "empty file");
+  const mime = acceptedMimeForName(i.name);
+  if (!mime) throw new SurfaceError("BAD_REQUEST", `${i.name}: this file type is not accepted`);
   const uploadId = randomUUID();
   const name = safeName(i.name);
   const key = `uploads/${i.conversationId}/${uploadId}/${name}`;
@@ -34,12 +37,12 @@ export async function createUpload(
     conversationId: i.conversationId,
     purpose: "chat",
     name,
-    mimeType: i.type,
+    mimeType: mime,
     size: i.size,
     state: "pending",
     at: deps.clock.now(),
   });
-  return { uploadId, putUrl: deps.files.presignPut(key, UPLOAD_PUT_SECONDS, i.type) };
+  return { uploadId, putUrl: deps.files.presignPut(key, UPLOAD_PUT_SECONDS, mime) };
 }
 
 /** Take every upload (pending -> claimed) or none: a second send of the same id is a CONFLICT. */

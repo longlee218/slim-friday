@@ -12,7 +12,7 @@ export const TAB_ROOT: Record<PhoneTab, string> = {
 const ROOTS = new Set<string>(Object.values(TAB_ROOT));
 
 /**
- * The tab a path belongs to (`/c/*` is a chat, so chats; schedules live in Settings; unknown
+ * The tab a path belongs to (`/c/*` is a chat, so chats; schedules and files live in Settings; unknown
  * paths fall back to chats).
  */
 export function tabOf(path: string): PhoneTab {
@@ -23,6 +23,7 @@ export function tabOf(path: string): PhoneTab {
       return "activity";
     case "settings":
     case "schedules":
+    case "files":
       return "settings";
     default:
       return "chats";

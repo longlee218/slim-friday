@@ -18,3 +18,8 @@
   padding: 12px 16px; font-size: 13px; gap: 8px;
 }
 :root [data-sonner-toaster] [data-sonner-toast][data-type="success"] [data-icon] svg { color: var(--green-dot); }
+
+/* Dismissible tool warning (tool-warning-banner.tsx). */
+.banner-text { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.banner-dismiss { flex: none; display: inline-flex; border: 0; background: none; color: inherit; padding: 4px; cursor: pointer; }
+.banner-dismiss:focus-visible { outline: 2px solid var(--amber); outline-offset: -2px; }

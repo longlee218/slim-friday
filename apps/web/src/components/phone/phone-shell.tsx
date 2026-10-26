@@ -4,6 +4,7 @@ import { useLocation, useNavigate, useNavigationType, useRoutes } from "react-ro
 import { ScreenBoundary } from "../../app/route-error";
 import { useConnection } from "../../app/shell-context";
 import { ConnectionBanner } from "../shell/connection-banner";
+import { ToolWarningBanner } from "../shell/tool-warning-banner";
 import { useEdgeSwipe } from "./edge-swipe";
 import { backLabel, phoneStackFor, phoneStackReduce, tabOf } from "./phone-stack";
 import { TabBar } from "./tab-bar";
@@ -151,6 +152,7 @@ export function PhoneShell({ routes }: { routes: RouteObject[] }) {
         })}
         <div className="ios-banner">
           <ConnectionBanner state={connection} />
+          <ToolWarningBanner />
         </div>
         <TabBar active={tabOf(stack[0])} hidden={stack.length > 1} />
       </div>

@@ -2,10 +2,13 @@ import { mkdirSync } from "node:fs";
 import { type AgentConfig, loadConfig } from "../config/agent-config";
 import { readProcessEnv } from "../config/process-env";
 import { homePlacementError } from "./home-placement-check";
+import { checkTools, type ToolWarning } from "./tool-check";
 
 /** What a valid boot hands to the composition root. */
 export interface BootState {
   config: AgentConfig;
+  /** Tools the file skills need that are not installed (empty when all are). */
+  toolWarnings: ToolWarning[];
 }
 
 /**
@@ -14,6 +17,7 @@ export interface BootState {
  */
 export function loadBootState(
   env: Record<string, string | undefined> = readProcessEnv(),
+  which?: (name: string) => string | null,
 ): BootState {
   const config = loadConfig(env);
   if (!config.hasRealAuth) throw new Error("CLAUDE_CODE_OAUTH_TOKEN missing or placeholder");
@@ -22,5 +26,6 @@ export function loadBootState(
   const misplaced = homePlacementError(config.agentHome, []);
   if (misplaced) throw new Error(misplaced);
   mkdirSync(config.agentHome, { recursive: true, mode: 0o700 });
-  return { config };
+  // Missing tools only warn: the engine works without them.
+  return { config, toolWarnings: checkTools(which) };
 }

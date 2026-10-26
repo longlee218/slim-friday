@@ -1,3 +1,4 @@
+import { acceptedMimeForName } from "@friday/contracts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { client } from "../../api/client";
 import { checkFiles } from "./composer-rules";
@@ -46,7 +47,8 @@ export function useUploads(conversationId: string) {
         const res = await fetch(ticket.putUrl, {
           method: "PUT",
           body: file,
-          headers: { "Content-Type": type },
+          // The URL signs the type the server derived from the name, not the browser's.
+          headers: { "Content-Type": acceptedMimeForName(file.name) ?? type },
           credentials: "omit",
           signal: ctl.signal,
         });

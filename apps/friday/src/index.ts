@@ -2,6 +2,7 @@ import { errText } from "@friday/tools";
 import type { AgentConfig } from "./config/agent-config";
 import { bootFriday } from "./lifecycle/boot";
 import { loadBootState } from "./lifecycle/boot-checks";
+import type { ToolWarning } from "./lifecycle/tool-check";
 import { startEngine } from "./main";
 import { flushAxiom, logEvent, logger } from "./observability/logger";
 
@@ -16,8 +17,9 @@ function fail(message: string): never {
 /** Boot: config checks, infrastructure, graceful shutdown on SIGINT / SIGTERM. */
 async function main(): Promise<void> {
   let config: AgentConfig;
+  let toolWarnings: ToolWarning[];
   try {
-    config = loadBootState().config;
+    ({ config, toolWarnings } = loadBootState());
   } catch (err) {
     return fail(errText(err));
   }
@@ -42,7 +44,7 @@ async function main(): Promise<void> {
     await bootFriday({
       agentHome,
       signal: ac.signal,
-      startEngine: (signal) => startEngine({ config, agentHome, signal }),
+      startEngine: (signal) => startEngine({ config, agentHome, signal, toolWarnings }),
     });
   } catch (err) {
     return fail(errText(err));

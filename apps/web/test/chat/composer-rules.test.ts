@@ -15,12 +15,24 @@ const k = (key: string, extra: Partial<{ shiftKey: boolean; isComposing: boolean
 });
 
 test("checkFiles refuses a sixth file and a 21 MB file", () => {
-  expect(checkFiles(5, [f("a", 1)])).toEqual({ ok: false, error: "Up to 5 files per message." });
-  expect(checkFiles(0, [f("big.mov", 21 * 1024 * 1024)])).toEqual({
+  expect(checkFiles(5, [f("a.txt", 1)])).toEqual({
     ok: false,
-    error: "big.mov is over 20 MB.",
+    error: "Up to 5 files per message.",
   });
-  expect(checkFiles(0, [f("ok.bin", 20 * 1024 * 1024)])).toEqual({ ok: true });
+  expect(checkFiles(0, [f("big.pdf", 21 * 1024 * 1024)])).toEqual({
+    ok: false,
+    error: "big.pdf is over 20 MB.",
+  });
+  expect(checkFiles(0, [f("ok.pdf", 20 * 1024 * 1024)])).toEqual({ ok: true });
+});
+
+test("checkFiles refuses a type outside the list, naming the file", () => {
+  expect(checkFiles(0, [f("x.exe", 5)])).toEqual({
+    ok: false,
+    error: "x.exe is not a supported file type.",
+  });
+  expect(checkFiles(0, [f("noext", 5)])).toMatchObject({ ok: false });
+  expect(checkFiles(0, [f("Report.PDF", 5)])).toEqual({ ok: true });
 });
 
 test("checkFiles refuses an empty file (the server does too)", () => {

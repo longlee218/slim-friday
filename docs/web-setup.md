@@ -269,6 +269,16 @@ Nothing below is verified live until you tick it.
 - [ ] Reactions on the phone: hold a bot message, slide to an emoji and let go; hold and lift without moving, then tap one; the more item opens Reply and Copy; double-tap a message sends 👍; the page does not scroll while the bar is armed (Safari iPhone and Chrome Android).
 - [ ] Reactions: hover a bot message, React, pick 👍; a chip shows under the message and the bot answers only if it has something to say (otherwise nothing is posted); react again within 30 s: no second turn. 👍 on the message of a run waiting on a question answers it "yes".
 - [ ] Upload: an image and a PDF reach the bot; 6 files, or one over 20 MB, are refused by name; a bot's `PostFile` image shows in the gallery and survives a reload.
+- [ ] A docx and an xlsx sent to a bot are read through the `office-files` skill in a real session; check that `uvx` is allowed in the worker sandbox.
+- [ ] A text PDF previews from the Files screen on desktop and on iPhone Safari.
+- [ ] A scanned PDF (image pages) previews on desktop and on iPhone Safari, or shows the error line with Download.
+- [ ] A corrupt PDF shows the error line with Download on desktop and on iPhone Safari, and nothing crashes.
+- [ ] A PDF opened from a chat file card previews the same way.
+- [ ] An iPhone library photo chosen through Attach is accepted (HEIC may be refused by the extension-only filter; note what happens).
+- [ ] The R2 bucket CORS allows GET from `WEB_ORIGIN` (the PDF viewer fetches the file); without it the preview fails.
+- [ ] The Camera button in the composer opens the camera on a phone; check whether iOS gives JPEG, not HEIC.
+- [ ] On a machine without `uvx` or `pdftotext`, the missing-tool banner shows with the install hint.
+- [ ] The Files screen layout and the stacked banners look right on a phone, and the Camera button looks right next to Attach.
 - [ ] An image in chat loads from the CDN host (network panel); `curl -sI https://img.example.com/<key>` shows `x-content-type-options: nosniff` and `content-disposition: attachment`. Skip without a CDN.
 - [ ] Ticket page (`/tickets`): create, assign (the assignee wakes), comment, close; the history shows each change.
 - [ ] Settings save: a bot made in Settings appears in the sidebar; a bad field shows the parser message.
