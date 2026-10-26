@@ -16,9 +16,13 @@ import {
   toYaml,
 } from "../design-util";
 
-/** True when the tool name is in the catalog, or names an MCP server the app knows (whole server or one tool). */
+/**
+ * True when the tool name is in the catalog, names a built-in server whose tools are in the catalog
+ * (`mcp__memory`, as the shipped bots list it), or names an MCP server the app knows (whole server or one tool).
+ */
 function toolKnown(ctx: DesignContext, tool: string, catalog: Set<string>): boolean {
   if (catalog.has(tool)) return true;
+  if ([...catalog].some((c) => c.startsWith(`${tool}__`))) return true;
   const m = /^mcp__([a-z][a-z0-9-]*)(?:__.+)?$/.exec(tool);
   return !!m && ctx.mcpNames().includes(m[1] ?? "");
 }

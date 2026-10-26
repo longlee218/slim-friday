@@ -27,6 +27,13 @@ test("write_bot writes bots/<id>.md with the header and the body", async () => {
   expect(text.endsWith("---\nReview PRs.\n")).toBe(true);
 });
 
+test("write_bot accepts a built-in server name that stands for its catalog tools", async () => {
+  const { ctx, configDir } = setup();
+  const r = await call(createBotDesignTool(ctx), { ...bot, tools: ["Read", "mcp__effects"] });
+  expect(r.isError).toBeUndefined();
+  expect(readFileSync(join(configDir, "bots", "ann.md"), "utf8")).toContain("mcp__effects");
+});
+
 test("write_bot refuses a bad id, the reserved id, an unknown tool, an unknown skill and a bad workspace", async () => {
   const { ctx, configDir, home } = setup();
   const t = createBotDesignTool(ctx);
