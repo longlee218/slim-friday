@@ -32,6 +32,8 @@ export const BotDtoSchema = z.object({
   avatar: z.string().optional(),
   avatarUrl: z.string().optional(),
   shipped: z.boolean().optional(),
+  /** The web app may offer Delete (an owner bot that is not reserved). */
+  deletable: z.boolean().optional(),
 });
 export type BotDto = z.infer<typeof BotDtoSchema>;
 
@@ -41,6 +43,7 @@ export const BotInputDtoSchema = BotDtoSchema.omit({
   avatar: true,
   avatarUrl: true,
   shipped: true,
+  deletable: true,
   subagents: true,
 });
 export type BotInputDto = z.infer<typeof BotInputDtoSchema>;

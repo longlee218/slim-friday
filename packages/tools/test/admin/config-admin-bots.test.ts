@@ -260,3 +260,26 @@ test("extra runtime keys on the input do not get through", () => {
   admin.saveGroup({ ...group, avatar: "owl" } as unknown as GroupInput, "update");
   expect(admin.getGroup("team").avatar).toBe("fox");
 });
+
+test("cascade delete: a one-member group goes, an entry bot is replaced, then the bot goes", () => {
+  admin.saveBot(dev, "create");
+  admin.saveBot({ ...dev, id: "ann", name: "Ann" }, "create");
+  admin.saveGroup({ ...group, id: "solo", name: "Solo" }, "create");
+  admin.saveGroup({ ...group, members: ["dev", "ann"] }, "create");
+  admin.deleteBot("dev", { cascade: true });
+  expect(existsSync(join(configDir, "groups", "solo.yaml"))).toBe(false);
+  expect(admin.getGroup("team")).toMatchObject({ members: ["ann"], entryBot: "ann" });
+  expect(existsSync(join(configDir, "bots", "dev.md"))).toBe(false);
+});
+
+test("cascade delete of a shipped bot is refused before any group changes", () => {
+  expect(() => admin.deleteBot("friday", { cascade: true })).toThrow(
+    expect.objectContaining({ code: "BAD_REQUEST" }),
+  );
+});
+
+test("deletable: true for an owner bot, false for a shipped one", () => {
+  admin.saveBot(dev, "create");
+  expect(admin.getBot("dev").deletable).toBe(true);
+  expect(admin.getBot("friday").deletable).toBe(false);
+});

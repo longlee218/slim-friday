@@ -15,6 +15,7 @@ export function toBotDto(b: BotEntry, avatarUrl?: string): BotDto {
     subagents: [],
     workspaces: b.workspaces,
     shipped: b.shipped,
+    deletable: b.deletable,
     ...(b.effort && { effort: b.effort }),
     ...(b.maxEffort && { maxEffort: b.maxEffort }),
     ...(b.autonomy && { autonomy: b.autonomy }),

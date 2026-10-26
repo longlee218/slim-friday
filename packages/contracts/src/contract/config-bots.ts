@@ -39,7 +39,8 @@ export const bots = {
   list: base.output(z.array(BotDtoSchema)),
   get: base.input(z.object({ id })).output(BotDtoSchema),
   save: base.input(z.object({ id, bot: BotInputDtoSchema, mode })).output(BotDtoSchema),
-  delete: base.input(z.object({ id })).output(OkDtoSchema),
+  /** `cascade` also takes the bot out of its groups (a one-member group is deleted). */
+  delete: base.input(z.object({ id, cascade: z.boolean().optional() })).output(OkDtoSchema),
   setAvatar: base.input(botAvatar).output(BotDtoSchema),
   /** Open and parked scratchpad items of the bot, per scope (direct first, then its groups). */
   scratchpad: base.input(z.object({ id })).output(z.array(ScratchpadScopeDtoSchema)),

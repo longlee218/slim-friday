@@ -1,4 +1,4 @@
-import type { AvatarTarget, ConfigAdmin } from "@friday/core";
+import { type AvatarTarget, type ConfigAdmin, groupAfterBotRemoval } from "@friday/core";
 import { editBotHeader } from "../design/bot-file-edit";
 import type { DesignContext } from "../design/design-context";
 import { plainId, Refused } from "../design/design-util";
@@ -7,6 +7,7 @@ import {
   getBotEntry,
   guarded,
   listBotEntries,
+  requireDeletableBot,
   requireOwnerBot,
   saveBotFile,
 } from "./bot-admin";
@@ -32,7 +33,10 @@ export function createConfigAdmin(ctx: DesignContext): ConfigAdmin {
     listBots: () => listBotEntries(ctx),
     getBot: (id) => getBotEntry(ctx, id),
     saveBot: (b, mode) => saveBotFile(ctx, b, mode),
-    deleteBot: (id) => deleteBotFile(ctx, id, listGroupEntries(ctx)),
+    deleteBot: (id, opts) => {
+      if (opts?.cascade) leaveGroups(ctx, id);
+      deleteBotFile(ctx, id, listGroupEntries(ctx));
+    },
     listGroups: () => listGroupEntries(ctx),
     getGroup: (id) => getGroupEntry(ctx, id),
     saveGroup: (g, mode) => saveGroupFile(ctx, g, mode),
@@ -46,6 +50,19 @@ export function createConfigAdmin(ctx: DesignContext): ConfigAdmin {
     deleteMcp: (name) => deleteMcp(ctx, name),
     checkMcpServer: (name, s) => checkMcpServer(ctx, name, s),
   };
+}
+
+/**
+ * Takes a bot out of every group before it is deleted: a group it was the only member of goes to
+ * the trash, the others are rewritten (a removed entry bot is replaced by the next member).
+ */
+function leaveGroups(ctx: DesignContext, rawId: string): void {
+  const id = guarded(() => requireDeletableBot(ctx, rawId));
+  for (const g of listGroupEntries(ctx).filter((e) => e.members.includes(id))) {
+    const next = groupAfterBotRemoval(g, id);
+    if (next.kind === "delete") deleteGroupFile(ctx, g.id);
+    else saveGroupFile(ctx, { ...g, members: next.members, entryBot: next.entryBot }, "update");
+  }
 }
 
 /** Set or clear an avatar (a preset or `upload:<id>`) in the bot or group file; returns the value it replaced. */
