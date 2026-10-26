@@ -28,8 +28,11 @@ export const chat = {
         clientNonce: z.string().min(1).max(100).optional(),
       }),
     )
-    /** `files` are the stored files of the message: the owner's own message comes back by no event. */
-    .output(z.object({ messageId: z.number().int(), files: z.array(FileDtoSchema) })),
+    /**
+     * `files` are the stored files of the message: the owner's own message comes back by no event.
+     * Defaults to none, so a web build ahead of the engine still gets a list.
+     */
+    .output(z.object({ messageId: z.number().int(), files: z.array(FileDtoSchema).default([]) })),
   /** The owner's uploaded files, newest first; `nextCursor` is opaque. */
   files: base
     .input(
