@@ -26,7 +26,7 @@ const summary = [
 const t0 = performance.now();
 let notes: string[] = [];
 try {
-  notes = await extractNotes(summary, { ...opts, source: "transcript" });
+  notes = (await extractNotes(summary, { ...opts, source: "transcript" })).map((n) => n.note);
   console.log(`extract ${Math.round(performance.now() - t0)} ms`);
   check("extractNotes answers a list of notes", notes.length > 0, notes);
 } catch (err) {

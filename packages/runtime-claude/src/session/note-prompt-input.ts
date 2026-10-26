@@ -3,4 +3,4 @@ export const todayLine = (today?: string): string => (today ? `Today: ${today}\n
 
 /** Input text with the closing tags of the note prompts escaped, so it cannot end the block it sits in. */
 export const escapeBlock = (text: string): string =>
-  text.replace(/<\s*\/\s*(summary|transcript|memory|notes)\s*>/gi, "<\\/$1>");
+  text.replace(/<\s*\/\s*(summary|transcript|memory|notes|known)\s*>/gi, "<\\/$1>");

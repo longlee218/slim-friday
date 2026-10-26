@@ -1,8 +1,10 @@
 import type { OutputFormat } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 
-/** Answer of the extraction call: the notes worth keeping (the SDK needs an object at the root). */
-export const ExtractedNotes = z.object({ notes: z.array(z.string()) });
+/** Answer of the extraction call: the notes worth keeping, each for the bot or its group (the SDK needs an object at the root). */
+export const ExtractedNotes = z.object({
+  notes: z.array(z.object({ note: z.string(), about: z.enum(["bot", "group"]) })),
+});
 
 /** Answer of the consolidation call: the journal notes to promote, each under its MEMORY.md section. */
 export const PromotedNotes = z.object({

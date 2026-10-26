@@ -10,7 +10,7 @@ import {
 import type { extractNotes } from "./extract-notes";
 import { jsonSchemaOutput, PromotedNotes, STRUCTURED_MAX_TURNS } from "./note-output-schema";
 
-/** Longest prompt sent (memory + notes): a full journal day (about 60 000 chars) still leaves room for memory. */
+/** Longest prompt sent (known + memory + notes): a full journal day (about 60 000 chars) still leaves room for memory. */
 const MAX_INPUT = 80000;
 
 /** The structured answer as promoted notes, trimmed, empty ones dropped; undefined when it has the wrong shape. */
@@ -29,10 +29,16 @@ function parsePromoted(output: unknown): PromotedNote[] | undefined {
  * then keeps its mark), `[]` means nothing to keep.
  */
 export async function consolidateNotes(
-  input: { memory: string; notes: string[]; today?: string },
+  input: { memory: string; notes: string[]; today?: string; known?: string },
   opts: Parameters<typeof extractNotes>[1],
 ): Promise<PromotedNote[] | undefined> {
-  const prompt = consolidateUserPrompt(input.memory, input.notes, input.today, MAX_INPUT);
+  const prompt = consolidateUserPrompt(
+    input.memory,
+    input.notes,
+    input.today,
+    MAX_INPUT,
+    input.known,
+  );
   try {
     const run = (opts.queryFn ?? query)({
       prompt,

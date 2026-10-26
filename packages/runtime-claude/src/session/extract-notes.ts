@@ -1,4 +1,5 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
+import type { FlushNote } from "@friday/core";
 import { sdkEnv } from "../floor/sdk-env";
 import type { QueryFn } from "./build-options";
 import { NOTE_CALL_TIMEOUT_MS, timeoutController } from "./call-timeout";
@@ -32,10 +33,19 @@ export async function extractNotes(
     source?: ExtractSource;
     /** Today's local date (`YYYY-MM-DD`) given to the model; the runtime reads no clock, so the caller sets it. */
     today?: string;
+    /** The bot the session belongs to, and its group when the session is a group's. */
+    botId?: string;
+    groupId?: string;
+    /** What the bot's config, the owner's USER/SOUL and the group's instructions already say (not worth a note). */
+    known?: string;
   },
-): Promise<string[]> {
+): Promise<FlushNote[]> {
   const run = (opts.queryFn ?? query)({
-    prompt: extractUserPrompt(summary.slice(0, MAX_INPUT), opts.source ?? "summary", opts.today),
+    prompt: extractUserPrompt(summary.slice(0, MAX_INPUT), opts.source ?? "summary", opts.today, {
+      botId: opts.botId,
+      groupId: opts.groupId,
+      known: opts.known,
+    }),
     options: {
       model: opts.model,
       systemPrompt: EXTRACT_SYSTEM_PROMPT,
@@ -54,7 +64,7 @@ export async function extractNotes(
     if (m.subtype !== "success") throw new Error(`note extraction failed: ${m.subtype}`);
     const answer = ExtractedNotes.safeParse(m.structured_output);
     if (!answer.success) throw new Error("note extraction answered in the wrong shape");
-    return answer.data.notes.filter((n) => n.trim() !== "").slice(0, MAX_NOTES);
+    return answer.data.notes.filter((n) => n.note.trim() !== "").slice(0, MAX_NOTES);
   }
   throw new Error("note extraction ended without a result");
 }

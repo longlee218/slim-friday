@@ -5,6 +5,7 @@ import { bulletHash } from "../../bullet-hash";
 import { type FileMemory, MemoryError, memoryErrorText } from "../../file-memory";
 import { resolveOwner, type ToolSessionContext, visibleNotes } from "../../memory-owner";
 import { sanitizeBullet } from "../../sanitize-bullet";
+import { findSimilar, worthKeeping } from "../../worth-keeping";
 import { MEMORY_SAVE_MAX_CHARS, MEMORY_SAVE_TOOL } from "./constants";
 import { MEMORY_SAVE_DESCRIPTION } from "./prompt";
 
@@ -28,6 +29,18 @@ export function createMemorySaveTool(memory: FileMemory, ctx: ToolSessionContext
     async ({ note, kind, scope }) => {
       const owner = await resolveOwner(scope ?? "bot", ctx);
       if (typeof owner === "string") return textResult(owner, true);
+      // Refuse an empty-ish note or a near copy of a note the session may see; hidden notes are not compared.
+      const existing = visibleNotes(memory, owner, ctx);
+      const texts = existing.map((b) => b.text);
+      const worth = worthKeeping(note, texts);
+      if (worth === "too_short") return textResult(memoryErrorText(new MemoryError("empty")), true);
+      if (worth === "near_duplicate") {
+        const similar = existing[findSimilar(note, texts)];
+        return textResult(
+          `duplicate: similar note ${similar?.id}: "${similar?.text}". Use MemoryEdit to replace it.`,
+          true,
+        );
+      }
       try {
         await memory.save(owner, note, kind);
         return textResult("saved");

@@ -70,7 +70,7 @@ async function composeApp(deps: AppDeps, opened: Array<() => unknown>) {
     },
     opened,
   );
-  const { config, engine, store, mem, memory, clock, hub: botHub } = parts;
+  const { config, engine, store, mem, memory, clock, hub: botHub, queue, known, postFlush } = parts;
   botHub.start();
   opened.push(() => botHub.stopAll());
 
@@ -127,6 +127,8 @@ async function composeApp(deps: AppDeps, opened: Array<() => unknown>) {
     clock,
     log,
     ...(deps.consolidate && { consolidate: deps.consolidate }),
+    queue,
+    known,
     finishedWakeKeepMs: config.limits().finishedWakeKeepMs,
   });
 
@@ -147,6 +149,8 @@ async function composeApp(deps: AppDeps, opened: Array<() => unknown>) {
       stopped = true;
       // Started first: it gives up a consolidation still waiting on the model.
       const dailyDone = daily.stop();
+      // Same for a post-flush consolidation; started runs settle before the memory and the dbs close.
+      const postFlushDone = postFlush?.stop();
       // Workers requeue their runs and exit (in parallel with the rest) before the db closes.
       const workersDone = workers?.stop();
       stopWatching();
@@ -160,6 +164,7 @@ async function composeApp(deps: AppDeps, opened: Array<() => unknown>) {
       if (!(await botHub.stopAll(10_000))) log.warn({}, "app.runs_unsettled");
       // A daily run may still use the index and the db.
       await dailyDone;
+      await postFlushDone;
       if (memory instanceof WriteThroughMemory) await memory.stop();
       mem.memoryIndex.close();
       engine.close();

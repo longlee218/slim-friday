@@ -11,6 +11,12 @@ export interface PromotedNote {
   replaces?: number;
 }
 
+/** A note the flush extraction picked, with the memory it belongs to: this bot's or its group's. */
+export interface FlushNote {
+  note: string;
+  about: "bot" | "group";
+}
+
 /**
  * Kinds of a bot's own notes a group session is given (prompt, recall, memory tools): the owner's rules and the
  * lessons apply everywhere; facts and decisions may come from the owner's direct chat and stay out of groups.
@@ -24,12 +30,13 @@ export const MEMORY_NOTE_MAX_CHARS = 200;
 export const MAX_REPLACED_PER_RUN = 3;
 
 /**
- * Ask a model which journal `notes` to keep, given the current memory as numbered notes (`[n] (kind) text` lines);
- * undefined = the call failed.
+ * Ask a model which journal `notes` to keep, given the current memory as numbered notes (`[n] (kind) text` lines)
+ * and `known` (what config and the owner's USER/SOUL already say); undefined = the call failed.
  */
 export type ConsolidateFn = (
   memory: string,
   notes: string[],
+  known?: string,
 ) => Promise<PromotedNote[] | undefined>;
 
 /** Long-term notes of a bot or a group. */

@@ -57,18 +57,21 @@ const file = (root: string, rel: string) => {
 
 test("MemorySave: bot scope writes the bot's file", async () => {
   const { root, mem } = setup();
-  const r = await call(createMemorySaveTool(mem, ctx("dm")), { note: "likes tea" });
+  const r = await call(createMemorySaveTool(mem, ctx("dm")), { note: "likes green tea" });
   expect(text(r)).toBe("saved");
-  expect(file(root, "bots/ann/MEMORY.md")).toContain("likes tea");
+  expect(file(root, "bots/ann/MEMORY.md")).toContain("likes green tea");
 });
 
 test("MemorySave: group scope only from a group conversation the bot is a member of", async () => {
   const { root, mem } = setup();
-  const fromDm = await call(createMemorySaveTool(mem, ctx("dm")), { note: "x1", scope: "group" });
+  const fromDm = await call(createMemorySaveTool(mem, ctx("dm")), {
+    note: "x1 group note",
+    scope: "group",
+  });
   expect(fromDm.isError).toBe(true);
   expect(text(fromDm)).toContain("group conversation");
   const notMember = await call(createMemorySaveTool(mem, ctx("g2")), {
-    note: "x2",
+    note: "x2 group note",
     scope: "group",
   });
   expect(notMember.isError).toBe(true);
@@ -80,10 +83,10 @@ test("MemorySave: group scope only from a group conversation the bot is a member
 test("MemorySave: a duplicate is reported, not saved twice", async () => {
   const { mem } = setup();
   const save = createMemorySaveTool(mem, ctx("dm"));
-  await call(save, { note: "likes tea" });
-  const r = await call(save, { note: "Likes tea." });
+  await call(save, { note: "likes green tea" });
+  const r = await call(save, { note: "Likes green tea." });
   expect(r.isError).toBe(true);
-  expect(text(r)).toBe("duplicate");
+  expect(text(r)).toStartWith("duplicate");
 });
 
 test("MemorySave and MemoryEdit: an over-long note is refused with the limit, nothing stored", async () => {
@@ -105,13 +108,13 @@ test("MemorySave and MemoryEdit: an over-long note is refused with the limit, no
 
 test("MemoryEdit: lists ids, deletes one, unknown id is not_found", async () => {
   const { root, mem } = setup();
-  await call(createMemorySaveTool(mem, ctx("dm")), { note: "old fact" });
+  await call(createMemorySaveTool(mem, ctx("dm")), { note: "old fact kept" });
   const edit = createMemoryEditTool(mem, ctx("dm"));
   const list = text(await call(edit, {}));
   const id = /\[([0-9a-f]{16})\]/.exec(list)?.[1] ?? "";
-  expect(list).toContain("old fact");
+  expect(list).toContain("old fact kept");
   expect(text(await call(edit, { id, delete: true }))).toBe("deleted");
-  expect(file(root, "bots/ann/MEMORY.md")).not.toContain("old fact");
+  expect(file(root, "bots/ann/MEMORY.md")).not.toContain("old fact kept");
   expect(text(await call(edit, { id: "0000000000000000", text: "x" }))).toBe("not_found");
 });
 
@@ -161,7 +164,41 @@ test("MemorySave in a group session does not reveal a hidden note through duplic
   await mem.save({ kind: "bot", botId: "ann" }, "owner wants short answers", "preference");
   const save = createMemorySaveTool(mem, { ...ctx("g1"), groupId: "team" });
   expect(text(await call(save, { note: "owner's bank is in Hanoi" }))).toBe("saved");
-  expect(text(await call(save, { note: "owner wants short answers", kind: "preference" }))).toBe(
-    "duplicate",
-  );
+  expect(
+    text(await call(save, { note: "owner wants short answers", kind: "preference" })),
+  ).toStartWith("duplicate");
+});
+
+const FACT = "backend-reelme-v2 prod target oregon-llm cluster apero-prod-ads ns vsl";
+
+test("MemorySave refuses a near duplicate and names the stored note", async () => {
+  const { root, mem } = setup();
+  await mem.save({ kind: "bot", botId: "ann" }, FACT);
+  const before = file(root, "bots/ann/MEMORY.md");
+  const id = mem.listBullets({ kind: "bot", botId: "ann" })[0]?.id ?? "";
+  const r = await call(createMemorySaveTool(mem, ctx("dm")), {
+    note: "backend-reelme-v2 prod: target oregon-llm, cluster apero-prod-ads, ns vsl.",
+  });
+  expect(r.isError).toBe(true);
+  expect(text(r)).toContain("duplicate");
+  expect(text(r)).toContain(id);
+  expect(file(root, "bots/ann/MEMORY.md")).toBe(before);
+});
+
+test("MemorySave refuses a too short note", async () => {
+  const { mem } = setup();
+  const r = await call(createMemorySaveTool(mem, ctx("dm")), { note: "ok fine" });
+  expect(r.isError).toBe(true);
+  expect(text(r)).toContain("empty");
+});
+
+test("MemorySave in a group session compares only visible notes", async () => {
+  const { mem } = setup();
+  await mem.save({ kind: "bot", botId: "ann" }, FACT);
+  const save = createMemorySaveTool(mem, { ...ctx("g1"), groupId: "team" });
+  const r = await call(save, {
+    note: "backend-reelme-v2 prod: target oregon-llm, cluster apero-prod-ads, ns vsl.",
+    kind: "preference",
+  });
+  expect(text(r)).toBe("saved");
 });

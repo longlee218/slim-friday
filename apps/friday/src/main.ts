@@ -128,10 +128,15 @@ async function runEngine(
     log,
     env,
     autoReviewer: appAutoReviewer(config),
-    flushNotes: (transcript) =>
-      extractNotes(transcript, { ...haiku, source: "transcript", today: localDay(new Date()) }),
-    consolidate: (memory, notes) =>
-      consolidateNotes({ memory, notes, today: localDay(new Date()) }, haiku),
+    flushNotes: (transcript, ctx) =>
+      extractNotes(transcript, {
+        ...haiku,
+        source: "transcript",
+        today: localDay(new Date()),
+        ...ctx,
+      }),
+    consolidate: (memory, notes, known) =>
+      consolidateNotes({ memory, notes, known, today: localDay(new Date()) }, haiku),
     onConfigChanged: () => surface.bus.publish({ type: "config.changed" }),
     // `limits.workers` worker processes run the runs (0: this process does). An override (the e2e script) runs
     // them in this process: workers would build the real runtime and file store.

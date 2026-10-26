@@ -20,6 +20,12 @@ function similarity(a: Set<string>, b: Set<string>): number {
   return shared / (a.size + b.size - shared);
 }
 
+/** Index of the first note in `existing` that is the same note as `note` (similarity at least SAME_NOTE), or -1. */
+export function findSimilar(note: string, existing: string[]): number {
+  const mine = words(note);
+  return existing.findIndex((e) => similarity(mine, words(e)) >= SAME_NOTE);
+}
+
 /**
  * Cheap check, done in code and not by the model, before a note is promoted into MEMORY.md: too short to mean
  * anything, or the same note as one already kept (`existing`) apart from case, punctuation, diacritics or a word or
@@ -27,6 +33,5 @@ function similarity(a: Set<string>, b: Set<string>): number {
  */
 export function worthKeeping(note: string, existing: string[]): Worth {
   if (note.trim().length < MIN_CHARS) return "too_short";
-  const mine = words(note);
-  return existing.some((e) => similarity(mine, words(e)) >= SAME_NOTE) ? "near_duplicate" : "keep";
+  return findSimilar(note, existing) >= 0 ? "near_duplicate" : "keep";
 }

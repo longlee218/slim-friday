@@ -3,12 +3,14 @@ import { join } from "node:path";
 import { DEFAULTS_DIR, FileConfig, TEMPLATES_DIR } from "@friday/config";
 import { BotHub, type BotHubDeps, type BotMessenger, PermissionGate } from "@friday/core";
 import { openEngineStore } from "@friday/store-sqlite";
-import { WriteThroughMemory } from "@friday/tools";
+import { createOwnerQueue, WriteThroughMemory } from "@friday/tools";
 import type { AppDeps } from "./app-deps";
 import { composeStore } from "./compose-store";
 import { resolveOwnerTimeZone } from "./config/owner-time-zone";
 import { readProcessEnv } from "./config/process-env";
+import { flushConsolidation } from "./flush-consolidation";
 import { idleFlush } from "./idle-flush";
+import { knownFor, ownerKnown } from "./memory-known";
 import { wireMemory } from "./memory-wiring";
 import { readProjectRules } from "./project-rules";
 import { registrableDomain } from "./registrable-domain";
@@ -30,6 +32,7 @@ export type EngineDeps = Pick<
   | "memory"
   | "memoryIndex"
   | "flushNotes"
+  | "consolidate"
   | "autoReviewer"
   | "env"
   | "fetch"
@@ -93,6 +96,13 @@ export function composeEngine(deps: EngineDeps, opened: Array<() => unknown>) {
         })
       : deps.runtime;
 
+  // One queue per owner for the app process: post-flush and daily consolidations of an owner never overlap.
+  const queue = createOwnerQueue();
+  const known = ownerKnown(store);
+  const ask = deps.consolidate;
+  const postFlush =
+    ask && flushConsolidation({ memory, queue, known, ask, now: () => new Date(clock.now()) });
+
   // The env values the bots are denied are hidden from everything they post, show or write.
   const secretValues = () => deniedEnvValues({ ...readProcessEnv(), ...deps.env });
   const gate = new PermissionGate({
@@ -120,7 +130,9 @@ export function composeEngine(deps: EngineDeps, opened: Array<() => unknown>) {
         store,
         memoryRoot: mem.memoryRoot,
         flushNotes: deps.flushNotes,
+        known: (scope) => knownFor(store, scope),
         memoryChanged,
+        ...(postFlush && { consolidate: postFlush.consolidate }),
         log,
       }),
     }),
@@ -138,7 +150,7 @@ export function composeEngine(deps: EngineDeps, opened: Array<() => unknown>) {
     ...deps.hubRuns?.(config),
   });
   hub = botHub;
-  return { config, engine, store, mem, memory, clock, hub: botHub };
+  return { config, engine, store, mem, memory, clock, hub: botHub, queue, known, postFlush };
 }
 
 /** The parts `composeEngine` built. */
