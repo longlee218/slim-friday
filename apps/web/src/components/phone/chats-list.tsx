@@ -6,9 +6,11 @@ import { orpc } from "../../api/client";
 import { useDirectory } from "../../api/directory";
 import { useOpenPalette } from "../../app/shell-context";
 import { formatCost } from "../../lib/format";
-import { ChatRow, useChatRows } from "../shell/chat-rows";
+import { ChatRow, canDelete, targetOf, useChatRows } from "../shell/chat-rows";
+import { DeleteChatSheet, type DeleteTarget } from "../shell/delete-chat-sheet";
 import { AvatarStack } from "../ui/avatar";
 import { PhoneNavBar } from "./phone-nav-bar";
+import { SwipeRow } from "./swipe-row";
 
 /**
  * `/` on the phone: large "Chats" title, New chat (opens the palette), search by name, the live
@@ -22,6 +24,9 @@ export function ChatsList() {
   const approvals = useQuery(orpc.approvals.pending.queryOptions()).data ?? [];
   const [term, setTerm] = useState("");
   const scroll = useRef<HTMLDivElement>(null);
+  // One row rests open at a time; Delete asks for confirmation in a sheet.
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<DeleteTarget | null>(null);
 
   const working = status.filter((b) => b.working);
   const rows = useChatRows().filter((r) =>
@@ -72,12 +77,30 @@ export function ChatsList() {
             <ChevronRight className="chev" strokeWidth={1.75} />
           </button>
         )}
-        <div className="clist">
+        {/* A press outside the open row closes it. */}
+        <div
+          className="clist"
+          onPointerDownCapture={(e) => {
+            if (!(e.target as Element).closest(".swrow.open")) setOpenId(null);
+          }}
+        >
           {rows.map((r) => (
-            <ChatRow key={r.id} row={r} size={56} onOpen={(href) => void navigate(href)} />
+            <SwipeRow
+              key={r.id}
+              open={openId === r.id}
+              onOpenChange={(open) => setOpenId(open ? r.id : null)}
+              onDelete={() => {
+                setOpenId(null);
+                setDeleting(targetOf(r));
+              }}
+              disabled={!canDelete(r, dir)}
+            >
+              <ChatRow row={r} size={56} onOpen={(href) => void navigate(href)} />
+            </SwipeRow>
           ))}
         </div>
       </div>
+      <DeleteChatSheet target={deleting} onClose={() => setDeleting(null)} />
     </>
   );
 }
