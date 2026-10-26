@@ -1,0 +1,120 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: "en-US"
+early_access: false
+
+reviews:
+  profile: "chill"
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: true
+  sequence_diagrams: false
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - "master"
+    ignore_title_keywords:
+      - "WIP"
+      - "wip"
+
+  # Generated, vendored and lock files carry no review value.
+  path_filters:
+    - "!**/node_modules/**"
+    - "!bun.lock"
+    - "!**/dist/**"
+    - "!**/dist-*/**"
+    - "!**/dev-dist/**"
+    - "!apps/web/test-results/**"
+    - "!apps/web/playwright-report/**"
+    - "!packages/store-sqlite/src/migrations/meta/**"
+    - "!**/*.svg"
+    - "!**/*.png"
+
+  path_instructions:
+    - path: "packages/core/**"
+      instructions: |
+        Core defines the domain and the ports, and imports only itself.
+        - Flag any import from another workspace package, an adapter, or a vendor SDK.
+        - Flag vendor names (the agent SDK, a model vendor) in code or comments: core stays vendor-neutral.
+        - Runs are durable: every wake is a run row with a lease; check that a cut run can resume and that effect tools replay a stored result instead of running twice.
+    - path: "packages/{runtime-claude,store-sqlite,store-r2,surface-web,tools}/**"
+      instructions: |
+        An adapter has one concern and imports `core` only, never another adapter.
+        - Flag any import of a sibling adapter.
+        - Flag anything that moves a rule from the code safety floor (paths, secrets, sandbox) into data or config.
+    - path: "packages/runtime-claude/**"
+      instructions: |
+        Sandbox and safety floor. Be strict.
+        - Path, secret and sandbox rules must stay in code; no config or bot may loosen them.
+        - Child processes get a minimal env; denied env values are redacted and never logged.
+        - Commands run as argv, never through a shell, with a timeout.
+    - path: "packages/store-sqlite/**"
+      instructions: |
+        The only place SQL may live.
+        - A schema change needs a generated migration (`bun run db:generate:engine`); check the SQL is additive and safe for existing rows.
+        - Check indexes for the new queries.
+    - path: "packages/tools/**"
+      instructions: |
+        Custom tools.
+        - A tool refuses by returning an error result, not by throwing.
+        - Tool names are constants, never string literals.
+        - A new tool needs an annotation in the tools defaults file and must be listed in the `tools` of each bot that may use it; a tool with no annotation asks for permission.
+        - Check input is validated with zod and errors name the variable or path, never the secret.
+    - path: "packages/api/**"
+      instructions: |
+        Hono, oRPC and auth.
+        - Every procedure must check the session; flag any route that skips it.
+        - Input and output must match the contract in `packages/contracts`.
+    - path: "packages/contracts/**"
+      instructions: |
+        Shared DTOs for the API and the web app. Flag breaking changes to an existing field and any dependency on another workspace package.
+    - path: "packages/config/**"
+      instructions: |
+        Bots, groups, settings and tool annotations are data. Adding one must never need a code change; flag code that hard-codes a bot, skill, MCP server or tool.
+    - path: "apps/friday/**"
+      instructions: |
+        Composition root. Only `apps/friday/src/config` may read `process.env`. Flag any other read.
+    - path: "apps/web/**"
+      instructions: |
+        Vite PWA; it imports only `@friday/contracts`.
+        - Flag imports of any other workspace package.
+        - Check phone and desktop layouts, keyboard and screen-reader access, and light and dark themes.
+        - Prefer design tokens (CSS variables) over raw colors, radii and font sizes.
+        - Touch gestures must not fight scrolling or the browser's own long-press menu.
+    - path: "**/*.{ts,tsx}"
+      instructions: |
+        - No `console.*` in `apps/*/src` or `packages/*/src`; use the shared pino logger.
+        - Never log or store secret values.
+        - Input at the edge is validated with zod.
+        - Files stay under about 200 lines, kebab-case names; exported items carry a doc comment.
+        - Do not suggest adding code for scenarios that cannot happen.
+    - path: "**/test/**"
+      instructions: |
+        - Tests use fakes only; no paid API and no live network.
+        - Code that touches files, commands or the network needs a refusal test.
+        - Do not ask for mocks that hide the behaviour under test.
+    - path: "docs/**"
+      instructions: |
+        Check that the text matches the code. Flag any claim that a feature is verified live without a live check, and any link to a file that is not in the repository.
+
+  tools:
+    biome:
+      enabled: true
+    gitleaks:
+      enabled: true
+    markdownlint:
+      enabled: false
+    yamllint:
+      enabled: true
+    eslint:
+      enabled: false
+    github-checks:
+      enabled: true
+
+chat:
+  auto_reply: true
+
+knowledge_base:
+  opt_out: false
