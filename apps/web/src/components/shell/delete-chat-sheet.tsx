@@ -1,3 +1,4 @@
+import { Dialog } from "@base-ui/react/dialog";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useLocation } from "react-router";
@@ -90,7 +91,7 @@ export function DeleteChatSheet({
 
   return (
     <Shell open={target !== null} onOpenChange={(open) => !open && onClose()}>
-      <h3>Delete {name}?</h3>
+      <Dialog.Title render={(props) => <h3 {...props}>Delete {name}?</h3>} />
       <p style={{ color: "var(--label-2)", margin: "6px 0 10px" }}>
         {name} moves to the trash for 7 days, with its memory.{!isBot && " Its members stay."}
       </p>

@@ -62,6 +62,7 @@ test("a bot in groups: the sheet names each group's outcome and the button is re
   renderSheet({ kind: "bot", id: "dev" });
   const sheet = await screen.findByRole("dialog");
   expect(within(sheet).getByText("Delete Dev?")).toBeTruthy();
+  expect(screen.getByRole("dialog", { name: "Delete Dev?" })).toBeTruthy();
   expect(within(sheet).getByText(/moves to the trash for 7 days/)).toBeTruthy();
   expect(within(sheet).getByText("Removed from Team. New entry bot: Ann.")).toBeTruthy();
   expect(within(sheet).getByText("Solo is deleted too.")).toBeTruthy();
