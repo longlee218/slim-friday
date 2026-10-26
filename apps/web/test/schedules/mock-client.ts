@@ -12,7 +12,7 @@ export function mockApi(schedules: Record<string, unknown>) {
     conversations: { list: empty },
     // `seededClient` builds these keys too.
     tickets: { list: async () => ({ items: [] }) },
-    control: { status: empty },
+    control: { status: empty, toolCheck: empty },
     approvals: { pending: empty },
     questions: { pending: empty },
   };
