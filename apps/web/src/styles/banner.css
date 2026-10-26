@@ -1,3 +1,4 @@
 /* Ported from docs/design/prototype/app.css: connection banner. */
 .banner { display: flex; align-items: center; justify-content: center; gap: 8px; height: 30px; font-size: 12.5px; background: var(--amber-fill); color: var(--amber); font-weight: 500; animation: bannerIn var(--t-mid) var(--ease); }
 @keyframes bannerIn { from { height: 0; opacity: 0; } }
+.banner button { display: inline-flex; border: 0; background: none; color: inherit; padding: 4px; cursor: pointer; }

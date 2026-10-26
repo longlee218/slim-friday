@@ -6,6 +6,7 @@ import { orpc } from "../../api/client";
 import { useDirectory } from "../../api/directory";
 import type { ConnectionState } from "../../events/use-event-stream";
 import { ConnectionBanner } from "../shell/connection-banner";
+import { ToolWarningBanner } from "../shell/tool-warning-banner";
 import { Toolbar } from "../shell/toolbar";
 import { ChatToolbar } from "./chat-toolbar";
 import { Composer, type ComposerHandle } from "./composer";
@@ -68,6 +69,7 @@ export function ChatView({ connection = "live" }: { connection?: ConnectionState
       <ChatToolbar conversation={conversation} bot={bot} group={group} status={status} />
       <div className="chat-banner">
         <ConnectionBanner state={connection} />
+        <ToolWarningBanner />
       </div>
       {empty ? (
         <div className="content">
