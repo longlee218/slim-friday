@@ -27,3 +27,16 @@ export const APPROVAL_VERB = {
 export function alwaysLabel(card: ApprovalCardDto): string {
   return card.alwaysSite ? `Always allow ${card.alwaysSite}` : "Always allow";
 }
+
+/**
+ * The phone row's second line: the summary's first line, else the scope; nothing when it would
+ * only repeat the tool the title already names.
+ */
+export function approvalSubtitle(card: ApprovalCardDto): string | undefined {
+  const tool = toolLabel(card.tool);
+  const repeats = (s: string) => !s || s === card.tool || s === tool;
+  const first = card.summary.split("\n")[0]?.trim() ?? "";
+  if (!repeats(first)) return first;
+  const scope = scopeLine(card.scope).trim();
+  return repeats(scope) ? undefined : scope;
+}

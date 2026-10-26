@@ -16,15 +16,15 @@ const TONE_COLOR = {
 export function LimitMeter({ bots, capUsd }: { bots: BotStatusDto[]; capUsd: number }) {
   const spent = bots.filter((b) => b.spendToday > 0).sort((a, b) => b.spendToday - a.spendToday);
   return (
-    <div className="panel" style={{ padding: "6px 16px" }}>
+    <div className="panel limits">
       {capUsd > 0 &&
         spent.map((b) => {
           const ratio = b.spendToday / capUsd;
           return (
-            <div key={b.botId} style={{ padding: "10px 0", borderBottom: "1px solid var(--sep)" }}>
-              <div className="prop" style={{ padding: "0 0 6px" }}>
-                <span style={{ color: "var(--label)" }}>
-                  <b>{b.name}</b> <span style={{ color: "var(--label-2)" }}>today</span>
+            <div key={b.botId} className="lim-row">
+              <div className="lim-h">
+                <span>
+                  <b>{b.name}</b> <span className="t2">today</span>
                 </span>
                 <span className="num">
                   {formatCost(b.spendToday)} of {formatCost(capUsd)}
@@ -45,14 +45,8 @@ export function LimitMeter({ bots, capUsd }: { bots: BotStatusDto[]; capUsd: num
             </div>
           );
         })}
-      {spent.length === 0 && (
-        <div style={{ padding: "10px 0", fontSize: 12, color: "var(--label-2)" }}>
-          No bot has spent anything today.
-        </div>
-      )}
-      <div style={{ padding: "10px 0", fontSize: 12, color: "var(--label-2)" }}>
-        A bot stops when a limit is reached and asks you to raise it.
-      </div>
+      {spent.length === 0 && <div className="lim-row t2">No bot has spent anything today.</div>}
+      <div className="lim-note">A bot stops when a limit is reached and asks you to raise it.</div>
     </div>
   );
 }

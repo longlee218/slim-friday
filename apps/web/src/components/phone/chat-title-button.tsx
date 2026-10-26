@@ -15,8 +15,8 @@ export interface ChatTitleButtonProps {
 }
 
 /**
- * The 58 px nav of a phone chat: back, a centre button (22 px face, name, status line) that
- * pushes the bot's or group's settings (their back then reads "Chat"), and Stop.
+ * The 58 px nav of a phone chat: a glass back circle, a centre button (22 px face, name, status line) that
+ * pushes the bot's or group's settings (their back then reads "Chat"), and a glass Stop circle.
  */
 export function ChatTitleButton({ conversation, bot, group }: ChatTitleButtonProps) {
   const navigate = useNavigate();
@@ -57,7 +57,7 @@ export function ChatTitleButton({ conversation, bot, group }: ChatTitleButtonPro
     <div className="ios-nav chatnav">
       <button type="button" className="nb back" onClick={back}>
         <ChevronLeft strokeWidth={1.75} />
-        {backText}
+        <span className="nb-label">{backText}</span>
       </button>
       <div className="chat-nav-mid">
         <button

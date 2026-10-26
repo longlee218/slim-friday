@@ -1,24 +1,83 @@
 /* Transcript, empty conversation, suggestions and phone swipe: prototype app.css .transcript, .empty*, .suggest, swipe-to-reply. */
 .transcript { position: relative; max-width: 800px; margin: 0 auto; padding: 22px 28px 12px; }
 .loading-older { position: absolute; top: 4px; left: 0; right: 0; text-align: center; font-size: 11.5px; color: var(--label-3); }
-.chat-banner { position: absolute; z-index: 4; top: 52px; left: 0; right: 0; }
+.chat-banner { position: absolute; z-index: 4; top: 56px; left: 0; right: 0; }
 .empty { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 80px 20px; color: var(--label-2); gap: 6px; }
 .empty .av { width: 84px; height: 84px; margin-bottom: 10px; }
 .empty .stack .av { width: 44px; height: 44px; margin-bottom: 0; }
+/* The composer floats over the conversation: the scroller pads its foot by the composer's measured height. */
+.content.chat-scroll, .ios-chat .ios-scroll.chat-scroll { padding-bottom: calc(var(--composer-h, 64px) + 6px); scroll-padding-bottom: calc(var(--composer-h, 64px) + 6px); }
 .empty h3 { margin: 0; color: var(--label); font: 650 17px var(--font-display); }
 .empty p { margin: 0 0 12px; max-width: 360px; }
 .suggest { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-.suggest button { border: 0; background: var(--fill); padding: 7px 12px; border-radius: 16px; font-size: 13px; }
+.suggest button { border: 0; background: var(--fill); height: 32px; padding: 0 14px; border-radius: 999px; font-size: 13px; transition: background var(--t-fast); }
 .suggest button:hover { background: var(--fill-strong); }
 
 /* Phone swipe-to-reply: the bubble slides right and a reply arrow grows in behind it. */
 .ios .msg[data-mi] { --sw: 0; touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
-.ios .msg[data-mi]::before { content: ""; position: absolute; left: -30px; top: 8px; width: 26px; height: 26px; border-radius: 50%; opacity: var(--sw); transform: scale(calc(.5 + var(--sw) * .5)); background: var(--fill) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237d8597' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='9 17 4 12 9 7'/%3E%3Cpath d='M20 18v-2a4 4 0 0 0-4-4H4'/%3E%3C/svg%3E") center / 14px no-repeat; }
+.ios .msg[data-mi]::before { content: ""; position: absolute; left: -30px; top: calc(50% - 13px); width: 26px; height: 26px; border-radius: 50%; opacity: var(--sw); transform: scale(calc(.5 + var(--sw) * .5)); background: var(--fill) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237d8597' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='9 17 4 12 9 7'/%3E%3Cpath d='M20 18v-2a4 4 0 0 0-4-4H4'/%3E%3C/svg%3E") center / 14px no-repeat; }
 .ios .msg.swipe-ok::before { background-color: var(--tint); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='9 17 4 12 9 7'/%3E%3Cpath d='M20 18v-2a4 4 0 0 0-4-4H4'/%3E%3C/svg%3E"); }
 /* The transition lives on the resting state too, so a released press eases back instead of snapping. */
 .ios .msg[data-mi] .body { transition: transform 200ms var(--ease); }
 .ios .msg.holding .body { transition-duration: 450ms; transform: scale(.98); }
 /* The message the reaction bar is open for. */
 .ios .msg.held .body { transform: scale(1.02); transition: transform var(--t-fast) var(--ease-sheet); }
-.ios .msg.held { border-radius: 14px; background: var(--fill); transition: background var(--t-fast); }
+.ios .msg.held { border-radius: 20px; background: var(--fill); transition: background var(--t-fast); }
 .msg-peek { font-size: 14px !important; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* Composer: one floating glass pill (Messenger) over the transcript foot, on both widths. Tools left, the growing
+   text, the round Send (a quiet fill until there is something to send, then the gradient). The reply bar and the
+   group's route chip ride above it as glass. Prototype .composer*, .send, .chips, .mention-pop*, .route*, .reply-bar*. */
+.chat-composer { position: absolute; z-index: 4; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 0 24px 16px; pointer-events: none; }
+.chat-composer > * { pointer-events: auto; width: 100%; max-width: 744px; }
+.chat-composer.phone { padding: 0 8px calc(8px + var(--safe-b)); }
+.comp-above { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; pointer-events: none; }
+.comp-above > * { pointer-events: auto; }
+.composer { position: relative; display: flex; align-items: flex-end; gap: 2px; padding: 4px; border-radius: 24px;
+  background: var(--glass-strong); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); box-shadow: var(--glass-edge), var(--glass-shadow); transition: box-shadow var(--t-mid); }
+.composer:focus-within { box-shadow: var(--glass-edge), 0 0 0 3px color-mix(in srgb, var(--tint) 22%, transparent), var(--glass-shadow); }
+.comp-ib { width: 38px; height: 38px; flex: none; color: var(--label-2); }
+.comp-ib svg.lucide { width: 20px; height: 20px; }
+.comp-field { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.composer textarea { display: block; width: 100%; border: 0; outline: 0; resize: none; background: transparent; padding: 9px 6px; font-size: 14px; line-height: 20px; min-height: 38px; max-height: 200px; }
+.composer textarea::placeholder { color: var(--label-3); }
+.phone .composer textarea { font-size: 17px; line-height: 22px; padding: 8px 4px; max-height: 120px; }
+.send { width: 38px; height: 38px; flex: none; border-radius: 50%; border: 0; display: grid; place-items: center; background: var(--grad); color: #fff; box-shadow: 0 4px 12px -5px color-mix(in srgb, var(--tint) 70%, transparent); transition: transform var(--t-fast) var(--ease), background var(--t-fast), box-shadow var(--t-fast); }
+.send:not([disabled]):hover { background: var(--grad-hover); }
+.send[disabled] { background: var(--fill); color: var(--label-3); box-shadow: none; }
+.send:not([disabled]):active { transform: scale(.9); }
+.send svg.lucide { width: 18px; height: 18px; stroke-width: 2.25; }
+.chips { display: flex; gap: 6px; padding: 6px 2px 2px; flex-wrap: wrap; }
+.chip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; height: 28px; padding: 0 4px 0 11px; border-radius: 999px; background: var(--fill); font-size: 12px; animation: msgIn 260ms var(--ease); }
+.chip .ib { width: 20px; height: 20px; }
+/* Not in the prototype: upload progress and failure note inside a chip. */
+.chip .note { color: var(--label-2); }
+.chip.failed .note { color: var(--red); }
+.mention-pop { position: absolute; left: 0; bottom: calc(100% + 8px); width: 280px; border-radius: var(--r-l); padding: 6px; z-index: 20; animation: popIn 160ms var(--ease); transform-origin: bottom left;
+  background: var(--glass-strong); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); box-shadow: var(--glass-edge), var(--shadow-pop); }
+.mention-pop .grp { font-size: 11.5px; font-weight: 600; color: var(--label-3); padding: 4px 8px 4px; }
+.mention-pop .it { display: flex; align-items: center; gap: 9px; height: 38px; padding: 0 8px; border-radius: 10px; }
+.mention-pop .it.on { background: var(--tint-fill); color: #fff; }
+.mention-pop .it.on .r { color: rgba(255, 255, 255, .8); }
+.mention-pop .it .av { width: 24px; height: 24px; }
+.mention-pop .it .r { margin-left: auto; font-size: 12px; color: var(--label-2); }
+/* Glass pieces above the pill: the route chip and the reply strip. */
+.route { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 10px 0 5px; border-radius: 999px; font-size: 12px; color: var(--label-2); transition: background var(--t-fast);
+  background: var(--glass-strong); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); box-shadow: var(--glass-edge), var(--glass-shadow); }
+.route .av { width: 18px; height: 18px; }
+.route b { color: var(--label); font-weight: 600; }
+.route.flash { animation: bump 380ms var(--ease); }
+.reply-bar { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 6px 6px 14px; border-radius: 18px; font-size: 12.5px; animation: popIn 180ms var(--ease);
+  background: var(--glass-strong); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); box-shadow: var(--glass-edge), var(--glass-shadow); }
+.reply-bar > svg { width: 15px; height: 15px; color: var(--tint-text); flex: none; }
+.reply-bar .grow { flex: 1; min-width: 0; display: flex; gap: 6px; }
+.reply-bar .grow b { flex: none; }
+.reply-bar .grow span { color: var(--label-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.reply-bar .ib { width: 28px; height: 28px; }
+.phone .reply-bar { font-size: 14px; }
+
+/* The ticket comment composer on the phone (tickets area): an in-flow bar with the same pill and Send. */
+.ios-composer { position: relative; flex: none; display: flex; align-items: flex-end; gap: 8px; padding: 8px 10px calc(8px + var(--safe-b)); background: var(--ground); border-top: .5px solid var(--sep); }
+.ios-composer .box { flex: 1; display: flex; align-items: flex-end; border-radius: 20px; background: var(--fill); padding: 3px 3px 3px 14px; }
+.ios-composer textarea { flex: 1; border: 0; outline: 0; resize: none; background: transparent; font-size: 17px; line-height: 1.35; padding: 5px 0; max-height: 120px; height: 32px; }
+.ios-composer .send { width: 32px; height: 32px; }

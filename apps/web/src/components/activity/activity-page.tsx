@@ -84,7 +84,7 @@ export function ActivityPage() {
               });
             }}
           />
-          <div className="grid2" style={{ marginTop: 6 }}>
+          <div className="grid2">
             <div>
               <h2>Spend</h2>
               <SpendChart days={chart} />

@@ -1,10 +1,9 @@
 import type { BotDto } from "@friday/contracts";
 import { useQuery } from "@tanstack/react-query";
-import { Brain, ListChecks } from "lucide-react";
+import { Brain, NotebookPen, SquareKanban } from "lucide-react";
 import { orpc } from "../../api/client";
 import { StatusDot } from "../tickets/ticket-status";
-import { Button } from "../ui/button";
-import { InspectorSection, Prop } from "./inspector-parts";
+import { InspectorSection, PropLink } from "./inspector-parts";
 import { useAppNavigate } from "./use-app-navigate";
 
 /** Memory block of the bot inspector: note and rule counts, the prompt meter, links to both pages. */
@@ -15,22 +14,19 @@ export function MemorySection({ bot }: { bot: BotDto }) {
   const rules = useQuery(orpc.memory.rules.get.queryOptions({ input: { owner } })).data;
   const used = mem && mem.capChars > 0 ? Math.min(100, (mem.promptChars / mem.capChars) * 100) : 0;
   return (
-    <InspectorSection title="Memory">
-      <Prop label="Notes">{mem ? mem.notes.length : "–"}</Prop>
-      <Prop label="Rules">{rules ? `${rules.filter((r) => r.on).length} on` : "–"}</Prop>
-      <div className="meter" style={{ margin: "8px 0 10px" }}>
-        <i style={{ width: `${used}%` }} />
-      </div>
-      <div style={{ display: "flex", gap: 6 }}>
-        <Button onClick={() => go(`/settings/bot/${bot.id}/memory`)}>
-          <Brain strokeWidth={1.75} />
-          Memory
-        </Button>
-        <Button onClick={() => go(`/settings/bot/${bot.id}/rules`)}>
-          <ListChecks strokeWidth={1.75} />
-          Rules
-        </Button>
-      </div>
+    <InspectorSection title="Memory" icon={<Brain strokeWidth={1.75} />} tone="purple">
+      <PropLink label="Notes" onClick={() => go(`/settings/bot/${bot.id}/memory`)}>
+        {mem ? mem.notes.length : "–"}
+      </PropLink>
+      <PropLink label="Rules" onClick={() => go(`/settings/bot/${bot.id}/rules`)}>
+        {rules ? `${rules.filter((r) => r.on).length} on` : "–"}
+      </PropLink>
+      {/* Share of the prompt budget memory uses; nothing to draw while it is empty. */}
+      {used > 0 && (
+        <div className="meter" style={{ margin: "8px 0 4px" }}>
+          <i style={{ width: `${used}%` }} />
+        </div>
+      )}
     </InspectorSection>
   );
 }
@@ -42,7 +38,7 @@ export function OpenTicketsSection({ botId }: { botId: string }) {
     useQuery(orpc.tickets.list.queryOptions({ input: { assignee: botId } })).data?.items ?? [];
   const open = items.filter((t) => t.status !== "done" && t.status !== "closed");
   return (
-    <InspectorSection title="Open tickets">
+    <InspectorSection title="Open tickets" icon={<SquareKanban strokeWidth={1.75} />} tone="green">
       {open.length === 0 ? (
         <div style={{ color: "var(--label-2)" }}>None</div>
       ) : (
@@ -72,7 +68,7 @@ export function ScratchpadSection({ botId }: { botId: string }) {
   const scopes =
     useQuery(orpc.config.bots.scratchpad.queryOptions({ input: { id: botId } })).data ?? [];
   return (
-    <InspectorSection title="Scratchpad">
+    <InspectorSection title="Scratchpad" icon={<NotebookPen strokeWidth={1.75} />} tone="orange">
       {scopes.length === 0 ? (
         <div style={{ color: "var(--label-2)" }}>Nothing open</div>
       ) : (

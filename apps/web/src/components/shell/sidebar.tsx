@@ -1,91 +1,94 @@
-import { useQuery } from "@tanstack/react-query";
 import {
+  Bot,
   CalendarClock,
-  Ellipsis,
   Files,
-  Fingerprint,
   Gauge,
-  Plus,
   Search,
   Settings,
   SquareKanban,
   SquarePen,
+  UsersRound,
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { useLocation } from "react-router";
-import { orpc } from "../../api/client";
-import { useDirectory } from "../../api/directory";
 import { enabledCount, useSchedules } from "../schedules/use-schedules";
-import { GroupAvatar } from "../settings/group-avatar";
 import { openCount, useAllTickets } from "../tickets/use-tickets";
-import { Avatar } from "../ui/avatar";
 import { IconButton } from "../ui/button";
 import { Kbd } from "../ui/kbd";
-import { SidebarRow, Trailing, trailingMark } from "./sidebar-row";
+import { ChatRow, useChatRows } from "./chat-rows";
 import { useAppNavigate } from "./use-app-navigate";
 
-/** Bots listed before the "N more" row; a hidden bot that is open or has a mark still shows. */
-const SHOWN_BOTS = 7;
+/** Chat list filters (Messenger's chips). */
+const FILTERS = ["All", "Bots", "Groups"] as const;
+type Filter = (typeof FILTERS)[number];
 
-/** The icon cell of a workspace row. */
-const Ico = ({ children }: { children: ReactNode }) => <span className="sb-ico">{children}</span>;
-
-/** Section title with the hover "+" button. */
-function Section({ title, add, onAdd }: { title: string; add?: string; onAdd?: () => void }) {
+/** A round workspace link in the dock, with its count as a small badge. */
+function DockLink({
+  href,
+  label,
+  on,
+  count,
+  children,
+}: {
+  href: string;
+  label: string;
+  on: boolean;
+  count?: number;
+  children: ReactNode;
+}) {
+  const go = useAppNavigate();
   return (
-    <div className="sb-sec">
-      {title}
-      {add && (
-        <IconButton label={add} onClick={onAdd}>
-          <Plus size={15} strokeWidth={1.75} />
-        </IconButton>
-      )}
-    </div>
+    <a
+      className={on ? "dock-btn on" : "dock-btn"}
+      href={href}
+      aria-label={label}
+      title={label}
+      aria-current={on ? "page" : undefined}
+      onClick={(e) => {
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+        e.preventDefault();
+        go(href);
+      }}
+    >
+      {children}
+      {count ? <span className="dock-count num">{count}</span> : null}
+    </a>
+  );
+}
+
+/** A dashed-face row that starts a new bot or group. */
+function AddRow({ label, icon, onClick }: { label: string; icon: ReactNode; onClick(): void }) {
+  return (
+    <button type="button" className="crow add" onClick={onClick}>
+      <span className="add-face">{icon}</span>
+      <span className="grow">
+        <b>{label}</b>
+      </span>
+    </button>
   );
 }
 
 /**
- * Left column: brand, New chat, search (both open the palette), bots, groups, workspace rows and
- * the owner footer. Counts come from the cache: server unread as is (it already includes open
- * cards) and the open approvals per conversation.
+ * Left pane, Messenger style: "Chats" with New chat, the search pill (opens the palette), filter
+ * chips, every bot and group chat newest first, the add rows, and a dock with the workspace pages.
  */
 export function Sidebar({ onPalette }: { onPalette: () => void }) {
   const go = useAppNavigate();
   const { pathname } = useLocation();
-  const { bots, groups, conversations } = useDirectory();
-  const status = useQuery(orpc.control.status.queryOptions()).data ?? [];
-  const approvals = useQuery(orpc.approvals.pending.queryOptions()).data ?? [];
-
+  const rows = useChatRows();
   const { tickets } = useAllTickets();
-  const open = openCount(tickets);
   const { schedules } = useSchedules();
-  const working = new Set(status.filter((s) => s.working).map((s) => s.botId));
-  const unread = (id: string) => conversations.find((c) => c.id === id)?.unread ?? 0;
-  const pending = (id: string) => approvals.filter((a) => a.conversationId === id).length;
-  const [allBots, setAllBots] = useState(false);
-
-  // Each bot row with its mark; past SHOWN_BOTS only the open one or one with a mark stays.
-  const botRows = [...bots.values()].map((b, i) => {
-    const id = `bot:${b.id}`;
-    const mark = trailingMark({
-      approvals: pending(id),
-      unread: unread(id),
-      working: working.has(b.id),
-    });
-    const on = pathname === `/c/${id}`;
-    return { b, id, mark, on, shown: allBots || i < SHOWN_BOTS || on || mark.kind !== "none" };
-  });
-  const hidden = botRows.filter((r) => !r.shown).length;
+  const [filter, setFilter] = useState<Filter>("All");
+  const shown = rows.filter(
+    (r) => filter === "All" || (filter === "Bots" ? r.kind === "bot" : r.kind === "group"),
+  );
 
   return (
     <>
       <div className="sb-top">
-        <span className="brand">
-          <Avatar name="Friday" size={22} />
-          Friday
-        </span>
+        <h2 className="sb-title">Chats</h2>
         <IconButton label="New chat" onClick={onPalette}>
-          <SquarePen size={16} strokeWidth={1.75} />
+          <SquarePen size={17} strokeWidth={1.75} />
         </IconButton>
       </div>
       <div className="sb-search">
@@ -93,90 +96,78 @@ export function Sidebar({ onPalette }: { onPalette: () => void }) {
         <input className="field" placeholder="Search" readOnly onClick={onPalette} />
         <Kbd>⌘K</Kbd>
       </div>
-      <div className="sb-scroll">
-        <Section title="Bots" add="New bot" onAdd={() => go("/settings/bot/new")} />
-        {botRows
-          .filter((r) => r.shown)
-          .map(({ b, id, mark, on }) => (
-            <SidebarRow key={id} href={`/c/${id}`} on={on}>
-              <Avatar src={b.avatarUrl} name={b.name} size={22} working={working.has(b.id)} />
-              <span className="name">{b.name}</span>
-              <Trailing mark={mark} />
-            </SidebarRow>
-          ))}
-        {hidden > 0 && (
-          <button type="button" className="sb-row more" onClick={() => setAllBots(true)}>
-            <Ico>
-              <Ellipsis size={16} strokeWidth={1.75} />
-            </Ico>
-            <span className="name">{`${hidden} more`}</span>
+      <div className="sb-chips" role="tablist" aria-label="Show">
+        {FILTERS.map((f) => (
+          <button
+            key={f}
+            type="button"
+            role="tab"
+            aria-selected={filter === f}
+            className={filter === f ? "chip on" : "chip"}
+            onClick={() => setFilter(f)}
+          >
+            {f}
           </button>
-        )}
-        <Section title="Groups" add="New group" onAdd={() => go("/settings/group/new")} />
-        {[...groups.values()].map((g) => {
-          const id = `group:${g.id}`;
-          const busy = g.members.filter((m) => working.has(m)).length;
-          const mark = trailingMark({
-            approvals: pending(id),
-            unread: unread(id),
-            working: busy > 0,
-          });
-          return (
-            <SidebarRow key={id} href={`/c/${id}`} on={pathname === `/c/${id}`}>
-              <GroupAvatar {...g} bots={bots} size={22} />
-              <span className="name">{g.name}</span>
-              <Trailing mark={mark} workingLabel={`${busy} working`} />
-            </SidebarRow>
-          );
-        })}
-        <Section title="Workspace" />
-        <SidebarRow href="/tickets" on={pathname.startsWith("/tickets")}>
-          <Ico>
-            <SquareKanban size={16} strokeWidth={1.75} />
-          </Ico>
-          <span className="name">Tickets</span>
-          <span className="sub num">{open}</span>
-        </SidebarRow>
-        <SidebarRow href="/schedules" on={pathname.startsWith("/schedules")}>
-          <Ico>
-            <CalendarClock size={16} strokeWidth={1.75} />
-          </Ico>
-          <span className="name">Schedules</span>
-          <span className="sub num">{enabledCount(schedules)}</span>
-        </SidebarRow>
-        <SidebarRow href="/files" on={pathname.startsWith("/files")}>
-          <Ico>
-            <Files size={16} strokeWidth={1.75} />
-          </Ico>
-          <span className="name">Files</span>
-        </SidebarRow>
-        <SidebarRow href="/ops" on={pathname.startsWith("/ops")}>
-          <Ico>
-            <Gauge size={16} strokeWidth={1.75} />
-          </Ico>
-          <span className="name">Activity</span>
-        </SidebarRow>
-        <SidebarRow href="/settings" on={pathname.startsWith("/settings")}>
-          <Ico>
-            <Settings size={16} strokeWidth={1.75} />
-          </Ico>
-          <span className="name">Settings</span>
-        </SidebarRow>
+        ))}
       </div>
-      <div className="sb-foot">
+      <div className="sb-scroll">
+        {shown.map((r) => (
+          <ChatRow key={r.id} row={r} size={44} on={pathname === `/c/${r.id}`} onOpen={go} />
+        ))}
+        {filter !== "Groups" && (
+          <AddRow
+            label="New bot"
+            icon={<Bot size={18} strokeWidth={1.75} />}
+            onClick={() => go("/settings/bot/new")}
+          />
+        )}
+        {filter !== "Bots" && (
+          <AddRow
+            label="New group"
+            icon={<UsersRound size={18} strokeWidth={1.75} />}
+            onClick={() => go("/settings/group/new")}
+          />
+        )}
+      </div>
+      <nav className="sb-dock" aria-label="Workspace">
         <a
           className="me"
           href="/settings/account"
+          aria-label="Owner"
+          title="Owner"
           onClick={(e) => {
             e.preventDefault();
             go("/settings/account");
           }}
         >
           <span className="initial">O</span>
-          <span style={{ flex: 1 }}>Owner</span>
-          <Fingerprint size={16} strokeWidth={1.75} />
         </a>
-      </div>
+        <DockLink
+          href="/tickets"
+          label="Tickets"
+          on={pathname.startsWith("/tickets")}
+          count={openCount(tickets)}
+        >
+          <SquareKanban size={18} strokeWidth={1.75} />
+        </DockLink>
+        <DockLink
+          href="/schedules"
+          label="Schedules"
+          on={pathname.startsWith("/schedules")}
+          count={enabledCount(schedules)}
+        >
+          <CalendarClock size={18} strokeWidth={1.75} />
+        </DockLink>
+        <DockLink href="/files" label="Files" on={pathname.startsWith("/files")}>
+          <Files size={18} strokeWidth={1.75} />
+        </DockLink>
+        <DockLink href="/ops" label="Activity" on={pathname.startsWith("/ops")}>
+          <Gauge size={18} strokeWidth={1.75} />
+        </DockLink>
+        <DockLink href="/settings" label="Settings" on={pathname.startsWith("/settings")}>
+          <Settings size={18} strokeWidth={1.75} />
+        </DockLink>
+      </nav>
     </>
   );
 }

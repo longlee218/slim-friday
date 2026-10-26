@@ -18,7 +18,7 @@ export function TicketSide({ ticket: t, related }: { ticket: TicketDto; related:
     : undefined;
   return (
     <aside className="tside">
-      <div className="panel" style={{ padding: "4px 14px 8px" }}>
+      <div className="panel tprops">
         <TicketDetail key={t.ref} ticket={t} />
       </div>
       {t.conversationId && (

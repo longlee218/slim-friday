@@ -1,62 +1,88 @@
-/* Phone shell (iOS): prototype app.css .ios, .ios-view*, .ios-nav*, .ios-scroll, .large, .ios-search, .live, .crow*, .tabbar*, chat nav. Composer, cards and sheets live in chat.css, cards.css, overlays.css. */
+/* Phone shell (iOS 26 Liquid Glass): .ios, .ios-view*, .ios-nav*, .ios-scroll, .large, .ios-search, .live, .crow*, .tabbar*, chat nav.
+   Bars and their buttons are glass floating over the scrolling content; rows and cards stay solid. Composer, cards and sheets live in chat.css, cards.css, overlays.css. */
 /* overflow: clip, not hidden: a hidden box can still be scrolled by focus or find-in-page, which shifts the whole phone frame. */
-.ios { position: fixed; inset: 0; background: var(--ground); font-size: 17px; overflow: clip; --nav-h: 44px; --tab-h: 50px; --safe-t: env(safe-area-inset-top, 0px); --safe-b: env(safe-area-inset-bottom, 0px); }
+.ios { position: fixed; inset: 0; background: var(--ground); font-size: 17px; overflow: clip; --nav-h: 54px; --tab-h: 62px; --safe-t: env(safe-area-inset-top, 0px); --safe-b: env(safe-area-inset-bottom, 0px);
+  /* The floating tab bar rests just above the home indicator (or 10px off the edge without one). */
+  --tab-b: max(10px, calc(var(--safe-b) - 6px)); }
 .ios.framed { --safe-t: 54px; --safe-b: 30px; }
-.ios-view { position: absolute; inset: 0; background: var(--ground); display: flex; flex-direction: column; will-change: transform; }
+/* --view-bg: what the bars' scroll edge fades into. A view of grouped cards (.inset, .formgroup, .list-panel) sits on the grouped grey, like iOS Settings. */
+.ios-view { position: absolute; inset: 0; --view-bg: var(--ground); background: var(--view-bg); display: flex; flex-direction: column; will-change: transform; }
+.ios-view:has(.inset, .formgroup, .list-panel) { --view-bg: var(--wall); }
 .ios-view.under { transition: transform var(--t-slow) var(--ease-sheet), filter var(--t-slow); }
 .ios-view.pushed { box-shadow: -10px 0 30px rgba(0, 0, 0, .12); }
 .ios-view.enter { animation: pushIn var(--t-slow) var(--ease-sheet); }
 @keyframes pushIn { from { transform: translateX(100%); } }
 .ios-view.leave { transition: transform 320ms var(--ease-sheet); transform: translateX(100%) !important; }
 .ios-view.shift { transform: translateX(-28%); filter: brightness(.94); }
-.ios-scroll { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-top: calc(var(--safe-t) + var(--nav-h)); padding-bottom: calc(var(--safe-b) + var(--tab-h) + 8px); }
-.ios-scroll.nt { padding-bottom: 8px; }
-.ios-nav { position: absolute; z-index: 4; top: 0; left: 0; right: 0; padding-top: var(--safe-t); height: calc(var(--safe-t) + var(--nav-h)); display: flex; align-items: center; justify-content: space-between; padding-left: 8px; padding-right: 8px;
-  background: transparent; border-bottom: .5px solid transparent; transition: background var(--t-mid), border-color var(--t-mid); }
-.ios-nav.solid { background: var(--toolbar); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); border-bottom-color: var(--sep-strong); }
-.ios-nav .ttl { position: absolute; left: 0; right: 0; text-align: center; font-weight: 600; font-size: 17px; pointer-events: none; opacity: 0; transition: opacity var(--t-mid); padding-top: var(--safe-t); top: 0; bottom: 0; display: grid; place-items: center; }
+/* Content scrolls under the glass bars: room for the nav on top and the floating tab bar below. */
+.ios-scroll { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-top: calc(var(--safe-t) + var(--nav-h)); padding-bottom: calc(var(--tab-b) + var(--tab-h) + 16px); }
+/* Pushed pages: a grouped-list gap under the bar; no tab bar, so only the home indicator below. */
+.ios-scroll.nt { padding-top: calc(var(--safe-t) + var(--nav-h) + 12px); padding-bottom: calc(var(--safe-b) + 16px); }
+
+/* Navigation bar: no box of its own. Its buttons are glass; once content scrolls under it a soft scroll edge
+   (blur that fades out downwards, iOS 26) keeps the inline title and buttons readable. */
+.ios-nav { position: absolute; z-index: 4; top: 0; left: 0; right: 0; padding: var(--safe-t) 16px 0; height: calc(var(--safe-t) + var(--nav-h)); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ios-nav::before { content: ""; position: absolute; z-index: -1; inset: 0 0 -16px; pointer-events: none; opacity: 0; transition: opacity var(--t-mid);
+  background: color-mix(in srgb, var(--view-bg) 80%, transparent); -webkit-backdrop-filter: blur(14px) saturate(160%); backdrop-filter: blur(14px) saturate(160%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 20px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 20px), transparent); }
+.ios-nav.solid::before { opacity: 1; }
+.ios-nav .ttl { position: absolute; left: 72px; right: 72px; top: var(--safe-t); bottom: 0; display: grid; place-items: center; font-weight: 600; font-size: 17px; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; opacity: 0; transition: opacity var(--t-mid); }
 .ios-nav.solid .ttl, .ios-nav .ttl.always { opacity: 1; }
-.ios-nav .nb { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 2px; height: 44px; min-width: 44px; padding: 0 6px; border: 0; background: none; color: var(--tint); font-size: 17px; }
+/* Glass nav buttons: a 44px circle for an icon, a capsule for a word ("Save", "Copied"). */
+.ios-nav .nb { position: relative; z-index: 1; display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 44px; min-width: 44px; padding: 0 16px; border: 0; border-radius: 999px; color: var(--label); font-size: 17px; font-weight: 500;
+  background: var(--glass-strong); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); box-shadow: var(--glass-edge), var(--glass-shadow);
+  -webkit-tap-highlight-color: transparent; transition: transform var(--t-fast) var(--ease), background var(--t-fast); }
+.ios-nav .nb:has(> svg:only-child), .ios-nav .nb.back { padding: 0; width: 44px; }
 .ios-nav .nb svg { width: 22px; height: 22px; stroke-width: 2; }
-.ios-nav .nb.back svg { width: 26px; height: 26px; margin-left: -6px; }
-.ios-nav .nb:active:not(:disabled) { opacity: .5; }
+.ios-nav .nb.back svg { width: 26px; height: 26px; margin-left: -2px; }
+.ios-nav .nb:active:not(:disabled) { transform: scale(.92); background: var(--glass); }
+.ios-nav .nb:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; }
 .ios-nav .nb:disabled { color: var(--label-3); }
-.large { font: 700 34px/1.15 var(--font-display); letter-spacing: -0.025em; margin: 2px 16px 10px; }
-.ios-search { margin: 0 16px 12px; position: relative; }
-.ios-search input { width: 100%; height: 36px; border-radius: 10px; border: 0; background: var(--fill); padding: 0 12px 0 34px; font-size: 17px; outline: 0; }
-.ios-search svg { position: absolute; left: 9px; top: 9px; width: 18px; height: 18px; color: var(--label-3); }
-.live { margin: 0 16px 14px; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; background: var(--well); font-size: 15px; }
-.live .stack .av { width: 24px; height: 24px; box-shadow: 0 0 0 2px var(--well); }
+/* The bar's one primary action (Save): the gradient capsule. */
+.ios-nav .nb.strong { background: var(--grad); color: #fff; font-weight: 600; box-shadow: 0 6px 16px -8px color-mix(in srgb, var(--tint) 80%, transparent), inset 0 1px 0 rgba(255, 255, 255, .22); }
+.ios-nav .nb.strong:disabled { background: var(--glass-strong); color: var(--label-3); box-shadow: var(--glass-edge), var(--glass-shadow); }
+/* The back title is read out, not shown: an iOS 26 back button is the chevron alone. */
+.nb-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.large { font: 700 34px/1.15 var(--font-display); letter-spacing: -0.025em; margin: 4px 20px 12px; }
+.ios-search { margin: 0 16px 14px; position: relative; }
+.ios-search input { width: 100%; height: 40px; border-radius: 999px; border: 0; background: var(--fill); padding: 0 14px 0 40px; font-size: 17px; color: var(--label); outline: 0; transition: box-shadow var(--t-fast); }
+.ios-search input::placeholder { color: var(--label-2); }
+.ios-search input:focus-visible { box-shadow: 0 0 0 3px var(--tint-soft); }
+.ios-search svg { position: absolute; left: 13px; top: 11px; width: 18px; height: 18px; color: var(--label-2); pointer-events: none; }
+/* "N bots working": a solid rounded card that opens Activity. */
+.live { margin: 0 16px 12px; display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 10px 12px 10px 14px; border-radius: var(--r-l); background: var(--well); font-size: 16px; -webkit-tap-highlight-color: transparent; transition: background var(--t-fast); }
+.live:active { background: var(--fill-strong); }
+.live .stack .av { width: 28px; height: 28px; box-shadow: 0 0 0 2px var(--well); }
 .live .grow { flex: 1; min-width: 0; }
-.live .t2 { font-size: 13px; color: var(--label-2); }
-.crow { display: flex; align-items: center; gap: 12px; padding: 0 16px; min-height: 76px; position: relative; transition: background var(--t-fast); }
-.crow:active { background: var(--fill); }
-.crow .av { width: 52px; height: 52px; }
-.crow .av .dot { box-shadow: 0 0 0 2.5px var(--ground); }
-.crow .grow { flex: 1; min-width: 0; padding: 10px 0; border-bottom: .5px solid var(--sep-strong); align-self: stretch; display: flex; flex-direction: column; justify-content: center; }
-.crow:last-child .grow { border-bottom: 0; }
-.crow .l1 { display: flex; align-items: baseline; gap: 8px; }
-.crow .l1 b { font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.crow .l1 time { font-size: 15px; color: var(--label-2); }
-.crow .l2 { font-size: 15px; color: var(--label-2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.3; }
-.crow .l2 .pill { font-size: 12px; }
-.crow .gav { width: 52px; height: 52px; position: relative; flex: none; }
-.crow .gav .av { position: absolute; width: 34px; height: 34px; }
-.crow .gav .av:first-child { left: 0; top: 0; }
-.crow .gav .av:last-child { right: 0; bottom: 0; box-shadow: 0 0 0 2.5px var(--ground); }
-.tabbar { position: absolute; z-index: 6; left: 0; right: 0; bottom: 0; height: calc(var(--tab-h) + var(--safe-b)); padding-bottom: var(--safe-b); display: grid; grid-template-columns: repeat(4, 1fr);
-  background: var(--toolbar); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); border-top: .5px solid var(--sep-strong); transition: transform var(--t-slow) var(--ease-sheet); }
-.tabbar.hidden { transform: translateY(100%); }
-.tabbar button { border: 0; background: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding-top: 2px; font-size: 10px; font-weight: 500; letter-spacing: .01em; color: var(--label-2); position: relative; -webkit-tap-highlight-color: transparent; transition: color var(--t-mid); }
+.live .t2 { font-size: 13px; color: var(--label-2); margin-top: 1px; }
+.live .chev { width: 18px; height: 18px; color: var(--label-3); flex: none; }
+/* Messenger rows on the phone (base .crow in sidebar.css): edge to edge, 76px, hairline under the text. */
+.ios .crow { padding: 0 16px; min-height: 76px; border-radius: 0; gap: 12px; -webkit-tap-highlight-color: transparent; }
+.ios .crow:hover { background: none; }
+.ios .crow:active { background: var(--fill); }
+.ios .crow .grow { padding: 10px 0; border-bottom: .5px solid var(--sep-strong); align-self: stretch; justify-content: center; }
+.ios .crow:last-child .grow { border-bottom: 0; }
+.ios .crow .l1 b { font-size: 17px; }
+.ios .crow .l1 time { font-size: 14px; }
+.ios .crow .l2 { font-size: 15px; }
+
+/* Floating glass tab bar: a capsule inset from the screen edges above the home indicator; the selected tab is a
+   soft tint lozenge. It drops out of sight while a view is pushed. */
+.tabbar { position: absolute; z-index: 6; left: 16px; right: 16px; bottom: var(--tab-b); height: var(--tab-h); padding: 4px; border-radius: 999px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px;
+  background: var(--glass); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); box-shadow: var(--glass-edge), var(--glass-shadow);
+  transition: transform var(--t-slow) var(--ease-sheet), opacity var(--t-mid); }
+.tabbar.hidden { transform: translateY(calc(100% + var(--tab-b) + 24px)); opacity: 0; }
+.tabbar button { border: 0; background: none; border-radius: 999px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-width: 0; font-size: 10.5px; font-weight: 600; letter-spacing: .005em; color: var(--label); position: relative; -webkit-tap-highlight-color: transparent; transition: color var(--t-mid), background var(--t-mid) var(--ease); }
 .tabbar button svg { width: 24px; height: 24px; stroke-width: 1.75; transition: transform var(--t-mid) var(--ease-sheet); }
 .tabbar button:active svg { transform: scale(.88); }
-.tabbar button:focus-visible { outline: 2px solid var(--tint); outline-offset: -6px; border-radius: 12px; }
-.tabbar button.on { color: var(--tint); font-weight: 600; }
+.tabbar button:focus-visible { outline: 2px solid var(--tint); outline-offset: -2px; }
+.tabbar button.on { color: var(--tint-text); background: var(--tint-soft); }
 .tabbar button.on svg { stroke-width: 2.1; }
-.tabbar .tb { position: absolute; top: 4px; left: calc(50% + 4px); min-width: 17px; height: 17px; border-radius: 9px; background: var(--red-dot); color: #fff; font-size: 11px; font-weight: 600; line-height: 1; display: grid; place-items: center; padding: 0 5px; box-shadow: 0 0 0 2px var(--ground); }
+.tabbar .tb { position: absolute; top: 3px; left: calc(50% + 5px); min-width: 18px; height: 18px; border-radius: 9px; background: var(--red-dot); color: #fff; font-size: 11px; font-weight: 600; line-height: 1; display: grid; place-items: center; padding: 0 5px; }
+@media (max-width: 340px) { .tabbar { left: 10px; right: 10px; } .tabbar button { font-size: 10px; } }
 @media (prefers-reduced-motion: reduce) { .tabbar button svg { transition: none; } }
 
-/* iOS chat */
+/* iOS chat: glass back and Stop circles either side of the face, name and status; the transcript scrolls under the edge. */
 .chat-nav-mid { position: absolute; left: 0; right: 0; top: var(--safe-t); bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
 .chat-nav-mid .av { width: 28px; height: 28px; }
 .chat-nav-mid b { position: relative; font-size: 12px; line-height: 15px; font-weight: 600; margin-top: 2px; display: flex; align-items: center; }
@@ -64,7 +90,8 @@
 .chat-nav-mid b svg { position: absolute; left: 100%; margin-left: 3px; }
 /* Fixed line heights keep face, name and status (56px with the button padding) inside the 58px bar. */
 .chat-nav-mid .st { font-size: 11px; line-height: 13px; color: var(--label-2); }
-.ios .ios-nav.chatnav { height: calc(var(--safe-t) + 58px); background: var(--toolbar); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); border-bottom-color: var(--sep-strong); }
+.ios .ios-nav.chatnav { height: calc(var(--safe-t) + 58px); }
+.ios .ios-nav.chatnav::before { opacity: 1; }
 .ios .transcript { padding: 12px 12px 8px; }
 .ios .md { font-size: 16px; }
 .ios .bubble { font-size: 16px; max-width: 82%; }
@@ -72,8 +99,9 @@
 .ios .appr { max-width: none; }
 .ios .appr-actions { flex-wrap: wrap; }
 .ios .appr-actions .left { flex-basis: 100%; }
-.chat-nav-mid .cnm { pointer-events: auto; display: flex; flex-direction: column; align-items: center; border: 0; background: none; color: inherit; font: inherit; padding: 2px 10px; border-radius: 10px; cursor: pointer; transition: background var(--t-fast); }
+.chat-nav-mid .cnm { pointer-events: auto; display: flex; flex-direction: column; align-items: center; max-width: calc(100% - 136px); border: 0; background: none; color: inherit; font: inherit; padding: 2px 14px; border-radius: 16px; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background var(--t-fast); }
 .chat-nav-mid .cnm:active { background: var(--fill); }
+.chat-nav-mid .cnm:focus-visible { outline: 2px solid var(--tint); outline-offset: 0; }
 /* Phone chat: the nav is 58 px tall and the transcript scrolls under it; the view is a column (scroll, composer). */
 .ios-chat .ios-scroll { padding-top: calc(var(--safe-t) + 66px); padding-bottom: 8px; }
 .ios-chat .transcript { padding: 12px 12px 8px; }
@@ -84,30 +112,28 @@
 /* The connection banner sits under the nav bar. */
 .ios-banner { position: absolute; z-index: 5; left: 0; right: 0; top: calc(var(--safe-t) + 58px); pointer-events: none; }
 .ios-banner .banner { pointer-events: auto; }
-/* On a tab root the nav bar is 44px, not the 58px chat bar: sit right under it. */
+/* On a tab root the nav bar is --nav-h, not the 58px chat bar: sit right under it. */
 .ios-banner:has(+ .tabbar:not(.hidden)) { top: calc(var(--safe-t) + var(--nav-h)); }
 /* ...and push a tab root's content down by the banner's 30px so it never covers the large title. */
 .ios:has(.ios-banner .banner):has(.tabbar:not(.hidden)) .ios-scroll { padding-top: calc(var(--safe-t) + var(--nav-h) + 30px); }
 /* Connection and tool-warning banners stack: reserve both. */
 .ios:has(.ios-banner > div > .banner):has(.ios-banner > .banner):has(.tabbar:not(.hidden)) .ios-scroll { padding-top: calc(var(--safe-t) + var(--nav-h) + 60px); }
 /* Rows are links and the live row a button here: neutral their default look. */
-a.crow { color: inherit; text-decoration: none; }
 button.live { border: 0; width: calc(100% - 32px); text-align: left; color: inherit; font: inherit; }
 /* A short swipe release settles back with the sheet ease; pan-y keeps horizontal pointer streams for the edge swipe. */
 .ios-view.pushed:not(.leave) { transition: transform var(--t-mid) var(--ease-sheet); }
 .ios-view { touch-action: pan-y; }
 /* Inset lists, segmented control and ticket props (prototype app.css .inset*, .irow*, .ios-seg, .ph-props). */
-.inset { margin: 0 16px 22px; border-radius: 12px; background: var(--well); overflow: hidden; }
-:root[data-theme="dark"] .inset { background: #2a2a2d; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .inset { background: #2a2a2d; } }
-.inset-h { margin: 0 32px 6px; font-size: 13px; color: var(--label-2); text-transform: uppercase; letter-spacing: .02em; }
+/* Grouped cards: solid, on the grouped grey of their view (.ios-view:has(.inset, ...)) or on the glass of a sheet. */
+.inset { margin: 0 16px 22px; border-radius: var(--r-l); background: var(--raised); overflow: hidden; }
+.inset-h { margin: 0 32px 7px; font-size: 13px; color: var(--label-2); text-transform: uppercase; letter-spacing: .02em; }
 .inset-f { margin: -16px 32px 22px; font-size: 13px; color: var(--label-2); }
 .irow { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 16px; position: relative; }
 .irow:active { background: var(--fill); }
-.irow .sq { width: 29px; height: 29px; border-radius: 7px; display: grid; place-items: center; color: #fff; flex: none; }
+.irow .sq { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; color: #fff; flex: none; }
 .irow .sq svg { width: 17px; height: 17px; }
 .irow + .irow::before { content: ""; position: absolute; top: 0; right: 0; left: 16px; height: .5px; background: var(--sep-strong); }
-.irow.ic + .irow.ic::before { left: 56px; }
+.irow.ic + .irow.ic::before { left: 58px; }
 .irow .grow { flex: 1; min-width: 0; padding: 11px 0; }
 .irow .v { color: var(--label-2); }
 .irow .chev { color: var(--label-3); width: 18px; height: 18px; }
@@ -125,7 +151,7 @@ a.irow, button.irow { color: inherit; text-decoration: none; background: none; b
 a.irow.danger, button.irow.danger { color: var(--red); }
 /* Desktop controls reused on phone pages: finger-sized targets (prototype sizes are for a pointer). */
 .ios .btn { height: 36px; }
-.ios .ib { width: 36px; height: 36px; }
-.ios .popbtn { height: 32px; }
-.ios .seg button { height: 32px; }
-.ios .field { height: 36px; }
+:is(.ios, .bs-form) .ib { width: 36px; height: 36px; }
+:is(.ios, .bs-form) .popbtn { height: 32px; }
+:is(.ios, .bs-form) .seg button { height: 32px; }
+.ios .field, .bs-form .field:not(textarea) { height: 36px; }

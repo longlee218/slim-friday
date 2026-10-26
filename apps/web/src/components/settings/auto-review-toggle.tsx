@@ -33,7 +33,7 @@ export function AutoReviewToggle() {
 
   return (
     <div className="srow">
-      <span className="ico">
+      <span className="ico tint">
         <Sparkles size={16} strokeWidth={1.75} />
       </span>
       <div className="grow">

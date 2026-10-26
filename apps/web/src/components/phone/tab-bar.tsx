@@ -12,8 +12,8 @@ const TABS = [
 ] as const satisfies readonly { id: PhoneTab; label: string; Icon: unknown }[];
 
 /**
- * Bottom tab bar (50 px + safe area). Slides down while a view is pushed; the Activity tab
- * carries a red badge with the approvals waiting for the owner.
+ * Floating glass tab bar (a 62 px capsule above the home indicator). Slides away while a view
+ * is pushed; the Activity tab carries a red badge with the approvals waiting for the owner.
  */
 export function TabBar({ active, hidden }: { active: PhoneTab; hidden: boolean }) {
   const navigate = useNavigate();

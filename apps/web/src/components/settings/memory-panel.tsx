@@ -133,7 +133,7 @@ export function MemoryPanel({ owner }: { owner: MemoryOwner }) {
         used={list.data?.promptChars ?? 0}
         cap={list.data?.capChars ?? 12000}
       />
-      <h3 style={{ fontSize: 13, fontWeight: 600, margin: "0 0 8px" }}>Journal</h3>
+      <h3 className="grp-h">Journal</h3>
       <div className="list-panel">
         {(journal.data ?? []).map((j) => (
           <div className="journal-day" key={j.day}>

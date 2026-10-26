@@ -104,7 +104,9 @@ test("an appendMessage effect shows up in the transcript and animates in", async
   );
   const fresh = await screen.findByText("Fresh news");
   expect(fresh.closest(".msg")?.classList.contains("new")).toBe(true);
-  expect(within(container).getByText("Old news").closest(".msg")?.className).toBe("msg");
+  expect(within(container).getByText("Old news").closest(".msg")?.classList.contains("new")).toBe(
+    false,
+  );
 });
 
 test("stop calls control.stop with the conversation", async () => {

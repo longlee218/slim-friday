@@ -6,12 +6,24 @@ import { TicketSelect } from "../tickets/ticket-select";
 import { AutoTextarea } from "../ui/auto-textarea";
 import { autoId } from "./auto-id";
 import type { BotFormValue } from "./bot-form-value";
-import { Row, Segmented } from "./form-parts";
+import { Group, Row, Segmented } from "./form-parts";
 import type { FormState } from "./use-form-state";
 
 /** The picker while the runtime list is loading or failed. */
 const FALLBACK_MODELS = ["haiku", "sonnet", "opus"];
 const AUTONOMY = ["careful", "balanced", "autonomous"] as const;
+
+/**
+ * Effort and Autonomy may stay unset, which shows no chosen segment; the footnote says what
+ * applies then (the model's default effort, the autonomy level from settings).
+ */
+function unsetNote(v: BotFormValue): string | undefined {
+  const notes = [
+    !v.effort && "No Effort chosen: the model's default applies.",
+    !v.autonomy && "No Autonomy chosen: the level from settings applies.",
+  ].filter(Boolean);
+  return notes.length ? notes.join(" ") : undefined;
+}
 
 /** Props of a bot tab: the form and whether the bot is read only (shipped). */
 export interface BotTabProps {
@@ -31,6 +43,7 @@ export function BotProfileTab({ form, readOnly, mode }: BotTabProps) {
     <Row label={label} htmlFor={`f-${key}`} help={help} error={errors[key]}>
       <input
         id={`f-${key}`}
+        placeholder="Optional"
         className={errors[key] ? "field err" : "field"}
         value={v[key]}
         disabled={readOnly}
@@ -49,16 +62,17 @@ export function BotProfileTab({ form, readOnly, mode }: BotTabProps) {
   };
   return (
     <>
-      <div className="formgroup">
+      <Group foot={unsetNote(v)}>
         {/* Mentions use the name itself; a new bot's id (file name, fixed for good) follows it. */}
         <Row
           label="Name"
           htmlFor="f-name"
-          help={`Mention it as @${v.name.trim() || "name"}.${create ? ` File id: ${v.id || "–"}` : ""}`}
+          help={`Mention it as @${v.name.trim() || "name"}.${create && v.id ? ` File id: ${v.id}` : ""}`}
           error={nameError}
         >
           <input
             id="f-name"
+            placeholder="Required"
             className={nameError ? "field err" : "field"}
             value={v.name}
             disabled={readOnly}
@@ -82,7 +96,7 @@ export function BotProfileTab({ form, readOnly, mode }: BotTabProps) {
             />
           )}
         </Row>
-        <Row label="Effort" help="Leave unset to use the default.">
+        <Row label="Effort">
           <Segmented
             label="Effort"
             options={EffortSchema.options}
@@ -100,14 +114,8 @@ export function BotProfileTab({ form, readOnly, mode }: BotTabProps) {
             onChange={(a) => set("autonomy", a)}
           />
         </Row>
-      </div>
-      <div className="formgroup" style={{ padding: "12px 14px" }}>
-        <label
-          htmlFor="f-instructions"
-          style={{ fontWeight: 500, display: "block", marginBottom: 8 }}
-        >
-          Instructions
-        </label>
+      </Group>
+      <Group title={<label htmlFor="f-instructions">Instructions</label>} wide>
         <AutoTextarea
           id="f-instructions"
           className="field code"
@@ -116,7 +124,7 @@ export function BotProfileTab({ form, readOnly, mode }: BotTabProps) {
           disabled={readOnly}
           onChange={(e) => set("instructions", e.target.value)}
         />
-      </div>
+      </Group>
     </>
   );
 }

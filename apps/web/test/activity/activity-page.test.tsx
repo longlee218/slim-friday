@@ -61,7 +61,8 @@ test("Stop calls control.stop and the row reads stopping; the limit meter turns 
   api.stop.mockResolvedValue({ ok: true });
   renderPage();
   expect(await screen.findByText("2h 14m")).toBeTruthy();
-  expect(screen.getByText("No spend yet")).toBeTruthy();
+  expect(screen.getByText(/No spend in the last 7 days/)).toBeTruthy();
+  expect(document.querySelector(".bars")).toBeNull();
   expect(screen.getByRole("img", { name: "Dev 50% of the daily limit" })).toBeTruthy();
   expect(document.querySelector(".meter i")?.getAttribute("style")).toContain("--amber-dot");
   await userEvent.click(screen.getByRole("button", { name: "Stop Dev" }));

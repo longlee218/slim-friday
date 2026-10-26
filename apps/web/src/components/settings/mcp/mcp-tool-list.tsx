@@ -6,7 +6,7 @@ export function McpToolList({ probe }: { probe: McpProbe }) {
   if (probe.running || tools.length === 0) return null;
   return (
     <>
-      <h3 style={{ fontSize: 13, margin: "16px 0 8px" }}>Tools ({tools.length})</h3>
+      <h3 className="grp-h">Tools ({tools.length})</h3>
       <div className="list-panel">
         {tools.map((t) => (
           <div key={t} className="srow">

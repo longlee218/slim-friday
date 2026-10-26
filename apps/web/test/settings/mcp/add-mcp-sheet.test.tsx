@@ -132,3 +132,16 @@ test("switching back to a local command ends the OAuth bypass", async () => {
   expect(add().disabled).toBe(true);
   expect(screen.queryByText(/Sign in after adding/)).toBeNull();
 });
+
+test("phone: Add server sits in the bar; Test connection stays in the body", async () => {
+  window.innerWidth = 390;
+  try {
+    setup();
+    const bar = document.querySelector(".bsheet .bs-bar") as HTMLElement;
+    expect(bar.contains(add())).toBe(true);
+    expect(bar.querySelector("button")?.textContent).toBe("Cancel");
+    expect(testBtn().closest(".bs-body")).not.toBeNull();
+  } finally {
+    window.innerWidth = 1024;
+  }
+});

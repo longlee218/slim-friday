@@ -43,3 +43,17 @@ test("Create sends the trimmed title, then closes and reports the ticket", async
   expect(create.mock.calls[0]?.[0].description).toBeUndefined();
   expect(onCreated).toHaveBeenCalledWith(expect.objectContaining({ ref: "FRI-7" }));
 });
+
+test("phone: the bar holds Cancel and Create; no bottom buttons", async () => {
+  window.innerWidth = 390;
+  try {
+    const { onOpenChange } = setup();
+    const bar = document.querySelector(".bsheet .bs-bar") as HTMLElement;
+    expect(bar.contains(createButton())).toBe(true);
+    expect(document.querySelector(".bsheet .acts")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  } finally {
+    window.innerWidth = 1024;
+  }
+});

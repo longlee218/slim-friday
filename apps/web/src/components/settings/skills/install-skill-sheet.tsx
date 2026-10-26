@@ -6,8 +6,9 @@ import { useIsPhone } from "../../../app/use-is-phone";
 import { BottomSheet } from "../../ui/bottom-sheet";
 import { Button } from "../../ui/button";
 import { Sheet } from "../../ui/sheet";
+import { SheetForm } from "../../ui/sheet-bar";
 import { saveFailure } from "../field-error";
-import { Row } from "../form-parts";
+import { Group, Row } from "../form-parts";
 import { LookupResult, useLookup } from "./lookup-result";
 
 /** Refreshes the skill lists and the bots (their skills may change). */
@@ -58,50 +59,52 @@ function InstallBody({
     setInstallError(undefined);
   };
 
+  const canFind = source.trim() !== "" && !lookup.running;
   return (
-    <>
-      <h3>Install skill</h3>
-      <Row
-        label="From"
-        htmlFor="skill-src"
-        error={lookup.error}
-        help="An https git URL. Friday checks it before it is installed."
-      >
-        <input
-          id="skill-src"
-          className="field mono"
-          placeholder="https://github.com/owner/repo"
-          value={source}
-          onChange={edit(setSource)}
-        />
-      </Row>
-      <Row label="Folder" htmlFor="skill-path" help="Optional: the folder inside the repo.">
-        <input
-          id="skill-path"
-          className="field mono"
-          placeholder="skills/name"
-          value={path}
-          onChange={edit(setPath)}
-        />
-      </Row>
+    <SheetForm
+      title="Install skill"
+      onCancel={onClose}
+      onSubmit={() => {
+        if (canFind) find();
+      }}
+      action={
+        <button type="submit" className="nb strong" disabled={!canFind}>
+          {lookup.running ? "Looking up…" : "Look up"}
+        </button>
+      }
+    >
+      <Group foot="An https git URL, and optionally the folder inside the repo. Friday checks it before it is installed.">
+        <Row label="From" htmlFor="skill-src" error={lookup.error}>
+          <input
+            id="skill-src"
+            className="field mono"
+            placeholder="https://github.com/owner/repo"
+            value={source}
+            onChange={edit(setSource)}
+          />
+        </Row>
+        <Row label="Folder" htmlFor="skill-path">
+          <input
+            id="skill-path"
+            className="field mono"
+            placeholder="skills/name (optional)"
+            value={path}
+            onChange={edit(setPath)}
+          />
+        </Row>
+      </Group>
       {lookup.found && (
         <LookupResult found={lookup.found} confirmLabel="Install" busy={busy} onConfirm={install} />
       )}
       {installError && (
-        <div className="help err">
+        <div className="grp-f err">
           {installError}{" "}
           <Button disabled={lookup.running} onClick={find}>
             Look up again
           </Button>
         </div>
       )}
-      <div className="acts">
-        <Button onClick={onClose}>Cancel</Button>
-        <Button variant="primary" disabled={!source.trim() || lookup.running} onClick={find}>
-          {lookup.running ? "Looking up…" : "Look up"}
-        </Button>
-      </div>
-    </>
+    </SheetForm>
   );
 }
 

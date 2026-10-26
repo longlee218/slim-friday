@@ -4,7 +4,7 @@ import { TicketSelect } from "../tickets/ticket-select";
 import { AutoTextarea } from "../ui/auto-textarea";
 import { Avatar } from "../ui/avatar";
 import { autoId } from "./auto-id";
-import { Row, SaveBar, StaleNotice } from "./form-parts";
+import { Group, Row, SaveBar, StaleNotice } from "./form-parts";
 import { TokenList } from "./token-list";
 import { type FieldErrors, useFormState } from "./use-form-state";
 
@@ -64,15 +64,16 @@ export function GroupForm({
   return (
     <>
       {form.stale && <StaleNotice what="group" />}
-      <div className="formgroup">
+      <Group foot="The entry bot gets your message when you don't @name anyone.">
         <Row
           label="Name"
           htmlFor="g-name"
-          help={create ? `File id: ${v.id || "–"}` : undefined}
+          help={create && v.id ? `File id: ${v.id}` : undefined}
           error={nameError}
         >
           <input
             id="g-name"
+            placeholder="Required"
             className={nameError ? "field err" : "field"}
             value={v.name}
             onChange={(e) => {
@@ -81,26 +82,7 @@ export function GroupForm({
             }}
           />
         </Row>
-        <Row label="Members" top error={errors.members}>
-          <TokenList
-            plain
-            values={v.members}
-            options={[...dir.bots.keys()]}
-            label={dir.botName}
-            addLabel="Add member"
-            onChange={(next) => {
-              set("members", next);
-              // The entry bot must stay a member: move it to the first one left (or clear it);
-              // `set` marks it touched so its error shows.
-              if (!next.includes(v.entryBot)) set("entryBot", next[0] ?? "");
-            }}
-          />
-        </Row>
-        <Row
-          label="Entry bot"
-          help="Gets your message when you don't @name anyone."
-          error={errors.entryBot}
-        >
+        <Row label="Entry bot" error={errors.entryBot}>
           {v.members.length ? (
             <TicketSelect
               label="Entry bot"
@@ -123,23 +105,33 @@ export function GroupForm({
             <span style={{ color: "var(--label-2)" }}>Add a member first.</span>
           )}
         </Row>
-        <Row label="Workspaces" top help="The first is the main project.">
-          <TokenList
-            values={v.workspaces}
-            options={[]}
-            addLabel="Grant folder"
-            placeholder="Type a folder path"
-            onChange={(next) => set("workspaces", next)}
-          />
-        </Row>
-      </div>
-      <div className="formgroup" style={{ padding: "12px 14px" }}>
-        <label
-          htmlFor="g-instructions"
-          style={{ fontWeight: 500, display: "block", marginBottom: 8 }}
-        >
-          Instructions
-        </label>
+      </Group>
+      <Group title="Members" error={errors.members} wide>
+        <TokenList
+          values={v.members}
+          options={[...dir.bots.keys()]}
+          label={dir.botName}
+          // Decorative: the row's text names the bot.
+          face={(id) => <Avatar src={dir.bots.get(id)?.avatarUrl} name="" size={30} />}
+          addLabel="Add member"
+          onChange={(next) => {
+            set("members", next);
+            // The entry bot must stay a member: move it to the first one left (or clear it);
+            // `set` marks it touched so its error shows.
+            if (!next.includes(v.entryBot)) set("entryBot", next[0] ?? "");
+          }}
+        />
+      </Group>
+      <Group title="Workspaces" foot="The first is the main project." wide>
+        <TokenList
+          values={v.workspaces}
+          options={[]}
+          addLabel="Grant folder"
+          placeholder="Type a folder path"
+          onChange={(next) => set("workspaces", next)}
+        />
+      </Group>
+      <Group title={<label htmlFor="g-instructions">Instructions</label>} wide>
         <AutoTextarea
           id="g-instructions"
           className="field code"
@@ -147,7 +139,7 @@ export function GroupForm({
           value={v.instructions}
           onChange={(e) => set("instructions", e.target.value)}
         />
-      </div>
+      </Group>
       <SaveBar
         dirty={form.dirty}
         valid={form.valid}

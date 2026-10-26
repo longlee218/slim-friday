@@ -3,23 +3,25 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Upload, Users } from "lucide-react";
 import { type ChangeEvent, type ReactNode, useState } from "react";
 import { toast } from "sonner";
-import { client, orpc } from "../../api/client";
+import { orpc } from "../../api/client";
 import { useIsPhone } from "../../app/use-is-phone";
 import { BottomSheet } from "../ui/bottom-sheet";
+import { type AvatarChoice, type AvatarTarget, saveAvatar } from "./avatar-save";
 import { encodeAvatar, TOO_LARGE } from "./encode-avatar";
 
-/** The bot or group whose avatar is changed. */
-export interface AvatarTarget {
-  kind: "bot" | "group";
-  id: string;
-}
+export type { AvatarTarget } from "./avatar-save";
 
 export interface AvatarPickerProps {
   target: AvatarTarget;
   /** The saved avatar value (a preset name), to mark it. */
   current?: string;
-  /** Called after the avatar is saved. */
+  /** Called after the avatar is saved (or held, with `onHold`). */
   onDone: () => void;
+  /**
+   * For a bot or group not created yet: the choice is held, not saved, and handed over with a
+   * preview url; the page saves it once the bot or group exists.
+   */
+  onHold?: (choice: AvatarChoice, previewUrl: string) => void;
   /** The face shown inside the trigger. */
   children: ReactNode;
 }
@@ -27,7 +29,7 @@ export interface AvatarPickerProps {
 type Status = "idle" | "uploading" | "too-large" | "failed";
 
 /** Ten presets, Upload image and (groups) Member faces; popover on desktop, bottom sheet on phone. */
-export function AvatarPicker({ target, current, onDone, children }: AvatarPickerProps) {
+export function AvatarPicker({ target, current, onDone, onHold, children }: AvatarPickerProps) {
   const phone = useIsPhone();
   const [open, setOpen] = useState(false);
   const trigger = (
@@ -47,6 +49,7 @@ export function AvatarPicker({ target, current, onDone, children }: AvatarPicker
     <PickerBody
       target={target}
       current={current}
+      onHold={onHold}
       onDone={() => {
         setOpen(false);
         onDone();
@@ -76,19 +79,20 @@ export function AvatarPicker({ target, current, onDone, children }: AvatarPicker
 }
 
 /** The presets grid, the upload button and the state line. */
-function PickerBody({ target, current, onDone }: Omit<AvatarPickerProps, "children">) {
+function PickerBody({ target, current, onDone, onHold }: Omit<AvatarPickerProps, "children">) {
   const qc = useQueryClient();
   const presets = useQuery(orpc.config.avatars.list.queryOptions()).data ?? [];
   const [status, setStatus] = useState<Status>("idle");
   const busy = status === "uploading";
 
-  /** Saves the choice, then refreshes everything that shows a face. */
-  const apply = async (choice: { preset: string } | { uploadId: string } | { none: true }) => {
-    if (target.kind === "bot") {
-      await client.config.bots.setAvatar({ id: target.id, ...(choice as { preset: string }) });
-    } else {
-      await client.config.groups.setAvatar({ id: target.id, ...choice });
+  /** Holds the choice (new bot or group), or saves it and refreshes everything that shows a face. */
+  const apply = async (choice: AvatarChoice, previewUrl: string) => {
+    if (onHold) {
+      onHold(choice, previewUrl);
+      onDone();
+      return;
     }
+    await saveAvatar(target, choice);
     await Promise.all([
       qc.invalidateQueries({ queryKey: orpc.config.bots.key() }),
       qc.invalidateQueries({ queryKey: orpc.config.groups.key() }),
@@ -114,21 +118,8 @@ function PickerBody({ target, current, onDone }: Omit<AvatarPickerProps, "childr
     e.target.value = "";
     if (!file) return;
     void run(async () => {
-      const { blob, type } = await encodeAvatar(file);
-      const ticket = await client.config.avatars.create({
-        kind: target.kind,
-        id: target.id,
-        size: blob.size,
-        type,
-      });
-      const res = await fetch(ticket.putUrl, {
-        method: "PUT",
-        body: blob,
-        headers: { "Content-Type": type },
-        credentials: "omit",
-      });
-      if (!res.ok) throw new Error("put");
-      await apply({ uploadId: ticket.uploadId });
+      const image = await encodeAvatar(file);
+      await apply({ image }, URL.createObjectURL(image.blob));
     });
   };
   return (
@@ -144,7 +135,7 @@ function PickerBody({ target, current, onDone }: Omit<AvatarPickerProps, "childr
             aria-label={p.name}
             className={current === p.name ? "on" : ""}
             disabled={busy}
-            onClick={() => void run(() => apply({ preset: p.name }))}
+            onClick={() => void run(() => apply({ preset: p.name }, p.url))}
           >
             <span className="av">
               <img src={p.url} alt="" />
@@ -170,7 +161,7 @@ function PickerBody({ target, current, onDone }: Omit<AvatarPickerProps, "childr
             type="button"
             className="btn"
             disabled={busy}
-            onClick={() => void run(() => apply({ none: true }))}
+            onClick={() => void run(() => apply({ none: true }, ""))}
           >
             <Users size={14} strokeWidth={1.75} />
             Member faces

@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, test, vi } from "vitest";
 import { GroupForm, type GroupFormValue } from "../../src/components/settings/group-form";
+import { SettingsPage } from "../../src/components/settings/settings-page";
 import { bot, seededClient } from "../shell/fixtures";
 
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));
@@ -106,4 +107,29 @@ test("no members yet: Entry bot asks for a member first; the first member added 
   await userEvent.click(screen.getByText("Add member"));
   await userEvent.type(await screen.findByLabelText("Add member"), "ops{Enter}");
   expect(screen.getByRole("combobox", { name: "Entry bot" }).textContent).toContain("Ops");
+});
+
+test("phone: Save sits in the nav bar, waits for a change, saves once; no Revert", async () => {
+  window.innerWidth = 390;
+  try {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const qc = seededClient({ bots: [bot("dev", "Dev"), bot("ops", "Ops")] });
+    render(
+      <QueryClientProvider client={qc}>
+        <SettingsPage title="Crew">
+          <GroupForm initial={crew} mode="update" onSave={onSave} />
+        </SettingsPage>
+      </QueryClientProvider>,
+    );
+    const save = screen.getByRole("button", { name: "Save" }) as HTMLButtonElement;
+    expect(save.closest(".ios-nav")).not.toBeNull();
+    expect(save.disabled).toBe(true);
+    expect(screen.queryByRole("button", { name: "Revert" })).toBeNull();
+    await userEvent.type(field(), "!");
+    expect(save.disabled).toBe(false);
+    await userEvent.click(save);
+    expect(onSave).toHaveBeenCalledOnce();
+  } finally {
+    window.innerWidth = 1024;
+  }
 });

@@ -140,3 +140,22 @@ test("Cancel closes the sheet and drops ?new=1", async () => {
   await userEvent.click(within(sheet).getByRole("button", { name: "Cancel" }));
   await waitFor(() => expect(path()).toBe("/schedules"));
 });
+
+test("phone: the bar holds Cancel and Create; no bottom buttons; one create per tap", async () => {
+  window.innerWidth = 390;
+  try {
+    api.create.mockImplementation(() => new Promise(() => {}));
+    const sheet = await renderSheet();
+    const bar = sheet.querySelector(".bs-bar") as HTMLElement;
+    expect(within(bar).getByRole("button", { name: "Cancel" })).toBeTruthy();
+    const create = within(bar).getByRole("button", { name: "Create schedule" });
+    expect(sheet.querySelector(".acts")).toBeNull();
+    expect(within(sheet).getByLabelText("Name").closest(".bs-body")).not.toBeNull();
+    await fill(sheet);
+    await userEvent.click(create);
+    await userEvent.click(create);
+    expect(api.create).toHaveBeenCalledTimes(1);
+  } finally {
+    window.innerWidth = 1024;
+  }
+});

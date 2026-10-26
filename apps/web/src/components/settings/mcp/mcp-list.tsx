@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { ChevronRight, Globe, Plus, Terminal } from "lucide-react";
+import { ChevronRight, Plus } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { orpc } from "../../../api/client";
@@ -9,6 +9,7 @@ import { Button } from "../../ui/button";
 import { Pill } from "../../ui/pill";
 import { SettingsPage } from "../settings-page";
 import { AddMcpSheet } from "./add-mcp-sheet";
+import { McpIcon } from "./mcp-icon";
 import { useSignInResult } from "./mcp-sign-in";
 
 /** Chip text per OAuth sign-in state. */
@@ -51,13 +52,7 @@ export function McpList() {
       <div className="list-panel">
         {servers.map((s) => (
           <Link key={s.name} className="srow" to={`/settings/mcp/${s.name}`}>
-            <span className="ico">
-              {s.type === "http" ? (
-                <Globe size={16} strokeWidth={1.75} />
-              ) : (
-                <Terminal size={16} strokeWidth={1.75} />
-              )}
-            </span>
+            <McpIcon server={s} />
             <div className="grow">
               <b>{s.name}</b> <Pill tone="gray">{s.type === "http" ? "http" : "stdio"}</Pill>{" "}
               {s.auth && (

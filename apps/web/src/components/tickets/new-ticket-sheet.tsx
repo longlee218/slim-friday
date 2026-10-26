@@ -5,9 +5,10 @@ import { toast } from "sonner";
 import { client } from "../../api/client";
 import { useDirectory } from "../../api/directory";
 import { useIsPhone } from "../../app/use-is-phone";
+import { Group } from "../settings/form-parts";
 import { BottomSheet } from "../ui/bottom-sheet";
-import { Button } from "../ui/button";
 import { Sheet } from "../ui/sheet";
+import { SheetForm } from "../ui/sheet-bar";
 import { patchTicket } from "./ticket-cache";
 import { AssigneeSelect, PrioritySelect } from "./ticket-fields";
 
@@ -43,28 +44,42 @@ function NewTicketForm({ onOpenChange, onCreated }: Omit<NewTicketSheetProps, "o
     onError: () => toast("Could not create the ticket. Try again."),
   });
   const canCreate = title.trim() !== "" && !create.isPending;
+  const submit = () => {
+    if (canCreate) create.mutate();
+  };
 
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (canCreate) create.mutate();
-      }}
+    <SheetForm
+      title="New ticket"
+      onCancel={() => onOpenChange(false)}
+      onSubmit={submit}
+      action={
+        <button
+          type="submit"
+          className="nb strong"
+          disabled={!canCreate}
+          aria-label="Create ticket"
+        >
+          {create.isPending ? "Creating…" : "Create"}
+        </button>
+      }
     >
-      <h3>New ticket</h3>
-      <div className="frow">
-        <label htmlFor="nt-title">Title</label>
-        <input
-          id="nt-title"
-          className="field"
-          placeholder="What needs doing"
-          maxLength={200}
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-        />
-      </div>
-      <div className="frow top">
-        <label htmlFor="nt-details">Details</label>
+      <Group>
+        <div className="frow">
+          <label htmlFor="nt-title">Title</label>
+          <div className="ctl">
+            <input
+              id="nt-title"
+              className="field"
+              placeholder="What needs doing"
+              maxLength={200}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+          </div>
+        </div>
+      </Group>
+      <Group title={<label htmlFor="nt-details">Details</label>} wide>
         <textarea
           id="nt-details"
           className="field"
@@ -73,33 +88,26 @@ function NewTicketForm({ onOpenChange, onCreated }: Omit<NewTicketSheetProps, "o
           value={details}
           onChange={(e) => setDetails(e.target.value)}
         />
-      </div>
-      <div className="frow">
-        <span>Assignee</span>
-        <div>
-          <AssigneeSelect value={assignee} onChange={setAssignee} />
-          {assignee && (
-            <div className="help">Assigning wakes {dir.botName(assignee)} with this ticket.</div>
-          )}
+      </Group>
+      <Group foot={assignee && `Assigning wakes ${dir.botName(assignee)} with this ticket.`}>
+        <div className="frow">
+          <span>Assignee</span>
+          <div className="ctl">
+            <AssigneeSelect value={assignee} onChange={setAssignee} />
+          </div>
         </div>
-      </div>
-      <div className="frow">
-        <span>Priority</span>
-        <div>
-          <PrioritySelect value={priority} onChange={setPriority} />
+        <div className="frow">
+          <span>Priority</span>
+          <div className="ctl">
+            <PrioritySelect value={priority} onChange={setPriority} />
+          </div>
         </div>
-      </div>
-      <div className="acts">
-        <Button onClick={() => onOpenChange(false)}>Cancel</Button>
-        <Button type="submit" variant="primary" disabled={!canCreate}>
-          {create.isPending ? "Creating…" : "Create ticket"}
-        </Button>
-      </div>
-    </form>
+      </Group>
+    </SheetForm>
   );
 }
 
-/** New-ticket sheet: drops from the toolbar on desktop, rises from the bottom on the phone. */
+/** New-ticket sheet: a centred glass sheet on desktop, rises from the bottom on the phone. */
 export function NewTicketSheet(props: NewTicketSheetProps) {
   const phone = useIsPhone();
   const form = <NewTicketForm onOpenChange={props.onOpenChange} onCreated={props.onCreated} />;

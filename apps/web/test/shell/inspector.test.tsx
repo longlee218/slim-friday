@@ -117,8 +117,10 @@ test("bot inspector: memory counts, workspace and open tickets", async () => {
   expect(screen.getByText("Fix login")).toBeTruthy();
   expect(screen.queryByText("Old work")).toBeNull();
   const user = userEvent.setup();
-  await user.click(screen.getByRole("button", { name: "Memory" }));
-  await user.click(screen.getByRole("button", { name: "Rules" }));
+  // The prompt meter shows the share in use; the Notes and Rules rows open their pages.
+  expect((document.querySelector(".insp-sec .meter i") as HTMLElement).style.width).toBe("25%");
+  await user.click(screen.getByRole("button", { name: /^Notes/ }));
+  await user.click(screen.getByRole("button", { name: /^Rules/ }));
   await user.click(screen.getByText("Fix login"));
   expect(navigate.mock.calls).toEqual([
     ["/settings/bot/dev/memory"],

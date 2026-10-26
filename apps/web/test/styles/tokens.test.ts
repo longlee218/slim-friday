@@ -1,14 +1,16 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "vitest";
 
-test("tokens.css carries the light and dark tints", () => {
+test("tokens.css carries the light and dark tints and the glass material", () => {
   const css = readFileSync("src/styles/tokens.css", "utf8");
-  expect(css).toContain("--tint: #3a5cf2");
-  expect(css).toContain("--tint-fill: #4a69f5");
+  expect(css).toContain("--tint: #3d5af1");
+  expect(css).toContain("--tint-fill: #4a66f5");
+  expect(css).toContain("--glass-blur:");
+  expect(css).toContain("--grad:");
   expect(css).toContain(':root[data-theme="dark"]');
   expect(css).toContain("@media (prefers-color-scheme: dark)");
   expect(css).toContain(':root:not([data-theme="light"])');
-  expect(css).toContain("--insp-w: 312px");
+  expect(css).toContain("--insp-w: 320px");
 });
 
 test("base.css cuts motion to 1ms under Reduce Motion", () => {
