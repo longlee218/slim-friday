@@ -272,6 +272,7 @@ Nothing below is verified live until you tick it.
 - [ ] An image in chat loads from the CDN host (network panel); `curl -sI https://img.example.com/<key>` shows `x-content-type-options: nosniff` and `content-disposition: attachment`. Skip without a CDN.
 - [ ] Ticket page (`/tickets`): create, assign (the assignee wakes), comment, close; the history shows each change.
 - [ ] Settings save: a bot made in Settings appears in the sidebar; a bad field shows the parser message.
+- [ ] Delete a bot or group from the chat list: on the phone swipe the row left and tap Delete; on desktop use the ⋯ button or right-click. The red confirm names every group the bot leaves (a one-member group is deleted too, a removed entry bot is replaced by the next member). The files go to the trash for 7 days. Shipped bots offer no Delete.
 - [ ] Avatar upload for a bot and a group (crop; WebP, JPEG on Safari); the replaced avatar is gone from the bucket.
 - [ ] Skill install from a repo URL (Settings, Skills & plugins, "Install skill"): the lookup shows the files, install only after confirm; update works; remove lists the bots that lose the skill.
 - [ ] Rules: a rule turned off is gone from the next run's system prompt (a run reads the rules when it opens its session).
