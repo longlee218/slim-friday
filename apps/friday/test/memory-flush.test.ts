@@ -1,12 +1,5 @@
 import { expect, test } from "bun:test";
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readdirSync,
-  readFileSync,
-  writeFileSync,
-} from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { BotRuntimeSpec } from "@friday/core";
@@ -18,7 +11,11 @@ test("a compaction's notes land in the bot's journal; a failure is logged, never
   const root = mkdtempSync(join(tmpdir(), "flush-"));
   const errors: unknown[] = [];
   const log = { error: (o: object) => void errors.push(o), warn() {} };
-  await memoryFlush(root, async () => ["owner likes tea"], log)(spec, "summary");
+  await memoryFlush(
+    root,
+    async () => [{ note: "owner likes tea", about: "bot" as const }],
+    log,
+  )(spec, "summary");
   const dir = join(root, "bots", "ann", "journal");
   const day = readdirSync(dir)[0] ?? "";
   expect(readFileSync(join(dir, day), "utf8")).toContain("Flush");
@@ -31,28 +28,50 @@ test("a full journal day and a cut note are logged, not dropped silently", async
   const root = mkdtempSync(join(tmpdir(), "flush-"));
   const warns: { o: object; msg: string }[] = [];
   const log = { error() {}, warn: (o: object, msg: string) => void warns.push({ o, msg }) };
-  await memoryFlush(root, async () => [`${"word ".repeat(70)}end`], log)(spec, "s");
+  await memoryFlush(
+    root,
+    async () => [{ note: `${"word ".repeat(70)}end`, about: "bot" as const }],
+    log,
+  )(spec, "s");
   expect(warns).toEqual([{ o: { owner: "bot:ann", cut: 1 }, msg: "memory.journal_cut" }]);
   const dir = join(root, "bots", "ann", "journal");
   const day = readdirSync(dir)[0] ?? "";
   writeFileSync(join(dir, day), "- x\n".repeat(300));
   mkdirSync(dir, { recursive: true });
-  await memoryFlush(root, async () => ["a", "b", "b", ""], log)(spec, "s");
+  await memoryFlush(
+    root,
+    async () => ["a", "b", "b", ""].map((note) => ({ note, about: "bot" as const })),
+    log,
+  )(spec, "s");
   expect(warns[1]).toEqual({ o: { owner: "bot:ann", dropped: 2 }, msg: "memory.journal_full" });
 });
 
-test("a group session's compaction notes land in the group's journal, not the bot's", async () => {
+test("a group session's compaction notes split: group notes to the group, bot notes to the bot", async () => {
   const root = mkdtempSync(join(tmpdir(), "flush-"));
   const changed: unknown[] = [];
+  const seen: unknown[] = [];
   const groupSpec = { bot: { id: "ann" }, groupId: "team" } as unknown as BotRuntimeSpec;
   await memoryFlush(
     root,
-    async () => ["team deploys on fridays"],
+    async (s, summary) => {
+      seen.push(s, summary);
+      return [
+        { note: "team deploys on fridays", about: "group" },
+        { note: "owner likes ann's short PRs", about: "bot" },
+      ];
+    },
     { error() {}, warn() {} },
     (o) => void changed.push(o),
   )(groupSpec, "s");
-  const dir = join(root, "groups", "team", "journal");
-  expect(readFileSync(join(dir, readdirSync(dir)[0] ?? ""), "utf8")).toContain("team deploys");
-  expect(existsSync(join(root, "bots", "ann"))).toBe(false);
-  expect(changed).toEqual([{ kind: "group", groupId: "team" }]);
+  expect(seen).toEqual([groupSpec, "s"]);
+  const read = (owner: string) => {
+    const dir = join(root, owner, "journal");
+    return readFileSync(join(dir, readdirSync(dir)[0] ?? ""), "utf8");
+  };
+  expect(read("groups/team")).toMatch(/\d\d Flush\n- team deploys on fridays\n/);
+  expect(read("bots/ann")).toMatch(/Flush @team\n- owner likes ann's short PRs\n/);
+  expect(changed).toEqual([
+    { kind: "group", groupId: "team" },
+    { kind: "bot", botId: "ann" },
+  ]);
 });

@@ -10,6 +10,7 @@ import { readProcessEnv } from "./config/process-env";
 import { designContextFor } from "./design-context";
 import { fridayExtraDirs } from "./friday-bot";
 import { memoryFlush } from "./memory-flush";
+import { KNOWN_MAX_CHARS } from "./memory-known";
 import { deniedEnvValues } from "./secret-values";
 import { sessionTools } from "./session-tools";
 import { sessionSharedDirs } from "./shared-dirs";
@@ -63,16 +64,20 @@ export function claudeRuntimeFactory(config: AgentConfig, agentHome: string, log
             caption === undefined ? undefined : redactSecrets(caption, deniedEnvValues(env)),
           ),
       }),
-      // After a compaction, keep what matters in the bot's journal (never in MEMORY.md, which the bot curates).
+      // After a compaction, keep what matters in the journals (never in MEMORY.md, which the bot curates).
       onCompact: memoryFlush(
         memoryDir,
-        (summary) =>
+        (spec, summary) =>
           extractNotes(summary, {
             model: HAIKU_SUMMARY_MODEL,
             env,
             oauthToken: config.oauthToken,
             today: localDay(new Date()),
-          }).then((notes) => notes.map((n) => n.note)),
+            botId: spec.bot.id,
+            ...(spec.groupId && { groupId: spec.groupId }),
+            // The runtime has no store: the bot's instructions (with the owner's SOUL and USER) are what it knows.
+            known: spec.bot.instructions.slice(0, KNOWN_MAX_CHARS),
+          }),
         log,
         parts.memoryChanged,
       ),

@@ -1,12 +1,12 @@
 import { afterEach, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { BotRuntimeSpec, ConsolidateFn, MemoryOwner } from "@friday/core";
+import type { BotRuntimeSpec, ConsolidateFn, IdleClose, MemoryOwner } from "@friday/core";
 import { localDay } from "@friday/tools";
 import { FakeRuntime } from "../../../packages/core/test/fakes/fake-runtime";
 import { createMessageSearchTool } from "../../../packages/tools/src/memory/tools/MessageSearchTool/message-search-tool";
-import { idleFlush } from "../src/idle-flush";
+import { type IdleFlushDeps, idleFlush } from "../src/idle-flush";
 import { toolContext } from "../src/session-tools";
 import { type AppDeps, type RuntimeParts, startApp } from "../src/start-app";
 import { webParts } from "./web-fixture";
@@ -46,6 +46,38 @@ async function fridayChat(parts: RuntimeParts): Promise<string> {
 const say = (parts: RuntimeParts, conversationId: string, text: string, at = Date.now()) =>
   parts.store.messages.append({ conversationId, author: { kind: "user" }, text, at });
 
+/** A message of bot `botId`. */
+const answer = (parts: RuntimeParts, conversationId: string, botId: string, text: string) =>
+  parts.store.messages.append({
+    conversationId,
+    author: { kind: "bot", botId },
+    text,
+    at: Date.now(),
+  });
+
+/** Run the idle flush over fakes for `e` (bot `friday`, direct, since 0 unless given); `d` overrides the deps. */
+const flush = (
+  home: string,
+  parts: RuntimeParts,
+  e: Partial<IdleClose> & { conversationIds: string[] },
+  d: Partial<IdleFlushDeps> = {},
+) =>
+  idleFlush({
+    store: parts.store,
+    memoryRoot: join(home, "memory"),
+    flushNotes: async () => [],
+    known: async () => undefined,
+    memoryChanged: parts.memoryChanged,
+    log: { error() {}, warn() {} },
+    ...d,
+  })({ botId: "friday", key: "friday", since: 0, ...e });
+
+/** Today's journal text of `owner` (empty when none). */
+const journal = (home: string, owner: string) => {
+  const f = join(home, "memory", owner, "journal", `${localDay(new Date())}.md`);
+  return existsSync(f) ? readFileSync(f, "utf8") : "";
+};
+
 test("MessageSearch through session tools finds a message sent in the bot's channel", async () => {
   const { parts } = await boot(mkdtempSync(join(tmpdir(), "life-")));
   await say(parts, await fridayChat(parts), "the release goes out on thursday");
@@ -66,18 +98,21 @@ test("idle close with 2+ messages writes an Idle flush block and it is searchabl
   const c = await fridayChat(parts);
   await say(parts, c, "we pick postgres for the ledger");
   await say(parts, c, "and redis for the queue");
-  const seen: string[] = [];
-  await idleFlush({
-    store: parts.store,
-    memoryRoot: join(home, "memory"),
-    flushNotes: async (t) => {
-      seen.push(t);
-      return ["ledger uses postgres"];
+  const seen: unknown[] = [];
+  await flush(
+    home,
+    parts,
+    { conversationIds: [c] },
+    {
+      flushNotes: async (t, ctx) => {
+        seen.push(t, ctx);
+        return [{ note: "ledger uses postgres", about: "group" }];
+      },
+      known: async () => "SOUL",
     },
-    memoryChanged: parts.memoryChanged,
-    log: { error() {}, warn() {} },
-  })({ botId: "friday", key: "friday", conversationIds: [c], since: 0 });
+  );
   expect(seen[0]).toContain("user: we pick postgres for the ledger\nuser: and redis for the queue");
+  expect(seen[1]).toEqual({ botId: "friday", known: "SOUL" });
   const hits = await parts.recall.search(friday, "ledger postgres");
   expect(hits.map((h) => h.where)).toEqual([localDay(new Date())]);
 });
@@ -91,16 +126,11 @@ test("idle close with one message calls no flushNotes", async () => {
   await say(parts, c, "hello", since + 5);
   await say(parts, c, "old one", 1);
   let called = false;
-  await idleFlush({
-    store: parts.store,
-    memoryRoot: join(home, "memory"),
-    flushNotes: async () => {
-      called = true;
-      return [];
-    },
-    memoryChanged: parts.memoryChanged,
-    log: { error() {}, warn() {} },
-  })({ botId: "friday", key: "friday", conversationIds: [c], since });
+  const flushNotes = async () => {
+    called = true;
+    return [];
+  };
+  await flush(home, parts, { conversationIds: [c], since }, { flushNotes });
   expect(called).toBe(false);
 });
 
@@ -150,30 +180,118 @@ test("idle flush logs a full journal day instead of dropping the notes silently"
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, `${localDay(new Date())}.md`), "- x\n".repeat(300));
   const warns: string[] = [];
-  await idleFlush({
-    store: parts.store,
-    memoryRoot: join(home, "memory"),
-    flushNotes: async () => ["ledger uses postgres", `${"word ".repeat(70)}end`],
-    memoryChanged: parts.memoryChanged,
-    log: { error() {}, warn: (_o: object, msg: string) => void warns.push(msg) },
-  })({ botId: "friday", key: "friday", conversationIds: [c], since: 0 });
+  const notes = ["ledger uses postgres", `${"word ".repeat(70)}end`];
+  await flush(
+    home,
+    parts,
+    { conversationIds: [c] },
+    {
+      flushNotes: async () => notes.map((note) => ({ note, about: "bot" as const })),
+      log: { error() {}, warn: (_o: object, msg: string) => void warns.push(msg) },
+    },
+  );
   expect(warns).toEqual(["memory.journal_full"]);
 });
 
-test("idle close of a group session writes into the group's journal", async () => {
+test("group flush routes notes", async () => {
   const home = mkdtempSync(join(tmpdir(), "life-"));
   const { parts } = await boot(home);
   const c = await fridayChat(parts);
-  await say(parts, c, "we pick postgres for the ledger");
-  await say(parts, c, "and redis for the queue");
+  await say(parts, c, "which ORM?");
+  await answer(parts, c, "dev", "Prisma, short PR coming");
   const changed: MemoryOwner[] = [];
-  await idleFlush({
-    store: parts.store,
-    memoryRoot: join(home, "memory"),
-    flushNotes: async () => ["team ledger uses postgres"],
-    memoryChanged: (o) => void changed.push(o),
-    log: { error() {}, warn() {} },
-  })({ botId: "friday", key: "friday@team", groupId: "team", conversationIds: [c], since: 0 });
-  expect(changed).toEqual([{ kind: "group", groupId: "team" }]);
-  expect(existsSync(join(home, "memory", "groups", "team", "journal"))).toBe(true);
+  const seen: unknown[] = [];
+  await flush(
+    home,
+    parts,
+    { botId: "dev", key: "dev@team", groupId: "team", conversationIds: [c] },
+    {
+      flushNotes: async (_t, ctx) => {
+        seen.push(ctx);
+        return [
+          { note: "BE uses Prisma", about: "group" },
+          { note: "Owner likes dev's short PRs", about: "bot" },
+        ];
+      },
+      memoryChanged: (o) => void changed.push(o),
+    },
+  );
+  expect(seen).toEqual([{ botId: "dev", groupId: "team" }]);
+  expect(journal(home, "groups/team")).toMatch(/## \d\d:\d\d Idle flush\n- BE uses Prisma\n/);
+  expect(journal(home, "bots/dev")).toMatch(/Idle flush @team\n- Owner likes dev's short PRs\n/);
+  expect(changed).toEqual([
+    { kind: "group", groupId: "team" },
+    { kind: "bot", botId: "dev" },
+  ]);
+});
+
+test("direct flush sends all to the bot", async () => {
+  const home = mkdtempSync(join(tmpdir(), "life-"));
+  const { parts } = await boot(home);
+  const c = await fridayChat(parts);
+  await say(parts, c, "which ORM?");
+  await say(parts, c, "Prisma");
+  const notes = [
+    { note: "BE uses Prisma", about: "group" as const },
+    { note: "Owner likes short PRs", about: "bot" as const },
+  ];
+  await flush(home, parts, { conversationIds: [c] }, { flushNotes: async () => notes });
+  expect(journal(home, "bots/friday")).toMatch(/Idle flush\n- BE uses Prisma\n- Owner likes/);
+  expect(existsSync(join(home, "memory", "groups"))).toBe(false);
+});
+
+test("own turns: other bot's exchange gives no call", async () => {
+  const home = mkdtempSync(join(tmpdir(), "life-"));
+  const { parts } = await boot(home);
+  const c = await fridayChat(parts);
+  await say(parts, c, "which ORM?");
+  await answer(parts, c, "scout", "Prisma");
+  let called = false;
+  const flushNotes = async () => {
+    called = true;
+    return [];
+  };
+  await flush(home, parts, { botId: "dev", groupId: "team", conversationIds: [c] }, { flushNotes });
+  expect(called).toBe(false);
+});
+
+test("consolidates the written owners after a flush", async () => {
+  const home = mkdtempSync(join(tmpdir(), "life-"));
+  const { parts } = await boot(home);
+  const c = await fridayChat(parts);
+  await say(parts, c, "which ORM?");
+  await answer(parts, c, "dev", "Prisma");
+  const consolidated: MemoryOwner[] = [];
+  await flush(
+    home,
+    parts,
+    { botId: "dev", groupId: "team", conversationIds: [c] },
+    {
+      flushNotes: async () => [{ note: "BE uses Prisma", about: "group" }],
+      consolidate: async (o) => void consolidated.push(o),
+    },
+  );
+  expect(consolidated).toEqual([{ kind: "group", groupId: "team" }]);
+});
+
+test("a failing consolidation does not fail the flush", async () => {
+  const home = mkdtempSync(join(tmpdir(), "life-"));
+  const { parts } = await boot(home);
+  const c = await fridayChat(parts);
+  await say(parts, c, "we pick postgres");
+  await say(parts, c, "for the ledger");
+  const errors: string[] = [];
+  await flush(
+    home,
+    parts,
+    { conversationIds: [c] },
+    {
+      flushNotes: async () => [{ note: "ledger uses postgres", about: "bot" }],
+      consolidate: async () => Promise.reject(new Error("down")),
+      log: { error: (_o: object, msg: string) => void errors.push(msg), warn() {} },
+    },
+  );
+  await Bun.sleep(0);
+  expect(errors).toEqual(["memory.consolidate"]);
+  expect(journal(home, "bots/friday")).toContain("ledger uses postgres");
 });

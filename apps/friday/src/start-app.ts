@@ -70,7 +70,7 @@ async function composeApp(deps: AppDeps, opened: Array<() => unknown>) {
     },
     opened,
   );
-  const { config, engine, store, mem, memory, clock, hub: botHub } = parts;
+  const { config, engine, store, mem, memory, clock, hub: botHub, queue, known } = parts;
   botHub.start();
   opened.push(() => botHub.stopAll());
 
@@ -127,6 +127,8 @@ async function composeApp(deps: AppDeps, opened: Array<() => unknown>) {
     clock,
     log,
     ...(deps.consolidate && { consolidate: deps.consolidate }),
+    queue,
+    known,
     finishedWakeKeepMs: config.limits().finishedWakeKeepMs,
   });
 

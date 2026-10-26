@@ -1,10 +1,18 @@
-import type { Clock, ConsolidateFn, Log, MessageIndexStore, Store } from "@friday/core";
+import type {
+  Clock,
+  ConsolidateFn,
+  Log,
+  MemoryOwner,
+  MessageIndexStore,
+  Store,
+} from "@friday/core";
 import type { EngineStore } from "@friday/store-sqlite";
 import {
   catchUpMessages,
   consolidateAll,
   type FileMemory,
   type Indexer,
+  type OwnerQueue,
   pruneJournals,
 } from "@friday/tools";
 import { sweepScratchpad } from "./lifecycle/home-retention-sweeper";
@@ -29,6 +37,10 @@ export interface DailyDeps {
   log: Log;
   /** Picks the journal notes to promote into MEMORY.md; without it nothing is consolidated. */
   consolidate?: ConsolidateFn;
+  /** The app's per-owner queue, shared with the post-flush consolidation (default: none). */
+  queue?: OwnerQueue;
+  /** What config already says for an owner (`<known>` of the consolidation call). */
+  known?: (owner: MemoryOwner) => Promise<string | undefined>;
   /** How long finished wakes are kept. */
   finishedWakeKeepMs: number;
 }
@@ -53,6 +65,8 @@ export function startDailyMaintenance(d: DailyDeps) {
       try {
         const promoted = await consolidateAll(d.memory, new Date(clock.now()), d.consolidate, {
           signal: abort.signal,
+          ...(d.queue && { queue: d.queue }),
+          ...(d.known && { known: d.known }),
         });
         log.info({ promoted }, "memory.consolidated");
       } catch (err) {

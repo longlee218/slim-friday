@@ -80,7 +80,7 @@ test("memoryFlush writes the journal and the notes are searchable", async () => 
   const spec = { bot: { id: "ann" } } as unknown as BotRuntimeSpec;
   await memoryFlush(
     join(home, "memory"),
-    async () => ["owner likes jasmine tea"],
+    async () => [{ note: "owner likes jasmine tea", about: "bot" as const }],
     { error() {}, warn() {} },
     parts.memoryChanged,
   )(spec, "summary");
