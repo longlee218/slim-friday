@@ -1,3 +1,4 @@
+import type { ToolWarningDto } from "@friday/contracts";
 import type {
   BotHub,
   ConfigAdmin,
@@ -67,6 +68,8 @@ export interface ApiDeps {
   limits: () => Pick<CoreLimits, "maxSpendPerBotPerDayUsd">;
   /** Empty the trash; returns how many entries were removed. */
   purge: () => number;
+  /** Tools the file skills need that are missing at boot (empty when all are installed). */
+  toolWarnings: ToolWarningDto[];
   /** Registrable domain of a host (the engine's Public Suffix List); unset: the exact host. Checks site rules. */
   registrableDomain?: RegistrableDomain;
   /** The secret values hidden from bot-written text the API shows (scratchpad items); read at each call. */
@@ -81,6 +84,7 @@ export type EngineDeps = Pick<
   | "surface"
   | "files"
   | "purge"
+  | "toolWarnings"
   | "settings"
   | "mcpAuth"
   | "limits"

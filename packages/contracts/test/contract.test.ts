@@ -44,6 +44,7 @@ const ALL = [
   "control.purge",
   "control.status",
   "control.stop",
+  "control.toolCheck",
   "conversations.list",
   "conversations.markRead",
   "conversations.messages",
@@ -88,7 +89,7 @@ const inputOf = (path: string) => procAt(path)["~orpc"].inputSchema;
 const uuid = "123e4567-e89b-42d3-a456-426614174000";
 
 test("the contract has exactly the shared-contract procedures", () => {
-  expect(ALL).toHaveLength(71);
+  expect(ALL).toHaveLength(72);
   expect(listProcedurePaths(contract)).toEqual(ALL);
 });
 

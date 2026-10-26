@@ -59,3 +59,11 @@ test("purge returns the count from deps", async () => {
   h.deps.purge = () => 4;
   expect(await h.client.control.purge()).toEqual({ purged: 4 });
 });
+
+test("toolCheck returns the warnings given to the deps", async () => {
+  const h = engineHarness();
+  expect(await h.client.control.toolCheck()).toEqual([]);
+  const warning = { tool: "uvx", hint: "brew install uv" };
+  (h.deps as { toolWarnings: unknown }).toolWarnings = [warning];
+  expect(await h.client.control.toolCheck()).toEqual([warning]);
+});

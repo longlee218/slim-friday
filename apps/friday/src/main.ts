@@ -16,6 +16,7 @@ import type { AgentConfig } from "./config/agent-config";
 import { HAIKU_SUMMARY_MODEL } from "./config/model-ids";
 import { readProcessEnv } from "./config/process-env";
 import { acquireMainLock } from "./lifecycle/main-lock";
+import type { ToolWarning } from "./lifecycle/tool-check";
 import { startMcpProxy } from "./mcp-oauth/mcp-proxy";
 import { mcpAuthAdmin, startOAuthUpkeep } from "./mcp-oauth/oauth-api";
 import { McpOAuthManager } from "./mcp-oauth/oauth-manager";
@@ -50,10 +51,12 @@ export async function startEngine(
     config: AgentConfig;
     agentHome: string;
     signal: AbortSignal;
+    /** Missing tools found at boot; the API reports them (default none). */
+    toolWarnings?: ToolWarning[];
   },
   overrides?: EngineOverrides,
 ): Promise<void> {
-  const { config, agentHome, signal } = opts;
+  const { config, agentHome, signal, toolWarnings = [] } = opts;
   const web = {
     webOrigin: need("WEB_ORIGIN", config.webOrigin),
     extraWebOrigins: config.extraWebOrigins,
@@ -65,7 +68,7 @@ export async function startEngine(
   // One main per agent home (a second one exits 1 with the holder's pid); released when the engine stops.
   const releaseLock = acquireMainLock(agentHome);
   try {
-    await runEngine(config, agentHome, signal, web, r2, overrides);
+    await runEngine(config, agentHome, signal, web, r2, toolWarnings, overrides);
   } finally {
     releaseLock();
   }
@@ -84,6 +87,7 @@ async function runEngine(
     ownerEmail: string;
   },
   r2: ReturnType<typeof r2Of>,
+  toolWarnings: ToolWarning[],
   overrides?: EngineOverrides,
 ): Promise<void> {
   // The S3 client is lazy: nothing reaches R2 until a file is read or written.
@@ -168,6 +172,7 @@ async function runEngine(
       surface,
       files,
       purge: () => purgeTrash(agentHome),
+      toolWarnings,
       settings: createSettings({
         config: app.config,
         agentHome,
