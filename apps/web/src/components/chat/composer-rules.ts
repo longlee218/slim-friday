@@ -1,3 +1,5 @@
+import { acceptedMimeForName } from "@friday/contracts";
+
 /** Files per message (same cap as the server). */
 export const MAX_FILES = 5;
 /** Bytes per file (20 MB, same cap as the server). */
@@ -13,6 +15,9 @@ export function checkFiles(
 ): { ok: true } | { ok: false; error: string } {
   if (current + files.length > MAX_FILES) return { ok: false, error: "Up to 5 files per message." };
   for (const f of files) {
+    if (!acceptedMimeForName(f.name)) {
+      return { ok: false, error: `${f.name} is not a supported file type.` };
+    }
     if (f.size > MAX_FILE_BYTES) return { ok: false, error: `${f.name} is over 20 MB.` };
     if (f.size === 0) return { ok: false, error: `${f.name} is empty.` };
   }

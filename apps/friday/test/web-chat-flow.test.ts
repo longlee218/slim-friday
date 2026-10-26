@@ -133,11 +133,11 @@ test("an upload is accepted and an oversized one refused", async () => {
   const att = h.runtime.nth(0).sent[0]?.attachments ?? [];
   expect(att.map((a) => a.size)).toEqual([5]);
 
-  const big = await mk("b.bin", 10);
+  const big = await mk("b.txt", 10);
   await h.files.put(
-    `uploads/bot:friday/${big.uploadId}/b.bin`,
+    `uploads/bot:friday/${big.uploadId}/b.txt`,
     new Uint8Array(20 * MB + 1),
-    "application/octet-stream",
+    "text/plain",
   );
   await expect(
     h.client.chat.send({ conversationId: "bot:friday", text: "x", uploadIds: [big.uploadId] }),

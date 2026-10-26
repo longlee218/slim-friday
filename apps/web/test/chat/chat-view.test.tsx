@@ -131,7 +131,7 @@ test("a failed send shows Retry and resends the same payload", async () => {
 
 test("files dropped on the transcript reach the composer", async () => {
   const { container } = renderChat(setup([[msg({ id: 9 })]]));
-  const big = new File([new Uint8Array(21 * 1024 * 1024)], "big.bin");
+  const big = new File([new Uint8Array(21 * 1024 * 1024)], "big.pdf");
   fireEvent.drop(container.querySelector(".content") as HTMLElement, {
     dataTransfer: { files: [big] },
   });
