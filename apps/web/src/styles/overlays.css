@@ -100,3 +100,8 @@ kbd { font: 500 11px var(--font); color: var(--label-3); padding: 1px 5px; borde
 .palette.in-sheet .res { padding: 8px 0 0; }
 .palette.in-sheet .it { height: 48px; }
 .palette[data-ending-style] { opacity: 0; transition: opacity 140ms ease-in; }
+/* Delete from the chat list: a solid red confirm (beats `.bsheet button.btn:not(.primary)`) and the group outcomes. */
+.btn.danger.solid, .bsheet button.btn.danger.solid { background: var(--red); color: #fff; }
+.btn.danger.solid:active:not(:disabled), .bsheet button.btn.danger.solid:active:not(:disabled) { opacity: .8; }
+.del-outcomes { margin: 0 0 4px 18px; padding: 0; color: var(--label-2); font-size: 13px; line-height: 1.5; }
+.del-outcomes .gone { color: var(--red); font-weight: 600; }
