@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { FileDtoSchema, FileKindSchema, FileLibraryItemDtoSchema } from "../dto/chat";
+import { FileKindSchema, FileLibraryItemDtoSchema } from "../dto/chat";
 import { UploadTicketDtoSchema } from "../dto/config";
 import { base } from "../errors";
 import { ConversationIdSchema } from "../ids";
@@ -28,8 +28,7 @@ export const chat = {
         clientNonce: z.string().min(1).max(100).optional(),
       }),
     )
-    /** `files` are the stored files of the message: the owner's own message comes back by no event. */
-    .output(z.object({ messageId: z.number().int(), files: z.array(FileDtoSchema) })),
+    .output(z.object({ messageId: z.number().int() })),
   /** The owner's uploaded files, newest first; `nextCursor` is opaque. */
   files: base
     .input(

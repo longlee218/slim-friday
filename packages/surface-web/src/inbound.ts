@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import type { FileDto } from "@friday/contracts";
 import type { Attachment, FileRef, FileRow, InboundMessage, UploadRow } from "@friday/core";
 import { acceptedMimeForName } from "./accepted-types";
 import {
@@ -11,7 +10,7 @@ import {
 } from "./inbound-checks";
 import { openInboxDir, writeInboxFile } from "./inbound-inbox";
 import { replayStored } from "./inbound-replay";
-import { toFileDto, toFileRef } from "./message-dto";
+import { toFileRef } from "./message-dto";
 import { safeName } from "./safe-name";
 import { sizeOf } from "./size-of";
 import { SurfaceError } from "./surface-error";
@@ -129,7 +128,7 @@ export async function sendOwnerMessage(
   deps: WebSurfaceDeps,
   handler: ((m: InboundMessage) => Promise<number | undefined>) | undefined,
   i: SendInput,
-): Promise<{ messageId: number; files: FileDto[] }> {
+): Promise<{ messageId: number }> {
   if (!handler) throw new Error("no handler: the engine is not started");
   const { store } = deps;
   const stored = () =>
@@ -173,5 +172,5 @@ export async function sendOwnerMessage(
     throw new SurfaceError("NOT_FOUND", "conversation not found");
   }
   for (const u of rows) await store.uploads.markUsed(u.id, messageId);
-  return { messageId, files: (msg.files ?? []).map(toFileDto) };
+  return { messageId };
 }

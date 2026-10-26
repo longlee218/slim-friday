@@ -1,4 +1,4 @@
-import type { FileDto, MessageDto } from "@friday/contracts";
+import type { MessageDto } from "@friday/contracts";
 import { type InfiniteData, type QueryClient, useQuery } from "@tanstack/react-query";
 import { messagesKey } from "../../events/apply-messages";
 import type { RouteInfo } from "./route-info";
@@ -48,16 +48,14 @@ export function setPending(qc: QueryClient, tempId: number, entry: PendingSend |
 type Pages = InfiniteData<MessageDto[], number | undefined>;
 
 /**
- * Replaces the temp message by the confirmed id and the files the engine stored (the owner's
- * message comes back by no event). When the real message already arrived by event (the id is
- * on a page) the temp one is dropped instead, so it never shows twice.
+ * Replaces the temp message by the confirmed id. When the real message already arrived by
+ * event (the id is on a page) the temp one is dropped instead, so it never shows twice.
  */
 export function swapTemp(
   qc: QueryClient,
   conversationId: string,
   tempId: number,
   messageId: number,
-  files: FileDto[],
 ): void {
   qc.setQueryData<Pages>(messagesKey(conversationId), (data) => {
     if (!data) return data;
@@ -65,7 +63,7 @@ export function swapTemp(
     const pages = data.pages.map((p) =>
       arrived
         ? p.filter((m) => m.id !== tempId)
-        : p.map((m) => (m.id === tempId ? { ...m, id: messageId, files } : m)),
+        : p.map((m) => (m.id === tempId ? { ...m, id: messageId } : m)),
     );
     return { ...data, pages };
   });

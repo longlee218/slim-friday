@@ -1,7 +1,5 @@
-import type { FileDto } from "@friday/contracts";
 import type { Attachment, FileRef, InboundMessage } from "@friday/core";
 import { openInboxDir, writeInboxFile } from "./inbound-inbox";
-import { toFileDto } from "./message-dto";
 import { safeName } from "./safe-name";
 import { SurfaceError } from "./surface-error";
 import type { WebSurfaceDeps } from "./web-surface";
@@ -22,7 +20,7 @@ export async function replayStored(
   base: ReplayBase,
   storedId: number,
   uploadIds: string[],
-): Promise<{ messageId: number; files: FileDto[] }> {
+): Promise<{ messageId: number }> {
   const { store } = deps;
   const files: FileRef[] = (await store.messages.get(storedId))?.files ?? [];
   const rows = [];
@@ -57,5 +55,5 @@ export async function replayStored(
   }
   const id = await handler({ ...base, files, attachments });
   if (id === undefined) throw new SurfaceError("NOT_FOUND", "conversation not found");
-  return { messageId: id, files: files.map(toFileDto) };
+  return { messageId: id };
 }
