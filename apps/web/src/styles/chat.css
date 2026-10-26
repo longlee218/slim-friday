@@ -66,16 +66,14 @@ a.sched-tag:focus-visible { border-radius: 10px; }
 .msg-acts .ib svg { width: 16px; height: 16px; }
 @media (hover: none) { .msg-acts { display: none; } }
 
-/* Reactions: chips that overlap the bubble's foot, Messenger style (one elevation: a soft shadow). */
-.msg-reacts { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: 4px; margin: -6px 0 0 10px; }
-.msg.rich .msg-reacts { margin-top: 6px; }
-.react-chip { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 7px; border-radius: 999px; background: var(--raised); box-shadow: 0 1px 3px rgba(24, 28, 70, .2); font-size: 13px; line-height: 1; }
+/* Reactions: chips under the bubble, the emoji row inside the actions, and the phone reaction bar. */
+.msg-reacts { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.react-chip { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: 999px; background: var(--fill); font-size: 13px; line-height: 1; }
 .react-chip b { font-size: 11px; font-weight: 600; color: var(--label-2); }
-/* The emoji picker opens as a small pill above the actions. */
-.react-row { position: absolute; z-index: 3; bottom: calc(100% + 4px); left: 0; display: flex; gap: 2px; margin: 0; padding: 4px; border: 0; border-radius: 999px; background: var(--raised); box-shadow: var(--shadow-pop); animation: popIn 160ms var(--ease); }
-.msg.rich .react-row { left: auto; right: 0; }
-.react-pick { width: 30px; height: 30px; border: 0; border-radius: 999px; background: transparent; font-size: var(--emoji, 18px); cursor: pointer; transition: transform var(--t-fast) var(--ease); }
-.react-pick:hover { background: var(--fill); transform: scale(1.12); }
+.react-row { display: flex; gap: 2px; margin: 0 0 0 4px; padding: 0; border: 0; }
+.react-pick { width: 28px; height: 28px; border: 0; border-radius: 999px; background: transparent; font-size: var(--emoji, 16px); cursor: pointer; }
+.react-pick:hover { background: var(--fill); }
+
 
 /* Relay card: one bot asking, handing off to or answering another (solid, no ring). */
 .relay { display: flex; gap: 10px; align-items: flex-start; margin: 6px 0 12px 38px; padding: 10px 14px; border-radius: var(--r-l); background: var(--well); max-width: 560px; font-size: 13px; }
