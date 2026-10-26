@@ -28,7 +28,10 @@ export function ApprovalSheet({ card, open, onOpenChange }: ApprovalSheetProps) 
         <Avatar src={face.src} name={card.botName} size={40} />
         <Dialog.Title render={(props) => <h3 {...props}>{approvalTitle(card)}</h3>} />
       </div>
-      <ApprovalDetail card={card} />
+      {/* A long detail scrolls here, so the answers below always stay on screen. */}
+      <div className="bs-body">
+        <ApprovalDetail card={card} />
+      </div>
       {!card.inputCut && (
         <Button variant="primary" disabled={busy} onClick={() => send("once")}>
           Allow once
