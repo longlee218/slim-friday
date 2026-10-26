@@ -40,6 +40,8 @@ const TOOLCHAIN_HOME = [".bun", ".cargo", ".rustup", ".nvm", ".volta", ".deno", 
 const GIT_READ_HOME = [".gitconfig", ".config/git"];
 /** Deepest a granted dir is split around a blocked entry. */
 const CARVE_DEPTH = 4;
+/** Deepest a denied root (the home, `/Users`) is split around a kept dir. */
+const DENY_DEPTH = 8;
 
 /**
  * `root` as a list of allowed read paths that leaves out every path of `blocked` inside it (an allow rule beats a deny rule, so a
@@ -62,21 +64,46 @@ export function carve(root: string, blocked: string[], depth = 0): string[] {
 }
 
 /**
+ * `root` as a list of denied read paths that leaves out every `keep` dir and the dirs on the way to it, so a kept dir is
+ * readable WITHOUT an allow rule (an allow rule would beat the deny of a secret inside it). A dir on the way is not denied
+ * itself (its entry names are listable), its other entries are. Fails closed: too deep or unreadable = the whole dir denied.
+ */
+export function denyAround(root: string, keep: string[], depth = 0): string[] {
+  if (keep.some((k) => isInside(k, root))) return [];
+  if (!keep.some((k) => isInside(root, k)) || depth >= DENY_DEPTH) return [root];
+  let kids: Dirent[];
+  try {
+    kids = readdirSync(root, { withFileTypes: true });
+  } catch {
+    return [root];
+  }
+  return kids.flatMap((k) => {
+    const p = join(root, k.name);
+    return k.isDirectory() ? denyAround(p, keep, depth + 1) : keep.includes(p) ? [] : [p];
+  });
+}
+
+/**
  * The sandbox settings of a run: only a run WITH a scratch dir (a worker's envelope goal dir, or a teammate run dir) gets one.
  * - Writes: only the run's write dirs and goal dir, and everything inside them.
- * - Reads: DENY BY DEFAULT for the owner's home (and `/Users`); the run's granted dirs, the toolchain dirs and git's global config
- *   are allowed back (an allow rule beats a deny rule, so a granted home is listed child by child around the agent home). A
- *   credential dir is denied only when no granted dir covers it: the location wins.
+ * - Reads: DENY BY DEFAULT for the owner's home (and `/Users`), denied AROUND the run's granted dirs, the toolchain dirs and git's
+ *   global config (`denyAround`), so a granted repo's root is listable while its sensitive files keep their deny. The dirs on the
+ *   way to a grant are not denied themselves (entry names visible, other entries denied); the list is a snapshot at session start.
+ *   The grants are also allowed back (an allow rule beats a deny rule, so carved around the agent home and sensitive files) for a
+ *   grant under the agent home and when `denyAround` fails closed. A credential dir is denied only when no granted dir covers it.
  * - Network OPEN (owner decision 2026-10-18; a command may also bind a localhost port): `allowedDomains: ["*"]` (bare wildcard, CLI >= 2.1.186). Without it the CLI keeps an
  *   empty allowlist and asks `canUseTool` (`SandboxNetworkAccess`) per host. The read/write limits above still bind. The sandbox is required and a command cannot opt out of it.
  */
-export function workerSandbox(guard: SandboxInput | undefined): Options["sandbox"] | undefined {
+export function workerSandbox(
+  guard: SandboxInput | undefined,
+  homeDir = homedir(),
+): Options["sandbox"] | undefined {
   // The run's scratch dir: a worker's goal dir, or a teammate's own run dir. No scratch dir = no sandbox here.
   const scratch = guard?.envelope?.goalDir ?? guard?.scratchDir;
   if (!guard || !scratch) return undefined;
   const allowWrite = [...new Set([...(guard.writePaths ?? []), scratch])];
-  const home = realOrSame(homedir());
-  const homes = [...new Set([homedir(), home])];
+  const home = realOrSame(homeDir);
+  const homes = [...new Set([homeDir, home])];
   const grants = [...allowWrite, ...(guard.readPaths ?? []), ...(guard.cwd ? [guard.cwd] : [])].map(
     realOrSame,
   );
@@ -113,6 +140,10 @@ export function workerSandbox(guard: SandboxInput | undefined): Options["sandbox
       ),
     );
   const denyWrite = [...new Set([...denyCwd, ...denyAgentHome, ...sensitive])];
+  // The home and `/Users` are denied AROUND the readable dirs, not whole: a granted repo's root (and the dirs on the way to it)
+  // stays listable, while its secrets keep their deny (no allow rule covers them). The old allow-back carve stays for dirs
+  // under a root denied whole (the agent home) and as the fallback when `denyAround` fails closed.
+  const keep = [...grants, ...inner, ...toolchain];
   return {
     enabled: true,
     failIfUnavailable: true,
@@ -126,8 +157,9 @@ export function workerSandbox(guard: SandboxInput | undefined): Options["sandbox
           ...agentHome,
           ...sensitive,
           ...creds,
-          ...homes,
-          ...(process.platform === "darwin" ? ["/Users"] : []),
+          ...[...homes, ...(process.platform === "darwin" ? ["/Users"] : [])].flatMap((r) =>
+            denyAround(r, keep),
+          ),
         ]),
       ],
       allowRead: [
