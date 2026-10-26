@@ -167,6 +167,7 @@ export function deleteBotFile(ctx: DesignContext, rawId: string, groups: GroupEn
         `bot "${id}" is in group ${inGroups.join(", ")}; remove it from the group first`,
       );
     insideConfig(ctx.configDir, join(ctx.configDir, "bots", `${id}.md`));
-    deleteBot(ctx, { action: "delete_bot", id });
+    // `groups` is read from disk; the context's own list is the app's snapshot, stale for ~300 ms after a group write.
+    deleteBot({ ...ctx, groupSummaries: () => groups }, { action: "delete_bot", id });
   });
 }
