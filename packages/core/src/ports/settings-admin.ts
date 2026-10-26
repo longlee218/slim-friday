@@ -46,6 +46,8 @@ export interface BotInput {
 export interface BotEntry extends BotInput {
   avatar?: string;
   shipped: boolean;
+  /** An owner bot that is not reserved: the web app may offer Delete. */
+  deletable: boolean;
 }
 
 /** What the owner edits of a group. */
@@ -144,7 +146,8 @@ export interface ConfigAdmin {
   getBot(id: string): BotEntry;
   /** `create` refuses an existing id (CONFLICT), `update` refuses a missing one (NOT_FOUND). */
   saveBot(b: BotInput, mode: "create" | "update"): void;
-  deleteBot(id: string): void;
+  /** `cascade` first removes the bot from its groups (a one-member group is deleted); without it a member is CONFLICT. */
+  deleteBot(id: string, opts?: { cascade?: boolean }): void;
   listGroups(): GroupEntry[];
   getGroup(id: string): GroupEntry;
   saveGroup(g: GroupInput, mode: "create" | "update"): void;

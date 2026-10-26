@@ -47,10 +47,10 @@ export class FakeConfigAdmin implements ConfigAdmin {
   }
   saveBot(b: BotInput, mode: "create" | "update") {
     this.fail("saveBot", [b, mode]);
-    this.bots.set(b.id, { ...b, shipped: false });
+    this.bots.set(b.id, { ...b, shipped: false, deletable: true });
   }
-  deleteBot(id: string) {
-    this.fail("deleteBot", [id]);
+  deleteBot(id: string, opts?: { cascade?: boolean }) {
+    this.fail("deleteBot", opts ? [id, opts] : [id]);
     this.bots.delete(id);
   }
   listGroups = () => [...this.groups.values()];
