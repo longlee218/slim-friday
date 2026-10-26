@@ -76,23 +76,45 @@ export function appendJournal(
   });
 }
 
-/** Name of the per-owner file holding the last consolidated day. */
+/** Name of the per-owner file holding the consolidation mark. */
 const MARK_FILE = ".consolidated";
 
-/** Last day (`YYYY-MM-DD`) whose notes were consolidated into MEMORY.md, or undefined when none yet. */
-export function readConsolidatedMark(root: string, owner: MemoryOwner): string | undefined {
-  const file = join(journalDir(root, owner), MARK_FILE);
-  if (!existsSync(file)) return undefined;
-  const day = readFileSync(file, "utf8").trim();
-  return /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : undefined;
+/** Where consolidation stopped: `count` notes of `day` were consumed; `count` unset = the whole day (old format). */
+export interface ConsolidatedMark {
+  day: string;
+  count?: number;
 }
 
-/** Record `day` as the owner's last consolidated day. */
-export function writeConsolidatedMark(root: string, owner: MemoryOwner, day: string): void {
+/** A mark file's text (`YYYY-MM-DD` or `YYYY-MM-DD#n`) as a mark, or undefined when it is neither. */
+function parseMark(text: string): ConsolidatedMark | undefined {
+  const m = /^(\d{4}-\d{2}-\d{2})(?:#(\d+))?$/.exec(text.trim());
+  if (!m?.[1]) return undefined;
+  return m[2] === undefined ? { day: m[1] } : { day: m[1], count: Number(m[2]) };
+}
+
+/** The owner's consolidation mark, or undefined when none yet. */
+export function readConsolidatedMark(
+  root: string,
+  owner: MemoryOwner,
+): ConsolidatedMark | undefined {
+  const file = join(journalDir(root, owner), MARK_FILE);
+  return existsSync(file) ? parseMark(readFileSync(file, "utf8")) : undefined;
+}
+
+/** Record that the first `count` notes of `day` (and every earlier day) are consolidated. */
+export function writeConsolidatedMark(
+  root: string,
+  owner: MemoryOwner,
+  day: string,
+  count: number,
+): void {
   const dir = journalDir(root, owner);
   mkdirSync(dir, { recursive: true, mode: 0o700 });
-  writeAtomic(join(dir, MARK_FILE), `${day}\n`);
+  writeAtomic(join(dir, MARK_FILE), `${day}#${count}\n`);
 }
+
+/** Label of a journal block written from a group session (`Idle flush @team`); consolidation reads it back. */
+export const groupLabel = (label: string, groupId: string): string => `${label} @${groupId}`;
 
 /** Days (`YYYY-MM-DD`, oldest first) that have a journal file for the owner. */
 export function journalDays(root: string, owner: MemoryOwner): string[] {
@@ -104,20 +126,35 @@ export function journalDays(root: string, owner: MemoryOwner): string[] {
     .sort();
 }
 
-/** The note bullets (without `- `) of one journal day, in file order. */
-export function journalNotes(root: string, owner: MemoryOwner, day: string): string[] {
+/** The note bullets (without `- `) of one journal day in file order, each with the title of its block. */
+export function journalEntries(
+  root: string,
+  owner: MemoryOwner,
+  day: string,
+): { note: string; label: string }[] {
   const file = join(journalDir(root, owner), `${day}.md`);
   if (!existsSync(file)) return [];
-  return readFileSync(file, "utf8")
-    .split("\n")
-    .filter((l) => l.startsWith("- "))
-    .map((l) => l.slice(2).trim())
-    .filter(Boolean);
+  const out: { note: string; label: string }[] = [];
+  let label = "";
+  for (const line of readFileSync(file, "utf8").split("\n")) {
+    // A block title is `## HH:MM <label>`; the label is everything after the time.
+    const title = /^## \d{2}:\d{2} (.*)$/.exec(line);
+    if (title) label = (title[1] ?? "").trim();
+    else if (line.startsWith("- ")) {
+      const note = line.slice(2).trim();
+      if (note) out.push({ note, label });
+    }
+  }
+  return out;
 }
+
+/** The note bullets (without `- `) of one journal day, in file order. */
+export const journalNotes = (root: string, owner: MemoryOwner, day: string): string[] =>
+  journalEntries(root, owner, day).map((e) => e.note);
 
 /**
  * Delete journal day files for every bot and group: a day older than `keepDays` goes only once consolidation has
- * passed it (owner mark), so no note is lost unread; any day older than `hardCapDays` goes anyway (a failing model
+ * passed it (before the mark day, or the mark day itself in the old whole-day format), so no note is lost unread; any day older than `hardCapDays` goes anyway (a failing model
  * call cannot grow the journal without end). Returns the count.
  */
 export function pruneJournals(root: string, now: Date, keepDays = 30, hardCapDays = 90): number {
@@ -131,11 +168,12 @@ export function pruneJournals(root: string, now: Date, keepDays = 30, hardCapDay
       const dir = join(base, id, "journal");
       if (!existsSync(dir)) continue;
       const markFile = join(dir, MARK_FILE);
-      const mark = existsSync(markFile) ? readFileSync(markFile, "utf8").trim() : "";
+      const mark = existsSync(markFile) ? parseMark(readFileSync(markFile, "utf8")) : undefined;
       for (const f of readdirSync(dir)) {
         const day = DAY_FILE.exec(f)?.[1];
         if (!day || day >= cutoff) continue;
-        if (day <= mark || day < hardCut) {
+        const passed = !!mark && (day < mark.day || (day === mark.day && mark.count === undefined));
+        if (passed || day < hardCut) {
           rmSync(join(dir, f), { force: true });
           removed++;
         }

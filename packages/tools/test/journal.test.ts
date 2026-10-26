@@ -2,7 +2,14 @@ import { expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { appendJournal, pruneJournals, writeConsolidatedMark } from "../src/memory/journal";
+import {
+  appendJournal,
+  groupLabel,
+  journalEntries,
+  pruneJournals,
+  readConsolidatedMark,
+  writeConsolidatedMark,
+} from "../src/memory/journal";
 
 const bot = { kind: "bot", botId: "ann" } as const;
 const at = (iso: string) => new Date(iso);
@@ -65,7 +72,7 @@ test("prune deletes consolidated day files older than 30 days and keeps the rest
   appendJournal(root, bot, "F", ["old"], at("2026-09-23T09:00:00"));
   appendJournal(root, bot, "F", ["recent"], at("2026-09-25T09:00:00"));
   writeFileSync(join(root, "bots", "ann", "MEMORY.md"), "keep");
-  writeConsolidatedMark(root, bot, "2026-10-20");
+  writeFileSync(join(root, "bots", "ann", "journal", ".consolidated"), "2026-10-20\n");
   expect(pruneJournals(root, at("2026-10-24T12:00:00"))).toBe(1);
   expect(existsSync(dayFile(root, "2026-09-23"))).toBe(false);
   expect(existsSync(dayFile(root, "2026-09-25"))).toBe(true);
@@ -79,7 +86,52 @@ test("prune keeps an unconsolidated old day until the mark passes it, and delete
   expect(pruneJournals(root, at("2026-10-24T12:00:00"))).toBe(1);
   expect(existsSync(dayFile(root, "2026-07-01"))).toBe(false);
   expect(existsSync(dayFile(root, "2026-09-14"))).toBe(true);
-  writeConsolidatedMark(root, bot, "2026-09-14");
+  writeFileSync(join(root, "bots", "ann", "journal", ".consolidated"), "2026-09-14\n");
   expect(pruneJournals(root, at("2026-10-24T12:00:00"))).toBe(1);
   expect(existsSync(dayFile(root, "2026-09-14"))).toBe(false);
+});
+
+test("mark round-trips day#n", () => {
+  const root = mkdtempSync(join(tmpdir(), "jr-"));
+  expect(readConsolidatedMark(root, bot)).toBeUndefined();
+  writeConsolidatedMark(root, bot, "2026-10-26", 3);
+  expect(readFileSync(join(root, "bots", "ann", "journal", ".consolidated"), "utf8")).toBe(
+    "2026-10-26#3\n",
+  );
+  expect(readConsolidatedMark(root, bot)).toEqual({ day: "2026-10-26", count: 3 });
+});
+
+test("old mark format = whole day", () => {
+  const root = mkdtempSync(join(tmpdir(), "jr-"));
+  mkdirSync(join(root, "bots", "ann", "journal"), { recursive: true });
+  writeFileSync(join(root, "bots", "ann", "journal", ".consolidated"), "2026-10-25\n");
+  expect(readConsolidatedMark(root, bot)).toEqual({ day: "2026-10-25" });
+  writeFileSync(join(root, "bots", "ann", "journal", ".consolidated"), "junk\n");
+  expect(readConsolidatedMark(root, bot)).toBeUndefined();
+});
+
+test("journalEntries keeps labels", () => {
+  const root = mkdtempSync(join(tmpdir(), "jr-"));
+  appendJournal(root, bot, "Idle flush", ["direct one"], at("2026-10-26T09:00:00"));
+  appendJournal(
+    root,
+    bot,
+    groupLabel("Idle flush", "team"),
+    ["group one"],
+    at("2026-10-26T09:05:00"),
+  );
+  expect(journalEntries(root, bot, "2026-10-26")).toEqual([
+    { note: "direct one", label: "Idle flush" },
+    { note: "group one", label: "Idle flush @team" },
+  ]);
+});
+
+test("prune: the mark day with #n is not passed, a day before it is", () => {
+  const root = mkdtempSync(join(tmpdir(), "jr-"));
+  appendJournal(root, bot, "F", ["before"], at("2026-09-10T09:00:00"));
+  appendJournal(root, bot, "F", ["mark day"], at("2026-09-11T09:00:00"));
+  writeConsolidatedMark(root, bot, "2026-09-11", 1);
+  expect(pruneJournals(root, at("2026-10-24T12:00:00"))).toBe(1);
+  expect(existsSync(dayFile(root, "2026-09-10"))).toBe(false);
+  expect(existsSync(dayFile(root, "2026-09-11"))).toBe(true);
 });

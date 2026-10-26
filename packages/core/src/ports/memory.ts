@@ -30,12 +30,13 @@ export const MEMORY_NOTE_MAX_CHARS = 200;
 export const MAX_REPLACED_PER_RUN = 3;
 
 /**
- * Ask a model which journal `notes` to keep, given the current memory as numbered notes (`[n] (kind) text` lines);
- * undefined = the call failed.
+ * Ask a model which journal `notes` to keep, given the current memory as numbered notes (`[n] (kind) text` lines)
+ * and `known` (what config and the owner's USER/SOUL already say); undefined = the call failed.
  */
 export type ConsolidateFn = (
   memory: string,
   notes: string[],
+  known?: string,
 ) => Promise<PromotedNote[] | undefined>;
 
 /** Long-term notes of a bot or a group. */

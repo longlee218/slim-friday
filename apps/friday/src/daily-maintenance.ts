@@ -51,12 +51,9 @@ export function startDailyMaintenance(d: DailyDeps) {
   const run = async () => {
     if (d.consolidate) {
       try {
-        const promoted = await consolidateAll(
-          d.memory,
-          new Date(clock.now()),
-          d.consolidate,
-          abort.signal,
-        );
+        const promoted = await consolidateAll(d.memory, new Date(clock.now()), d.consolidate, {
+          signal: abort.signal,
+        });
         log.info({ promoted }, "memory.consolidated");
       } catch (err) {
         log.error({ error: why(err) }, "memory.consolidate");
