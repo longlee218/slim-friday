@@ -16,6 +16,7 @@ import { MemoryPanel } from "./memory-panel";
 import { ChatAction, ProfileHead } from "./profile-head";
 import { RuleList } from "./rule-list";
 import { SettingsPage } from "./settings-page";
+import { useHeldAvatar } from "./use-held-avatar";
 
 const TABS = [
   ["profile", "Profile"],
@@ -30,26 +31,32 @@ export function BotNewPage() {
   const qc = useQueryClient();
   const { tab } = useParams();
   const phone = useIsPhone();
+  const avatar = useHeldAvatar();
   const onSave = async (v: BotFormValue) => {
     const { id, ...bot } = v;
     await client.config.bots.save({ id, bot, mode: "create" });
+    await avatar.saveHeld({ kind: "bot", id });
     await qc.invalidateQueries({ queryKey: orpc.config.bots.key() });
     void navigate(`/settings/bot/${id}/profile`, { replace: true });
   };
   return (
     <SettingsPage title="New bot">
-      {/* The phone nav bar already names the page. */}
-      {!phone && (
-        <ProfileHead
-          face={
-            <span className="av none">
-              <Bot strokeWidth={1.5} />
-            </span>
-          }
-          title="New bot"
-          sub="Fill in the profile, then add tools and skills."
-        />
-      )}
+      {/* The phone nav bar already names the page, so the head is the face alone there. */}
+      <ProfileHead
+        face={
+          <AvatarPicker target={{ kind: "bot", id: "" }} onHold={avatar.hold} onDone={() => {}}>
+            {avatar.previewUrl ? (
+              <Avatar src={avatar.previewUrl} name="New bot" size={96} />
+            ) : (
+              <span className="av none" style={{ width: 96, height: 96 }}>
+                <Bot strokeWidth={1.5} />
+              </span>
+            )}
+          </AvatarPicker>
+        }
+        title={phone ? undefined : "New bot"}
+        sub={phone ? undefined : "Fill in the profile, then add tools and skills."}
+      />
       <BotForm
         initial={NEW_BOT}
         mode="create"

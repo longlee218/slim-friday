@@ -5,38 +5,46 @@ import { useNavigate, useParams } from "react-router";
 import { client, orpc } from "../../api/client";
 import { useDirectory } from "../../api/directory";
 import { useIsPhone } from "../../app/use-is-phone";
+import { Avatar } from "../ui/avatar";
 import { AvatarPicker } from "./avatar-picker";
 import { GroupAvatar } from "./group-avatar";
 import { GroupForm, type GroupFormValue, NEW_GROUP } from "./group-form";
 import { ChatAction, ProfileHead } from "./profile-head";
 import { RuleList } from "./rule-list";
 import { SettingsPage } from "./settings-page";
+import { useHeldAvatar } from "./use-held-avatar";
 
 /** `/settings/group/new`: the form of a group that does not exist yet. */
 export function GroupNewPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const phone = useIsPhone();
+  const avatar = useHeldAvatar();
   const onSave = async (v: GroupFormValue) => {
     const { id, ...group } = v;
     await client.config.groups.save({ id, group, mode: "create" });
+    await avatar.saveHeld({ kind: "group", id });
     await qc.invalidateQueries({ queryKey: orpc.config.groups.key() });
     void navigate(`/settings/group/${id}`, { replace: true });
   };
   return (
     <SettingsPage title="New group">
-      {/* The phone nav bar already names the page. */}
-      {!phone && (
-        <ProfileHead
-          face={
-            <span className="av none">
-              <Users strokeWidth={1.5} />
-            </span>
-          }
-          title="New group"
-          sub="Bots that work together in one channel."
-        />
-      )}
+      {/* The phone nav bar already names the page, so the head is the face alone there. */}
+      <ProfileHead
+        face={
+          <AvatarPicker target={{ kind: "group", id: "" }} onHold={avatar.hold} onDone={() => {}}>
+            {avatar.previewUrl ? (
+              <Avatar src={avatar.previewUrl} name="New group" size={96} />
+            ) : (
+              <span className="av none" style={{ width: 96, height: 96 }}>
+                <Users strokeWidth={1.5} />
+              </span>
+            )}
+          </AvatarPicker>
+        }
+        title={phone ? undefined : "New group"}
+        sub={phone ? undefined : "Bots that work together in one channel."}
+      />
       <GroupForm initial={NEW_GROUP} mode="create" onSave={onSave} />
     </SettingsPage>
   );

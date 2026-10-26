@@ -13,14 +13,15 @@ export function ProfileHead({
   actions,
 }: {
   face: ReactNode;
-  title: string;
+  /** Left out where the nav bar already names the page (a new bot or group on the phone). */
+  title?: string;
   sub?: ReactNode;
   actions?: ReactNode;
 }) {
   return (
     <div className="profile-head">
       {face}
-      <h2>{title}</h2>
+      {title && <h2>{title}</h2>}
       {sub && <div className="r">{sub}</div>}
       {actions && <div className="insp-actions">{actions}</div>}
     </div>
