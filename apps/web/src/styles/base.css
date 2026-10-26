@@ -1,7 +1,7 @@
 /* ------------------------------------------------------------------ base */
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
-/* No double-tap zoom (pinch zoom stays) and no iOS text inflation on rotation. */
+/* No double-tap zoom (pinch zoom is blocked in index.html and block-pinch-zoom.ts) and no iOS text inflation on rotation. */
 html { touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 body {
   font: 13px/1.45 var(--font); color: var(--label); background: var(--wall-light), var(--wall); background-attachment: fixed;
