@@ -89,6 +89,9 @@ a.sched-tag:focus-visible { border-radius: 10px; }
 .vw-nav { width: 40px; height: 40px; border-radius: 50%; background: rgba(255, 255, 255, .1); flex: none; }
 .vw-nav:disabled { opacity: .3; }
 .vw-count { text-align: center; padding-bottom: 18px; font-size: 12px; color: rgba(255, 255, 255, .6); }
+.pdf-stage { overflow: auto; align-items: flex-start; }
+.vw-pdfbar { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 0 16px calc(env(safe-area-inset-bottom, 0px) + 14px); }
+.vw-pdfbar .vw-count { padding: 0; }
 @media (max-width: 639px) { .vw-nav { display: none; } }
 
 /* live run: thinking -> doing -> writing -> done */

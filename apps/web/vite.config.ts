@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 import { cspMetaPlugin } from "./csp/csp-meta-plugin.ts";
+import { pdfjsWorkerAlias } from "./pdfjs-worker.ts";
 import { pwaOptions } from "./pwa-options.ts";
 
 // Packages loaded through dynamic import (code highlighting, diagrams). They emit hundreds of
@@ -15,6 +16,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, import.meta.dirname, "VITE_");
   return {
     plugins: [react(), tailwindcss(), VitePWA(pwaOptions), cspMetaPlugin(env)],
+    resolve: { alias: pdfjsWorkerAlias },
     build: {
       rolldownOptions: {
         output: {

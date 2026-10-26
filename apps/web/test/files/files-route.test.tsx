@@ -8,6 +8,8 @@ import { FilesRoute } from "../../src/components/files/files-route";
 import { PanelsContext } from "../../src/components/shell/use-responsive-panels";
 import { seededClient } from "../shell/fixtures";
 
+vi.mock("../../src/components/files/pdf-viewer", () => ({ default: () => null }));
+
 const api = vi.hoisted(() => ({ files: vi.fn(), file: vi.fn() }));
 vi.mock("../../src/api/client", async () => {
   const { createTanstackQueryUtils } = await import("@orpc/tanstack-query");
@@ -164,6 +166,15 @@ test("a failed load shows an error and retries", async () => {
   await screen.findByText("Could not load your files.");
   await user.click(screen.getByRole("button", { name: "Try again" }));
   expect(await screen.findByText("a.png")).toBeTruthy();
+});
+
+test("a PDF row opens the preview, not a download", async () => {
+  api.files.mockResolvedValue({
+    items: [item("p", { name: "p.pdf", mimeType: "application/pdf", kind: "file" })],
+  });
+  renderFiles();
+  await userEvent.setup().click(await screen.findByText("p.pdf"));
+  expect(await screen.findByRole("button", { name: "Close" })).toBeTruthy();
 });
 
 test("an image row opens the viewer", async () => {
