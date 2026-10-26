@@ -2,11 +2,12 @@ import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import {
   type ConsolidateFn,
+  GROUP_SESSION_KINDS,
   MAX_REPLACED_PER_RUN,
   type MemoryOwner,
   type PromotedNote,
 } from "@friday/core";
-import { type FileMemory, MemoryError } from "./file-memory";
+import { type FileMemory, type MemoryBullet, MemoryError } from "./file-memory";
 import { writeConsolidatedMark } from "./journal";
 import type { OwnerQueue } from "./owner-queue";
 import { pendingNotes } from "./pending-journal-notes";
@@ -18,10 +19,10 @@ const GROUP_LABEL = / @[a-z][a-z0-9-]*$/;
 /**
  * Promote the owner's journal notes after its mark (today's included) into MEMORY.md, as `ask` picks them; `ask`
  * sees the memory as numbered notes and `known` (what config and USER/SOUL already say). For a bot, notes from group
- * sessions (block label ` @<groupId>`) are asked in a second call and a fact or decision picked from them is saved as
- * a lesson: group sessions see only a bot's Preferences and Lessons. A pick with `replaces: n` updates note n in place
- * (a backup is kept), at most `MAX_REPLACED_PER_RUN` a run across both calls; a further one, or one whose n names no
- * note, is added as a new note. The mark moves past the last note sent only when every call made answered. A note
+ * sessions (block label ` @<groupId>`) are asked in a second call that sees only the Preferences and Lessons (what
+ * group sessions see), and a fact or decision picked from them is saved as a lesson. A pick with `replaces: n`
+ * updates note n of the list that call saw in place (a backup is kept), at most `MAX_REPLACED_PER_RUN` a run across
+ * both calls; a further one, or one whose n names no note, is added as a new note. The mark moves past the last note sent only when every call made answered. A note
  * that is too short, the same as another note in MEMORY.md (or one promoted a moment ago) or refused by the file
  * (also too long) is skipped and counted. `_now` is unused since today's notes are taken too (kept for callers).
  */
@@ -38,16 +39,22 @@ export async function consolidateOwner(
   const direct = entries.filter((e) => !fromGroup(e.label)).map((e) => e.note);
   const group = entries.filter((e) => fromGroup(e.label)).map((e) => e.note);
   const bullets = memory.listBullets(owner);
-  const numbered = bullets.map((b, i) => `[${i + 1}] (${b.kind}) ${b.text}`).join("\n");
-  const directPicks = direct.length ? await ask(numbered, direct, known) : [];
+  const numbered = (list: MemoryBullet[]) =>
+    list.map((b, i) => `[${i + 1}] (${b.kind}) ${b.text}`).join("\n");
+  const directPicks = direct.length ? await ask(numbered(bullets), direct, known) : [];
   if (!directPicks) return { promoted: 0, skipped: 0 };
-  const groupPicks = group.length ? await ask(numbered, group, known) : [];
+  // The group call sees only the notes group sessions see, so it can neither fold a hidden fact into a lesson nor
+  // name one to replace; its `replaces` numbers that view and is mapped back to the full list.
+  const seen = bullets.filter((b) => (GROUP_SESSION_KINDS as readonly string[]).includes(b.kind));
+  const groupPicks = group.length ? await ask(numbered(seen), group, known) : [];
   if (!groupPicks) return { promoted: 0, skipped: 0 };
   const picked: PromotedNote[] = [
     ...directPicks,
-    ...groupPicks.map((p) =>
-      p.kind === "fact" || p.kind === "decision" ? { ...p, kind: "lesson" as const } : p,
-    ),
+    ...groupPicks.map((p) => {
+      const target = p.replaces === undefined ? undefined : seen[p.replaces - 1];
+      const kind = p.kind === "fact" || p.kind === "decision" ? ("lesson" as const) : p.kind;
+      return { ...p, kind, replaces: target ? bullets.indexOf(target) + 1 : undefined };
+    }),
   ];
   const kept = bullets.map((b) => b.text);
   let promoted = 0;
