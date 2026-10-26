@@ -23,6 +23,7 @@ export * from "./memory/journal";
 export * from "./memory/journal-read";
 export * from "./memory/memory-owner";
 export * from "./memory/memory-server";
+export * from "./memory/owner-queue";
 export * from "./memory/recall/builtin-source";
 export * from "./memory/recall/chunk-memory";
 export * from "./memory/recall/indexer";

@@ -18,6 +18,7 @@ import {
   readConsolidatedMark,
   writeConsolidatedMark,
 } from "../src/memory/journal";
+import { createOwnerQueue } from "../src/memory/owner-queue";
 
 const ann: MemoryOwner = { kind: "bot", botId: "ann" };
 const at = (s: string) => new Date(s);
@@ -382,4 +383,37 @@ test("known is passed to ask", async () => {
     "USER says hi",
   );
   expect(direct).toBe("USER says hi");
+});
+
+test("a known lookup that throws consolidates the owner without known", async () => {
+  const { mem } = setup();
+  const seen: (string | undefined)[] = [];
+  const n = await consolidateAll(
+    mem,
+    now,
+    async (_m, _n, known) => {
+      seen.push(known);
+      return [{ kind: "fact", note: "deploy uses docker" }];
+    },
+    {
+      known: async () => {
+        throw new Error("lookup failed");
+      },
+    },
+  );
+  expect(seen).toEqual([undefined]);
+  expect(n).toBe(1);
+});
+
+test("consolidateAll runs an owner through the queue when given", async () => {
+  const { mem } = setup();
+  const queued: MemoryOwner[] = [];
+  const queue = createOwnerQueue();
+  await consolidateAll(mem, now, async () => [], {
+    queue: (o, fn) => {
+      queued.push(o);
+      return queue(o, fn);
+    },
+  });
+  expect(queued).toEqual([ann]);
 });

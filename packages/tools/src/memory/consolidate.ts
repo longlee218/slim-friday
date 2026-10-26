@@ -8,6 +8,7 @@ import {
 } from "@friday/core";
 import { type FileMemory, MemoryError } from "./file-memory";
 import { writeConsolidatedMark } from "./journal";
+import type { OwnerQueue } from "./owner-queue";
 import { pendingNotes } from "./pending-journal-notes";
 import { worthKeeping } from "./worth-keeping";
 
@@ -89,13 +90,18 @@ export async function consolidateOwner(
 /**
  * Consolidate every bot and group that has a memory dir. One owner failing (a busy file, a bad dir name) does not
  * stop the others; its mark stays, so the next run retries it. `signal` ends the run early; `known` gives each owner's
- * known-context text. Returns the notes promoted.
+ * known-context text (a lookup that throws consolidates the owner without it); `queue` serializes each owner's run
+ * with other runs of the same owner. Returns the notes promoted.
  */
 export async function consolidateAll(
   memory: FileMemory,
   now: Date,
   ask: ConsolidateFn,
-  opts: { signal?: AbortSignal; known?: (o: MemoryOwner) => Promise<string | undefined> } = {},
+  opts: {
+    signal?: AbortSignal;
+    known?: (o: MemoryOwner) => Promise<string | undefined>;
+    queue?: OwnerQueue;
+  } = {},
 ): Promise<number> {
   const { signal } = opts;
   // On abort a pending call is given up as failed (undefined), so no mark moves and no further owner is asked.
@@ -116,8 +122,11 @@ export async function consolidateAll(
   for (const owner of owners) {
     if (signal?.aborted) break;
     try {
-      const known = await opts.known?.(owner);
-      total += (await consolidateOwner(memory, owner, now, guarded, known)).promoted;
+      const run = async () => {
+        const known = await opts.known?.(owner).catch(() => undefined);
+        return (await consolidateOwner(memory, owner, now, guarded, known)).promoted;
+      };
+      total += await (opts.queue ? opts.queue(owner, run) : run());
     } catch {
       // Left for the next run.
     }
