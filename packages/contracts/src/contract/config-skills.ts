@@ -61,6 +61,10 @@ export const mcp = {
   calls: base
     .input(z.object({ server: McpNameSchema, limit: z.number().int().min(1).max(MAX_PAGE) }))
     .output(z.array(McpCallDtoSchema)),
+  /** An http server's site icon as a `data:` url; null for a stdio server or a site without one. */
+  icon: base
+    .input(z.object({ name: McpNameSchema }))
+    .output(z.object({ dataUrl: z.string().nullable() })),
 };
 
 /** USER.md and SOUL.md. */

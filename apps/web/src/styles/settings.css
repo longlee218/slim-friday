@@ -163,6 +163,9 @@ a.srow:hover, button.srow:hover { background: var(--fill); }
 .srow .ico { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; flex: none; color: #fff; background: var(--tint-fill); }
 .srow .ico svg { width: 17px; height: 17px; }
 .srow .ico.orange { background: #ff9f0a; }
+/* An MCP server's own site icon: white tile, icon inset (favicons are often small or square-edged). */
+.srow .ico.site { background: #fff; box-shadow: inset 0 0 0 .5px var(--sep-strong); }
+.srow .ico.site img { width: 20px; height: 20px; object-fit: contain; }
 .srow .ico.purple { background: #af52de; }
 .srow .ico.teal { background: #30b0c7; }
 .srow .ico.gray { background: #8e8e93; }
