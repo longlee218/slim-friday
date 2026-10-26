@@ -18,6 +18,7 @@ test("every shipped skill dir has a SKILL.md whose name matches the dir and has 
     "bot-design",
     "bot-tuning",
     "find-skill",
+    "office-files",
     "skill-creator",
     "skill-install",
   ]);
