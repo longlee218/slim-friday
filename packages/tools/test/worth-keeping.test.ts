@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { worthKeeping } from "../src/memory/worth-keeping";
+import { findSimilar, worthKeeping } from "../src/memory/worth-keeping";
 
 const existing = ["Deploy uses Docker Compose on one VPS", "owner prefers short answers"];
 
@@ -26,4 +26,16 @@ test("Vietnamese notes compare without diacritics", () => {
       "trien khai bang Docker Compose tren mot VPS",
     ]),
   ).toBe("near_duplicate");
+});
+
+test("findSimilar returns the index of the near copy, or -1", () => {
+  expect(
+    findSimilar("Reelme prod uses cluster apero-prod-ads", [
+      "other",
+      "reelme prod uses cluster apero-prod-ads.",
+    ]),
+  ).toBe(1);
+  expect(findSimilar("Reelme prod uses cluster apero-prod-ads", ["other", "unrelated text"])).toBe(
+    -1,
+  );
 });
