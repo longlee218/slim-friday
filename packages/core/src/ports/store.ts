@@ -2,7 +2,7 @@ import type { Outcome } from "../domain/autonomy";
 import type { Bot, BotId } from "../domain/bot";
 import type { Conversation, ConversationId } from "../domain/conversation";
 import type { FileCursor, FileKind } from "../domain/file-kind";
-import type { Grant } from "../domain/grant";
+import type { Grant, RuleEffect } from "../domain/grant";
 import type { Group, GroupId } from "../domain/group";
 import type { IndexedMessage, StoredMessage } from "../domain/message";
 import type { ScratchpadItem } from "../domain/scratchpad";
@@ -192,6 +192,8 @@ export interface Store {
     all(): Promise<Grant[]>;
     add(g: Grant): Promise<void>;
     revoke(id: string): Promise<void>;
+    /** Switches one rule between always allow and always ask; no-op for an unknown id. */
+    setEffect(id: string, effect: RuleEffect): Promise<void>;
   };
   /**
    * Runtime session ids by session key: `<botId>` (direct) or `<botId>@<groupId>` (group).

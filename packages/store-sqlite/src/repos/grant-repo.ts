@@ -60,5 +60,8 @@ export function grantRepo(db: BunSQLiteDatabase): Store["grants"] {
     async revoke(id) {
       db.delete(grants).where(eq(grants.id, id)).run();
     },
+    async setEffect(id, effect) {
+      db.update(grants).set({ effect }).where(eq(grants.id, id)).run();
+    },
   };
 }

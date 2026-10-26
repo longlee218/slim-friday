@@ -10,6 +10,7 @@ import { bot, seededClient } from "../shell/fixtures";
 const api = vi.hoisted(() => ({
   add: vi.fn().mockResolvedValue({}),
   remove: vi.fn().mockResolvedValue({ ok: true }),
+  setEffect: vi.fn().mockResolvedValue({}),
   toastError: vi.fn(),
 }));
 vi.mock("sonner", () => ({
@@ -17,7 +18,9 @@ vi.mock("sonner", () => ({
 }));
 vi.mock("../../src/api/client", async (orig) => ({
   ...(await orig<typeof import("../../src/api/client")>()),
-  client: { config: { approvalRules: { add: api.add, remove: api.remove } } },
+  client: {
+    config: { approvalRules: { add: api.add, remove: api.remove, setEffect: api.setEffect } },
+  },
 }));
 
 const rules: ApprovalRuleDto[] = [
@@ -67,6 +70,18 @@ test("remove calls the API with the rule id", async () => {
   setup(rules);
   await userEvent.click(screen.getAllByRole("button", { name: "Remove rule" })[1] as HTMLElement);
   await waitFor(() => expect(api.remove).toHaveBeenCalledWith({ id: "r2" }));
+});
+
+test("clicking a rule's effect switches it to the other effect", async () => {
+  setup(rules);
+  await userEvent.click(screen.getByRole("button", { name: "Always ask: switch to Always allow" }));
+  await waitFor(() =>
+    expect(api.setEffect).toHaveBeenCalledWith({ id: "r2", effect: "always_allow" }),
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Always allow: switch to Always ask" }));
+  await waitFor(() =>
+    expect(api.setEffect).toHaveBeenLastCalledWith({ id: "r1", effect: "require_approval" }),
+  );
 });
 
 test("add sends effect, match, bot and value; a tool rule sends its scope", async () => {

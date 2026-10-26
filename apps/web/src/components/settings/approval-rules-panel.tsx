@@ -7,7 +7,6 @@ import { client, orpc } from "../../api/client";
 import { useDirectory } from "../../api/directory";
 import { ScheduledRunsNote } from "../schedules/scheduled-runs-note";
 import { Button, IconButton } from "../ui/button";
-import { Pill } from "../ui/pill";
 import { AutoReviewToggle } from "./auto-review-toggle";
 import { SettingsPage } from "./settings-page";
 
@@ -31,6 +30,11 @@ const PLACEHOLDER: Record<Match, string> = {
 const EFFECT_LABEL: Record<Effect, string> = {
   always_allow: "Always allow",
   require_approval: "Always ask",
+};
+/** The effect a click on a rule's pill switches to. */
+const OTHER: Record<Effect, Effect> = {
+  always_allow: "require_approval",
+  require_approval: "always_allow",
 };
 
 /** `repo=friday, branch=*` as a scope object; empty text is no scope. */
@@ -112,9 +116,22 @@ export function ApprovalRulesPanel() {
               <ShieldCheck size={16} strokeWidth={1.75} />
             </span>
             <div className="grow">
-              <Pill tone={r.effect === "always_allow" ? "green" : "amber"}>
+              <button
+                type="button"
+                className={`pill ${r.effect === "always_allow" ? "green" : "amber"}`}
+                style={{ border: 0, cursor: "pointer" }}
+                aria-label={`${EFFECT_LABEL[r.effect]}: switch to ${EFFECT_LABEL[OTHER[r.effect]]}`}
+                title={`Switch to ${EFFECT_LABEL[OTHER[r.effect]]}`}
+                onClick={() =>
+                  void run(
+                    () =>
+                      client.config.approvalRules.setEffect({ id: r.id, effect: OTHER[r.effect] }),
+                    `Rule set to ${EFFECT_LABEL[OTHER[r.effect]]}.`,
+                  )
+                }
+              >
                 {EFFECT_LABEL[r.effect]}
-              </Pill>{" "}
+              </button>{" "}
               <b className="mono">{r.value}</b>
               <div className="t2">
                 {MATCHES.find(([m]) => m === r.match)?.[1]} ·{" "}

@@ -50,4 +50,12 @@ export const approvalRulesRouter = {
     await store.grants.revoke(input.id);
     return { ok: true as const };
   }),
+  // The rule keeps its id, match, value and scope; only always allow / always ask changes.
+  setEffect: authed.config.approvalRules.setEffect.handler(async ({ input, context }) => {
+    const { store } = context.deps;
+    const rule = (await store.grants.all()).find((g) => g.id === input.id);
+    if (!rule) throw new ORPCError("NOT_FOUND", { message: "No such rule." });
+    await store.grants.setEffect(input.id, input.effect);
+    return toDto({ ...rule, effect: input.effect });
+  }),
 };

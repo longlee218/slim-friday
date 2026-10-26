@@ -42,6 +42,15 @@ test("rules round-trip with effect and match; all lists every bot oldest first; 
   expect((await s.grants.all()).map((g) => g.id)).toEqual(["t", "c"]);
 });
 
+test("setEffect changes only the effect of one rule", async () => {
+  const s = openEngineStore(":memory:");
+  const a = rule({ id: "a", effect: "require_approval", scope: { repo: "x" } });
+  const b = rule({ id: "b", effect: "require_approval", createdAt: 2 });
+  for (const g of [a, b]) await s.grants.add(g);
+  await s.grants.setEffect("a", "always_allow");
+  expect(await s.grants.all()).toEqual([{ ...a, effect: "always_allow" }, b]);
+});
+
 test("a row with an unknown effect or match kind is skipped", async () => {
   const db = openEngineDb(":memory:");
   const s = { grants: grantRepo(drizzle({ client: db })) };
