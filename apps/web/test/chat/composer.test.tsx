@@ -361,6 +361,18 @@ test("the sent message gets the files the engine stored", async () => {
   expect(sent?.files).toEqual([stored]);
 });
 
+test("an engine that returns no files leaves the sent message with none", async () => {
+  mocks.send.mockResolvedValue({ messageId: 50 });
+  const u = userEvent.setup();
+  const qc = client();
+  view(<Harness conversation={devConv} />, qc);
+  await u.type(input(), "hi");
+  await u.click(sendBtn());
+  await waitFor(() => expect(ids(qc, "bot:dev")).toEqual([50]));
+  const sent = qc.getQueryData<InfiniteData<MessageDto[]>>(messagesKey("bot:dev"))?.pages[0]?.[0];
+  expect(sent?.files).toEqual([]);
+});
+
 test("a failed PUT keeps Send disabled and says why", async () => {
   fetchMock.mockResolvedValue({ ok: false, status: 403 });
   const u = userEvent.setup();
