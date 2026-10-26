@@ -29,7 +29,7 @@ vi.mock("@tanstack/react-virtual", () => import("./virtualizer-stub"));
 beforeEach(() => {
   vi.clearAllMocks();
   stubMatchMedia();
-  mocks.send.mockResolvedValue({ messageId: 50 });
+  mocks.send.mockResolvedValue({ messageId: 50, files: [] });
   mocks.markRead.mockResolvedValue({ ok: true });
   mocks.stop.mockResolvedValue({ stopped: 1 });
 });
