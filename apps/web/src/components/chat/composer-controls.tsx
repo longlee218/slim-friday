@@ -1,3 +1,4 @@
+import { FILE_ACCEPT_ATTRIBUTE } from "@friday/contracts";
 import { ArrowUp } from "lucide-react";
 import { type Ref, type RefObject, useLayoutEffect } from "react";
 import { composerMaxHeight } from "./composer-rules";
@@ -32,7 +33,32 @@ export function FilePicker({
       type="file"
       multiple
       hidden
+      accept={FILE_ACCEPT_ATTRIBUTE}
       data-testid="file-input"
+      onChange={(e) => {
+        onFiles(Array.from(e.target.files ?? []));
+        e.target.value = "";
+      }}
+    />
+  );
+}
+
+/** The hidden camera input behind the phone Camera button; a cancelled dialog gives an empty list. */
+export function CameraPicker({
+  inputRef,
+  onFiles,
+}: {
+  inputRef: Ref<HTMLInputElement>;
+  onFiles(files: File[]): void;
+}) {
+  return (
+    <input
+      ref={inputRef}
+      type="file"
+      accept="image/*"
+      capture="environment"
+      hidden
+      data-testid="camera-input"
       onChange={(e) => {
         onFiles(Array.from(e.target.files ?? []));
         e.target.value = "";

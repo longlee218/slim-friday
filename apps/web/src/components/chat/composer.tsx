@@ -1,11 +1,11 @@
 import type { BotDto, ConversationDto, GroupDto } from "@friday/contracts";
-import { AtSign, Paperclip, Plus } from "lucide-react";
+import { AtSign, Camera, Paperclip, Plus } from "lucide-react";
 import { type Ref, useImperativeHandle, useRef } from "react";
 import { toast } from "sonner";
 import { useDirectory } from "../../api/directory";
 import { IconButton } from "../ui/button";
 import { ComposerChips } from "./composer-chips";
-import { FilePicker, SendButton, useAutosize } from "./composer-controls";
+import { CameraPicker, FilePicker, SendButton, useAutosize } from "./composer-controls";
 import { placeholderFor, sendOnEnter } from "./composer-rules";
 import { MentionPopover } from "./mention-popover";
 import { ReplyBar } from "./reply-bar";
@@ -49,6 +49,7 @@ export function Composer(props: ComposerProps) {
   const { uploads, add, remove, clear } = useUploads(conversation.id);
   const input = useRef<HTMLTextAreaElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const cameraInput = useRef<HTMLInputElement>(null);
 
   const names = new Map([...dir.bots].map(([id, b]) => [id, b.name]));
   const members = (group?.members ?? [])
@@ -142,8 +143,16 @@ export function Composer(props: ComposerProps) {
         )}
         {chips}
         <FilePicker inputRef={fileInput} onFiles={addFiles} />
+        <CameraPicker inputRef={cameraInput} onFiles={addFiles} />
         <IconButton label={ATTACH} className="plus" onClick={attach}>
           <Plus strokeWidth={1.75} />
+        </IconButton>
+        <IconButton
+          label="Take a photo"
+          className="plus"
+          onClick={() => cameraInput.current?.click()}
+        >
+          <Camera strokeWidth={1.75} />
         </IconButton>
         <div className="box">
           {textarea}
