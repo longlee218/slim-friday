@@ -179,6 +179,15 @@ test("phone row: Review opens the sheet; Allow once answers and folds to the rec
   await waitFor(() => expect(screen.getByText("Allowed: GitPush")).toBeTruthy());
 });
 
+test("phone sheet: a long detail scrolls in .bs-body, the answers stay outside it", async () => {
+  const card = apprCard();
+  view(<ApprovalRow card={card} />, cardClient(card));
+  await userEvent.click(screen.getByRole("button", { name: "Review" }));
+  const body = document.querySelector(".bsheet > .bs-body");
+  expect(body?.querySelector(".appr-input")).toBeTruthy();
+  expect(body?.contains(screen.getByRole("button", { name: "Allow once" }))).toBe(false);
+});
+
 test("elsewhere receipts are neutral, not green", () => {
   const el: Receipt = { kind: "approval", card: apprCard(), answer: "elsewhere" };
   const { container } = view(<ApprovalCard card={apprCard()} receipt={el} />);
