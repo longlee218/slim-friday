@@ -10,6 +10,7 @@ import { BottomSheet } from "../ui/bottom-sheet";
 import { Button } from "../ui/button";
 import { Sheet } from "../ui/sheet";
 import { groupAfterBotRemoval } from "./bot-removal";
+import { DEFAULT_CHAT } from "./nav-history";
 import { useAppNavigate } from "./use-app-navigate";
 
 /** The bot or group a Delete was asked for. */
@@ -49,7 +50,8 @@ export function DeleteChatSheet({
   const go = useAppNavigate();
   const { pathname } = useLocation();
   const [busy, setBusy] = useState(false);
-  const Shell = useIsPhone() ? BottomSheet : Sheet;
+  const phone = useIsPhone();
+  const Shell = phone ? BottomSheet : Sheet;
   const isBot = target?.kind === "bot";
   const name = target
     ? isBot
@@ -64,17 +66,24 @@ export function DeleteChatSheet({
     try {
       if (isBot) await client.config.bots.delete({ id: target.id, cascade: true });
       else await client.config.groups.delete({ id: target.id });
+      toast(`${name} deleted.`);
+      onClose();
+      // The chats this delete removed: the target, and the groups a cascade deletes with it.
+      const gone = [
+        `/c/${target.kind}:${target.id}`,
+        ...outcomes.filter((o) => o.gone).map((o) => `/c/group:${o.id}`),
+      ];
+      // `/` would bounce a desktop back to its last chat (the deleted one), so it opens Friday.
+      if (gone.includes(pathname)) go(phone ? "/" : DEFAULT_CHAT, { replace: true });
+    } catch (e) {
+      toast.error(saveFailure(e).message);
+    } finally {
+      // Also after a failure: a cascade may have changed some groups before it stopped.
       await Promise.all([
         qc.invalidateQueries({ queryKey: orpc.config.bots.key() }),
         qc.invalidateQueries({ queryKey: orpc.config.groups.key() }),
         qc.invalidateQueries({ queryKey: orpc.conversations.key() }),
       ]);
-      toast(`${name} deleted.`);
-      onClose();
-      if (pathname === `/c/${target.kind}:${target.id}`) go("/", { replace: true });
-    } catch (e) {
-      toast.error(saveFailure(e).message);
-    } finally {
       setBusy(false);
     }
   };
