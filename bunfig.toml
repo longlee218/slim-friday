@@ -2,3 +2,5 @@
 root = "."
 # apps/web tests run with Vitest, never bun test
 pathIgnorePatterns = ["apps/web/**"]
+# A git hook's GIT_DIR must never reach a test that spawns git (it would rewrite the real repo).
+preload = ["./test/setup/strip-git-env.ts"]
