@@ -96,6 +96,28 @@ test("pages step with previous and next", async () => {
   await user.click(next());
   expect(screen.getByText("3 / 3")).toBeTruthy();
   expect(next().disabled).toBe(true);
+  await user.click(prev());
+  expect(screen.getByText("2 / 3")).toBeTruthy();
+  expect(screen.getByText("page 2")).toBeTruthy();
+});
+
+test("a new URL starts again on page 1 with the error cleared", async () => {
+  mode.value = "ok";
+  api.file.mockImplementation(async ({ id }: { id: string }) => ({
+    url: `https://files.test/${id}.pdf`,
+  }));
+  const ui = (id: string) => (
+    <QueryClientProvider client={new QueryClient()}>
+      <FilePreview file={{ ...(file as object), id } as never} onClose={() => {}} />
+    </QueryClientProvider>
+  );
+  const view = render(ui("f1"));
+  const user = userEvent.setup();
+  await screen.findByText("1 / 3");
+  await user.click(screen.getByRole("button", { name: "Next page" }));
+  expect(screen.getByText("2 / 3")).toBeTruthy();
+  view.rerender(ui("f2"));
+  expect(await screen.findByText("1 / 3")).toBeTruthy();
 });
 
 test("a PDF file card opens the preview", async () => {

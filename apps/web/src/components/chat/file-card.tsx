@@ -28,8 +28,7 @@ export function FileCard({ file }: { file: FileDto }) {
       {previewKind(file) === "pdf" ? (
         <button
           type="button"
-          className="grow"
-          style={{ textAlign: "left" }}
+          className="grow fpreview"
           aria-label={`Preview ${file.name}`}
           onClick={() => setPreview(true)}
         >

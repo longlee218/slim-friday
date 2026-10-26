@@ -173,8 +173,12 @@ test("a PDF row opens the preview, not a download", async () => {
     items: [item("p", { name: "p.pdf", mimeType: "application/pdf", kind: "file" })],
   });
   renderFiles();
+  const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
   await userEvent.setup().click(await screen.findByText("p.pdf"));
   expect(await screen.findByRole("button", { name: "Close" })).toBeTruthy();
+  expect(screen.getByRole("dialog")).toBeTruthy();
+  expect(screen.getByText("p.pdf", { selector: "b" })).toBeTruthy();
+  expect(click).not.toHaveBeenCalled();
 });
 
 test("an image row opens the viewer", async () => {

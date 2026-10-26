@@ -9,7 +9,8 @@ import { pwaOptions } from "./pwa-options.ts";
 // Packages loaded through dynamic import (code highlighting, diagrams). They emit hundreds of
 // language, theme and diagram chunks that must stay out of the service worker precache.
 const LAZY_PACKAGES =
-  /node_modules\/(shiki|@shikijs|mermaid|@mermaid-js|cytoscape[^/]*|katex|dagre-d3-es|d3[^/]*|langium|chevrotain[^/]*|@chevrotain|roughjs|khroma)\//;
+  /node_modules\/(shiki|@shikijs|mermaid|@mermaid-js|cytoscape[^/]*|katex|dagre-d3-es|d3[^/]*|langium|chevrotain[^/]*|@chevrotain|roughjs|khroma|react-pdf|pdfjs-dist)\//;
+const LAZY_ENTRY = /\/apps\/web\/src\/components\/files\/pdf-viewer\.tsx$/;
 
 export default defineConfig(({ mode }) => {
   // Only VITE_* variables: they feed the build-time CSP (see csp/csp.ts).
@@ -22,9 +23,12 @@ export default defineConfig(({ mode }) => {
         output: {
           // A chunk holding lazy-package modules and no app source goes under assets/lazy/
           // (see globIgnores). Bundler helper modules in the same chunk do not matter.
+          // The PDF viewer module is the one app source file allowed in a lazy chunk: it only
+          // wraps react-pdf, so its chunk is as heavy as the package.
           chunkFileNames: (chunk) =>
-            chunk.moduleIds.some((id) => LAZY_PACKAGES.test(id)) &&
-            !chunk.moduleIds.some((id) => id.includes("/apps/web/src/"))
+            chunk.moduleIds.some((id) => LAZY_ENTRY.test(id)) ||
+            (chunk.moduleIds.some((id) => LAZY_PACKAGES.test(id)) &&
+              !chunk.moduleIds.some((id) => id.includes("/apps/web/src/")))
               ? "assets/lazy/[name]-[hash].js"
               : "assets/[name]-[hash].js",
         },

@@ -46,7 +46,7 @@ export function FilePreview({ file, onClose }: { file: FileDto; onClose(): void 
           </div>
           {url ? (
             <Suspense fallback={<LoaderCircle className="spin vw-msg" aria-label="Loading" />}>
-              <PdfViewer url={url} name={file.name} onDownload={onDownload} />
+              <PdfViewer key={url} url={url} name={file.name} onDownload={onDownload} />
             </Suspense>
           ) : (
             <>

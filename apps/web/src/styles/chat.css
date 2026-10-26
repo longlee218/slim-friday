@@ -56,6 +56,7 @@ a.sched-tag:focus-visible { border-radius: 10px; }
 /* File card */
 .file { display: flex; align-items: center; gap: 10px; width: 300px; max-width: 100%; padding: 10px 12px; margin: 6px 0; border-radius: 12px; border: 1px solid var(--sep-strong); background: var(--raised); transition: background var(--t-fast); }
 .file:hover { background: var(--well); }
+.file .fpreview { text-align: left; min-width: 0; border: 0; background: transparent; padding: 0; color: inherit; font: inherit; cursor: pointer; }
 .file .fi { width: 32px; height: 38px; border-radius: 5px; background: var(--tint-soft); color: var(--tint); display: grid; place-items: center; flex: none; }
 .file .fn { font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .file .fs { font-size: 12px; color: var(--label-2); }
