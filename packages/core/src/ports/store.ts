@@ -1,6 +1,7 @@
 import type { Outcome } from "../domain/autonomy";
 import type { Bot, BotId } from "../domain/bot";
 import type { Conversation, ConversationId } from "../domain/conversation";
+import type { FileCursor, FileKind } from "../domain/file-kind";
 import type { Grant } from "../domain/grant";
 import type { Group, GroupId } from "../domain/group";
 import type { IndexedMessage, StoredMessage } from "../domain/message";
@@ -154,6 +155,13 @@ export interface Store {
     delete(id: string): Promise<void>;
     /** True when a files row holds object `key` (the upload sweeper must keep that object). */
     hasKey(key: string): Promise<boolean>;
+    /** The owner's uploads (`source = "upload"`), newest first by `(at, id)`, at most `limit`; `cursor` is the last row of the previous page. */
+    listUploads(q: {
+      limit: number;
+      cursor?: FileCursor;
+      kind?: FileKind;
+      conversationId?: ConversationId;
+    }): Promise<FileRow[]>;
   };
   uploads: {
     insert(u: UploadRow): Promise<void>;

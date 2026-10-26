@@ -21,6 +21,17 @@ export const FileDtoSchema = z.object({
 });
 export type FileDto = z.infer<typeof FileDtoSchema>;
 
+/** The groups the file library filters by (the same literals as core's `FileKind`). */
+export const FileKindSchema = z.enum(["image", "pdf", "other"]);
+export type FileKind = z.infer<typeof FileKindSchema>;
+
+/** An uploaded file in the library, with where and when it was sent. */
+export const FileLibraryItemDtoSchema = FileDtoSchema.extend({
+  conversationId: z.string(),
+  at: z.number().int(),
+});
+export type FileLibraryItemDto = z.infer<typeof FileLibraryItemDtoSchema>;
+
 /** One step of a bot's run (the Run block). */
 export const RunStepDtoSchema = z.object({
   id: z.string(),

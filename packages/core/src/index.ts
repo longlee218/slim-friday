@@ -5,6 +5,7 @@ export * from "./domain/bot";
 export * from "./domain/card";
 export * from "./domain/conversation";
 export * from "./domain/effort";
+export * from "./domain/file-kind";
 export * from "./domain/grant";
 export * from "./domain/group";
 export * from "./domain/message";
