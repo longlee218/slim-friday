@@ -35,6 +35,7 @@ export function KindChips({ kind, onKind }: Pick<FilesViewProps, "kind" | "onKin
           type="button"
           key={c.label}
           className={c.kind === kind ? "on" : ""}
+          aria-pressed={c.kind === kind}
           onClick={() => onKind(c.kind)}
         >
           {c.label}
@@ -46,8 +47,8 @@ export function KindChips({ kind, onKind }: Pick<FilesViewProps, "kind" | "onKin
 
 /** The rows, or the loading, error and empty state, and Load more under a partial list. */
 export function FilesBody({ library, onOpen }: Pick<FilesViewProps, "library" | "onOpen">) {
-  if (library.isLoading) return null;
-  if (library.isError)
+  if (library.isLoading) return <div className="files-note">Loading…</div>;
+  if (library.isError && library.items.length === 0)
     return (
       <div className="files-note">
         <p>Could not load your files.</p>
@@ -65,6 +66,7 @@ export function FilesBody({ library, onOpen }: Pick<FilesViewProps, "library" | 
       </div>
       {library.hasMore && (
         <div className="files-more">
+          {library.loadMoreFailed && <p>Could not load more files.</p>}
           <Button disabled={library.loadingMore} onClick={library.loadMore}>
             Load more
           </Button>

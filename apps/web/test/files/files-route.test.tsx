@@ -107,6 +107,55 @@ test("Load more requests the next cursor and appends", async () => {
   expect(screen.queryByRole("button", { name: "Load more" })).toBeNull();
 });
 
+test("a failed Load more keeps the rows and retries only the next page", async () => {
+  let fail = true;
+  api.files.mockImplementation(async (input: { cursor?: string }) => {
+    if (!input.cursor) return { items: [item("a", { name: "a.png" })], nextCursor: "c1" };
+    if (fail) throw new Error("boom");
+    return { items: [item("b", { name: "b.png" })] };
+  });
+  renderFiles();
+  const user = userEvent.setup();
+  await screen.findByText("a.png");
+  await user.click(screen.getByRole("button", { name: "Load more" }));
+  await screen.findByText("Could not load more files.");
+  expect(screen.getByText("a.png")).toBeTruthy();
+  expect(screen.queryByText("Could not load your files.")).toBeNull();
+  fail = false;
+  api.files.mockClear();
+  await user.click(screen.getByRole("button", { name: "Load more" }));
+  expect(await screen.findByText("b.png")).toBeTruthy();
+  expect(screen.getByText("a.png")).toBeTruthy();
+  expect(api.files).toHaveBeenCalledTimes(1);
+  expect(api.files.mock.calls[0]?.[0].cursor).toBe("c1");
+});
+
+test("changing the chip starts from the first page and marks it pressed", async () => {
+  api.files.mockImplementation(async (input: { cursor?: string; kind?: string }) =>
+    input.kind === "image"
+      ? { items: [item("i", { name: "i.png" })] }
+      : { items: [item("a", { name: "a.png" })], nextCursor: "c1" },
+  );
+  renderFiles();
+  const user = userEvent.setup();
+  await screen.findByText("a.png");
+  expect(screen.getByRole("button", { name: "All" }).getAttribute("aria-pressed")).toBe("true");
+  await user.click(screen.getByRole("button", { name: "Images" }));
+  expect(await screen.findByText("i.png")).toBeTruthy();
+  expect(screen.queryByText("a.png")).toBeNull();
+  const last = api.files.mock.calls.at(-1)?.[0];
+  expect(last.kind).toBe("image");
+  expect(last.cursor).toBeUndefined();
+  expect(screen.getByRole("button", { name: "Images" }).getAttribute("aria-pressed")).toBe("true");
+  expect(screen.getByRole("button", { name: "All" }).getAttribute("aria-pressed")).toBe("false");
+});
+
+test("a loading first page shows a loading note", async () => {
+  api.files.mockReturnValue(new Promise(() => {}));
+  renderFiles();
+  expect(await screen.findByText("Loading…")).toBeTruthy();
+});
+
 test("a failed load shows an error and retries", async () => {
   api.files.mockRejectedValueOnce(new Error("boom"));
   api.files.mockResolvedValue({ items: [item("a", { name: "a.png" })] });
