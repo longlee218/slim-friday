@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   CalendarClock,
   Ellipsis,
+  Files,
   Fingerprint,
   Gauge,
   Plus,
@@ -142,6 +143,12 @@ export function Sidebar({ onPalette }: { onPalette: () => void }) {
           </Ico>
           <span className="name">Schedules</span>
           <span className="sub num">{enabledCount(schedules)}</span>
+        </SidebarRow>
+        <SidebarRow href="/files" on={pathname.startsWith("/files")}>
+          <Ico>
+            <Files size={16} strokeWidth={1.75} />
+          </Ico>
+          <span className="name">Files</span>
         </SidebarRow>
         <SidebarRow href="/ops" on={pathname.startsWith("/ops")}>
           <Ico>

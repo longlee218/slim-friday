@@ -89,6 +89,15 @@ test("Schedules opens /schedules and New schedule calls ctx.newSchedule", () => 
   expect(newSchedule).toHaveBeenCalledOnce();
 });
 
+test("Files opens /files", () => {
+  const go = vi.fn();
+  const ctx = { navigate: go, stopAll: async () => {}, newTicket: () => {}, newSchedule: () => {} };
+  paletteItems(dir)
+    .find((i) => i.label === "Files")
+    ?.run(ctx);
+  expect(go).toHaveBeenCalledWith("/files");
+});
+
 test("items carry the destinations and hints", () => {
   const items = paletteItems(dir);
   const by = (label: string) => items.find((i) => i.label === label);

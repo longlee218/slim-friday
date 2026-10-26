@@ -72,6 +72,7 @@ export function paletteItems(dir: Directory): PaletteItem[] {
     ...groups,
     go("Actions", "Open tickets", "square-kanban", "/tickets", "⌘2"),
     go("Actions", "Schedules", "calendar-clock", "/schedules"),
+    go("Actions", "Files", "files", "/files"),
     go("Actions", "Open activity", "gauge", "/ops", "⌘3"),
     {
       group: "Actions",

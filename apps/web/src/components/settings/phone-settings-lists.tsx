@@ -3,6 +3,7 @@ import {
   Bot,
   CalendarClock,
   ChevronRight,
+  Files,
   Fingerprint,
   Plug,
   Plus,
@@ -94,6 +95,9 @@ export function PhoneSettingsRoot() {
           value={`${enabledCount(schedules)} on`}
         >
           Schedules
+        </Row>
+        <Row to="/files" color="#34aadc" icon={<Files {...ic} />}>
+          Files
         </Row>
       </div>
       <div className="inset-h">You</div>
