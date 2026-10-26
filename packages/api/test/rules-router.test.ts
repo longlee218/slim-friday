@@ -62,6 +62,28 @@ test("add, list and remove owner rules", async () => {
   });
 });
 
+test("setEffect switches a rule between always ask and always allow", async () => {
+  const h = harness();
+  const r = await h.client.config.approvalRules.add({
+    match: "tool",
+    value: "mcp__github__create_issue",
+    effect: "require_approval",
+    scope: { repo: "x" },
+  });
+  const updated = await h.client.config.approvalRules.setEffect({
+    id: r.id,
+    effect: "always_allow",
+  });
+  expect(updated).toEqual({ ...r, effect: "always_allow" });
+  expect((await h.client.config.approvalRules.list())[0]?.effect).toBe("always_allow");
+  await expect(
+    h.client.config.approvalRules.setEffect({ id: "nope", effect: "always_allow" }),
+  ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  await expect(
+    h.client.config.approvalRules.setEffect({ id: r.id, effect: "maybe" as "always_allow" }),
+  ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+});
+
 test("bad input is refused", async () => {
   const h = harness();
   const add = h.client.config.approvalRules.add;

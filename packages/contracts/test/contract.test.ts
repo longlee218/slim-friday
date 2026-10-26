@@ -11,6 +11,7 @@ const ALL = [
   "config.approvalRules.add",
   "config.approvalRules.list",
   "config.approvalRules.remove",
+  "config.approvalRules.setEffect",
   "config.avatars.create",
   "config.avatars.list",
   "config.bots.delete",
@@ -91,7 +92,7 @@ const inputOf = (path: string) => procAt(path)["~orpc"].inputSchema;
 const uuid = "123e4567-e89b-42d3-a456-426614174000";
 
 test("the contract has exactly the shared-contract procedures", () => {
-  expect(ALL).toHaveLength(74);
+  expect(ALL).toHaveLength(75);
   expect(listProcedurePaths(contract)).toEqual(ALL);
 });
 

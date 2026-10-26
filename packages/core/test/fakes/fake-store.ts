@@ -176,6 +176,9 @@ export class FakeStore implements Store {
     revoke: async (id: string) => {
       this.grantList = this.grantList.filter((g) => g.id !== id);
     },
+    setEffect: async (id: string, effect: Grant["effect"]) => {
+      this.grantList = this.grantList.map((g) => (g.id === id ? { ...g, effect } : g));
+    },
   };
   sessions = {
     get: async (key: string) => this.sessionMap.get(key),
