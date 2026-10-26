@@ -8,8 +8,13 @@ const MAX_DEPTH = 5;
 const MAX_ENTRIES = 20_000;
 
 const FILE_GLOBS = SENSITIVE_PATHS.files.map((g) => new Bun.Glob(g.toLowerCase()));
+const EXCEPT_GLOBS = (SENSITIVE_PATHS.except ?? []).map((g) => new Bun.Glob(g.toLowerCase()));
 const DIRS = new Set(SENSITIVE_PATHS.dirs.map((d) => d.toLowerCase()));
 const SKIP = new Set(SENSITIVE_PATHS.skip.map((d) => d.toLowerCase()));
+
+/** True when a lowercased basename matches a sensitive file glob and no `except` glob (an env template is not a secret). */
+const isSensitiveName = (name: string): boolean =>
+  FILE_GLOBS.some((g) => g.match(name)) && !EXCEPT_GLOBS.some((g) => g.match(name));
 
 /**
  * True when a path relative to a granted dir is sensitive: its basename matches a sensitive file glob, or any dir segment
@@ -21,7 +26,7 @@ export function isSensitivePath(rel: string): boolean {
     .filter(Boolean)
     .map((p) => p.toLowerCase());
   const name = parts.pop() ?? "";
-  return parts.some((p) => DIRS.has(p)) || DIRS.has(name) || FILE_GLOBS.some((g) => g.match(name));
+  return parts.some((p) => DIRS.has(p)) || DIRS.has(name) || isSensitiveName(name);
 }
 
 /**
@@ -49,7 +54,7 @@ export function findSensitiveScan(root: string): { found: string[]; truncated: b
       if (k.isDirectory()) {
         if (DIRS.has(name)) found.push(p);
         else if (!SKIP.has(name) && depth < MAX_DEPTH) walk(p, depth + 1);
-      } else if (FILE_GLOBS.some((g) => g.match(name))) found.push(p);
+      } else if (isSensitiveName(name)) found.push(p);
     }
   };
   walk(root, 0);

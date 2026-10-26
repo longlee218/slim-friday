@@ -9,6 +9,11 @@ files:
   - "id_rsa*"
   - "id_ed25519*"
   - "credentials*"
+# Basename globs that match `files` but hold no secret (env templates): not sensitive.
+except:
+  - ".env.example"
+  - ".env.sample"
+  - ".env.template"
 # Dir names whose whole content is sensitive.
 dirs:
   - "keys"

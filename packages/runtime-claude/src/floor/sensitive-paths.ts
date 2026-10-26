@@ -5,6 +5,8 @@ import { join } from "node:path";
 interface SensitivePaths {
   /** Basename globs of sensitive files. */
   files: string[];
+  /** Basename globs that match `files` but are not sensitive (env templates). */
+  except: string[];
   /** Dir names whose whole content is sensitive. */
   dirs: string[];
   /** Dir names the search never enters. */
