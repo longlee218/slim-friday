@@ -42,10 +42,10 @@
 .crow.unread .l2 .txt { color: var(--label); font-weight: 550; }
 .crow.unread .l1 time { color: var(--tint-text); font-weight: 600; }
 .crow .av .dot { box-shadow: 0 0 0 2.5px var(--ground); }
-.crow .gav { position: relative; flex: none; display: block; }
-.crow .gav .av { position: absolute; }
-.crow .gav .av:first-child { left: 0; top: 0; }
-.crow .gav .av:last-child { right: 0; bottom: 0; box-shadow: 0 0 0 2.5px var(--ground); }
+.gav { position: relative; flex: none; display: block; }
+.gav .av { position: absolute; }
+.gav .av:first-child { left: 0; top: 0; }
+.gav .av:last-child { right: 0; bottom: 0; box-shadow: 0 0 0 2.5px var(--ground); }
 .sidebar .crow .gav .av:last-child { box-shadow: 0 0 0 2.5px var(--glass-strong); }
 button.crow.add { width: 100%; border: 0; background: none; font: inherit; text-align: left; color: var(--label-2); }
 .crow.add .add-face { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; flex: none; background: var(--fill); color: var(--label-2); }

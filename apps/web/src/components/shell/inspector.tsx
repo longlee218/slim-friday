@@ -15,6 +15,7 @@ import { conversationParts } from "../chat/conversation-parts";
 import { Avatar } from "../ui/avatar";
 import { Pill } from "../ui/pill";
 import { MemorySection, OpenTicketsSection, ScratchpadSection } from "./bot-inspector-sections";
+import { PairFace } from "./chat-rows";
 import { InspectorSection, Prop, QuickAction } from "./inspector-parts";
 import { useAppNavigate } from "./use-app-navigate";
 import { useStopRun } from "./use-stop-run";
@@ -87,18 +88,18 @@ function GroupInspector({ group, status }: { group: GroupDto; status: BotStatusD
   return (
     <>
       <div className="insp-hero">
-        <span className="stack">
-          {group.members.map((id) => (
-            <Avatar
-              key={id}
-              src={dir.bots.get(id)?.avatarUrl}
-              name={dir.botName(id)}
-              size={40}
-              working={busy(id)}
-            />
-          ))}
-        </span>
-        <h2 style={{ marginTop: 8 }}>{group.name}</h2>
+        {group.avatarUrl ? (
+          <Avatar src={group.avatarUrl} name={group.name} size={88} />
+        ) : (
+          <PairFace
+            faces={group.members.map((id) => ({ src: dir.bots.get(id)?.avatarUrl, name: "" }))}
+            size={88}
+          />
+        )}
+        <h2>{group.name}</h2>
+        <div className="r">
+          {group.members.length} members · {group.members.filter(busy).length} working
+        </div>
         <div className="insp-actions">
           <QuickAction
             icon={<SlidersHorizontal strokeWidth={1.75} />}
@@ -122,7 +123,7 @@ function GroupInspector({ group, status }: { group: GroupDto; status: BotStatusD
               <Avatar
                 src={dir.bots.get(id)?.avatarUrl}
                 name={dir.botName(id)}
-                size={26}
+                size={32}
                 working={s?.working ?? false}
               />
               <div className="grow">

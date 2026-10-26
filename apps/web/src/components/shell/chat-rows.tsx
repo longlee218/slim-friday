@@ -100,17 +100,27 @@ export function useChatRows(): ChatRowData[] {
     .sort(byRecent);
 }
 
+/** Two member faces overlapping on a diagonal (Messenger's face for a group without its own). */
+export function PairFace({
+  faces,
+  size,
+}: {
+  faces: { src?: string; name: string }[];
+  size: number;
+}) {
+  return (
+    <span className="gav" style={{ width: size, height: size }}>
+      {faces.slice(0, 2).map((f, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: two static faces
+        <Avatar key={i} src={f.src} name={f.name} size={Math.round(size * 0.66)} />
+      ))}
+    </span>
+  );
+}
+
 /** A chat's face: its own avatar, or two member faces overlapping (Messenger's group face). */
 function ChatFace({ row, size }: { row: ChatRowData; size: number }) {
-  if (row.faces)
-    return (
-      <span className="gav" style={{ width: size, height: size }}>
-        {row.faces.map((f, i) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: two static faces
-          <Avatar key={i} src={f.src} name={f.name} size={Math.round(size * 0.66)} />
-        ))}
-      </span>
-    );
+  if (row.faces) return <PairFace faces={row.faces} size={size} />;
   return (
     <Avatar
       src={row.src}
