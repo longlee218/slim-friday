@@ -1,19 +1,14 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { DEFAULTS_DIR, FileConfig, TEMPLATES_DIR } from "@friday/config";
-import {
-  BotHub,
-  type BotHubDeps,
-  type BotMessenger,
-  type MemoryOwner,
-  PermissionGate,
-} from "@friday/core";
+import { BotHub, type BotHubDeps, type BotMessenger, PermissionGate } from "@friday/core";
 import { openEngineStore } from "@friday/store-sqlite";
-import { consolidateOwner, createOwnerQueue, WriteThroughMemory } from "@friday/tools";
+import { createOwnerQueue, WriteThroughMemory } from "@friday/tools";
 import type { AppDeps } from "./app-deps";
 import { composeStore } from "./compose-store";
 import { resolveOwnerTimeZone } from "./config/owner-time-zone";
 import { readProcessEnv } from "./config/process-env";
+import { flushConsolidation } from "./flush-consolidation";
 import { idleFlush } from "./idle-flush";
 import { knownFor, ownerKnown } from "./memory-known";
 import { wireMemory } from "./memory-wiring";
@@ -105,12 +100,8 @@ export function composeEngine(deps: EngineDeps, opened: Array<() => unknown>) {
   const queue = createOwnerQueue();
   const known = ownerKnown(store);
   const ask = deps.consolidate;
-  const consolidate =
-    ask &&
-    ((owner: MemoryOwner) =>
-      queue(owner, async () =>
-        consolidateOwner(memory, owner, new Date(clock.now()), ask, await known(owner)),
-      ));
+  const postFlush =
+    ask && flushConsolidation({ memory, queue, known, ask, now: () => new Date(clock.now()) });
 
   // The env values the bots are denied are hidden from everything they post, show or write.
   const secretValues = () => deniedEnvValues({ ...readProcessEnv(), ...deps.env });
@@ -141,7 +132,7 @@ export function composeEngine(deps: EngineDeps, opened: Array<() => unknown>) {
         flushNotes: deps.flushNotes,
         known: (scope) => knownFor(store, scope),
         memoryChanged,
-        ...(consolidate && { consolidate }),
+        ...(postFlush && { consolidate: postFlush.consolidate }),
         log,
       }),
     }),
@@ -159,7 +150,7 @@ export function composeEngine(deps: EngineDeps, opened: Array<() => unknown>) {
     ...deps.hubRuns?.(config),
   });
   hub = botHub;
-  return { config, engine, store, mem, memory, clock, hub: botHub, queue, known };
+  return { config, engine, store, mem, memory, clock, hub: botHub, queue, known, postFlush };
 }
 
 /** The parts `composeEngine` built. */
