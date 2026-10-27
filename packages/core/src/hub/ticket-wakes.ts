@@ -5,6 +5,7 @@ import type { RunExec } from "../runs/run-exec";
 import { type Ticket, ticketRef } from "../tickets/ticket";
 import { type HubContext, tell } from "./hub-context";
 import { errText } from "./hub-types";
+import { blockIfOrphan } from "./ticket-orphans";
 import { AUTO_BLOCK_COMMENT, isOpenWork, ticketRewakeText, ticketWakeText } from "./ticket-support";
 
 /** Queue a run for the assignee of a ticket in its own direct conversation; nothing is posted to the channel. */
@@ -16,6 +17,8 @@ export async function wakeForTicket(
   actor: Author = { kind: "system" },
 ): Promise<void> {
   if (ticket.status === "done" || ticket.status === "closed") return;
+  // The assignee left the group (or the group is gone): block the ticket, queue nothing.
+  if (await blockIfOrphan(ctx, ticket)) return;
   const conv = await ctx.deps.store.conversations.direct(botId);
   const text = rewake ? ticketRewakeText(ticket) : ticketWakeText(ticket);
   // A bot that assigns the ticket is the sender, so the rate and repeat caps apply to it.

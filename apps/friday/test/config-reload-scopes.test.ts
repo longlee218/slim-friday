@@ -13,7 +13,10 @@ const team: Group = {
 };
 
 /** Drive one reload of `changed` bots and groups; resolves with the scopes the hub was told to reset. */
-async function resetOf(changedBots: string[], changedGroups: string[]): Promise<string[]> {
+async function changeOf(
+  changedBots: string[],
+  changedGroups: string[],
+): Promise<ConfigChange | undefined> {
   let fire: (r: unknown) => void = () => {};
   const config = {
     watch: (cb: (r: unknown) => void) => {
@@ -45,8 +48,12 @@ async function resetOf(changedBots: string[], changedGroups: string[]): Promise<
   });
   fire({ problems: [], changedBots, changedGroups });
   await finished;
-  return change?.resetScopes ?? [];
+  return change;
 }
+
+/** The scopes the hub was told to reset. */
+const resetOf = async (b: string[], g: string[]): Promise<string[]> =>
+  (await changeOf(b, g))?.resetScopes ?? [];
 
 test("a changed bot resets its ticket scopes", async () => {
   expect(await resetOf(["atlas"], [])).toEqual(["atlas", "atlas@team", "atlas#ticket@team"]);
@@ -56,4 +63,10 @@ test("a changed group resets its members' ticket scopes", async () => {
   expect((await resetOf([], ["team"])).sort()).toEqual(
     ["atlas@team", "atlas#ticket@team", "scout@team", "scout#ticket@team"].sort(),
   );
+});
+
+test("changedGroups carries the groups that still exist, not the removed ones", async () => {
+  const c = await changeOf([], ["team", "gone"]);
+  expect(c?.changedGroups).toEqual(["team"]);
+  expect(c?.removedGroups).toEqual(["gone"]);
 });

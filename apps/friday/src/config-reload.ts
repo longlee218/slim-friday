@@ -35,6 +35,7 @@ export function watchConfigReload(d: ConfigReloadDeps): () => void {
     void (async () => {
       const removedBots: string[] = [];
       const removedGroups: string[] = [];
+      const changedGroups: string[] = [];
       const resetScopes: string[] = [];
       // A changed bot: its direct scope, and its group and ticket scopes in every group it is a member of.
       for (const id of r.changedBots) {
@@ -45,9 +46,12 @@ export function watchConfigReload(d: ConfigReloadDeps): () => void {
       for (const id of r.changedGroups) {
         const group = await d.store.groups.get(id);
         if (!group) removedGroups.push(id);
-        else resetScopes.push(...group.members.flatMap((m) => groupScopes(m, id)));
+        else {
+          changedGroups.push(id);
+          resetScopes.push(...group.members.flatMap((m) => groupScopes(m, id)));
+        }
       }
-      await d.hub.configChanged({ removedBots, removedGroups, resetScopes });
+      await d.hub.configChanged({ removedBots, removedGroups, changedGroups, resetScopes });
       const created = await d.sync();
       // A bot that got its direct conversation at a reload is new (the first sync at start creates the conversations
       // of the bots that already exist): it introduces itself. One run per bot (deduped), so a repeat adds none.

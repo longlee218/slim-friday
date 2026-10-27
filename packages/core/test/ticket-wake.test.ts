@@ -67,6 +67,32 @@ describe("ticket wakes", () => {
   });
 });
 
+describe("orphan ticket wakes", () => {
+  test("wakeForTicket blocks a group ticket whose assignee left the group and queues no run", async () => {
+    const h = makeHub();
+    const t = (await h.store.tickets.create({
+      title: "x",
+      status: "todo",
+      priority: "normal",
+      assigneeBotId: "editor",
+      groupId: "g",
+      createdBy: { kind: "user" },
+      createdAt: 1,
+    })) as Ticket;
+    const group = h.store.groupMap.get("g");
+    if (group) h.store.groupMap.set("g", { ...group, members: ["writer"] });
+    await h.hub.wakeForTicket(t, "editor");
+    await flush();
+    const after = await h.store.tickets.get(t.id);
+    expect(after).toMatchObject({
+      status: "blocked",
+      blockedReason: `assignee is no longer in group ${group?.name}`,
+    });
+    expect(h.runtime.all()).toEqual([]);
+    expect(h.store.wakeMap.size).toBe(0);
+  });
+});
+
 describe("unfinished tickets", () => {
   test("a ticket still todo at turn end re-wakes the assignee once with rewake true", async () => {
     const h = makeHub();

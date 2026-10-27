@@ -119,7 +119,12 @@ test("status lists running and parked runs", async () => {
 
 test("changed bot gets a fresh session at its next open, not while parked", async () => {
   const h = await parked();
-  await h.hub.configChanged({ removedBots: [], removedGroups: [], resetScopes: ["editor"] });
+  await h.hub.configChanged({
+    removedBots: [],
+    removedGroups: [],
+    changedGroups: [],
+    resetScopes: ["editor"],
+  });
   expect((await h.store.scopes.get("editor"))?.resetPending).toBe(true);
   await h.hub.answerCard(h.cardId, "once");
   await flush();
@@ -138,7 +143,12 @@ test("changed bot gets a fresh session at its next open, not while parked", asyn
 test("removed bot's queued run is cancelled with a notice", async () => {
   const h = makeHub();
   await h.store.wakes.insert(queuedRow({ conversationId: "dc" }));
-  await h.hub.configChanged({ removedBots: ["editor"], removedGroups: [], resetScopes: [] });
+  await h.hub.configChanged({
+    removedBots: ["editor"],
+    removedGroups: [],
+    changedGroups: [],
+    resetScopes: [],
+  });
   expect(h.store.wakeMap.get("q1")).toMatchObject({
     status: "cancelled",
     error: "The bot was removed.",
@@ -150,7 +160,12 @@ test("removed bot's queued run is cancelled with a notice", async () => {
 
 test("a run stopped by a config change toasts the owner; a delegated stop does not", async () => {
   const h = await parked();
-  await h.hub.configChanged({ removedBots: ["editor"], removedGroups: [], resetScopes: [] });
+  await h.hub.configChanged({
+    removedBots: ["editor"],
+    removedGroups: [],
+    changedGroups: [],
+    resetScopes: [],
+  });
   expect(h.surface.finished.at(-1)?.botId).toBe("editor");
   expect(h.surface.finished.at(-1)?.preview).toContain("was removed");
 });
