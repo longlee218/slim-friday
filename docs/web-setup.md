@@ -281,6 +281,7 @@ Nothing below is verified live until you tick it.
 - [ ] The Files screen layout and the stacked banners look right on a phone, and the Camera button looks right next to Attach.
 - [ ] An image in chat loads from the CDN host (network panel); `curl -sI https://img.example.com/<key>` shows `x-content-type-options: nosniff` and `content-disposition: attachment`. Skip without a CDN.
 - [ ] Ticket page (`/tickets`): create, assign (the assignee wakes), comment, close; the history shows each change.
+- [ ] Group ticket scope: a bot in a group creates a ticket for a member whose own `workspaces` are empty; that member can read the group's repos in the ticket run; the group channel shows the started and finished lines; the member's direct chat shows the run; Stop in the direct chat stops it, Stop in the group channel does not.
 - [ ] Settings save: a bot made in Settings appears in the sidebar; a bad field shows the parser message.
 - [ ] Delete a bot or group from the chat list: on the phone swipe the row left and tap Delete; on desktop use the ⋯ button or right-click. The red confirm names every group the bot leaves (a one-member group is deleted too, a removed entry bot is replaced by the next member). The files go to the trash for 7 days. Shipped bots offer no Delete.
 - [ ] Avatar upload for a bot and a group (crop; WebP, JPEG on Safari); the replaced avatar is gone from the bucket.
