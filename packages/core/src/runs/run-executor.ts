@@ -1,6 +1,7 @@
 import type { WakeRow } from "../domain/wake";
 import type { HubContext } from "../hub/hub-context";
-import { type SessionScope, sessionScope } from "../hub/session-scope";
+import type { SessionScope } from "../hub/session-scope";
+import { runScope } from "../hub/ticket-scope";
 import { checkUnfinished } from "../hub/ticket-wakes";
 import { returnOutcomeSafe } from "./outcome-outbox";
 import { cardResume, parkAtClaim, parkRun, resumeCardId } from "./run-cards";
@@ -180,8 +181,7 @@ async function scopeOf(ctx: HubContext, row: WakeRow): Promise<SessionScope | un
   const bot = await store.bots.get(row.targetBot);
   const conv = await store.conversations.get(row.conversationId);
   if (!bot || !conv) return undefined;
-  const group = conv.kind === "group" ? await store.groups.get(conv.groupId) : undefined;
-  return sessionScope(bot, conv, group, ctx.deps.scopeBot);
+  return runScope(store, bot, conv, row, ctx.deps.scopeBot);
 }
 
 /** A run whose bot or conversation is gone: kept on record as dropped. */

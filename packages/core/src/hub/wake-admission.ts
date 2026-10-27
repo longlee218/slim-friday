@@ -6,7 +6,7 @@ import { block, capsCheck, createRun, HOLD_UNTIL } from "../runs/run-create";
 import { priorityOf } from "../runs/run-rules";
 import type { AdmitOpts, HubContext } from "./hub-context";
 import type { WakeOpts, WakeOutcome } from "./hub-types";
-import { sessionScope } from "./session-scope";
+import { runScope } from "./ticket-scope";
 
 /** Store one message to one bot as a queued run (blocked when a cap says stop); a worker runs it. */
 export function wake(
@@ -23,14 +23,13 @@ export function wake(
 
 /**
  * Give a stored run the scope key and priority it is claimed under. Rows of older builds carry the bot id
- * as scope, whatever the conversation; a group run belongs to the group scope, a ticket run is background.
- * Returns false (nothing changed) when the bot has no scope in the conversation.
+ * as scope, whatever the conversation; a group run belongs to the group scope, a group ticket's run to the
+ * ticket scope, and a ticket run is background. Returns false (nothing changed) when the bot has no scope.
  */
 export async function placeInScope(ctx: HubContext, row: WakeRow, bot: Bot): Promise<boolean> {
   const { store } = ctx.deps;
   const conv = await store.conversations.get(row.conversationId);
-  const group = conv?.kind === "group" ? await store.groups.get(conv.groupId) : undefined;
-  const scope = conv && sessionScope(bot, conv, group, ctx.deps.scopeBot);
+  const scope = conv && (await runScope(store, bot, conv, row, ctx.deps.scopeBot));
   if (!scope) return false;
   const priority = priorityOf(row.sender, Boolean(row.ticketId || row.scheduleId));
   if (row.scopeKey !== scope.key || row.priority !== priority)

@@ -1,10 +1,13 @@
 import { expect, test } from "bun:test";
 import {
   backoffMs,
+  botOfScopeKey,
   CORE_DEFAULTS,
   type Conversation,
   classifyFailure,
+  groupOfScopeKey,
   isConversational,
+  isTicketScopeKey,
   priorityOf,
   SetupError,
   scopeKeyOf,
@@ -33,6 +36,22 @@ test("scopeKeyOf matches sessionScope keys", () => {
   expect(scopeKeyOf("ann" as never, "g1" as never)).toBe(
     sessionScope(bot, grp, group)?.key as string,
   );
+  expect(scopeKeyOf("ann" as never, "g1" as never, "ticket")).toBe(
+    sessionScope(bot, direct, undefined, undefined, group)?.key as string,
+  );
+});
+
+test("scope key parts: bot, group and ticket kind", () => {
+  expect(scopeKeyOf("ann" as never, "g1" as never, "ticket")).toBe("ann#ticket@g1");
+  for (const [key, b, g, ticket] of [
+    ["ann", "ann", undefined, false],
+    ["ann@g1", "ann", "g1", false],
+    ["ann#ticket@g1", "ann", "g1", true],
+  ] as const) {
+    expect(botOfScopeKey(key)).toBe(b);
+    expect(groupOfScopeKey(key)).toBe(g);
+    expect(isTicketScopeKey(key)).toBe(ticket);
+  }
 });
 
 test("ECONNRESET is transient", () => {

@@ -13,6 +13,7 @@ import { createRun } from "../runs/run-create";
 import { InProcessHints } from "../runs/run-hints";
 import { intakeOwnerMessage } from "../runs/run-intake";
 import { LocalRunner } from "../runs/run-local-runner";
+import { groupOfScopeKey } from "../runs/run-rules";
 import { stopScope } from "../runs/run-stop";
 import { ScheduleBoard } from "../schedules/schedule-board";
 import type { Ticket } from "../tickets/ticket";
@@ -139,12 +140,12 @@ export class BotHub implements BotMessenger {
     const rows = await this.deps.store.wakes.inFlight();
     return Promise.all(
       rows.map(async (w) => {
-        const at = w.scopeKey.indexOf("@");
+        const groupId = groupOfScopeKey(w.scopeKey);
         // Background tasks live in the executing process; only a run of this process knows them.
         const local = [...this.ctx.runs.values()].find((e) => e.row.id === w.id);
         return {
           botId: w.targetBot,
-          ...(at >= 0 && { groupId: w.scopeKey.slice(at + 1) }),
+          ...(groupId !== undefined && { groupId }),
           sessionId: (await this.deps.store.sessions.get(w.scopeKey)) ?? "",
           busy: w.status !== "waiting_input",
           parked: w.status === "waiting_input",

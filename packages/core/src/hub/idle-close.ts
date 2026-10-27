@@ -2,16 +2,17 @@ import type { BotId } from "../domain/bot";
 import type { ConversationId } from "../domain/conversation";
 import type { GroupId } from "../domain/group";
 import type { Log } from "../ports/log";
+import { botOfScopeKey, groupOfScopeKey, isTicketScopeKey } from "../runs/run-rules";
 import type { HubContext } from "./hub-context";
 
 /** What the hub tells the app about a scope that has been quiet (the app may keep notes of it). */
 export interface IdleClose {
   botId: BotId;
-  /** Key of the quiet scope: the bot id (direct) or `<botId>@<groupId>`. */
+  /** Key of the quiet scope: the bot id (direct), `<botId>@<groupId>` or `<botId>#ticket@<groupId>`. */
   key: string;
-  /** The group of a group scope; unset for a direct scope. */
+  /** The group of a group-chat scope; unset for a direct or ticket scope. */
   groupId?: GroupId;
-  /** Conversations of the scope: the bot's direct one, or every conversation of the group. */
+  /** Conversations of the scope: the bot's direct one (direct, ticket), or every conversation of the group. */
   conversationIds: ConversationId[];
   /** Epoch ms of the scope's last flush (0 when never flushed): only messages since then are new. */
   since: number;
@@ -45,7 +46,10 @@ export async function sweepQuietScopes(ctx: HubContext, hook?: IdleCloseHook): P
     if (ctx.runs.has(key)) continue;
     const active = await store.wakes.activeInScope(key);
     if (active.some((w) => w.status === "leased" || w.status === "running")) continue;
-    const [botId = key, groupId] = key.split("@");
+    const botId = botOfScopeKey(key);
+    // A ticket scope posts in the bot's DM: flushed like the direct scope (bot notes only), so owner DM
+    // text never reaches group memory.
+    const groupId = isTicketScopeKey(key) ? undefined : groupOfScopeKey(key);
     const conversationIds = groupId
       ? (await store.conversations.list())
           .filter((c) => c.kind === "group" && c.groupId === groupId)

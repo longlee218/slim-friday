@@ -1,5 +1,11 @@
 import type { FileConfig } from "@friday/config";
-import type { BotHub, Conversation, Log, Store } from "@friday/core";
+import { type BotHub, type Conversation, type Log, type Store, scopeKeyOf } from "@friday/core";
+
+/** The scopes of a bot in a group: its group-chat scope and its ticket scope. */
+const groupScopes = (botId: string, groupId: string): string[] => [
+  scopeKeyOf(botId, groupId),
+  scopeKeyOf(botId, groupId, "ticket"),
+];
 
 /** Why a failure happened, as text. */
 const why = (err: unknown): string => (err instanceof Error ? err.message : String(err));
@@ -30,16 +36,16 @@ export function watchConfigReload(d: ConfigReloadDeps): () => void {
       const removedBots: string[] = [];
       const removedGroups: string[] = [];
       const resetScopes: string[] = [];
-      // A changed bot: its direct scope and its scope in every group it is a member of.
+      // A changed bot: its direct scope, and its group and ticket scopes in every group it is a member of.
       for (const id of r.changedBots) {
         if (!(await d.store.bots.get(id))) removedBots.push(id);
-        else resetScopes.push(id, ...d.config.groupIdsOf(id).map((g) => `${id}@${g}`));
+        else resetScopes.push(id, ...d.config.groupIdsOf(id).flatMap((g) => groupScopes(id, g)));
       }
-      // A changed group: the group scope of each member.
+      // A changed group: the group and ticket scopes of each member.
       for (const id of r.changedGroups) {
         const group = await d.store.groups.get(id);
         if (!group) removedGroups.push(id);
-        else resetScopes.push(...group.members.map((m) => `${m}@${id}`));
+        else resetScopes.push(...group.members.flatMap((m) => groupScopes(m, id)));
       }
       await d.hub.configChanged({ removedBots, removedGroups, resetScopes });
       const created = await d.sync();

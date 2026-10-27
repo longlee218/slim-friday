@@ -5,6 +5,7 @@ import type { WakeRow, WakeStatus } from "../domain/wake";
 import { type HubContext, tell } from "../hub/hub-context";
 import { withdrawCards } from "./run-card-withdraw";
 import { announceNotice } from "./run-notice-finished";
+import { groupOfScopeKey, isTicketScopeKey, scopeKeyOf } from "./run-rules";
 
 /** What a stop acts on: a bot (all its scopes, or one), every member scope of a group, or one conversation. */
 export type StopTarget =
@@ -49,9 +50,12 @@ async function activeRuns(ctx: HubContext, t: StopTarget): Promise<WakeRow[]> {
   const rows = await store.wakes.activeOfBot(t.botId);
   const { only } = t;
   if (!only) return rows;
-  // A group scope key is `<botId>@<groupId>`; a direct one has no `@`.
+  // The DM (`"direct"`) shows the direct runs and the ticket runs, so its Stop takes both; a group
+  // takes only the bot's group-chat scope.
   return rows.filter((w) =>
-    only === "direct" ? !w.scopeKey.includes("@") : w.scopeKey.endsWith(`@${only}`),
+    only === "direct"
+      ? groupOfScopeKey(w.scopeKey) === undefined || isTicketScopeKey(w.scopeKey)
+      : w.scopeKey === scopeKeyOf(t.botId, only),
   );
 }
 

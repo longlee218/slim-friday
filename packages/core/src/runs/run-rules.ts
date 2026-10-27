@@ -21,9 +21,32 @@ export function priorityOf(_sender: Author, background: boolean): "interactive" 
   return background ? "background" : "interactive";
 }
 
-/** Session scope key: the bot id (direct) or `<botId>@<groupId>` (group); equals `sessionScope().key`. */
-export function scopeKeyOf(botId: BotId, groupId?: GroupId): string {
-  return groupId === undefined ? botId : `${botId}@${groupId}`;
+/** Marks a ticket scope key: `<botId>#ticket@<groupId>` (ids never contain `#` or `@`). */
+const TICKET_MARK = "#ticket@";
+
+/**
+ * Session scope key; equals `sessionScope().key`: the bot id (direct), `<botId>@<groupId>` (group chat) or
+ * `<botId>#ticket@<groupId>` (the bot's tickets of that group). Every key of a group ends in `@<groupId>`.
+ */
+export function scopeKeyOf(botId: BotId, groupId?: GroupId, kind?: "ticket"): string {
+  if (groupId === undefined) return botId;
+  return kind === "ticket" ? `${botId}${TICKET_MARK}${groupId}` : `${botId}@${groupId}`;
+}
+
+/** The group of a scope key (text after its last `@`); undefined for the direct scope. */
+export function groupOfScopeKey(key: string): GroupId | undefined {
+  const at = key.lastIndexOf("@");
+  return at < 0 ? undefined : key.slice(at + 1);
+}
+
+/** The bot of a scope key (text before its first `#` or `@`). */
+export function botOfScopeKey(key: string): BotId {
+  return key.split(/[#@]/)[0] ?? key;
+}
+
+/** A ticket scope key: the session where a bot works its tickets of one group. */
+export function isTicketScopeKey(key: string): boolean {
+  return key.includes(TICKET_MARK);
 }
 
 /** Error codes of a dropped or unreachable network. */
