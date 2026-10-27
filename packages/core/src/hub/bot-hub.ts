@@ -23,6 +23,7 @@ import { type HubContext, tell } from "./hub-context";
 import { type BotHubDeps, type BotStatus, errText } from "./hub-types";
 import { sweepQuietScopes } from "./idle-close";
 import { queueIntroRun } from "./intro-run";
+import { postTicketMilestone } from "./ticket-milestones";
 import { wakeForTicket } from "./ticket-wakes";
 import { admit, wake } from "./wake-admission";
 import { WakeLog } from "./wake-log";
@@ -53,6 +54,7 @@ export class BotHub implements BotMessenger {
       clock: deps.clock,
       wake: (t, botId, actor) => this.wakeForTicket(t, botId, false, actor),
       ...(deps.onTicketChange && { onChange: deps.onTicketChange }),
+      onStatusChange: (t, from) => postTicketMilestone(this.ctx, t, from),
       ...(deps.secretValues && { secretValues: deps.secretValues }),
     });
     const limits = deps.limits ?? CORE_DEFAULTS;

@@ -41,6 +41,8 @@ export class TicketBoard {
       wake: (ticket: Ticket, botId: BotId, actor: Author) => Promise<void>;
       /** Told after every saved create, update and comment; whatever it throws stays here. */
       onChange?: (t: Ticket) => void;
+      /** Told after a saved update that changed the status, with the previous status; errors stay here. */
+      onStatusChange?: (t: Ticket, from: TicketStatus) => Promise<void>;
       /** The configured secret values to hide in ticket text (the app's denied env values). */
       secretValues?: () => string[];
     },
@@ -151,6 +153,8 @@ export class TicketBoard {
     if (ticket === "conflict") return CONFLICT;
     if (!ticket) return NOT_FOUND;
     this.changed(ticket);
+    if (ticket.status !== cur.status)
+      await this.deps.onStatusChange?.(ticket, cur.status).catch(() => {});
     const to = i.assigneeBotId;
     const byActor = actor.kind === "bot" && actor.botId === to;
     if (to && to !== cur.assigneeBotId && !byActor && !finished(ticket.status))
