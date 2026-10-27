@@ -23,10 +23,12 @@ async function orphanReason(ctx: HubContext, t: Ticket): Promise<string | undefi
 export async function blockIfOrphan(ctx: HubContext, t: Ticket): Promise<boolean> {
   const reason = await orphanReason(ctx, t);
   if (reason === undefined) return false;
-  await ctx.tickets.update(
+  const r = await ctx.tickets.update(
     { kind: "system" },
     { id: t.id, status: "blocked", blockedReason: reason },
   );
+  if (!r.ok)
+    ctx.deps.log?.error({ ticketId: t.id, code: r.code }, "hub.ticket_orphan_block_refused");
   return true;
 }
 
@@ -36,12 +38,20 @@ export async function blockIfOrphan(ctx: HubContext, t: Ticket): Promise<boolean
  */
 export async function blockOrphanTickets(ctx: HubContext, groupIds: GroupId[]): Promise<void> {
   for (const id of groupIds) {
-    for (const t of await ctx.deps.store.tickets.openOfGroup(id)) {
-      try {
-        await blockIfOrphan(ctx, t);
-      } catch (err) {
-        ctx.deps.log?.error({ error: errText(err), ticketId: t.id }, "hub.orphan_block_failed");
+    // One failing group or ticket must not stop the others, nor fail the reload.
+    try {
+      for (const t of await ctx.deps.store.tickets.openOfGroup(id)) {
+        try {
+          await blockIfOrphan(ctx, t);
+        } catch (err) {
+          ctx.deps.log?.error(
+            { error: errText(err), ticketId: t.id },
+            "hub.ticket_orphan_check_failed",
+          );
+        }
       }
+    } catch (err) {
+      ctx.deps.log?.error({ error: errText(err), groupId: id }, "hub.ticket_orphan_check_failed");
     }
   }
 }

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { Ticket } from "../src";
 import { blockOrphanTickets } from "../src/hub/ticket-orphans";
+import { applyConfigChange } from "../src/runs/run-config-change";
 import { flush, makeHub } from "./bot-hub-harness";
 
 type Hub = ReturnType<typeof makeHub>;
@@ -89,5 +90,33 @@ describe("blockOrphanTickets", () => {
     expect(await h.store.tickets.get(done.id)).toMatchObject({ status: "done" });
     expect(await h.store.tickets.get(blocked.id)).toMatchObject({ status: "blocked" });
     expect(posts(h)).toEqual([]);
+  });
+
+  test("a group whose check throws does not stop the other groups, and the reload still hints workers", async () => {
+    const h = makeHub();
+    const b = await put(h, "todo", "other");
+    h.store.groupMap.set("other", {
+      ...(h.store.groupMap.get("g") as never),
+      id: "other",
+      members: ["writer"],
+    });
+    const real = h.store.tickets.openOfGroup.bind(h.store.tickets);
+    h.store.tickets.openOfGroup = async (id) => {
+      if (id === "g") throw new Error("db down");
+      return real(id);
+    };
+    await blockOrphanTickets(ctxOf(h), ["g", "other"]);
+    expect((await h.store.tickets.get(b.id))?.status).toBe("blocked");
+    expect(h.log.of("hub.ticket_orphan_check_failed")).toHaveLength(1);
+
+    let hinted = 0;
+    const ctx = { ...ctxOf(h), hints: { configChanged: () => void hinted++ } } as never;
+    await applyConfigChange(ctx, {
+      removedBots: [],
+      removedGroups: [],
+      changedGroups: ["g"],
+      resetScopes: [],
+    });
+    expect(hinted).toBe(1);
   });
 });
