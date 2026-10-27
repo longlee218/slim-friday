@@ -45,6 +45,33 @@ test("TicketCreate returns the ticket with its ref", async () => {
   expect(JSON.parse(textOf(r))).toMatchObject({ ref: "FRI-1", status: "todo", assignee: "writer" });
 });
 
+test("TicketCreate in a group or ticket session records the session group", async () => {
+  const { ctx, store } = setup();
+  store.groupMap.set("g1", {
+    id: "g1",
+    name: "G",
+    members: ["writer"],
+    entryBot: "writer",
+    workspaces: [],
+    instructions: "",
+  });
+  const r = await call(createTicketCreateTool({ ...ctx, groupId: "g1" }), { title: "In group" });
+  expect(r.isError).toBeUndefined();
+  expect([...store.ticketMap.values()][0]?.groupId).toBe("g1");
+  const bad = await call(createTicketCreateTool({ ...ctx, groupId: "g1" }), {
+    title: "x",
+    assignee: "editor",
+  });
+  expect(bad.isError).toBe(true);
+  expect(textOf(bad)).toBe("editor is not a member of group G");
+});
+
+test("TicketCreate in the direct session records no group", async () => {
+  const { ctx, store } = setup();
+  await call(createTicketCreateTool(ctx), { title: "Plain" });
+  expect([...store.ticketMap.values()][0]?.groupId).toBeUndefined();
+});
+
 test("TicketCreate for another bot (by name) calls wake", async () => {
   const { ctx, woken } = setup();
   await call(createTicketCreateTool(ctx), { title: "Edit it", assignee: "editor" });

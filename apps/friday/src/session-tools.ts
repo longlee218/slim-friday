@@ -312,6 +312,7 @@ export function sessionTools(deps: SessionToolsDeps) {
           botId: spec.bot.id,
           board,
           bots: deps.store.bots,
+          ...(spec.groupId && { groupId: spec.groupId }),
           conversation: () => spec.currentConversation?.(),
         },
         spec.bot.tools,

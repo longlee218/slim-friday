@@ -31,6 +31,7 @@ export function createTicketCreateTool(ctx: TicketsContext) {
         ...(i.priority && { priority: i.priority }),
         ...(assigneeBotId && { assigneeBotId }),
         ...(conversationId && { conversationId }),
+        ...(ctx.groupId && { groupId: ctx.groupId }),
       },
     );
     return r.ok ? textResult(JSON.stringify(ticketView(r.ticket))) : textResult(r.error, true);
