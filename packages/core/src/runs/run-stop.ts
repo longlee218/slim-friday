@@ -7,10 +7,13 @@ import { withdrawCards } from "./run-card-withdraw";
 import { announceNotice } from "./run-notice-finished";
 import { groupOfScopeKey, isTicketScopeKey, scopeKeyOf } from "./run-rules";
 
-/** What a stop acts on: a bot (all its scopes, or one), every member scope of a group, or one conversation. */
+/**
+ * What a stop acts on: a bot (all its scopes, or one), every member scope of a group (`only: "chat"`: its
+ * group-chat scopes, not the members' ticket scopes, which run in their DMs), or one conversation.
+ */
 export type StopTarget =
   | { botId: BotId; only?: "direct" | GroupId }
-  | { groupId: GroupId }
+  | { groupId: GroupId; only?: "chat" }
   | { conversationId: ConversationId };
 
 /** Why the runs end and what the conversation is told; the default is the owner's Stop. */
@@ -38,13 +41,18 @@ const TRIES = 3;
 /** The active runs a target names, oldest first. */
 async function activeRuns(ctx: HubContext, t: StopTarget): Promise<WakeRow[]> {
   const { store } = ctx.deps;
-  if ("groupId" in t) return store.wakes.activeOfGroup(t.groupId);
+  if ("groupId" in t) {
+    const rows = await store.wakes.activeOfGroup(t.groupId);
+    return t.only === "chat" ? rows.filter((w) => !isTicketScopeKey(w.scopeKey)) : rows;
+  }
   if ("conversationId" in t) {
     const conv = await store.conversations.get(t.conversationId);
     if (!conv) return [];
     return activeRuns(
       ctx,
-      conv.kind === "direct" ? { botId: conv.botId, only: "direct" } : { groupId: conv.groupId },
+      conv.kind === "direct"
+        ? { botId: conv.botId, only: "direct" }
+        : { groupId: conv.groupId, only: "chat" },
     );
   }
   const rows = await store.wakes.activeOfBot(t.botId);

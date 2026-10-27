@@ -206,6 +206,13 @@ test("scratchName: the bot id for a direct spec, <botId>_<groupId> for a group s
   ).toBe("editor_reelme");
 });
 
+test("scratchName: a ticket spec of a group gets its own dir, apart from the group-chat one", () => {
+  const editor = { ...bot, id: "editor" };
+  expect(
+    scratchName({ ...spec, bot: editor, groupId: "reelme", sessionKey: "editor#ticket@reelme" }),
+  ).toBe("editor_reelme_ticket");
+});
+
 test("a group spec opens and resumes in scratch/<botId>_<groupId>", async () => {
   const dirs: string[] = [];
   const fq = fakeQuery();

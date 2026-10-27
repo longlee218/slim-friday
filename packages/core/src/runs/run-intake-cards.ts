@@ -1,6 +1,7 @@
 import type { CardRow } from "../domain/card";
 import type { HubContext } from "../hub/hub-context";
 import { closeOnSurface, requeueForCard as requeue } from "./run-card-answer";
+import { botOfScopeKey, groupOfScopeKey, isTicketScopeKey } from "./run-rules";
 
 /** One owner message as the card branch sees it. */
 export interface TypedText {
@@ -12,6 +13,26 @@ export interface TypedText {
   text: string;
   /** Stored id of the owner message. */
   messageId: number;
+}
+
+/**
+ * True when a card of `cardKey` is answered from the conversation of scope `scopeKey`: its own cards, and for a
+ * direct scope also the cards of the bot's ticket runs (they ask in the DM; free DM messages still never steer them).
+ */
+export function answersCardOf(scopeKey: string, cardKey: string): boolean {
+  if (cardKey === scopeKey) return true;
+  return (
+    groupOfScopeKey(scopeKey) === undefined &&
+    isTicketScopeKey(cardKey) &&
+    botOfScopeKey(cardKey) === scopeKey
+  );
+}
+
+/** Open cards answered from the conversation of scope `scopeKey` (see `answersCardOf`), oldest first. */
+export async function openCardsFor(ctx: HubContext, scopeKey: string): Promise<CardRow[]> {
+  const { cards } = ctx.deps.store;
+  if (groupOfScopeKey(scopeKey) !== undefined) return cards.openForScope(scopeKey);
+  return (await cards.open()).filter((c) => answersCardOf(scopeKey, c.scopeKey));
 }
 
 /** How many recent messages are checked for a bot message newer than a question. */
@@ -53,14 +74,14 @@ export async function answerQuestionWithText(
  */
 export async function answerByText(ctx: HubContext, t: TypedText): Promise<boolean> {
   const { store } = ctx.deps;
-  const mine = (await store.cards.answeredByMessage(t.messageId)).find(
-    (c) => c.scopeKey === t.scopeKey,
+  const mine = (await store.cards.answeredByMessage(t.messageId)).find((c) =>
+    answersCardOf(t.scopeKey, c.scopeKey),
   );
   if (mine) {
     await requeue(ctx, mine);
     return true;
   }
-  const open = (await store.cards.openForScope(t.scopeKey)).filter(
+  const open = (await openCardsFor(ctx, t.scopeKey)).filter(
     (c) => c.kind === "question" && c.conversationId === t.conversationId,
   );
   const question = open[0];
