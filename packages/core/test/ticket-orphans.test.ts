@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { Ticket } from "../src";
+import type { Group, Ticket } from "../src";
 import { blockOrphanTickets } from "../src/hub/ticket-orphans";
 import { applyConfigChange } from "../src/runs/run-config-change";
 import { flush, makeHub } from "./bot-hub-harness";
@@ -96,7 +96,7 @@ describe("blockOrphanTickets", () => {
     const h = makeHub();
     const b = await put(h, "todo", "other");
     h.store.groupMap.set("other", {
-      ...(h.store.groupMap.get("g") as never),
+      ...(h.store.groupMap.get("g") as Group),
       id: "other",
       members: ["writer"],
     });
