@@ -224,6 +224,8 @@ export const tickets = sqliteTable(
     completedAt: integer("completed_at"),
     /** The conversation the ticket was raised in. */
     conversationId: text("conversation_id"),
+    /** The group the ticket was created in; never changed. */
+    groupId: text("group_id"),
     /** Why the ticket is `blocked`. */
     blockedReason: text("blocked_reason"),
   },

@@ -659,6 +659,11 @@ export class FakeStore implements Store {
       const t = [...this.ticketMap.values()].find((x) => x.number === n);
       return t && { ...t };
     },
+    openOfGroup: async (groupId: string) =>
+      [...this.ticketMap.values()]
+        .filter((x) => x.groupId === groupId && (x.status === "todo" || x.status === "doing"))
+        .sort((x, y) => x.createdAt - y.createdAt || (x.id < y.id ? -1 : 1))
+        .map((x) => ({ ...x })),
     list: async (f: {
       status?: Ticket["status"];
       excludeClosed?: boolean;

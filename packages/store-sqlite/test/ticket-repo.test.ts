@@ -188,3 +188,23 @@ test("events of create and update are written with the change; a conflict writes
     ["e3", "doing"],
   ]);
 });
+
+test("create keeps groupId and get returns it", async () => {
+  const s = openEngineStore(":memory:");
+  const t = await s.tickets.create(input("a", { groupId: "g1" }));
+  expect(t.groupId).toBe("g1");
+  expect((await s.tickets.get(t.id))?.groupId).toBe("g1");
+  expect((await s.tickets.create(input("b"))).groupId).toBeUndefined();
+});
+
+test("openOfGroup lists todo and doing tickets of that group only", async () => {
+  const s = openEngineStore(":memory:");
+  await s.tickets.create(input("a-doing", { groupId: "a", status: "doing", createdAt: 20 }));
+  await s.tickets.create(input("a-todo", { groupId: "a", createdAt: 10 }));
+  await s.tickets.create(input("a-blocked", { groupId: "a", status: "blocked", createdAt: 30 }));
+  await s.tickets.create(input("a-done", { groupId: "a", status: "done", createdAt: 40 }));
+  await s.tickets.create(input("b-todo", { groupId: "b", createdAt: 50 }));
+  await s.tickets.create(input("none", { createdAt: 60 }));
+  const titles = (await s.tickets.openOfGroup("a")).map((t) => t.title);
+  expect(titles).toEqual(["a-todo", "a-doing"]);
+});

@@ -91,6 +91,8 @@ export interface Store {
     ): Promise<Ticket>;
     get(id: string): Promise<Ticket | undefined>;
     getByNumber(n: number): Promise<Ticket | undefined>;
+    /** Tickets of a group that are `todo` or `doing`, oldest first. */
+    openOfGroup(groupId: GroupId): Promise<Ticket[]>;
     /** Newest first. `before` is the (createdAt, id) of the last ticket of the previous page. */
     list(f: {
       status?: TicketStatus;

@@ -1,5 +1,6 @@
 import type { BotId } from "../domain/bot";
 import type { ConversationId } from "../domain/conversation";
+import type { GroupId } from "../domain/group";
 import type { Author } from "../domain/message";
 
 /** Every status, in life order. */
@@ -29,6 +30,8 @@ export interface Ticket {
   completedAt?: number;
   /** The conversation the ticket was raised in. */
   conversationId?: ConversationId;
+  /** The group the ticket was created in; set once, never changed. */
+  groupId?: GroupId;
   /** Why the ticket is `blocked`; cleared when it leaves `blocked`. */
   blockedReason?: string;
 }
