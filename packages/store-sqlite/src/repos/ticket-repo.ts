@@ -27,6 +27,7 @@ const fromRow = (r: Row): Ticket => ({
   updatedAt: r.updatedAt,
   ...(r.completedAt != null && { completedAt: r.completedAt }),
   ...(r.conversationId && { conversationId: r.conversationId }),
+  ...(r.groupId && { groupId: r.groupId }),
   ...(r.blockedReason && { blockedReason: r.blockedReason }),
 });
 
@@ -55,6 +56,7 @@ export function ticketRepo(db: BunSQLiteDatabase): Store["tickets"] {
             assigneeBotId: t.assigneeBotId ?? null,
             createdByKind: t.createdBy.kind,
             createdByBotId: t.createdBy.kind === "bot" ? t.createdBy.botId : null,
+            groupId: t.groupId ?? null,
             createdAt: t.createdAt,
             updatedAt: t.createdAt,
             completedAt: FINISHED.includes(t.status) ? t.createdAt : null,
@@ -72,6 +74,15 @@ export function ticketRepo(db: BunSQLiteDatabase): Store["tickets"] {
     async getByNumber(n) {
       const r = db.select().from(tickets).where(eq(tickets.number, n)).get();
       return r && fromRow(r);
+    },
+    async openOfGroup(groupId) {
+      return db
+        .select()
+        .from(tickets)
+        .where(and(eq(tickets.groupId, groupId), inArray(tickets.status, ["todo", "doing"])))
+        .orderBy(asc(tickets.createdAt), asc(tickets.id))
+        .all()
+        .map(fromRow);
     },
     async list(f) {
       const where = and(
