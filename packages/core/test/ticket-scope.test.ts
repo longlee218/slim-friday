@@ -127,6 +127,16 @@ test("Stop in the DM cancels the bot's ticket-scope runs; stop for the group cha
   expect(h.runtime.nth(0).stopped).toBe(true);
 });
 
+test("the group channel's Stop leaves ticket runs; removing the group cancels them", async () => {
+  const h = scoped();
+  await assigned(h);
+  expect(await h.hub.stopGroup("g")).toBe(0);
+  expect(h.runtime.nth(0).stopped).toBe(false);
+  await h.hub.configChanged({ removedBots: [], removedGroups: ["g"], resetScopes: [] });
+  expect(h.runtime.nth(0).stopped).toBe(true);
+  expect([...h.store.wakeMap.values()].map((w) => w.status)).toEqual(["cancelled"]);
+});
+
 test("the idle close of a ticket scope names the bot and its DM, not the group", async () => {
   const seen: IdleClose[] = [];
   const h = scoped({ onIdleClose: (e) => void seen.push(e) });

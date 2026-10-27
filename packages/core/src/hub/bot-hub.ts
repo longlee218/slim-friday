@@ -117,9 +117,12 @@ export class BotHub implements BotMessenger {
     return (await stopScope(this.ctx, { botId, ...(only && { only }) })).stopped;
   }
 
-  /** Stop the runs of every member in group `groupId` (their direct runs go on). Returns how many were cancelled. */
+  /**
+   * Stop the group-chat runs of every member in group `groupId` (their direct and ticket runs go on: those are
+   * stopped from the DM). Returns how many were cancelled.
+   */
   async stopGroup(groupId: GroupId): Promise<number> {
-    return (await stopScope(this.ctx, { groupId })).stopped;
+    return (await stopScope(this.ctx, { groupId, only: "chat" })).stopped;
   }
 
   /**

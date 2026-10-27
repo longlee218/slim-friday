@@ -4,7 +4,7 @@ import { type Reaction, reactionOf } from "../domain/reaction";
 import type { HubContext } from "../hub/hub-context";
 import { sessionScope } from "../hub/session-scope";
 import { createRun } from "./run-create";
-import { answerQuestionWithText } from "./run-intake-cards";
+import { answerQuestionWithText, openCardsFor } from "./run-intake-cards";
 
 /** One owner reaction as the intake sees it. */
 export interface ReactionIntake {
@@ -44,7 +44,7 @@ export async function intakeReaction(ctx: HubContext, r: ReactionIntake): Promis
   const newer = page.filter((m) => m.id > r.target.id);
   if (newer.length > NEWER_WINDOW || !newer.every(isReaction)) return;
   if (r.emoji === "👍" || r.emoji === "👎") {
-    const ask = (await store.cards.openForScope(scope.key)).find(
+    const ask = (await openCardsFor(ctx, scope.key)).find(
       (c) =>
         c.kind === "question" &&
         c.conversationId === r.conv.id &&
