@@ -18,7 +18,13 @@ export async function wakeForTicket(
 ): Promise<void> {
   if (ticket.status === "done" || ticket.status === "closed") return;
   // The assignee left the group (or the group is gone): block the ticket, queue nothing.
-  if (await blockIfOrphan(ctx, ticket)) return;
+  try {
+    if (await blockIfOrphan(ctx, ticket)) return;
+  } catch (err) {
+    // The ticket is saved already: a failing guard must not fail the tool, nor wake a possible orphan.
+    ctx.deps.log?.error({ error: errText(err), ticketId: ticket.id }, "hub.ticket_wake_failed");
+    return;
+  }
   const conv = await ctx.deps.store.conversations.direct(botId);
   const text = rewake ? ticketRewakeText(ticket) : ticketWakeText(ticket);
   // A bot that assigns the ticket is the sender, so the rate and repeat caps apply to it.

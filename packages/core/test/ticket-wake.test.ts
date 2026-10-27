@@ -93,6 +93,49 @@ describe("orphan ticket wakes", () => {
   });
 });
 
+describe("orphan guard failures", () => {
+  test("a store failure in the orphan guard is logged, does not reject, and queues no run", async () => {
+    const h = makeHub();
+    const t = (await h.store.tickets.create({
+      title: "x",
+      status: "todo",
+      priority: "normal",
+      assigneeBotId: "editor",
+      groupId: "g",
+      createdBy: { kind: "user" },
+      createdAt: 1,
+    })) as Ticket;
+    h.store.groups.get = async () => {
+      throw new Error("db down");
+    };
+    await h.hub.wakeForTicket(t, "editor");
+    await flush();
+    expect(h.log.of("hub.ticket_wake_failed")).toHaveLength(1);
+    expect(h.runtime.all()).toEqual([]);
+    expect(h.store.wakeMap.size).toBe(0);
+  });
+
+  test("a refused block is logged and still queues no run", async () => {
+    const h = makeHub();
+    const t = (await h.store.tickets.create({
+      title: "x",
+      status: "todo",
+      priority: "normal",
+      assigneeBotId: "editor",
+      groupId: "g",
+      createdBy: { kind: "user" },
+      createdAt: 1,
+    })) as Ticket;
+    const g = h.store.groupMap.get("g");
+    if (g) h.store.groupMap.set("g", { ...g, members: ["writer"] });
+    h.store.ticketMap.delete(t.id);
+    await h.hub.wakeForTicket(t, "editor");
+    await flush();
+    expect(h.log.of("hub.ticket_orphan_block_refused")).toHaveLength(1);
+    expect(h.runtime.all()).toEqual([]);
+  });
+});
+
 describe("unfinished tickets", () => {
   test("a ticket still todo at turn end re-wakes the assignee once with rewake true", async () => {
     const h = makeHub();
