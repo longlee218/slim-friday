@@ -97,7 +97,7 @@ test("approvals.answer refuses once and always on a card whose input is cut; den
   const { id: cardId } = await stored(h, {
     approval: {
       tool: "Bash",
-      input: { command: "x".repeat(30000) },
+      input: { command: "x".repeat(210000) },
       inputHash: "h",
       summary: "long",
       scope: {},

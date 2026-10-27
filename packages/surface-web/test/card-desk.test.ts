@@ -140,7 +140,7 @@ test("a long input is cut and says how much", async () => {
     ...card,
     approval: {
       ...(card.approval as NonNullable<CardRow["approval"]>),
-      input: { c: "y".repeat(30000) },
+      input: { c: "y".repeat(210000) },
     },
   });
   const dto = (await desk.pendingApprovals())[0];
@@ -148,6 +148,20 @@ test("a long input is cut and says how much", async () => {
   expect(dto?.input.startsWith('{\n  "c": "yyy')).toBe(true);
   expect(dto?.inputCut).toBe(true);
   expect(await desk.inputCut("c1")).toBe(true);
+});
+
+test("a long file write (30k chars) is shown whole, so it can be allowed", async () => {
+  const { desk, store } = setup();
+  const card = approval("c1");
+  await store.cards.insert({
+    ...card,
+    approval: {
+      ...(card.approval as NonNullable<CardRow["approval"]>),
+      input: { content: "y".repeat(30000) },
+    },
+  });
+  expect((await desk.pendingApprovals())[0]?.inputCut).toBe(false);
+  expect(await desk.inputCut("c1")).toBe(false);
 });
 
 test("a whole input is not cut", async () => {
