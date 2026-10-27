@@ -198,16 +198,16 @@ export interface Store {
     setEffect(id: string, effect: RuleEffect): Promise<void>;
   };
   /**
-   * Runtime session ids by session key: `<botId>` (direct) or `<botId>@<groupId>` (group).
-   * Ids never contain `@`. Older rows (key = bot id) stay valid as direct sessions.
+   * Runtime session ids by session key (`scopeKeyOf`): `<botId>` (direct), `<botId>@<groupId>` (group) or
+   * `<botId>#ticket@<groupId>` (ticket). Ids never contain `@` or `#`. Older rows (key = bot id) stay valid.
    */
   sessions: {
     get(key: string): Promise<string | undefined>;
     set(key: string, sessionId: string): Promise<void>;
     clear(key: string): Promise<void>;
-    /** Removes the key `botId` and every `botId@*`. */
+    /** Removes the key `botId` and every `botId@*` and `botId#*`. */
     clearBot(botId: BotId): Promise<void>;
-    /** Removes every `*@groupId`. */
+    /** Removes every `*@groupId` (group-chat and ticket keys). */
     clearGroup(groupId: GroupId): Promise<void>;
   };
   spend: {
@@ -266,7 +266,7 @@ export interface Store {
     activeInScope(scopeKey: string): Promise<WakeRow[]>;
     /** Queued, leased, running and waiting_input rows targeting bot `botId` (any scope), oldest first. */
     activeOfBot(botId: BotId): Promise<WakeRow[]>;
-    /** The same rows of every group scope `<botId>@<groupId>` of group `groupId`, oldest first. */
+    /** The same rows of every scope of group `groupId` (`<botId>@<groupId>`, `<botId>#ticket@<groupId>`), oldest first. */
     activeOfGroup(groupId: GroupId): Promise<WakeRow[]>;
     /** Rows a worker holds or that are parked: leased, running and waiting_input, oldest first (the status view). */
     inFlight(): Promise<WakeRow[]>;

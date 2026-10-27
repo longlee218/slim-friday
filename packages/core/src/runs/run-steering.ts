@@ -6,7 +6,7 @@ import type { InboundTurn, SteerInput } from "../ports/agent-runtime";
 import { CONTINUATION_KEY, CONTINUATION_PROMPT } from "./continuation-key";
 import { createRun } from "./run-create";
 import type { RunExec } from "./run-exec";
-import { isConversational } from "./run-rules";
+import { botOfScopeKey, isConversational } from "./run-rules";
 import { addOwnerTexts } from "./run-taint";
 
 // The continuation constants live in their own file (Auto Review reads them without importing the run code).
@@ -121,7 +121,7 @@ export async function holdOrContinue(
   if ((await store.wakes.activeInScope(scopeKey)).some((w) => LIVE.includes(w.status))) return;
   const rows = held.filter((r) => r.conversationId === first.conversationId);
   const outcome = await createRun(ctx, {
-    botId: scopeKey.split("@")[0] ?? scopeKey,
+    botId: botOfScopeKey(scopeKey),
     conversationId: first.conversationId,
     sender: { kind: "user" },
     text: CONTINUATION_PROMPT,

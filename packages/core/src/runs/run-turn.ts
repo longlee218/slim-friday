@@ -6,6 +6,7 @@ import type { InboundTurn } from "../ports/agent-runtime";
 import type { MemoryOwner } from "../ports/memory";
 import { replyGuidance } from "./reply-guidance";
 import { isAutomatedTurn, runKindOf } from "./run-kind";
+import { groupOfScopeKey } from "./run-rules";
 
 /** How a run's turn is built. */
 export interface RunTurnOpts {
@@ -32,7 +33,8 @@ async function senderName(ctx: HubContext, row: WakeRow): Promise<string> {
  * The turn one run pushes into its session: the message, recent group messages, ticket blocks and recalled
  * notes, then the reply guidance of the run's trigger and the current time in the owner's zone (both in the turn,
  * so the cached system prompt stays the same). A continuation or card resume is marked automated. Bot memory, group memory and group context are in the system prompt (read at every open), so they
- * never pile up in a resumed transcript. A group session recalls only the group's notes.
+ * never pile up in a resumed transcript. A group or ticket session recalls only the group's notes; recent
+ * messages come only from a group conversation (a ticket run answers in the DM, with no group chat).
  */
 export async function buildRunTurn(
   ctx: HubContext,
@@ -48,11 +50,10 @@ export async function buildRunTurn(
   const text = opts.resume ?? opts.continuation ?? row.text;
   const first = opts.resume === undefined;
   const tickets = await ticketContextFor(store, text);
-  // A group scope key holds "@"; a direct scope recalls the bot's own notes.
-  const owners: MemoryOwner[] = row.scopeKey.includes("@")
-    ? []
-    : [{ kind: "bot", botId: row.targetBot }];
-  if (conv?.kind === "group") owners.push({ kind: "group", groupId: conv.groupId });
+  // A group or ticket scope recalls its group's notes; a direct scope the bot's own notes.
+  const groupId = groupOfScopeKey(row.scopeKey);
+  const owners: MemoryOwner[] =
+    groupId === undefined ? [{ kind: "bot", botId: row.targetBot }] : [{ kind: "group", groupId }];
   const recalled = await recalledBlock(recall, owners, text, opts.shown ?? "", ctx.limits);
   const guidance = replyGuidance(row, runKindOf(row), await senderName(ctx, row));
   // Friday wrote an automated turn's text (continuation, card resume), so its header names the system, never the owner.

@@ -147,3 +147,22 @@ test("after returns messages past an id, oldest first, capped", async () => {
   });
   expect(await s.messages.after(5, 10)).toEqual([]);
 });
+
+test("clearBot clears the bot's ticket keys", async () => {
+  const s = openEngineStore(":memory:");
+  for (const k of ["atlas", "atlas#ticket@team", "atlas@team", "atlas2@team", "atlas2#ticket@team"])
+    await s.sessions.set(k, `s-${k}`);
+  await s.sessions.clearBot("atlas");
+  expect(await s.sessions.get("atlas#ticket@team")).toBeUndefined();
+  expect(await s.sessions.get("atlas@team")).toBeUndefined();
+  expect(await s.sessions.get("atlas2@team")).toBe("s-atlas2@team");
+  expect(await s.sessions.get("atlas2#ticket@team")).toBe("s-atlas2#ticket@team");
+});
+
+test("clearGroup clears the group's ticket keys too", async () => {
+  const s = openEngineStore(":memory:");
+  for (const k of ["atlas#ticket@team", "atlas#ticket@other"]) await s.sessions.set(k, `s-${k}`);
+  await s.sessions.clearGroup("team");
+  expect(await s.sessions.get("atlas#ticket@team")).toBeUndefined();
+  expect(await s.sessions.get("atlas#ticket@other")).toBe("s-atlas#ticket@other");
+});

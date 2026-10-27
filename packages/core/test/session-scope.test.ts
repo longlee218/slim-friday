@@ -47,3 +47,32 @@ test("scopeBot is applied to the bot of both scopes, with the group id on a grou
   expect(sessionScope(editor, groupConv, group(), scopeBot)?.bot.instructions).toBe("scoped g");
   expect(seen).toEqual([undefined, "g"]);
 });
+
+test("a ticket wake of a group ticket gets the ticket scope with the group's workspaces", () => {
+  expect(sessionScope(editor, direct, undefined, undefined, group())).toEqual({
+    key: "editor#ticket@g",
+    groupId: "g",
+    bot: { ...editor, workspaces: ["/proj"] },
+  });
+});
+
+test("a ticket of a group the bot is not a member of gets no scope", () => {
+  expect(
+    sessionScope(editor, direct, undefined, undefined, group({ members: ["writer"] })),
+  ).toBeUndefined();
+});
+
+test("a direct ticket (no ticketGroup) keeps the direct scope", () => {
+  expect(sessionScope(editor, direct, undefined, undefined, undefined)).toEqual({
+    key: "editor",
+    bot: editor,
+  });
+});
+
+test("scopeBot shapes a ticket scope with the group id", () => {
+  const scopeBot = (b: typeof editor, groupId?: string) => ({
+    ...b,
+    instructions: `in ${groupId}`,
+  });
+  expect(sessionScope(editor, direct, undefined, scopeBot, group())?.bot.instructions).toBe("in g");
+});

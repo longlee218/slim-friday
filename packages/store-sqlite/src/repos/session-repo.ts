@@ -4,8 +4,8 @@ import type { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import { sessions } from "../schema/engine-tables";
 
 /**
- * The SDK session id per session key: `<botId>` (direct) or `<botId>@<groupId>` (group).
- * Ids never contain `@`, `%` or `_`, so the LIKE patterns below are safe.
+ * The SDK session id per session key: `<botId>` (direct), `<botId>@<groupId>` (group) or
+ * `<botId>#ticket@<groupId>` (ticket). Ids never contain `@`, `#`, `%` or `_`, so the LIKE patterns below are safe.
  */
 export function sessionRepo(db: BunSQLiteDatabase): Store["sessions"] {
   return {
@@ -21,13 +21,19 @@ export function sessionRepo(db: BunSQLiteDatabase): Store["sessions"] {
     async clear(key) {
       db.delete(sessions).where(eq(sessions.botId, key)).run();
     },
-    // The direct key and every group key of the bot; `ab` is not matched by `a@%`.
+    // The direct key and every group and ticket key of the bot; `ab` is not matched by `a@%` or `a#%`.
     async clearBot(botId) {
       db.delete(sessions)
-        .where(or(eq(sessions.botId, botId), like(sessions.botId, `${botId}@%`)))
+        .where(
+          or(
+            eq(sessions.botId, botId),
+            like(sessions.botId, `${botId}@%`),
+            like(sessions.botId, `${botId}#%`),
+          ),
+        )
         .run();
     },
-    // Every key that ends with `@<groupId>`.
+    // Every key that ends with `@<groupId>`: group-chat and ticket keys of the group.
     async clearGroup(groupId) {
       db.delete(sessions)
         .where(like(sessions.botId, `%@${groupId}`))

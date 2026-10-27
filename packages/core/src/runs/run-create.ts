@@ -4,7 +4,7 @@ import type { Author } from "../domain/message";
 import type { BlockReason, WakeRow } from "../domain/wake";
 import { type HubContext, notice } from "../hub/hub-context";
 import type { WakeOpts, WakeOutcome } from "../hub/hub-types";
-import { sessionScope } from "../hub/session-scope";
+import { runScope } from "../hub/ticket-scope";
 import { dayOf, priorityOf } from "./run-rules";
 
 /** What `createRun` needs to store one run. */
@@ -41,8 +41,7 @@ export async function createRun(ctx: HubContext, r: NewRun): Promise<WakeOutcome
   const bot = await store.bots.get(r.botId);
   const conv = await store.conversations.get(r.conversationId);
   if (!bot || !conv) return { ok: false, reason: "gone" };
-  const group = conv.kind === "group" ? await store.groups.get(conv.groupId) : undefined;
-  const scope = sessionScope(bot, conv, group, ctx.deps.scopeBot);
+  const scope = await runScope(store, bot, conv, opts, ctx.deps.scopeBot);
   const row = ctx.wakeLog.build({
     conversationId: conv.id,
     targetBot: bot.id,

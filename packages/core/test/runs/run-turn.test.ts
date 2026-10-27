@@ -49,3 +49,21 @@ test("a card resume comes from the system; an owner message keeps its sender", a
   expect(plain.from).toEqual({ kind: "user" });
   expect(plain.automated).toBeUndefined();
 });
+
+test("a ticket-scope turn recalls the group's notes and has no group chat context", async () => {
+  const c = ctx();
+  const asked: unknown[] = [];
+  (c.deps as { recall?: unknown }).recall = {
+    search: async (owner: unknown) => {
+      asked.push(owner);
+      return [];
+    },
+  };
+  const t = await buildRunTurn(
+    c,
+    row({ scopeKey: "ann#ticket@team", ticketId: "t1", text: "Work on ticket FRI-1 now" }),
+    { cut: false },
+  );
+  expect(asked).toEqual([{ kind: "group", groupId: "team" }]);
+  expect(t.context).toEqual([]);
+});

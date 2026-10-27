@@ -14,7 +14,7 @@ export interface ToolSessionContext {
   /** The conversation of the turn in progress (undefined between turns). */
   conversation(): Promise<Conversation | undefined>;
   group(id: GroupId): Promise<Group | undefined>;
-  /** The group of a group session (`<botId>@<groupId>`); unset in the direct session. */
+  /** The group of a group or ticket session (`<botId>@<groupId>`, `<botId>#ticket@<groupId>`); unset in the direct one. */
   groupId?: GroupId;
   /** The bot's own direct conversation (`MessageSearch` looks there too); absent = only the current one. */
   direct?(): Promise<Conversation | undefined>;
@@ -28,17 +28,21 @@ export const GROUP_SCOPE_REFUSED =
   "group memory is only reachable from a group conversation you are a member of";
 
 /**
- * The memory owner of a tool call: the bot itself, or the group of the conversation it answers now when that is a
- * group it is a member of. Anything else returns the refusal text.
+ * The memory owner of a tool call: the bot itself, or a group it is a member of: the session's group (group or
+ * ticket session), else the group of the conversation it answers now. Anything else returns the refusal text.
  */
 export async function resolveOwner(
   scope: MemoryScope,
   ctx: ToolSessionContext,
 ): Promise<MemoryOwner | string> {
   if (scope === "bot") return { kind: "bot", botId: ctx.botId };
-  const conv = await ctx.conversation();
-  if (conv?.kind !== "group") return GROUP_SCOPE_REFUSED;
-  const group = await ctx.group(conv.groupId);
+  let groupId = ctx.groupId;
+  if (groupId === undefined) {
+    const conv = await ctx.conversation();
+    if (conv?.kind !== "group") return GROUP_SCOPE_REFUSED;
+    groupId = conv.groupId;
+  }
+  const group = await ctx.group(groupId);
   if (!group?.members.includes(ctx.botId)) return GROUP_SCOPE_REFUSED;
   return { kind: "group", groupId: group.id };
 }
