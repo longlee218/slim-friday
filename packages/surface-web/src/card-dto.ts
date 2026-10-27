@@ -2,8 +2,8 @@ import type { ApprovalCardDto, QuestionCardDto } from "@friday/contracts";
 import type { CardRow } from "@friday/core";
 import { flattenSummary } from "./flatten-summary";
 
-/** Longest tool input shown on an approval card, in code points. */
-const INPUT_MAX = 20000;
+/** Longest tool input shown on an approval card, in code points (room for a long file Write; the card scrolls it). */
+const INPUT_MAX = 200_000;
 
 /** The input as pretty JSON, split into code points (so a cut never splits a surrogate pair). */
 const inputPoints = (input: Record<string, unknown>): string[] => [
