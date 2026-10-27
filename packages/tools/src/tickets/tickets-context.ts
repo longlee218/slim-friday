@@ -1,6 +1,7 @@
 import {
   type BotId,
   type ConversationId,
+  type GroupId,
   type Store,
   type Ticket,
   type TicketBoard,
@@ -13,6 +14,8 @@ export interface TicketsContext {
   board: TicketBoard;
   bots: Pick<Store, "bots">["bots"];
   /** The conversation the session is working in now (read when the tool runs); recorded on the ticket. */
+  /** The group of the session: a group-chat or ticket session; unset in the direct session. */
+  groupId?: GroupId;
   conversation?: () => ConversationId | undefined;
 }
 

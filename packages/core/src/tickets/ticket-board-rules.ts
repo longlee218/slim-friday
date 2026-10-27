@@ -1,3 +1,5 @@
+import type { BotId } from "../domain/bot";
+import type { ConversationId } from "../domain/conversation";
 import { redactSecrets, secretsFrom } from "../safety/redact-secrets";
 import {
   TICKET_PRIORITIES,
@@ -7,12 +9,27 @@ import {
 } from "./ticket";
 
 /** Why a request was refused. */
-export type TicketErrorCode = "invalid" | "not_found" | "unknown_bot" | "conflict";
+export type TicketErrorCode = "invalid" | "not_found" | "unknown_bot" | "not_member" | "conflict";
 
 /** Success with a payload, or a short reason a bot can read. */
 export type TicketResult<T> =
   | ({ ok: true } & T)
   | { ok: false; code: TicketErrorCode; error: string };
+
+/** What a caller may change on a ticket. */
+export interface TicketUpdateInput {
+  id: string;
+  title?: string;
+  description?: string | null;
+  priority?: TicketPriority;
+  status?: TicketStatus;
+  assigneeBotId?: BotId;
+  /** Required when the ticket moves into `blocked`; refused for any other result status. */
+  blockedReason?: string;
+  /** The `updatedAt` the caller read; another value means the ticket changed since. */
+  expectedUpdatedAt?: number;
+  conversationId?: ConversationId;
+}
 
 /** Every status a caller may set. */
 export const STATUSES: readonly TicketStatus[] = TICKET_STATUSES;
@@ -33,6 +50,8 @@ export const BLOCKED_REASON_MAX = 500;
 export const INVALID = { ok: false, code: "invalid", error: "Invalid ticket." } as const;
 /** Refusal: the named bot does not exist. */
 export const UNKNOWN_BOT = { ok: false, code: "unknown_bot", error: "Unknown bot." } as const;
+/** Code of the refusal: the bot is not a member of the ticket's group. */
+export const NOT_MEMBER_CODE = "not_member" as const;
 /** Refusal: no such ticket. */
 export const NOT_FOUND = { ok: false, code: "not_found", error: "Ticket not found." } as const;
 /** Refusal: the ticket changed after the caller read it. */

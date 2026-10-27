@@ -1,9 +1,11 @@
 import type { BotId } from "../domain/bot";
 import type { ConversationId } from "../domain/conversation";
+import type { GroupId } from "../domain/group";
 import type { Author } from "../domain/message";
 import type { Clock } from "../ports/clock";
 import type { Store } from "../ports/store";
 import type { Ticket, TicketComment, TicketPriority, TicketStatus } from "./ticket";
+import { assigneeRefusal } from "./ticket-assignee";
 import {
   BAD_STATUS,
   BLOCKED_REASON_MAX,
@@ -19,7 +21,7 @@ import {
   STATUSES,
   TITLE_MAX,
   type TicketResult,
-  UNKNOWN_BOT,
+  type TicketUpdateInput,
 } from "./ticket-board-rules";
 import { createdEvent, ticketChangeEvents } from "./ticket-change-events";
 import { type TicketDetail, TicketReads } from "./ticket-reads";
@@ -33,7 +35,7 @@ export class TicketBoard {
 
   constructor(
     private deps: {
-      store: Pick<Store, "tickets" | "bots" | "ticketEvents">;
+      store: Pick<Store, "tickets" | "bots" | "groups" | "ticketEvents">;
       clock: Clock;
       /** Called when a ticket is assigned to a bot other than the one who did it. */
       wake: (ticket: Ticket, botId: BotId, actor: Author) => Promise<void>;
@@ -54,6 +56,8 @@ export class TicketBoard {
       priority?: TicketPriority;
       assigneeBotId?: BotId;
       conversationId?: ConversationId;
+      /** The group of the creating session; the ticket is then assigned to its members only. */
+      groupId?: GroupId;
     },
   ): Promise<TicketResult<{ ticket: Ticket }>> {
     const title = cleanText(this.deps.secretValues, i.title.trim());
@@ -61,7 +65,8 @@ export class TicketBoard {
     if (i.description !== undefined && i.description.length > DESCRIPTION_MAX) return INVALID;
     if (i.priority !== undefined && !PRIORITIES.includes(i.priority)) return INVALID;
     const assigneeBotId = i.assigneeBotId ?? (actor.kind === "bot" ? actor.botId : undefined);
-    if (assigneeBotId && !(await this.deps.store.bots.get(assigneeBotId))) return UNKNOWN_BOT;
+    const refused = await assigneeRefusal(this.deps.store, assigneeBotId, i.groupId);
+    if (refused) return refused;
     // The created event is written in the same transaction as the ticket.
     const ticket = await this.deps.store.tickets.create(
       {
@@ -71,6 +76,7 @@ export class TicketBoard {
         priority: i.priority ?? "normal",
         ...(assigneeBotId && { assigneeBotId }),
         ...(i.conversationId && { conversationId: i.conversationId }),
+        ...(i.groupId && { groupId: i.groupId }),
         createdBy: actor,
         createdAt: this.deps.clock.now(),
       },
@@ -101,22 +107,7 @@ export class TicketBoard {
     return this.reads.list(i);
   }
 
-  async update(
-    actor: Author,
-    i: {
-      id: string;
-      title?: string;
-      description?: string | null;
-      priority?: TicketPriority;
-      status?: TicketStatus;
-      assigneeBotId?: BotId;
-      /** Required when the ticket moves into `blocked`; refused for any other result status. */
-      blockedReason?: string;
-      /** The `updatedAt` the caller read; another value means the ticket changed since. */
-      expectedUpdatedAt?: number;
-      conversationId?: ConversationId;
-    },
-  ): Promise<TicketResult<{ ticket: Ticket }>> {
+  async update(actor: Author, i: TicketUpdateInput): Promise<TicketResult<{ ticket: Ticket }>> {
     const cur = await this.reads.find(i.id);
     if (!cur) return NOT_FOUND;
     if (i.status !== undefined && !STATUSES.includes(i.status)) return BAD_STATUS;
@@ -125,7 +116,9 @@ export class TicketBoard {
     if (title !== undefined && (!title || title.length > TITLE_MAX)) return INVALID;
     if (i.description && i.description.length > DESCRIPTION_MAX) return INVALID;
     if (i.priority !== undefined && !PRIORITIES.includes(i.priority)) return INVALID;
-    if (i.assigneeBotId && !(await this.deps.store.bots.get(i.assigneeBotId))) return UNKNOWN_BOT;
+    // The ticket's own group decides who may take it, not the acting session's.
+    const refused = await assigneeRefusal(this.deps.store, i.assigneeBotId, cur.groupId);
+    if (refused) return refused;
     const reason = i.blockedReason?.trim();
     const blocks = (i.status ?? cur.status) === "blocked";
     if (reason !== undefined && (!blocks || reason.length > BLOCKED_REASON_MAX)) return INVALID;

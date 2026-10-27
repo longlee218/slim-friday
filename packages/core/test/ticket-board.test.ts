@@ -29,6 +29,93 @@ function setup() {
   return { store, clock, woken, board };
 }
 
+const group = (id: string, members: string[]) => ({
+  id,
+  name: `Group ${id}`,
+  members,
+  entryBot: members[0] ?? "writer",
+  workspaces: [],
+  instructions: "",
+});
+
+/** A setup with group g1 whose only member is writer. */
+function setupGroup() {
+  const s = setup();
+  s.store.groupMap.set("g1", group("g1", ["writer"]));
+  return s;
+}
+
+describe("TicketBoard group scope", () => {
+  const notMember = (bot: string, name: string) => ({
+    ok: false as const,
+    code: "not_member" as const,
+    error: `${bot} is not a member of group ${name}`,
+  });
+
+  test("create refuses an assignee outside the ticket's group", async () => {
+    const { board, store, woken } = setupGroup();
+    const r = await board.create(writer, { title: "x", groupId: "g1", assigneeBotId: "editor" });
+    expect(r).toEqual(notMember("editor", "Group g1"));
+    expect(store.ticketMap.size).toBe(0);
+    expect(woken).toEqual([]);
+  });
+
+  test("create in a group records it and self-assigns a member", async () => {
+    const { board } = setupGroup();
+    const r = await board.create(writer, { title: "x", groupId: "g1" });
+    expect(r.ok && r.ticket).toMatchObject({ groupId: "g1", assigneeBotId: "writer" });
+  });
+
+  test("create self-assign by a non-member is refused", async () => {
+    const { board } = setupGroup();
+    const r = await board.create({ kind: "bot", botId: "editor" }, { title: "x", groupId: "g1" });
+    expect(r).toEqual(notMember("editor", "Group g1"));
+  });
+
+  test("update refuses reassigning a group ticket to a non-member", async () => {
+    const { board, woken } = setupGroup();
+    const c = await board.create(writer, { title: "x", groupId: "g1" });
+    const id = c.ok ? c.ticket.id : "";
+    const r = await board.update(writer, { id, assigneeBotId: "editor" });
+    expect(r).toEqual(notMember("editor", "Group g1"));
+    expect(woken).toEqual([]);
+  });
+
+  test("update to a member of the group wakes it", async () => {
+    const { board, store, woken } = setupGroup();
+    store.groupMap.set("g1", group("g1", ["writer", "editor"]));
+    const c = await board.create(writer, { title: "x", groupId: "g1" });
+    const id = c.ok ? c.ticket.id : "";
+    const r = await board.update(writer, { id, assigneeBotId: "editor" });
+    expect(r.ok).toBe(true);
+    expect(woken).toEqual(["editor:1"]);
+  });
+
+  test("self-assign from a DM session checks the ticket's group", async () => {
+    const { board } = setupGroup();
+    const c = await board.create(writer, { title: "x", groupId: "g1" });
+    const id = c.ok ? c.ticket.id : "";
+    const r = await board.update({ kind: "bot", botId: "editor" }, { id, assigneeBotId: "editor" });
+    expect(r).toEqual(notMember("editor", "Group g1"));
+  });
+
+  test("a ticket without groupId accepts any existing bot", async () => {
+    const { board } = setupGroup();
+    const r = await board.create(writer, { title: "x", assigneeBotId: "editor" });
+    expect(r.ok).toBe(true);
+  });
+
+  test("a ticket whose group is gone refuses assignment, naming the id", async () => {
+    const { board, store } = setupGroup();
+    const c = await board.create(writer, { title: "x", groupId: "g1" });
+    const id = c.ok ? c.ticket.id : "";
+    store.groupMap.delete("g1");
+    expect(await board.update(writer, { id, assigneeBotId: "writer" })).toEqual(
+      notMember("writer", "g1"),
+    );
+  });
+});
+
 describe("TicketBoard", () => {
   test("create defaults the assignee to the creator and wakes nobody", async () => {
     const { board, woken } = setup();
