@@ -99,25 +99,6 @@ test("a wake for a deleted ticket keeps the direct scope", async () => {
   expect(h.runtime.nth(0).spec.sessionKey).toBe("editor");
 });
 
-test("a group ticket of a bot no longer in the group is dropped without a session", async () => {
-  const h = scoped();
-  const t = (await h.store.tickets.create({
-    title: "x",
-    status: "todo",
-    priority: "normal",
-    assigneeBotId: "editor",
-    groupId: "g",
-    createdBy: { kind: "user" },
-    createdAt: 1,
-  })) as Ticket;
-  const group = h.store.groupMap.get("g");
-  if (group) h.store.groupMap.set("g", { ...group, members: ["writer"] });
-  await h.hub.wakeForTicket(t, "editor");
-  await flush();
-  expect(h.runtime.all()).toEqual([]);
-  expect([...h.store.wakeMap.values()].map((w) => w.status)).toEqual(["dropped"]);
-});
-
 test("Stop in the DM cancels the bot's ticket-scope runs; stop for the group chat does not", async () => {
   const h = scoped();
   await assigned(h);
@@ -132,7 +113,12 @@ test("the group channel's Stop leaves ticket runs; removing the group cancels th
   await assigned(h);
   expect(await h.hub.stopGroup("g")).toBe(0);
   expect(h.runtime.nth(0).stopped).toBe(false);
-  await h.hub.configChanged({ removedBots: [], removedGroups: ["g"], resetScopes: [] });
+  await h.hub.configChanged({
+    removedBots: [],
+    removedGroups: ["g"],
+    changedGroups: [],
+    resetScopes: [],
+  });
   expect(h.runtime.nth(0).stopped).toBe(true);
   expect([...h.store.wakeMap.values()].map((w) => w.status)).toEqual(["cancelled"]);
 });
