@@ -1,6 +1,7 @@
 import { type Ticket, type TicketStatus, ticketRef } from "../tickets/ticket";
-import { type HubContext, tell } from "./hub-context";
+import type { HubContext } from "./hub-context";
 import { errText } from "./hub-types";
+import { postStored } from "./post-stored";
 
 /**
  * Post one short system message to the ticket's origin group when it moves to doing, done or
@@ -22,7 +23,13 @@ export async function postTicketMilestone(
       const name = bot?.name ?? t.assigneeBotId ?? "Someone";
       text = `${name} ${t.status === "doing" ? "started" : "finished"} ${ref}: ${t.title}`;
     } else return;
-    await tell(ctx, `group:${t.groupId}`, text);
+    // Not `tell`: it swallows its own errors, and a failed post must be logged here.
+    await postStored(ctx.deps, {
+      conversationId: `group:${t.groupId}`,
+      author: { kind: "system" },
+      text,
+      at: ctx.deps.clock.now(),
+    });
   } catch (err) {
     ctx.deps.log?.error({ error: errText(err), ticketId: t.id }, "hub.ticket_milestone_failed");
   }

@@ -78,5 +78,15 @@ describe("ticket milestones", () => {
     const r = await h.hub.tickets.update(OWNER, { id: t.id, status: "doing" });
     expect(r.ok).toBe(true);
     expect((await h.store.tickets.get(t.id))?.status).toBe("doing");
+    expect(h.log.of("hub.ticket_milestone_failed")).toHaveLength(1);
+  });
+
+  test("a status and assignee change in one update names the new assignee", async () => {
+    const h = makeHub();
+    const t = await groupTicket(h, "g");
+    await h.hub.tickets.update(OWNER, { id: t.id, status: "doing", assigneeBotId: "writer" });
+    expect(groupPosts(h).map((m) => m.text)).toEqual([
+      `Writer started FRI-${t.number}: Edit the post`,
+    ]);
   });
 });
