@@ -19,16 +19,27 @@ const seed = () => {
   conv("group:a", "group", "a");
   conv("group:b", "group", "b");
   conv("bot:dev", "bot", null);
-  const wake = (id: string, bot: string, conversation: string) =>
+  const wake = (
+    id: string,
+    bot: string,
+    conversation: string,
+    start = 900,
+    end: number | null = 1100,
+  ) =>
     db.run(
       `INSERT INTO wakes (id, chain_id, conversation_id, target_bot, sender_kind, intent, hop, text,
         status, attempts, created_at, started_at, ended_at)
-       VALUES (?, ?, ?, ?, 'owner', 'ask', 0, '', 'done', 1, 1, 900, 1100)`,
-      [id, id, conversation, bot],
+       VALUES (?, ?, ?, ?, 'owner', 'ask', 0, '', 'done', 1, 1, ?, ?)`,
+      [id, id, conversation, bot, start, end],
     );
   wake("w1", "one", "group:team");
   wake("w2", "two", "group:a");
   wake("w3", "two", "group:b");
+  wake("w4", "four", "bot:dev");
+  wake("w5", "five", "group:team");
+  wake("w6", "five", "bot:dev");
+  wake("w7", "six", "group:a", 100, 500); // ended before created_at
+  wake("w8", "seven", "group:b", 900, null); // still running
   const ticket = (
     n: number,
     kind: string,
@@ -47,6 +58,10 @@ const seed = () => {
   ticket(3, "bot", "three", "group:team", null); // no covering run, group conversation
   ticket(4, "owner", null, "bot:dev", null); // owner, direct conversation
   ticket(5, "bot", "one", "bot:dev", "keep"); // already set
+  ticket(6, "bot", "four", "group:team", null); // only covering run is direct -> rule 2
+  ticket(7, "bot", "five", "bot:dev", null); // group run plus direct run
+  ticket(8, "bot", "six", "bot:dev", null); // run ended before created_at
+  ticket(9, "bot", "seven", "bot:dev", null); // open-ended run covers
   return db;
 };
 
@@ -58,6 +73,16 @@ test("backfill fills the origin group of existing tickets", () => {
       "SELECT number, group_id FROM tickets ORDER BY number",
     )
     .all();
-  expect(rows.map((r) => r.group_id)).toEqual(["team", null, "team", null, "keep"]);
+  expect(rows.map((r) => r.group_id)).toEqual([
+    "team",
+    null,
+    "team",
+    null,
+    "keep",
+    "team",
+    "team",
+    null,
+    "b",
+  ]);
   db.close();
 });
