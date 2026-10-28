@@ -63,7 +63,9 @@ export function computerHoldRepo(db: BunSQLiteDatabase): Store["computerHolds"] 
       );
     },
     async release(a) {
-      db.delete(computerHolds)
+      // Expire the row instead of deleting it, so the next takeover continues the fence.
+      db.update(computerHolds)
+        .set({ expiresAt: 0 })
         .where(
           and(
             eq(computerHolds.key, a.key),

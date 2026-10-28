@@ -80,3 +80,35 @@ test("release with a wrong fence leaves the row; a right one deletes it", async 
   await h.release({ key: "input:pc", holder: "a", fence: got?.fence ?? 0 });
   expect(await h.live(2)).toHaveLength(0);
 });
+
+test("the fence continues after release, for the same and for another holder", async () => {
+  const h = fresh();
+  const a = await h.acquire(input("a", 1));
+  await h.release({ key: "input:pc", holder: "a", fence: a?.fence ?? 0 });
+  expect(await h.acquire(input("a", 2))).toMatchObject({ fence: 2 });
+  await h.release({ key: "input:pc", holder: "a", fence: 2 });
+  expect(await h.acquire(input("b", 3))).toMatchObject({ holder: "b", fence: 3 });
+});
+
+test("a released slot no longer counts against the slot limit", async () => {
+  const h = fresh();
+  const slot = (botId: string) => ({
+    kind: "slot" as const,
+    computer: "pc",
+    botId,
+    holder: botId,
+    ttlMs: 100,
+    now: 1,
+    slotLimit: 1,
+  });
+  const a = await h.acquire(slot("a"));
+  await h.release({ key: "slot:a", holder: "a", fence: a?.fence ?? 0 });
+  expect(await h.acquire(slot("b"))).toMatchObject({ key: "slot:b" });
+});
+
+test("live does not list a released row", async () => {
+  const h = fresh();
+  const a = await h.acquire(input("a", 1));
+  await h.release({ key: "input:pc", holder: "a", fence: a?.fence ?? 0 });
+  expect(await h.live(2)).toEqual([]);
+});
