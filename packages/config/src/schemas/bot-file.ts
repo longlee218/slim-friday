@@ -47,6 +47,11 @@ const botHeader = z
     autonomy: z.enum(["careful", "balanced", "autonomous"]).optional(),
     // A preset name or `upload:<uuid>`, never a path.
     avatar: avatarSchema.optional(),
+    // The computer's name: it reaches a CLI argv and a profile path, so no other characters.
+    computer: z
+      .string()
+      .regex(/^[a-z0-9][a-z0-9-]{0,31}$/, "computer must be 1-32 chars of a-z, 0-9 and -")
+      .optional(),
   })
   .refine(
     (h) => !h.effort || !h.maxEffort || effortAtMost(h.effort, h.maxEffort),
@@ -77,5 +82,6 @@ export function parseBotFile(id: string, text: string): Bot {
     ...(h.maxEffort && { maxEffort: h.maxEffort }),
     ...(h.autonomy && { autonomy: h.autonomy }),
     ...(h.avatar && { avatar: h.avatar }),
+    ...(h.computer && { computer: h.computer }),
   };
 }

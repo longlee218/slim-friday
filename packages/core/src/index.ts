@@ -33,6 +33,7 @@ export * from "./permission/taint-policy";
 export * from "./ports/agent-runtime";
 export * from "./ports/auto-review";
 export * from "./ports/clock";
+export * from "./ports/computer-provider";
 export * from "./ports/file-store";
 export * from "./ports/insight";
 export * from "./ports/log";

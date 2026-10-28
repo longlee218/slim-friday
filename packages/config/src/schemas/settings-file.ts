@@ -70,6 +70,20 @@ const settingsSchema = z.strictObject({
       providers: z.array(z.looseObject({ id: z.string().min(1) })).optional(),
     })
     .optional(),
+  /**
+   * Bot computers: the provider plugin (its keys besides `id` are checked by the plugin), an owner cap on active
+   * computers (`slots` may only lower the computed number), the share per active bot, and the size of each computer.
+   */
+  computer: z
+    .strictObject({
+      provider: z.looseObject({ id: z.string().min(1) }),
+      slots: z.number().int().min(0).optional(),
+      perBotCpus: z.number().positive().optional(),
+      perBotMemoryMb: z.number().int().positive().optional(),
+      cpus: z.number().positive().optional(),
+      memoryMb: z.number().int().positive().optional(),
+    })
+    .optional(),
   /** About the owner: `timeZone` is an IANA zone (default: the machine's zone, resolved by the app). */
   owner: z
     .strictObject({
@@ -82,6 +96,9 @@ const settingsSchema = z.strictObject({
 
 /** A parsed `settings.yaml`. */
 export type SettingsFile = z.infer<typeof settingsSchema>;
+
+/** The `computer` block of `settings.yaml`. */
+export type ComputerSettings = NonNullable<SettingsFile["computer"]>;
 
 /** Parse `settings.yaml`. Throws a readable error for any problem. */
 export function parseSettingsFile(text: string): SettingsFile {
