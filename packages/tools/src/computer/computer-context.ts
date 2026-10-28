@@ -1,5 +1,6 @@
 import type { BotId, Clock, ComputerProvider, ComputerSpec, Store } from "@friday/core";
 import type { BrowserSession } from "./browser/browser-session";
+import type { Every } from "./slot-heartbeat";
 
 /** What the computer tools of one session need. */
 export interface ComputerContext {
@@ -16,4 +17,8 @@ export interface ComputerContext {
   /** Readable summary of the slot situation, appended to the "no slot" refusal. */
   slotsText: () => string;
   browser: BrowserSession;
+  /** Settles once the slot count is known; awaited before the first slot is taken (it may recount a failed one). */
+  slotsReady?: () => Promise<void>;
+  /** Scheduler of the slot heartbeat (tests pass a fake); default: an unref'd interval. */
+  every?: Every;
 }

@@ -9,6 +9,7 @@ import {
 import type { textResult } from "../tool-result";
 import { textResult as makeText } from "../tool-result";
 import type { ComputerContext } from "./computer-context";
+import { slotHeartbeat } from "./slot-heartbeat";
 
 /** Most steps or actions one act call runs. */
 export const MAX_BATCH = 20;
@@ -34,12 +35,15 @@ export interface ComputerSession {
 export function createComputerSession(ctx: ComputerContext): ComputerSession {
   const deps = { holds: ctx.holds, clock: ctx.clock, sleep: ctx.sleep };
   let hold: ComputerHold | undefined;
+  const beat = slotHeartbeat(deps, ctx.every);
 
   /** The first start in flight; parallel first callers share it, so the machine and browser start once. */
   let starting: Promise<ComputerHold> | undefined;
 
   /** Take a slot and start the machine and browser; releases the slot again when the start fails. */
   const start = async (): Promise<ComputerHold> => {
+    // The slot count may still be in the making at boot (or retried after a failed count): wait for it.
+    await ctx.slotsReady?.();
     const taken = await acquireSlot(deps, {
       computer: ctx.computer.name,
       botId: ctx.botId,
@@ -62,6 +66,7 @@ export function createComputerSession(ctx: ComputerContext): ComputerSession {
     if (hold) {
       if (await renewSlot(deps, hold)) return;
       hold = undefined;
+      beat.stop();
       throw new ComputerBusyError(SLOT_LOST);
     }
     if (!starting) {
@@ -71,6 +76,7 @@ export function createComputerSession(ctx: ComputerContext): ComputerSession {
         (h) => {
           hold = h;
           starting = undefined;
+          beat.start(h);
         },
         () => {
           starting = undefined;
@@ -82,6 +88,7 @@ export function createComputerSession(ctx: ComputerContext): ComputerSession {
 
   const run = async (fn: () => Promise<ToolResult>): Promise<ToolResult> => {
     try {
+      beat.touch();
       await ensureSession();
       return await fn();
     } catch (err) {
