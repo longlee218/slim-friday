@@ -17,9 +17,10 @@ import { useUpdateTicket } from "./use-update-ticket";
 
 /** Comment composer pinned under the scroll body (prototype `.ios-composer`). */
 function CommentComposer({ ticketRef }: { ticketRef: string }) {
-  const { text, setText, disabled, send } = useCommentDraft(ticketRef);
+  const { text, setText, note, disabled, send } = useCommentDraft(ticketRef);
   return (
     <div className="ios-composer">
+      {note && <div className="t2">{note}</div>}
       <div className="box">
         <textarea
           rows={1}

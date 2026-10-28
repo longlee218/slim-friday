@@ -29,6 +29,10 @@ export const blockedWakeText = (t: Ticket): string =>
 export const sentBackWakeText = (t: Ticket, lastComment?: string): string =>
   `Ticket ${ticketRef(t.number)} was sent back to you: ${quote(lastComment)}. Fix it and set it to review.`;
 
+/** The text the assignee wakes on when the owner comments on its ticket. */
+export const ownerCommentWakeText = (t: Ticket, body: string): string =>
+  `The owner commented on your ticket ${ticketRef(t.number)}: ${body.slice(0, LAST_COMMENT_MAX)}. Act on it, reply with a ticket comment, and update its status.`;
+
 /** Comment left on a ticket that stays open after its re-wake. */
 export const AUTO_BLOCK_COMMENT = "Left open after two turns; blocked automatically.";
 

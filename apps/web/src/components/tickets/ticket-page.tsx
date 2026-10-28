@@ -16,7 +16,7 @@ import { useUpdateTicket } from "./use-update-ticket";
 
 /** Comment box under the activity; posting wakes the assignee on the server. */
 function CommentBox({ ticketRef, assignee }: { ticketRef: string; assignee?: string }) {
-  const { text, setText, disabled, send } = useCommentDraft(ticketRef);
+  const { text, setText, note, disabled, send } = useCommentDraft(ticketRef);
   return (
     <div className="tp-comment">
       <textarea
@@ -27,6 +27,7 @@ function CommentBox({ ticketRef, assignee }: { ticketRef: string; assignee?: str
         value={text}
         onChange={(e) => setText(e.target.value)}
       />
+      {note && <div className="t2">{note}</div>}
       <div className="acts">
         <Button variant="primary" disabled={disabled} onClick={send}>
           Comment

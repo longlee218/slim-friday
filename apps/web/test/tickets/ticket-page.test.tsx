@@ -164,3 +164,23 @@ test("a failed close keeps the page", async () => {
   await new Promise((r) => setTimeout(r, 50));
   expect(path()).toBe("/");
 });
+
+test("shows the note when woke is false, and clears it on the next input", async () => {
+  serve(ticket(1));
+  api.comment.mockResolvedValue({
+    id: "c1",
+    ticketId: "1",
+    author: { kind: "user" },
+    body: "late",
+    createdAt: 3,
+    woke: false,
+    note: "No one was woken: the ticket is finished. Reopen it to continue.",
+  });
+  renderPage();
+  const box = await screen.findByLabelText("Comment");
+  await userEvent.type(box, "late");
+  await userEvent.click(screen.getByRole("button", { name: "Comment" }));
+  expect(await screen.findByText(/No one was woken: the ticket is finished/)).toBeTruthy();
+  await userEvent.type(box, "x");
+  expect(screen.queryByText(/No one was woken/)).toBeNull();
+});

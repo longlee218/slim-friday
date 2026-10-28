@@ -25,6 +25,7 @@ import { sweepQuietScopes } from "./idle-close";
 import { queueIntroRun } from "./intro-run";
 import { followUpStatus } from "./ticket-followups";
 import { postBlockedComment, postBlockedReason, postTicketMilestone } from "./ticket-milestones";
+import { ownerComment } from "./ticket-owner-comment";
 import { wakeForTicket } from "./ticket-wakes";
 import { admit, wake } from "./wake-admission";
 import { WakeLog } from "./wake-log";
@@ -213,6 +214,15 @@ export class BotHub implements BotMessenger {
     actor: Author = { kind: "system" },
   ): Promise<void> {
     return wakeForTicket(this.ctx, ticket, botId, rewake, actor);
+  }
+
+  /** The owner's comment on a ticket: saved, and it wakes the assignee with the comment text (see `ownerComment`). */
+  ownerComment(
+    ref: string,
+    body: string,
+    opts?: { commentId?: string; dedupeKey?: string },
+  ): ReturnType<typeof ownerComment> {
+    return ownerComment(this.ctx, ref, body, opts);
   }
 
   /** Queue the intro run of a new bot (one per bot; see `queueIntroRun`). */

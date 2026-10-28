@@ -1,5 +1,4 @@
 import type { TicketResult } from "@friday/core";
-import { logApiEvent } from "../../api-log";
 import { authed } from "../../rpc/implementer";
 import { ticketDtoFor, ticketDtosFor, toTicketDto, toTimelineDto } from "./ticket-dto";
 
@@ -75,23 +74,9 @@ export const ticketsRouter = {
     );
     return ticketDtoFor(store, r.ticket);
   }),
-  /** The owner's comment wakes the assignee of an unfinished ticket (a finished one is never woken). */
+  /** The owner's comment wakes the assignee of an open ticket; `woke` and `note` say whether it did. */
   comment: authed.tickets.comment.handler(async ({ input, context, errors }) => {
-    const { hub, store } = context.deps;
-    const r = unwrap(await hub.tickets.comment(OWNER, { id: input.ref, body: input.text }), errors);
-    const ticket = await store.tickets.get(r.comment.ticketId);
-    // The comment is saved: a failed wake is logged and must not fail the request.
-    if (ticket?.assigneeBotId)
-      await hub
-        .wakeForTicket(ticket, ticket.assigneeBotId, false, OWNER)
-        .catch((err) =>
-          logApiEvent(
-            context.deps.log,
-            "ticket.wake_failed",
-            { error: String(err), ticketId: ticket.id },
-            "error",
-          ),
-        );
-    return r.comment;
+    const r = unwrap(await context.deps.hub.ownerComment(input.ref, input.text), errors);
+    return { ...r.comment, woke: r.woke, ...(r.note && { note: r.note }) };
   }),
 };
