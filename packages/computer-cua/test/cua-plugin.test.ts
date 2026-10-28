@@ -20,6 +20,13 @@ describe("cua plugin", () => {
     expect(() => p.parseOptions({ binary: "cua" })).toThrow(/absolute/);
     expect(() => p.parseOptions({ binary: "/a/cua", extra: 1 })).toThrow(/extra/);
   });
+  test("a non-default image is refused, the default parses", () => {
+    const p = probe(true, "");
+    expect(() => p.parseOptions({ binary: "/a/cua", image: "foo" })).toThrow(/image/);
+    expect(
+      p.parseOptions({ binary: "/a/cua", image: "ghcr.io/trycua/linux:24.04-slim" }).image,
+    ).toBe("ghcr.io/trycua/linux:24.04-slim");
+  });
   test("check reports a missing binary", () => {
     const p = probe(false, "");
     const o = p.parseOptions({ binary: "/opt/cua/bin/cua" });
