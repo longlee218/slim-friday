@@ -3,6 +3,13 @@ export { type ApiDeps, createApiApp, type EngineDeps, SSE_KEEPALIVE_MS } from ".
 export { ensureOwner } from "./auth/ensure-owner";
 export { createOwnerAuth, type OwnerAuth, type OwnerAuthOptions } from "./auth/owner-auth";
 export { rpIdFor } from "./auth/rp-id";
+export { revokeViewTokens, viewWebsocket } from "./computer/view-proxy";
+export {
+  openViewToken,
+  sealViewToken,
+  type ViewClaims,
+  type ViewMode,
+} from "./computer/view-token";
 export { MCP_OAUTH_CALLBACK_PATH } from "./http/mcp-oauth-callback";
 export { type McpAuthAdmin, type McpAuthStatus, McpLoginExpiredError } from "./mcp-auth";
 export { ticketChangePublisher } from "./routers/tickets/ticket-publish";
