@@ -1,7 +1,7 @@
 import type { ComputerProvider } from "@friday/core";
 import { validateSessionInput } from "./browser-session-input";
 import { CdpClient } from "./cdp-client";
-import { type PageHandle, type PageStep, runSteps } from "./page-act";
+import { type EvalResult, type PageHandle, type PageStep, runSteps, thrown } from "./page-act";
 import { formatSnapshot, type RawSnapshot } from "./page-snapshot";
 import { PAGE_SNAPSHOT_SCRIPT } from "./page-snapshot-script";
 
@@ -21,6 +21,8 @@ export interface BrowserSessionDeps {
   cdpPort: number;
   profileRoot: string;
   sleep?: (ms: number) => Promise<void>;
+  /** Clock for the starting snapshot generation (tests). */
+  now?: () => number;
 }
 
 /** One bot's persistent Chromium in its computer, driven over raw CDP through the provider port-forward. */
@@ -28,12 +30,14 @@ export class BrowserSession {
   private client: CdpClient | undefined;
   private sessionId = "";
   private contextId: number | undefined;
-  private gen = 0;
+  private gen: number;
   private readonly sleep: (ms: number) => Promise<void>;
 
   /** Validates every field that reaches an argv or a path, before anything runs; the error names the field. */
   constructor(private readonly d: BrowserSessionDeps) {
     validateSessionInput(d);
+    // Time-based start: a new instance or engine restart never reuses a generation an old ref may carry.
+    this.gen = Math.floor((d.now ?? Date.now)() / 1000) % 1_000_000;
     this.sleep = d.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
   }
 
@@ -54,6 +58,7 @@ export class BrowserSession {
         CHROMIUM_BIN,
         `--user-data-dir=${profileRoot}/${botId}`,
         `--remote-debugging-port=${cdpPort}`,
+        // UNVERIFIED: confirm with the live check (flag honoured by the image's chromium).
         "--remote-debugging-address=127.0.0.1",
         "--no-first-run",
         "about:blank",
@@ -90,11 +95,11 @@ export class BrowserSession {
     if (nav.errorText) throw new Error(`navigation failed: ${nav.errorText}`);
     this.contextId = undefined;
     for (let i = 0; i < LOAD_POLLS; i++) {
-      const r = await this.page().send<{ result: { value?: string } }>("Runtime.evaluate", {
+      const r = await this.page().send<EvalResult<string>>("Runtime.evaluate", {
         expression: "document.readyState",
         returnByValue: true,
       });
-      if (r.result.value === "complete") break;
+      if (!thrown(r) && r.result?.value === "complete") break;
       await this.sleep(LOAD_POLL_MS);
     }
     return this.snapshot();
@@ -110,15 +115,12 @@ export class BrowserSession {
       frameId: tree.frameTree.frame.id,
       worldName: "friday",
     });
-    const r = await page.send<{ result: { value?: RawSnapshot }; exceptionDetails?: unknown }>(
-      "Runtime.evaluate",
-      {
-        expression: `(${PAGE_SNAPSHOT_SCRIPT})(${gen})`,
-        contextId: world.executionContextId,
-        returnByValue: true,
-      },
-    );
-    if (!r.result.value)
+    const r = await page.send<EvalResult<RawSnapshot>>("Runtime.evaluate", {
+      expression: `(${PAGE_SNAPSHOT_SCRIPT})(${gen})`,
+      contextId: world.executionContextId,
+      returnByValue: true,
+    });
+    if (thrown(r) || !r.result?.value)
       throw new Error("page snapshot failed; the page may be loading, try again");
     this.gen = gen;
     this.contextId = world.executionContextId;
@@ -169,7 +171,7 @@ export class BrowserSession {
     this.client = undefined;
     this.sessionId = "";
     this.contextId = undefined;
-    this.gen = 0;
+    // `gen` is never reset: an old ref must stay stale after a reconnect.
   }
 
   private page(): PageHandle {

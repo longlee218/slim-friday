@@ -6,11 +6,14 @@ export interface FakeCdp {
   base: string;
   messages: { id: number; method: string; params: Record<string, unknown>; sessionId?: string }[];
   stop(): void;
+  /** Close every open websocket (a dropped connection); the server keeps accepting new ones. */
+  dropConnections(): void;
 }
 
 /** Start the fake; `handler` returns the `result` per method, `{ error }` for a CDP error, `"never"` to stay silent. */
 export function startFakeCdp(handler: CdpHandler): FakeCdp {
   const messages: FakeCdp["messages"] = [];
+  const sockets = new Set<{ close(): void }>();
   const server = Bun.serve({
     port: 0,
     hostname: "127.0.0.1",
@@ -23,6 +26,12 @@ export function startFakeCdp(handler: CdpHandler): FakeCdp {
       return new Response("not found", { status: 404 });
     },
     websocket: {
+      open(ws) {
+        sockets.add(ws);
+      },
+      close(ws) {
+        sockets.delete(ws);
+      },
       message(ws, raw) {
         const msg = JSON.parse(String(raw));
         messages.push(msg);
@@ -37,5 +46,12 @@ export function startFakeCdp(handler: CdpHandler): FakeCdp {
       },
     },
   });
-  return { base: `http://127.0.0.1:${server.port}`, messages, stop: () => server.stop(true) };
+  return {
+    base: `http://127.0.0.1:${server.port}`,
+    messages,
+    stop: () => server.stop(true),
+    dropConnections: () => {
+      for (const s of sockets) s.close();
+    },
+  };
 }
