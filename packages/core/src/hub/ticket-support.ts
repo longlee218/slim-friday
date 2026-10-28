@@ -10,6 +10,25 @@ export const ticketWakeText = (t: Ticket): string =>
 export const ticketRewakeText = (t: Ticket): string =>
   `Your ticket ${ticketRef(t.number)} is still open. Finish it, or set it to blocked and comment why.`;
 
+/** The longest last comment quoted in a follow-up wake. */
+const LAST_COMMENT_MAX = 1_000;
+
+/** A ticket's last comment for a wake text, clamped; `(no comment)` when there is none. */
+const quote = (c: string | undefined): string =>
+  c ? c.slice(0, LAST_COMMENT_MAX) : "(no comment)";
+
+/** The text the creator wakes on when the assignee sets its ticket to review. */
+export const reviewWakeText = (t: Ticket, lastComment?: string): string =>
+  `Ticket ${ticketRef(t.number)} is ready for your review. Check it against its Done when. Set done, or send it back: comment what is missing and set it to todo.\nLast comment: ${quote(lastComment)}`;
+
+/** The text the creator wakes on when its ticket is blocked. */
+export const blockedWakeText = (t: Ticket): string =>
+  `Ticket ${ticketRef(t.number)} is blocked: ${t.blockedReason ?? "no reason given"}. Unblock it (answer, re-assign, or ask the owner), or close it.`;
+
+/** The text the assignee wakes on when the creator or owner sends its ticket back. */
+export const sentBackWakeText = (t: Ticket, lastComment?: string): string =>
+  `Ticket ${ticketRef(t.number)} was sent back to you: ${quote(lastComment)}. Fix it and set it to review.`;
+
 /** Comment left on a ticket that stays open after its re-wake. */
 export const AUTO_BLOCK_COMMENT = "Left open after two turns; blocked automatically.";
 

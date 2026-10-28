@@ -8,6 +8,12 @@ import { errText } from "./hub-types";
 import { blockIfOrphan } from "./ticket-orphans";
 import { AUTO_BLOCK_COMMENT, isOpenWork, ticketRewakeText, ticketWakeText } from "./ticket-support";
 
+/** Options of a ticket wake: `text` replaces the default text, `dedupeKey` makes it one run per key. */
+export interface TicketWakeOpts {
+  text?: string;
+  dedupeKey?: string;
+}
+
 /** Queue a run for the assignee of a ticket in its own direct conversation; nothing is posted to the channel. */
 export async function wakeForTicket(
   ctx: HubContext,
@@ -15,6 +21,7 @@ export async function wakeForTicket(
   botId: BotId,
   rewake = false,
   actor: Author = { kind: "system" },
+  opts: TicketWakeOpts = {},
 ): Promise<void> {
   if (ticket.status === "done" || ticket.status === "closed") return;
   // The assignee left the group (or the group is gone): block the ticket, queue nothing.
@@ -26,7 +33,7 @@ export async function wakeForTicket(
     return;
   }
   const conv = await ctx.deps.store.conversations.direct(botId);
-  const text = rewake ? ticketRewakeText(ticket) : ticketWakeText(ticket);
+  const text = opts.text ?? (rewake ? ticketRewakeText(ticket) : ticketWakeText(ticket));
   // A bot that assigns the ticket is the sender, so the rate and repeat caps apply to it.
   const hop = actor.kind === "bot" ? 1 : 0;
   if (!conv) {
@@ -53,6 +60,7 @@ export async function wakeForTicket(
       text,
       hop,
       opts: { ticketId: ticket.id, ...(rewake && { rewake: true }) },
+      ...(opts.dedupeKey && { dedupeKey: opts.dedupeKey }),
     });
   } catch (err) {
     ctx.deps.log?.error({ error: errText(err), ticketId: ticket.id }, "hub.ticket_wake_failed");
