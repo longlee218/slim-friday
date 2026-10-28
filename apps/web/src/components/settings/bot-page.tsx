@@ -6,6 +6,7 @@ import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { client, orpc } from "../../api/client";
 import { useIsPhone } from "../../app/use-is-phone";
+import { ComputerPanel } from "../computer/computer-panel";
 import { Avatar } from "../ui/avatar";
 import { useSegThumb } from "../ui/use-seg-thumb";
 import { AvatarPicker } from "./avatar-picker";
@@ -13,7 +14,7 @@ import { BotForm } from "./bot-form";
 import { type BotFormValue, NEW_BOT } from "./bot-form-value";
 import { SEG_BUTTON } from "./form-parts";
 import { MemoryPanel } from "./memory-panel";
-import { ChatAction, ProfileHead } from "./profile-head";
+import { ChatAction, ComputerAction, ProfileHead } from "./profile-head";
 import { RuleList } from "./rule-list";
 import { SettingsPage } from "./settings-page";
 import { useHeldAvatar } from "./use-held-avatar";
@@ -23,6 +24,7 @@ const TABS = [
   ["tools", "Tools & skills"],
   ["memory", "Memory"],
   ["rules", "Rules"],
+  ["computer", "Computer"],
 ] as const;
 
 /** `/settings/bot/new`: the Profile form of a bot that does not exist yet. */
@@ -113,7 +115,12 @@ export function BotPage() {
         }
         title={bot.name}
         sub={[bot.title, bot.model].filter(Boolean).join(" · ")}
-        actions={<ChatAction to={`/c/bot:${bot.id}`} />}
+        actions={
+          <>
+            <ChatAction to={`/c/bot:${bot.id}`} />
+            {bot.computer && <ComputerAction to={`/settings/bot/${bot.id}/computer`} />}
+          </>
+        }
       />
       <div className="tabs">
         <div ref={tabBox} className="seg" role="tablist">
@@ -145,6 +152,8 @@ export function BotPage() {
       ) : // Memory and rules are the owner's files, so a shipped bot's stay editable.
       tab === "rules" ? (
         <RuleList owner={`bot:${bot.id}`} />
+      ) : tab === "computer" ? (
+        <ComputerPanel botId={bot.id} botName={bot.name} />
       ) : (
         <MemoryPanel owner={`bot:${bot.id}`} />
       )}

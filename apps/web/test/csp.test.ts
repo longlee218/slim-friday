@@ -33,7 +33,8 @@ test("buildCsp lists the API and R2 origins and nothing inline for scripts", () 
   expect(d["default-src"]).toBe("default-src 'self'");
   expect(d["script-src"]).toBe("script-src 'self' 'wasm-unsafe-eval'");
   expect(d["style-src"]).toBe("style-src 'self' 'unsafe-inline'");
-  expect(d["connect-src"]).toBe(`connect-src 'self' ${api} ${r2}`);
+  expect(d["connect-src"]).toBe(`connect-src 'self' ${api} wss://friday-api.example.com ${r2}`);
+  expect(d["frame-src"]).toBe(`frame-src 'self' ${api}`);
   expect(d["img-src"]).toBe(`img-src 'self' data: blob: ${r2}`);
   expect(d["worker-src"]).toBe("worker-src 'self'");
   expect(d["manifest-src"]).toBe("manifest-src 'self'");
@@ -44,7 +45,9 @@ test("buildCsp lists the API and R2 origins and nothing inline for scripts", () 
 
 test("buildCsp appends the optional CDN origin to connect-src and img-src", () => {
   const d = directives(buildCsp({ apiUrl: api, r2Origin: r2, cdnOrigin: `${cdn}/` }));
-  expect(d["connect-src"]).toBe(`connect-src 'self' ${api} ${r2} ${cdn}`);
+  expect(d["connect-src"]).toBe(
+    `connect-src 'self' ${api} wss://friday-api.example.com ${r2} ${cdn}`,
+  );
   expect(d["img-src"]).toBe(`img-src 'self' data: blob: ${r2} ${cdn}`);
   expect(buildCsp({ apiUrl: api, r2Origin: r2, cdnOrigin: "" })).not.toContain("cdn");
   expect(buildCsp({ apiUrl: api, r2Origin: r2 })).not.toContain("cdn");
