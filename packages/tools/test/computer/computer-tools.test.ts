@@ -267,3 +267,12 @@ test("BrowserNavigate is refused while the owner controls the computer", async (
   expect(r.isError).toBe(true);
   expect(textOf(r)).toContain("the owner is controlling");
 });
+
+test("BrowserAct marks a settled failure as an error too (the step did not run)", async () => {
+  const w = world();
+  const report =
+    "failed 1. click p1:0: ref p1:0 is gone from the page\ndone 0 of 1; uncertain: false";
+  const tool = createBrowserActTool(w.make("ann", { act: async () => report }));
+  const r = await call(tool, { steps: [{ kind: "click", ref: "p1:0" }] });
+  expect(r.isError).toBe(true);
+});

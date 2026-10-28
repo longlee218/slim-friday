@@ -35,7 +35,8 @@ export function createBrowserActTool(s: ComputerSession) {
       if (bad) return Promise.resolve(textResult(bad, true));
       return s.runLeased(async (check) => {
         const report = await s.ctx.browser.act(steps, check);
-        return textResult(report, report.includes("uncertain: true"));
+        // Any failed step is an error, settled (did not run) or not.
+        return textResult(report, /^failed \d+\./m.test(report));
       });
     }) as never,
     { annotations: { openWorldHint: true } },
