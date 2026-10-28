@@ -11,27 +11,32 @@ type Mode = "view" | "control";
 
 /**
  * A bot's computer as the owner sees it: status, the viewer link (nothing streams before `watch`),
- * and the control hold. Unmounting releases the hold and revokes the link.
+ * and the control hold. Unmounting releases the hold and revokes the link. With `inlineErrors` a failed
+ * link is kept in `error` for the caller to show instead of a toast.
  */
-export function useComputerView(botId: string) {
+export function useComputerView(botId: string, { inlineErrors = false } = {}) {
   const statusQuery = useQuery(
     orpc.computer.status.queryOptions({ input: { botId }, refetchInterval: STATUS_POLL_MS }),
   );
   const control = useControl(botId);
   const [frame, setFrame] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   /** Mints a link and (re)loads the frame with it. False on failure. */
   const load = useCallback(
     async (mode: Mode): Promise<boolean> => {
       try {
         setFrame((await client.computer.view({ botId, mode })).url);
+        setError(null);
         return true;
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Could not open the view");
+        const message = err instanceof Error ? err.message : "Could not open the view";
+        if (inlineErrors) setError(message);
+        else toast.error(message);
         return false;
       }
     },
-    [botId],
+    [botId, inlineErrors],
   );
 
   // A lost hold falls back to a view-only frame.
@@ -65,6 +70,7 @@ export function useComputerView(botId: string) {
   const close = async () => {
     if (control.state === "held") await control.giveBack();
     setFrame(null);
+    setError(null);
     await client.computer.closeView({ botId }).catch(() => {});
   };
 
@@ -74,6 +80,7 @@ export function useComputerView(botId: string) {
     control,
     controlling: control.state === "held",
     frame,
+    error,
     watch: () => load("view"),
     takeControl,
     giveBack,

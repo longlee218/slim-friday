@@ -51,14 +51,21 @@
 .pc-screen { position: relative; aspect-ratio: 16 / 10; border-radius: var(--r-m); overflow: hidden; background: #0c0d11; box-shadow: inset 0 0 0 .5px rgba(255, 255, 255, .08); transition: box-shadow var(--t-mid) var(--ease); }
 .pc-screen.held { box-shadow: 0 0 0 2px var(--tint), 0 6px 20px -8px var(--tint); }
 .pc-screen iframe { position: absolute; top: 0; left: 0; display: block; border: 0; transform-origin: 0 0; background: #0c0d11; }
-.pc-hit { position: absolute; inset: 0; border: 0; padding: 0; background: transparent; cursor: zoom-in; border-radius: inherit; transition: box-shadow var(--t-fast); }
-.pc-hit:hover { box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .22); }
-.pc-hit:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--tint); }
+/* Hover or keyboard focus dims the thumbnail and shows the Open pill; the status chip fades so they never overlap. */
+.pc-open { position: absolute; inset: 0; z-index: 1; display: grid; place-items: center; border: 0; padding: 0; border-radius: inherit; background: rgba(8, 9, 12, .42); opacity: 0; cursor: pointer; transition: opacity var(--t-mid) var(--ease); }
+.pc-open > span { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 15px 0 13px; border-radius: 999px; background: var(--raised); color: var(--label); font: 600 13px var(--font); box-shadow: 0 4px 14px rgba(0, 0, 0, .28); transform: translateY(3px) scale(.97); transition: transform var(--t-mid) var(--ease); }
+.pc-open:hover, .pc-open:focus-visible { opacity: 1; outline: none; }
+.pc-open:hover > span, .pc-open:focus-visible > span { transform: none; }
+.pc-open:focus-visible > span { box-shadow: 0 0 0 2px var(--tint), 0 4px 14px rgba(0, 0, 0, .28); }
+.pc-screen:has(.pc-open:is(:hover, :focus-visible)) .pc-chip { opacity: 0; }
+.pc-error { display: flex; flex-direction: column; align-items: center; gap: 8px; max-width: 86%; text-align: center; color: rgba(255, 255, 255, .78); }
+.pc-error svg { color: #ff8a80; }
+.pc-error p { margin: 0; font-size: 12.5px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .pc-empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: rgba(255, 255, 255, .5); font-size: 12.5px; }
 .pc-play { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 15px 0 13px; border: 0; border-radius: 999px; background: rgba(255, 255, 255, .12); color: #fff; font: 600 13px var(--font); backdrop-filter: blur(8px); transition: background var(--t-fast), transform var(--t-fast); }
 .pc-play:hover { background: rgba(255, 255, 255, .2); }
 .pc-play:active { transform: scale(.96); }
-.pc-chip { position: absolute; top: 8px; left: 8px; max-width: calc(100% - 16px); display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px 0 8px; border-radius: 999px; background: rgba(12, 13, 17, .64); backdrop-filter: blur(10px); color: #fff; font: 600 11.5px var(--font); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+.pc-chip { position: absolute; top: 8px; left: 8px; max-width: calc(100% - 16px); display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px 0 8px; border-radius: 999px; background: rgba(12, 13, 17, .64); backdrop-filter: blur(10px); color: #fff; font: 600 11.5px var(--font); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; transition: opacity var(--t-fast); }
 .pc-chip i { width: 6px; height: 6px; border-radius: 50%; flex: none; background: rgba(255, 255, 255, .4); }
 .pc-chip.live i { background: var(--green-dot); }
 .pc-chip.bot i { background: #9cb0ff; animation: breathe 1.6s ease-in-out infinite; }
