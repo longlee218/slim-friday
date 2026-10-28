@@ -72,7 +72,7 @@ test("slot limit 1 refuses a second bot and allows the same bot", async () => {
   expect(await h.acquire(slot("a"))).toMatchObject({ key: "slot:a", fence: 1 });
 });
 
-test("release with a wrong fence leaves the row; a right one deletes it", async () => {
+test("release with a wrong fence leaves the row; a right one expires it", async () => {
   const h = fresh();
   const got = await h.acquire(input("a", 1));
   await h.release({ key: "input:pc", holder: "a", fence: (got?.fence ?? 0) + 1 });
@@ -104,6 +104,41 @@ test("a released slot no longer counts against the slot limit", async () => {
   const a = await h.acquire(slot("a"));
   await h.release({ key: "slot:a", holder: "a", fence: a?.fence ?? 0 });
   expect(await h.acquire(slot("b"))).toMatchObject({ key: "slot:b" });
+});
+
+test("renew is false after release", async () => {
+  const h = fresh();
+  const a = await h.acquire(input("a", 1));
+  const r = { key: "input:pc", holder: "a", fence: a?.fence ?? 0 };
+  await h.release(r);
+  expect(await h.renew({ ...r, ttlMs: 100, now: 2 })).toBe(false);
+  expect(await h.live(2)).toEqual([]);
+});
+
+test("a late renew after release leaves exactly one live slot", async () => {
+  const h = fresh();
+  const slot = (botId: string) => ({
+    kind: "slot" as const,
+    computer: "pc",
+    botId,
+    holder: botId,
+    ttlMs: 100,
+    now: 1,
+    slotLimit: 1,
+  });
+  const a = await h.acquire(slot("a"));
+  await h.release({ key: "slot:a", holder: "a", fence: a?.fence ?? 0 });
+  await h.acquire(slot("b"));
+  expect(await h.renew({ key: "slot:a", holder: "a", fence: 1, ttlMs: 100, now: 2 })).toBe(false);
+  expect((await h.live(2)).map((r) => r.key)).toEqual(["slot:b"]);
+});
+
+test("renew on an expired but unreleased row still works", async () => {
+  const h = fresh();
+  const a = await h.acquire(input("a", 1));
+  const r = { key: "input:pc", holder: "a", fence: a?.fence ?? 0, ttlMs: 100, now: 500 };
+  expect(await h.renew(r)).toBe(true);
+  expect((await h.live(500))[0]?.expiresAt).toBe(600);
 });
 
 test("live does not list a released row", async () => {
