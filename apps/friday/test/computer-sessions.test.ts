@@ -8,7 +8,7 @@ import type {
   Store,
 } from "@friday/core";
 import { BrowserSession } from "@friday/tools";
-import { cdpPortOf, createComputers, PROFILE_ROOT } from "../src/computer-sessions";
+import { createComputers, PROFILE_ROOT } from "../src/computer-sessions";
 
 const bot = (id: string, computer?: string): Bot => ({
   id,
@@ -38,18 +38,19 @@ function memLog() {
   return { lines, info: at("info"), warn: at("warn"), error: at("error") };
 }
 
-/** Holds with live rows; a release that matches key, holder and fence removes the row and is recorded. */
+/** Holds like the sqlite repo: `live(now)` keeps rows with expiresAt > now; a matching release sets expiresAt 0. */
 function fakeHolds(start: ComputerHold[]) {
-  let rows = [...start];
+  const rows = start.map((r) => ({ ...r }));
   const released: { key: string; holder: string; fence: number }[] = [];
   const holds = {
-    live: async () => rows,
+    live: async (now: number) => rows.filter((r) => r.expiresAt > now).map((r) => ({ ...r })),
     release: async (a: { key: string; holder: string; fence: number }) => {
       released.push(a);
-      rows = rows.filter((r) => !(r.key === a.key && r.holder === a.holder && r.fence === a.fence));
+      for (const r of rows)
+        if (r.key === a.key && r.holder === a.holder && r.fence === a.fence) r.expiresAt = 0;
     },
   } as unknown as Store["computerHolds"];
-  return { holds, released };
+  return { holds, released, rows };
 }
 
 const hold = (key: string, botId: string, fence: number): ComputerHold => ({
@@ -71,13 +72,6 @@ const plugin = (cap: { cpus: number; memoryMb: number }): ComputerProviderPlugin
   parseOptions: (raw) => raw,
   check: () => [],
   create: () => ({ capacity: async () => cap }) as unknown as ComputerProvider,
-});
-
-test("bots sharing a computer get distinct cdp ports, by sorted id; another computer starts again", () => {
-  const bots = [bot("bob", "home"), bot("carl", "work"), bot("ann", "home"), bot("dan")];
-  expect(cdpPortOf("ann", "home", bots)).toBe(9300);
-  expect(cdpPortOf("bob", "home", bots)).toBe(9301);
-  expect(cdpPortOf("carl", "work", bots)).toBe(9300);
 });
 
 test("two bots on computer home get their own browser port and profile dir", () => {
@@ -161,5 +155,27 @@ test("release is per run: only the wake that holds the slot frees it and closes 
   await c.release("dan", "wX");
   expect(released).toHaveLength(1);
   expect(close).toHaveBeenCalledTimes(1);
+  close.mockRestore();
+});
+
+test("a lapsed (expired, not released) slot of the run still closes the browser and releases the row", async () => {
+  const close = spyOn(BrowserSession.prototype, "close");
+  const { holds, released, rows } = fakeHolds([
+    { ...hold("slot:ann", "ann", 3), holder: "wB", expiresAt: 5_000 },
+    { ...hold("slot:bob", "bob", 1), holder: "wC", expiresAt: 5_000 },
+  ]);
+  const c = createComputers({
+    settings: undefined,
+    env,
+    bots: () => [bot("ann", "home"), bot("bob", "home")],
+    holds,
+    clock: { now: () => 200_000, setTimer: () => () => {} },
+    log: memLog(),
+  });
+  c.server(specOf(bot("ann", "home"), "wB"));
+  await c.release("ann", "wB");
+  expect(close).toHaveBeenCalledTimes(1);
+  expect(released).toEqual([{ key: "slot:ann", holder: "wB", fence: 3 }]);
+  expect(rows.find((r) => r.key === "slot:bob")?.expiresAt).toBe(5_000);
   close.mockRestore();
 });

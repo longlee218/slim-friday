@@ -11,27 +11,15 @@ import {
   type Store,
 } from "@friday/core";
 import { BrowserSession, computerServer } from "@friday/tools";
-import { computerProvider, computerSlots } from "./computer-plugins";
+import { computerProvider } from "./computer-plugins";
+import { cdpPortOf } from "./computer-ports";
+import { slotCount } from "./computer-slot-count";
 
 /** Where each bot's Chromium profile lives inside its computer (`<root>/<botId>`). */
 export const PROFILE_ROOT = "/home/cua/friday-profiles";
-/** The first bot of a computer debugs its Chromium on this port; the next bots take the following ones. */
-export const CDP_BASE_PORT = 9300;
 /** Size of a computer when settings.yaml does not set it. */
 const DEFAULT_CPUS = 2;
 const DEFAULT_MEMORY_MB = 1536;
-
-/**
- * The cdp port of a bot's Chromium: 9300 plus the bot's index among the sorted ids of the bots that share its
- * computer, so two bots on one computer never meet on one port.
- */
-export function cdpPortOf(botId: BotId, computer: string, bots: Bot[]): number {
-  const ids = bots
-    .filter((b) => b.computer === computer)
-    .map((b) => b.id)
-    .sort();
-  return CDP_BASE_PORT + Math.max(0, ids.indexOf(botId));
-}
 
 /** What the computers of this process are built from. */
 export interface ComputersDeps {
@@ -55,6 +43,8 @@ export interface Computers {
   slotsText(): string;
   /** Settles once the slots were computed at start (never rejects). */
   ready: Promise<void>;
+  /** Awaited before a slot is taken: the first count, or a recount 30 s after a failed one. */
+  slotsReady(): Promise<void>;
   /** Where a bot's browser lives in its computer. */
   placement(bot: Bot): { cdpPort: number; profileDir: string };
   /** The `computer` server of a session; undefined for a bot without a computer. */
@@ -84,8 +74,8 @@ function refusingProvider(why: string): ComputerProvider {
 
 /**
  * Build the computers of this process. The provider comes from settings.yaml through its plugin; a problem is
- * logged and leaves 0 slots with the problem as the slot text (startup never fails for it). Slots are computed once,
- * in the background, and logged as `computer.slots`.
+ * logged and leaves 0 slots with the problem as the slot text (startup never fails for it). Slots are counted in the
+ * background at start (see `slotCount`).
  */
 export function createComputers(d: ComputersDeps): Computers {
   const built = computerProvider(d.settings, d, d.plugins);
@@ -93,21 +83,24 @@ export function createComputers(d: ComputersDeps): Computers {
   // No computer block at all is no problem until a bot names a computer: then its tools say why.
   if (d.settings) for (const message of built.problems) d.log.warn({ message }, "computer.problem");
   const provider = built.provider ?? refusingProvider(problem);
-  let slots = 0;
-  let text = built.provider ? "computer slots not computed yet" : problem;
-  const ready =
-    built.provider && d.settings
-      ? computerSlots(built.provider, d.settings).then((r) => {
-          slots = r.slots;
-          text = r.text;
-          d.log.info({ slots: r.slots, limitedBy: r.limitedBy, text: r.text }, "computer.slots");
-        })
-      : Promise.resolve();
+  const count = slotCount({
+    ...(built.provider && { provider: built.provider }),
+    ...(d.settings && { settings: d.settings }),
+    problem,
+    clock: d.clock,
+    log: d.log,
+  });
+  /** Bots whose port shift was already logged (one warning per pair). */
+  const shifted = new Set<string>();
   const browsers = new Map<BotId, { key: string; browser: BrowserSession }>();
   const sleep = d.sleep ?? ((ms: number) => Bun.sleep(ms));
 
   const placement = (bot: Bot) => ({
-    cdpPort: cdpPortOf(bot.id, bot.computer ?? "", d.bots()),
+    cdpPort: cdpPortOf(bot.id, bot.computer ?? "", d.bots(), (moved, holder) => {
+      if (shifted.has(`${moved}:${holder}`)) return;
+      shifted.add(`${moved}:${holder}`);
+      d.log.warn({ botId: moved, sharesPortWith: holder }, "computer.port_shifted");
+    }),
     profileDir: `${PROFILE_ROOT}/${bot.id}`,
   });
 
@@ -130,9 +123,10 @@ export function createComputers(d: ComputersDeps): Computers {
   };
 
   return {
-    slotLimit: () => slots,
-    slotsText: () => text,
-    ready,
+    slotLimit: count.slots,
+    slotsText: count.text,
+    ready: count.ready,
+    slotsReady: count.refresh,
     placement,
     server(spec) {
       const computer = spec.bot.computer;
@@ -151,16 +145,16 @@ export function createComputers(d: ComputersDeps): Computers {
         holds: d.holds,
         clock: d.clock,
         sleep,
-        slotLimit: () => slots,
-        slotsText: () => text,
+        slotLimit: count.slots,
+        slotsText: count.text,
+        slotsReady: count.refresh,
         browser: browserOf(spec.bot, computer),
       });
     },
     async release(botId, wakeId) {
       const key = `slot:${botId}`;
-      const held = (await d.holds.live(d.clock.now())).filter(
-        (r) => r.key === key && r.holder === wakeId,
-      );
+      // `live(0)`: every row not released (expiresAt 0), lapsed TTL included: a lapsed slot still has a browser.
+      const held = (await d.holds.live(0)).filter((r) => r.key === key && r.holder === wakeId);
       // This run never held the computer (or already gave it back): another run of the bot keeps both.
       if (held.length === 0) return;
       const lease = { holds: d.holds, clock: d.clock, sleep };
