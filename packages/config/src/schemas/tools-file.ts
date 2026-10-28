@@ -16,6 +16,7 @@ const toolsSchema = z.strictObject({
           })
           .optional(),
         sandboxed: z.boolean().optional(),
+        inComputer: z.boolean().optional(),
         scopeKeys: z.array(z.string().min(1)).optional(),
       }),
     )

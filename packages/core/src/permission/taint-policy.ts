@@ -22,6 +22,7 @@ export const FRIDAY_MCP_SERVERS: readonly string[] = [
   "tickets",
   "scratchpad",
   "schedules",
+  "computer",
 ];
 
 /**

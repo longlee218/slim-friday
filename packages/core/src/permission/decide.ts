@@ -64,7 +64,7 @@ export interface Decision {
 }
 
 /**
- * Decide one tool call (spec §6.14). Order: hard floor (deny), per-tool deny, a scheduled run's read step
+ * Decide one tool call (spec §6.14). Order: hard floor (deny), per-tool deny, a computer tool (allow), a scheduled run's read step
  * (allow), mandatory asks (instruction change in a tainted run), the other taint asks (they yield only to an
  * `always_allow` site rule, or for an MCP call a tool or server rule), per-tool `ask` override, a
  * `require_approval` rule, per-tool `allow` override, an `always_allow` rule, then the autonomy level for the
@@ -79,6 +79,8 @@ export function decide(input: DecideInput): Decision {
   const noAlways = isIrreversible(spec);
   const override = settings.tools?.[call.tool];
   if (override === "deny") return { outcome: "deny", reason: "tool override" };
+  // A computer tool acts inside the bot's own computer: it never asks (floor and a tool deny came first).
+  if (spec?.inComputer) return { outcome: "allow", reason: "inside the bot's computer" };
   // A scheduled run's read step never asks (owner decision, spec 6.4); the floor and a tool deny came first.
   if (input.scheduledRead) return { outcome: "allow", reason: "scheduled run: read step" };
   const taint = input.taint;
