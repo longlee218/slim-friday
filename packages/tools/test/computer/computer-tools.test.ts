@@ -119,32 +119,104 @@ test("identical screenshot returns the unchanged text, a changed one an image", 
   expect((await call(tool, {})).content[0]?.type).toBe("image");
 });
 
-test("a lease lost mid-batch stops the batch with an error text", async () => {
+/** Expire the input lease and give it to another bot. */
+async function stealLease(w: ReturnType<typeof world>) {
+  w.clock.advance(31_000);
+  await w.holds.acquire({
+    kind: "input",
+    computer: "box",
+    botId: "bob",
+    holder: "h-bob",
+    ttlMs: 30_000,
+    now: w.clock.now(),
+  });
+}
+
+const FIVE_WAITS = { actions: Array(5).fill({ kind: "wait", ms: 1 }) };
+
+test("a lease lost at action 3 of 5 stops the batch and reports the progress", async () => {
   const w = world();
-  let acts = 0;
+  const s = w.make("ann");
+  const orig = s.ctx.provider.act;
+  let n = 0;
+  s.ctx.provider.act = async (name, a) => {
+    await orig(name, a);
+    if (++n === 2) await stealLease(w);
+  };
+  const r = await call(createComputerActTool(s), FIVE_WAITS);
+  expect(r.isError).toBe(true);
+  expect(textOf(r)).toContain("lease lost after 2 of 5");
+  expect(n).toBe(2);
+});
+
+test("a provider error mid-batch reports the progress", async () => {
+  const w = world();
+  const s = w.make("ann");
+  let n = 0;
+  s.ctx.provider.act = async () => {
+    if (++n === 3) throw new Error("xdotool failed");
+  };
+  const r = await call(createComputerActTool(s), FIVE_WAITS);
+  expect(r.isError).toBe(true);
+  expect(textOf(r)).toContain("xdotool failed after 2 of 5");
+});
+
+test("BrowserAct makes one act call and passes the lease check as beforeStep", async () => {
+  const w = world();
+  let calls = 0;
   const tool = createBrowserActTool(
     w.make("ann", {
-      act: async () => {
-        acts++;
-        // The lease expires and another holder takes it over.
-        w.clock.advance(31_000);
-        await w.holds.acquire({
-          kind: "input",
-          computer: "box",
-          botId: "bob",
-          holder: "h-bob",
-          ttlMs: 30_000,
-          now: w.clock.now(),
+      act: async (_steps: unknown, before?: () => Promise<void>) => {
+        calls++;
+        await before?.();
+        await stealLease(w);
+        await before?.().catch((e: Error) => {
+          throw new Error(`${e.message} after 1 of 3 steps`);
         });
         return "ok";
       },
-    }),
+    } as never),
   );
   const step = { kind: "key", keys: "a" };
   const r = await call(tool, { steps: [step, step, step] });
+  expect(calls).toBe(1);
   expect(r.isError).toBe(true);
-  expect(textOf(r)).toContain("lease lost");
-  expect(acts).toBe(1);
+  expect(textOf(r)).toContain("lease lost after 1 of 3 steps");
+});
+
+test("parallel first calls start the machine and browser once", async () => {
+  const w = world();
+  const tool = createComputerShellTool(w.make("ann"));
+  const [a, b] = await Promise.all([
+    call(tool, { command: ["ls"] }),
+    call(tool, { command: ["ls"] }),
+  ]);
+  expect(a.isError).toBeUndefined();
+  expect(b.isError).toBeUndefined();
+  expect(w.log.filter((l) => l === "provider.ensure")).toHaveLength(1);
+  expect(w.log.filter((l) => l === "browser.ensure")).toHaveLength(1);
+  expect(await w.holds.live(w.clock.now())).toHaveLength(1);
+});
+
+test("a failing start gives both callers an error and releases the slot once", async () => {
+  const w = world();
+  let ensures = 0;
+  const tool = createComputerShellTool(
+    w.make("ann", {
+      ensure: async () => {
+        ensures++;
+        throw new Error("chromium did not start");
+      },
+    }),
+  );
+  const [a, b] = await Promise.all([
+    call(tool, { command: ["ls"] }),
+    call(tool, { command: ["ls"] }),
+  ]);
+  expect(textOf(a)).toContain("chromium did not start");
+  expect(textOf(b)).toContain("chromium did not start");
+  expect(ensures).toBe(1);
+  expect(await w.holds.live(w.clock.now())).toHaveLength(0);
 });
 
 test("a lost slot gives a readable error, then the next call re-acquires", async () => {

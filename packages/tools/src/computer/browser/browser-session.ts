@@ -128,9 +128,9 @@ export class BrowserSession {
   }
 
   /** Run up to 20 steps on the page; refs must come from the latest snapshot. */
-  async act(steps: PageStep[]): Promise<string> {
+  async act(steps: PageStep[], beforeStep?: () => Promise<void>): Promise<string> {
     await this.ensure();
-    return runSteps(this.page(), steps);
+    return runSteps(this.page(), steps, beforeStep);
   }
 
   /** Graceful stop: `Browser.close` so cookies flush (never a kill), then drop the connection. Idempotent. */
