@@ -23,9 +23,9 @@ import { type HubContext, tell } from "./hub-context";
 import { type BotHubDeps, type BotStatus, errText } from "./hub-types";
 import { sweepQuietScopes } from "./idle-close";
 import { queueIntroRun } from "./intro-run";
-import { releaseDependents } from "./ticket-dependents";
-import { followUpStatus } from "./ticket-followups";
-import { postBlockedComment, postBlockedReason, postTicketMilestone } from "./ticket-milestones";
+import { releaseDependent } from "./ticket-dependents";
+import { afterTicketStatus } from "./ticket-followups";
+import { postBlockedComment, postBlockedReason } from "./ticket-milestones";
 import { ownerComment } from "./ticket-owner-comment";
 import { wakeForTicket } from "./ticket-wakes";
 import { admit, wake } from "./wake-admission";
@@ -57,10 +57,8 @@ export class BotHub implements BotMessenger {
       clock: deps.clock,
       wake: (t, botId, actor) => this.wakeForTicket(t, botId, false, actor),
       ...(deps.onTicketChange && { onChange: deps.onTicketChange }),
-      onStatusChange: (t, c) =>
-        postTicketMilestone(this.ctx, t, c.from)
-          .then(() => followUpStatus(this.ctx, t, c))
-          .then(() => releaseDependents(this.ctx, t)),
+      onStatusChange: (t, c) => afterTicketStatus(this.ctx, t, c),
+      onWaitEnded: (t, actor) => releaseDependent(this.ctx, t, actor),
       onComment: (t, c) => postBlockedComment(this.ctx, t, c),
       onBlockedReason: (t) => postBlockedReason(this.ctx, t),
       ...(deps.secretValues && { secretValues: deps.secretValues }),

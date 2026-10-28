@@ -23,6 +23,7 @@ import { addTicketComment } from "./ticket-comment";
 import { readyToWork, resolveBlockers } from "./ticket-dependencies";
 import { type TicketDetail, TicketReads } from "./ticket-reads";
 import { checkUpdate } from "./ticket-update-checks";
+import { wakeAfterUpdate } from "./ticket-update-wakes";
 
 export type { StatusChange, TicketErrorCode, TicketResult } from "./ticket-board-rules";
 
@@ -41,6 +42,8 @@ export class TicketBoard {
       onChange?: (t: Ticket) => void;
       /** Told after a saved update that changed the status (see `StatusChange`); errors stay here. */
       onStatusChange?: (t: Ticket, change: StatusChange) => Promise<void>;
+      /** Told when an update's `blockedBy` ended a ticket's wait (see `wakeAfterUpdate`). */
+      onWaitEnded?: (t: Ticket, actor: Author) => Promise<void>;
       /** Told after a saved comment, and after a blocked ticket got a new reason; errors stay here. */
       onComment?: (t: Ticket, c: TicketComment) => Promise<void>;
       onBlockedReason?: (t: Ticket) => Promise<void>;
@@ -167,10 +170,7 @@ export class TicketBoard {
         .catch(() => {});
     else if (reason && ticket.status === "blocked" && reason !== cur.blockedReason)
       await this.deps.onBlockedReason?.(ticket).catch(() => {});
-    const to = i.assigneeBotId;
-    const byActor = actor.kind === "bot" && actor.botId === to;
-    if (to && to !== cur.assigneeBotId && !byActor && (await readyToWork(this.deps.store, ticket)))
-      await this.deps.wake(ticket, to, actor);
+    await wakeAfterUpdate(this.deps, cur, ticket, actor, i);
     return { ok: true, ticket };
   }
 

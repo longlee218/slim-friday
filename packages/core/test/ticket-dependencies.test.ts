@@ -83,6 +83,91 @@ describe("ticket dependencies: refusals", () => {
   });
 });
 
+describe("ticket dependencies: graph", () => {
+  test("a ticket that starts in the same update cannot wait", async () => {
+    const h = makeHub();
+    const a = await make(h, "a");
+    const c = await make(h, "c", { assignee: "editor" });
+    const r = await h.hub.tickets.update(OWNER, { id: c.id, status: "doing", blockedBy: [ref(a)] });
+    expect(r).toEqual({
+      ok: false,
+      code: "invalid",
+      error: "A started ticket cannot wait on other tickets.",
+    });
+  });
+
+  test("a transitive cycle is refused", async () => {
+    const h = makeHub();
+    const a = await make(h, "a");
+    const b = await make(h, "b");
+    const c = await make(h, "c");
+    await h.hub.tickets.update(OWNER, { id: a.id, blockedBy: [ref(b)] });
+    await h.hub.tickets.update(OWNER, { id: b.id, blockedBy: [ref(c)] });
+    const r = await h.hub.tickets.update(OWNER, { id: c.id, blockedBy: [ref(a)] });
+    expect(r).toEqual({
+      ok: false,
+      code: "invalid",
+      error: `${ref(a)} already waits on this ticket.`,
+    });
+  });
+
+  test("a diamond is accepted", async () => {
+    const h = makeHub();
+    const a = await make(h, "a");
+    const b = await make(h, "b", { blockedBy: [ref(a)] });
+    const c = await make(h, "c", { blockedBy: [ref(a)] });
+    const d = await make(h, "d", { blockedBy: [ref(b), ref(c)] });
+    expect(d.blockedBy).toEqual([b.id, c.id]);
+  });
+});
+
+describe("ticket dependencies: wait ends on update", () => {
+  test("clearing blockedBy on a waiting ticket wakes the assignee once", async () => {
+    const h = makeHub();
+    const a = await make(h, "a");
+    const c = await make(h, "c", { assignee: "editor", blockedBy: [ref(a)] });
+    await h.hub.tickets.update(OWNER, { id: c.id, blockedBy: [] });
+    await flush();
+    expect(wakesOf(h, c)).toHaveLength(1);
+    expect(wakesOf(h, c)[0]?.targetBot).toBe("editor");
+    // A later finish of the removed blocker wakes nobody.
+    await setStatus(h, a, "done");
+    expect(wakesOf(h, c)).toHaveLength(1);
+  });
+
+  test("swapping in finished blockers wakes once", async () => {
+    const h = makeHub();
+    const a = await make(h, "a");
+    const b = await make(h, "b");
+    await setStatus(h, b, "done");
+    const c = await make(h, "c", { assignee: "editor", blockedBy: [ref(a)] });
+    await h.hub.tickets.update(OWNER, { id: c.id, blockedBy: [ref(b)] });
+    await flush();
+    expect(wakesOf(h, c)).toHaveLength(1);
+    await setStatus(h, b, "closed");
+    expect(wakesOf(h, c)).toHaveLength(1);
+  });
+
+  test("shrinking but still waiting wakes nobody", async () => {
+    const h = makeHub();
+    const a = await make(h, "a");
+    const b = await make(h, "b");
+    const c = await make(h, "c", { assignee: "editor", blockedBy: [ref(a), ref(b)] });
+    await h.hub.tickets.update(OWNER, { id: c.id, blockedBy: [ref(b)] });
+    await flush();
+    expect(wakesOf(h, c)).toHaveLength(0);
+  });
+
+  test("the assignee ending its own wait is not woken", async () => {
+    const h = makeHub();
+    const a = await make(h, "a");
+    const c = await make(h, "c", { assignee: "editor", blockedBy: [ref(a)] });
+    await h.hub.tickets.update({ kind: "bot", botId: "editor" }, { id: c.id, blockedBy: [] });
+    await flush();
+    expect(wakesOf(h, c)).toHaveLength(0);
+  });
+});
+
 describe("ticket dependencies: wakes", () => {
   test("waiting ticket does not wake its assignee at create", async () => {
     const h = makeHub();

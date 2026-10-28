@@ -1,3 +1,4 @@
+import type { Author } from "../domain/message";
 import { type Ticket, ticketRef } from "../tickets/ticket";
 import { finished } from "../tickets/ticket-board-rules";
 import { blockersOf } from "../tickets/ticket-dependencies";
@@ -35,16 +36,29 @@ export async function releaseDependents(ctx: HubContext, done: Ticket): Promise<
   }
 }
 
-/** Wake and announce `dep` when it is `todo`, has an assignee and waits on nothing any more. */
-async function release(ctx: HubContext, dep: Ticket): Promise<void> {
+/**
+ * An update's `blockedBy` ended the wait of `dep`: wake its assignee as a release would, with the same
+ * dedupe key, so a later finish of a blocker replays instead of waking twice. Never throws.
+ */
+export async function releaseDependent(ctx: HubContext, dep: Ticket, actor: Author): Promise<void> {
+  await release(ctx, dep, actor).catch((err) =>
+    ctx.deps.log?.error({ error: errText(err), ticketId: dep.id }, "hub.ticket_release_failed"),
+  );
+}
+
+/**
+ * Wake and announce `dep` when it is `todo`, has an assignee and waits on nothing any more. A ticket
+ * whose blockers were all removed has nothing to name, so it posts no ready line.
+ */
+async function release(ctx: HubContext, dep: Ticket, actor: Author = SYSTEM): Promise<void> {
   if (dep.status !== "todo" || !dep.assigneeBotId) return;
   const blockers = await blockersOf(ctx.deps.store, dep);
   if (blockers.some((b) => !finished(b.status))) return;
   const ids = [...(dep.blockedBy ?? [])].sort().join(",");
-  const woke = await wakeForTicket(ctx, dep, dep.assigneeBotId, false, SYSTEM, {
+  const woke = await wakeForTicket(ctx, dep, dep.assigneeBotId, false, actor, {
     text: releasedWakeText(dep, blockers),
     dedupeKey: `unblocked:${dep.id}:${ids}`,
   });
   // Only a new run announces the ticket: a replayed key was announced the first time.
-  if (woke?.ok && !woke.replayed) await postReadyToStart(ctx, dep, blockers);
+  if (woke?.ok && !woke.replayed && blockers.length > 0) await postReadyToStart(ctx, dep, blockers);
 }
