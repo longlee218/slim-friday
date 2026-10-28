@@ -338,7 +338,10 @@ export interface Store {
       ttlMs: number;
       now: number;
     }): Promise<boolean>;
-    /** Delete a hold when holder and fence match; otherwise leave it. */
+    /**
+     * Expire a hold (`expiresAt` 0) when holder and fence match; otherwise leave it. Never delete the row: it keeps
+     * the fence, so the next acquire continues from it instead of restarting at 1.
+     */
     release(a: { key: string; holder: string; fence: number }): Promise<void>;
     /** Holds not yet expired at `now`. */
     live(now: number): Promise<ComputerHold[]>;
