@@ -31,17 +31,20 @@ export const BotDtoSchema = z.object({
   autonomy: z.enum(["careful", "balanced", "autonomous"]).optional(),
   avatar: z.string().optional(),
   avatarUrl: z.string().optional(),
+  /** The bot's computer, set in its file by hand (read only here). */
+  computer: z.string().optional(),
   shipped: z.boolean().optional(),
   /** The web app may offer Delete (an owner bot that is not reserved). */
   deletable: z.boolean().optional(),
 });
 export type BotDto = z.infer<typeof BotDtoSchema>;
 
-/** What the owner may save for a bot: avatars go through `setAvatar`, subagents stay as in the file. */
+/** What the owner may save for a bot: avatars go through `setAvatar`, subagents and the computer stay as in the file. */
 export const BotInputDtoSchema = BotDtoSchema.omit({
   id: true,
   avatar: true,
   avatarUrl: true,
+  computer: true,
   shipped: true,
   deletable: true,
   subagents: true,

@@ -188,6 +188,18 @@ test("a save keeps the avatar; only setAvatar changes it", () => {
   expect(admin.getBot("dev").avatar).toBe(`upload:${U1}`);
 });
 
+test("a web save keeps the owner-set computer and getBot shows it", () => {
+  admin.saveBot(dev, "create");
+  const file = join(configDir, "bots", "dev.md");
+  writeFileSync(file, readFileSync(file, "utf8").replace("---\n", "---\ncomputer: home\n"));
+  expect(admin.getBot("dev").computer).toBe("home");
+  admin.saveBot({ ...dev, title: "lead" }, "update");
+  expect(admin.getBot("dev")).toMatchObject({ title: "lead", computer: "home" });
+  // The input carries no computer: one sent anyway does not get through.
+  admin.saveBot({ ...dev, computer: "other" } as unknown as BotInput, "update");
+  expect(admin.getBot("dev").computer).toBe("home");
+});
+
 test("setAvatar returns the previous value and writes upload:<id>", () => {
   admin.saveBot(dev, "create");
   expect(admin.setAvatar({ kind: "bot", id: "dev" }, `upload:${U1}`)).toEqual({});

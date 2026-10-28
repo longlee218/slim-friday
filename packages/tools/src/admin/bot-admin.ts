@@ -70,6 +70,7 @@ export function getBotEntry(ctx: DesignContext, rawId: string): BotEntry {
       ...opt("maxEffort"),
       ...opt("autonomy"),
       ...(typeof h.avatar === "string" && { avatar: h.avatar }),
+      ...(typeof h.computer === "string" && { computer: h.computer }),
       shipped: !isOwnerBot(ctx, id) && !isOverridable(ctx, id),
       deletable: isOwnerBot(ctx, id) && !ctx.reservedBotIds.includes(id),
     };
@@ -93,8 +94,8 @@ export function listBotEntries(ctx: DesignContext): BotEntry[] {
 }
 
 /**
- * Create or update an owner bot through the same checks `BotDesign` runs. The avatar and the subagents are not part
- * of the input: an update keeps the file's own. The owner may set autonomy `autonomous`.
+ * Create or update an owner bot through the same checks `BotDesign` runs. The avatar, the subagents and the computer
+ * are not part of the input: an update keeps the file's own. The owner may set autonomy `autonomous`.
  */
 export function saveBotFile(ctx: DesignContext, b: BotInput, mode: "create" | "update"): void {
   guarded(() => {

@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { AdminError } from "@friday/core";
 import { createRouterClient, ORPCError } from "@orpc/server";
 import { appRouter } from "../src/index";
-import { toMcpDto } from "../src/routers/config/to-dto";
+import { toBotDto, toMcpDto } from "../src/routers/config/to-dto";
 import { engineHarness } from "./helpers/engine-deps";
 
 const botInput = {
@@ -142,6 +142,12 @@ test("mcp.calls reads the audit by exact prefix and drops it from the tool", asy
   expect(await h.client.config.mcp.calls({ server: "a", limit: 10 })).toEqual([
     { at: 1, botId: "ann", tool: "read", outcome: "allow" },
   ]);
+});
+
+test("toBotDto passes the bot's computer through", () => {
+  const entry = { id: "ann", ...botInput, shipped: false, deletable: true };
+  expect(toBotDto({ ...entry, computer: "home" }).computer).toBe("home");
+  expect(toBotDto(entry)).not.toHaveProperty("computer");
 });
 
 test("toMcpDto redacts every env and header value that is not a reference", () => {
