@@ -35,7 +35,7 @@ export function fakeComputerHolds(): Store["computerHolds"] {
     },
     release: async (a) => {
       const r = rows.get(a.key);
-      if (r && r.holder === a.holder && r.fence === a.fence) rows.delete(a.key);
+      if (r && r.holder === a.holder && r.fence === a.fence) r.expiresAt = 0;
     },
     live: async (now) => [...rows.values()].filter((r) => r.expiresAt > now).map((r) => ({ ...r })),
   };
