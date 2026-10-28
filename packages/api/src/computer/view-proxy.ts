@@ -103,11 +103,8 @@ export function createViewProxy(deps: {
     if (!parts || !claims || claims.iat <= (revokedAt.get(claims.computer) ?? -1)) {
       return c.json({ code: "FORBIDDEN" }, 403);
     }
-    if (
-      claims.mode === "control" &&
-      deps.controlHeld &&
-      !(await deps.controlHeld(claims.computer))
-    ) {
+    // Fails closed: a control link without a hold check (or with no owner hold) is refused.
+    if (claims.mode === "control" && !(await deps.controlHeld?.(claims.computer))) {
       return c.json({ code: "FORBIDDEN" }, 403);
     }
     if (escapes(parts.rest)) return c.json({ code: "BAD_PATH" }, 400);
