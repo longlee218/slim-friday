@@ -120,6 +120,29 @@ test("after 10 min without a tool call the heartbeat stops (a parked session giv
   expect(await w.holds.live(w.clock.now())).toEqual([]);
 });
 
+test("an idle stop closes the browser and releases the slot; the next call re-acquires", async () => {
+  let closed = 0;
+  let ensured = 0;
+  const w = world({
+    browser: {
+      ensure: async () => {
+        ensured++;
+      },
+      close: async () => {
+        closed++;
+      },
+    } as never,
+  });
+  const tool = createComputerShellTool(w.session);
+  await call(tool, { command: ["ls"] });
+  await pass(w.clock, 640_000);
+  expect(closed).toBe(1);
+  expect(await w.holds.live(w.clock.now())).toEqual([]);
+  expect((await call(tool, { command: ["ls"] })).isError).toBeUndefined();
+  expect(ensured).toBe(2);
+  expect(await w.holds.live(w.clock.now())).toHaveLength(1);
+});
+
 test("the first call waits for the slot count instead of being refused", async () => {
   let limit = 0;
   let done: () => void = () => {};

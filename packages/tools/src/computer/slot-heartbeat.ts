@@ -27,9 +27,14 @@ export interface SlotHeartbeat {
 
 /**
  * Renew `hold` every 40 s while it is held. Stops for good when a renew returns false (released, e.g. by the
- * run-end release, or taken over) or throws, and after 10 min without a tool call. Never throws.
+ * run-end release, or taken over) or throws, and after 10 min without a tool call (then `onIdle` runs so the
+ * browser closes and the slot is released). Never throws.
  */
-export function slotHeartbeat(deps: LeaseDeps, every: Every = realEvery): SlotHeartbeat {
+export function slotHeartbeat(
+  deps: LeaseDeps,
+  every: Every = realEvery,
+  onIdle?: () => Promise<void>,
+): SlotHeartbeat {
   let stopCurrent: (() => void) | undefined;
   let lastCall = deps.clock.now();
   const stop = () => {
@@ -43,7 +48,12 @@ export function slotHeartbeat(deps: LeaseDeps, every: Every = realEvery): SlotHe
       const cancel = every(HEARTBEAT_MS, () => {
         // Only this beat may end itself: a newer one may have replaced it.
         const end = () => (stopCurrent === cancel ? stop() : cancel());
-        if (deps.clock.now() - lastCall > HEARTBEAT_IDLE_MS) return end();
+        if (deps.clock.now() - lastCall > HEARTBEAT_IDLE_MS) {
+          end();
+          // The slot would lapse with Chromium still running: give both back instead.
+          void onIdle?.().catch(() => undefined);
+          return;
+        }
         if (busy) return;
         busy = true;
         renewSlot(deps, hold)
