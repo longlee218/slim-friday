@@ -51,7 +51,14 @@ export async function followUpStatus(
     }
     const sentBack = (from === "review" || from === "blocked") && isOpenWork(t);
     const byCreatorOrOwner = actor.kind === "user" || isBot(actor, creator);
-    if (sentBack && byCreatorOrOwner && assignee && !isBot(actor, assignee)) {
+    // A re-assign in the same update is woken by the board's assignment wake instead.
+    if (
+      sentBack &&
+      byCreatorOrOwner &&
+      assignee &&
+      !isBot(actor, assignee) &&
+      !change.assigneeChanged
+    ) {
       const text = sentBackWakeText(t, await lastComment(ctx, t));
       await wakeForTicket(ctx, t, assignee, false, actor, { text, dedupeKey });
     }

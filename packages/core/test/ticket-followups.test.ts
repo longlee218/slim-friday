@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { Author, Ticket } from "../src";
 import type { HubContext } from "../src/hub/hub-context";
 import { followUpStatus } from "../src/hub/ticket-followups";
-import { flush, makeHub } from "./bot-hub-harness";
+import { bot, flush, makeHub } from "./bot-hub-harness";
 
 type Hub = ReturnType<typeof makeHub>;
 
@@ -70,7 +70,12 @@ describe("ticket follow-ups", () => {
     // Replaying the same saved event finds the first run.
     const ev = (await h.store.ticketEvents.list(t.id)).filter((e) => e.kind === "status").at(-1);
     const saved = (await h.store.tickets.get(t.id)) as Ticket;
-    await followUpStatus(ctxOf(h), saved, { from: "todo", actor: EDITOR, eventId: ev?.id ?? "" });
+    await followUpStatus(ctxOf(h), saved, {
+      from: "todo",
+      actor: EDITOR,
+      eventId: ev?.id ?? "",
+      assigneeChanged: false,
+    });
     await flush();
     expect(wakesTo(h, "writer")).toHaveLength(1);
   });
@@ -115,6 +120,40 @@ describe("ticket follow-ups", () => {
       `Ticket FRI-${t.number} was sent back to you: add tests. Fix it and set it to review.`,
     ]);
     expect(back[0]).toMatchObject({ conversationId: "dc", ticketId: t.id, sender: WRITER });
+  });
+
+  test("owner send back wakes the original assignee once", async () => {
+    const h = hubWithWriterDm();
+    const t = await ticketFor(h);
+    await setStatus(h, EDITOR, t, "blocked", "need the API key");
+    await setStatus(h, OWNER, t, "todo");
+    const back = wakesTo(h, "editor").filter((w) => w.text.includes("was sent back"));
+    expect(back.map((w) => w.text)).toEqual([
+      `Ticket FRI-${t.number} was sent back to you: (no comment). Fix it and set it to review.`,
+    ]);
+    expect(back[0]).toMatchObject({ conversationId: "dc", sender: OWNER });
+  });
+
+  test("a send back that re-assigns wakes the new assignee once with the ticket text", async () => {
+    const h = hubWithWriterDm();
+    h.store.botMap.set("critic", bot("critic", "Critic"));
+    h.store.convMap.set("cc", { id: "cc", kind: "direct", botId: "critic" });
+    const g = h.store.groupMap.get("g");
+    if (!g) throw new Error("no group");
+    h.store.groupMap.set("g", { ...g, members: [...g.members, "critic"] });
+    const t = await ticketFor(h);
+    await setStatus(h, EDITOR, t, "review");
+    const r = await h.hub.tickets.update(WRITER, {
+      id: t.id,
+      status: "todo",
+      assigneeBotId: "critic",
+    });
+    expect(r.ok).toBe(true);
+    await flush();
+    expect(wakesTo(h, "critic").map((w) => w.text)).toEqual([
+      `Work on ticket FRI-${t.number}. Read it with TicketGet. Keep progress in ticket comments and update its status with TicketUpdate. Use ask or approval cards when owner input is needed.`,
+    ]);
+    expect(wakesTo(h, "editor").filter((w) => w.text.includes("was sent back"))).toEqual([]);
   });
 
   test("owner-created ticket review wakes no bot", async () => {

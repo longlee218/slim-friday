@@ -15,6 +15,7 @@ import {
   INVALID,
   NOT_FOUND,
   PRIORITIES,
+  type StatusChange,
   TITLE_MAX,
   type TicketResult,
   type TicketUpdateInput,
@@ -23,14 +24,7 @@ import { createdEvent, ticketChangeEvents } from "./ticket-change-events";
 import { type TicketDetail, TicketReads } from "./ticket-reads";
 import { checkUpdate } from "./ticket-update-checks";
 
-export type { TicketErrorCode, TicketResult } from "./ticket-board-rules";
-
-/** A saved status change: the previous status, who made it and the id of its `status` ticket event. */
-export interface StatusChange {
-  from: TicketStatus;
-  actor: Author;
-  eventId: string;
-}
+export type { StatusChange, TicketErrorCode, TicketResult } from "./ticket-board-rules";
 
 /** The shared board: the rules for creating, listing, changing and commenting on tickets. */
 export class TicketBoard {
@@ -154,7 +148,12 @@ export class TicketBoard {
     // The store writes the events in the update; their status entry keys the follow-up wakes.
     if (ticket.status !== cur.status && statusEventId)
       await this.deps
-        .onStatusChange?.(ticket, { from: cur.status, actor, eventId: statusEventId })
+        .onStatusChange?.(ticket, {
+          from: cur.status,
+          actor,
+          eventId: statusEventId,
+          assigneeChanged: ticket.assigneeBotId !== cur.assigneeBotId,
+        })
         .catch(() => {});
     const to = i.assigneeBotId;
     const byActor = actor.kind === "bot" && actor.botId === to;
