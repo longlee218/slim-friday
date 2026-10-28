@@ -5,7 +5,7 @@ import { capabilityNotes, howFridayWorks, PROGRESS_RULE, SAFETY_RULES } from "./
  * The system prompt of a session, stable blocks first so the SDK's prompt cache keeps the prefix (spec §6.4):
  * identity and instructions, how Friday works, skills/subagents/MCP notes, the safety block, the progress rule,
  * then what the session read at open: the owner's rules for the bot (before the memory, never cut by the memory
- * cap), the bot's memory, for a group session the group context, rules and memory, for a direct session the
+ * cap), the bot's memory, the bot's computer facts, for a group session the group context, rules and memory, for a direct session the
  * teammate directory, and last the open scratchpad items. No trigger guidance and no time: those are in the turn,
  * so every run kind gets the same prompt. Re-read at every open, so a resumed transcript never piles up copies.
  */
@@ -21,6 +21,8 @@ export function systemPromptOf(spec: BotRuntimeSpec, scratchDir: string): string
     section("Progress updates", PROGRESS_RULE),
     section("Your rules", spec.rules, RULES_LABEL),
     section("Your memory", spec.memory, MEMORY_LABEL),
+    // The bot's own computer, if it has one (its `<computer>` block carries its own tags).
+    spec.computerContext || undefined,
     section("Group context", spec.groupContext),
     section("Group rules", spec.groupRules, RULES_LABEL),
     section("Group memory", spec.groupMemory, MEMORY_LABEL),
