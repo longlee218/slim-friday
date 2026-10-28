@@ -686,7 +686,10 @@ export class FakeStore implements Store {
     update: async (
       id: string,
       patch: Partial<
-        Pick<Ticket, "title" | "description" | "status" | "priority" | "assigneeBotId">
+        Pick<
+          Ticket,
+          "title" | "description" | "status" | "priority" | "assigneeBotId" | "blockedBy"
+        >
       > & { conversationId?: string; blockedReason?: string | null },
       now: number,
       opts?: { ifUpdatedAt?: number; events?: (prev: Ticket, next: Ticket) => TicketEvent[] },
@@ -701,6 +704,7 @@ export class FakeStore implements Store {
       for (const [k, v] of Object.entries(rest)) if (v === undefined) delete (rest as never)[k];
       Object.assign(t, rest, { updatedAt: Math.max(now, t.updatedAt + 1) });
       if (blockedReason !== undefined) t.blockedReason = blockedReason ?? undefined;
+      if (!t.blockedBy?.length) t.blockedBy = undefined;
       if (t.status !== "blocked") t.blockedReason = undefined;
       if (t.status === "done" || t.status === "closed") t.completedAt = t.completedAt ?? now;
       else t.completedAt = undefined;
@@ -714,6 +718,27 @@ export class FakeStore implements Store {
       if (t) t.updatedAt = Math.max(t.updatedAt + 1, c.createdAt);
       return comment;
     },
+    addCommentOnce: async (c: TicketComment) => {
+      const stored = this.ticketComments.find((x) => x.id === c.id);
+      if (stored) return { comment: stored, created: false };
+      return { comment: await this.tickets.addComment(c), created: true };
+    },
+    activeOfAssignee: async (botId: BotId, groupId: string) =>
+      [...this.ticketMap.values()]
+        .filter(
+          (t) =>
+            t.assigneeBotId === botId &&
+            t.groupId === groupId &&
+            t.status !== "done" &&
+            t.status !== "closed",
+        )
+        .sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : 1))
+        .map((t) => ({ ...t })),
+    blockedByTicket: async (id: string) =>
+      [...this.ticketMap.values()]
+        .filter((t) => t.blockedBy?.includes(id))
+        .sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : 1))
+        .map((t) => ({ ...t })),
     comments: async (ticketId: string) =>
       this.ticketComments
         .filter((c) => c.ticketId === ticketId)

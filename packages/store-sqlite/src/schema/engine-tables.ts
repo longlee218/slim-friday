@@ -228,6 +228,8 @@ export const tickets = sqliteTable(
     groupId: text("group_id"),
     /** Why the ticket is `blocked`. */
     blockedReason: text("blocked_reason"),
+    /** JSON array of ticket ids that must finish first; null = none. */
+    blockedBy: text("blocked_by"),
   },
   (t) => [index("tickets_created_idx").on(t.createdAt, t.id)],
 );

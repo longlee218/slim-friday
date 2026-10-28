@@ -1,40 +1,19 @@
-import type { Author, Store, Ticket, TicketComment } from "@friday/core";
+import type { Store, TicketComment } from "@friday/core";
 import { and, asc, desc, eq, inArray, lt, ne, or, sql } from "drizzle-orm";
 import type { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import { ticketComments, ticketCounter, tickets } from "../schema/engine-tables";
 import { insertTicketEvent } from "./ticket-event-repo";
-
-type Row = typeof tickets.$inferSelect;
+import { ticketQueries } from "./ticket-repo-queries";
+import { fromRow, type Row, toAuthor } from "./ticket-row";
 
 /** Statuses whose tickets count as finished. */
 const FINISHED = ["done", "closed"];
-
-const toAuthor = (kind: string, botId: string | null): Author =>
-  kind === "bot" && botId
-    ? { kind: "bot", botId }
-    : { kind: kind === "system" ? "system" : "user" };
-
-const fromRow = (r: Row): Ticket => ({
-  id: r.id,
-  number: r.number,
-  title: r.title,
-  ...(r.description != null && { description: r.description }),
-  status: r.status as Ticket["status"],
-  priority: r.priority as Ticket["priority"],
-  ...(r.assigneeBotId && { assigneeBotId: r.assigneeBotId }),
-  createdBy: toAuthor(r.createdByKind, r.createdByBotId),
-  createdAt: r.createdAt,
-  updatedAt: r.updatedAt,
-  ...(r.completedAt != null && { completedAt: r.completedAt }),
-  ...(r.conversationId && { conversationId: r.conversationId }),
-  ...(r.groupId && { groupId: r.groupId }),
-  ...(r.blockedReason && { blockedReason: r.blockedReason }),
-});
 
 /** The ticket board: tickets, their comments and the number counter. */
 export function ticketRepo(db: BunSQLiteDatabase): Store["tickets"] {
   const byId = (id: string) => db.select().from(tickets).where(eq(tickets.id, id)).get();
   return {
+    ...ticketQueries(db),
     async create(t, opts) {
       // The counter is read and bumped in one transaction, so two creates never get the same number.
       return db.transaction((tx) => {
@@ -57,6 +36,7 @@ export function ticketRepo(db: BunSQLiteDatabase): Store["tickets"] {
             createdByKind: t.createdBy.kind,
             createdByBotId: t.createdBy.kind === "bot" ? t.createdBy.botId : null,
             groupId: t.groupId ?? null,
+            blockedBy: t.blockedBy?.length ? JSON.stringify(t.blockedBy) : null,
             createdAt: t.createdAt,
             updatedAt: t.createdAt,
             completedAt: FINISHED.includes(t.status) ? t.createdAt : null,
@@ -123,6 +103,9 @@ export function ticketRepo(db: BunSQLiteDatabase): Store["tickets"] {
             ...(patch.priority !== undefined && { priority: patch.priority }),
             ...(patch.assigneeBotId !== undefined && { assigneeBotId: patch.assigneeBotId }),
             ...(patch.conversationId !== undefined && { conversationId: patch.conversationId }),
+            ...(patch.blockedBy !== undefined && {
+              blockedBy: patch.blockedBy.length ? JSON.stringify(patch.blockedBy) : null,
+            }),
             status,
             blockedReason: status === "blocked" ? reason : null,
             // Always moves forward, even for two writes in the same millisecond.
