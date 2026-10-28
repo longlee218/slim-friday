@@ -65,4 +65,17 @@ describe("owner ticket comments", () => {
     expect(await h.store.tickets.comments(t.id)).toHaveLength(1);
     expect(h.store.wakeMap.size).toBe(before + 1);
   });
+
+  test("a failing wake is logged and the comment still succeeds", async () => {
+    const h = makeHub();
+    const t = await assigned(h);
+    h.store.wakes.insertDeduped = async () => {
+      throw new Error("db down");
+    };
+    const r = await h.hub.ownerComment(`FRI-${t.number}`, "still saved");
+    await flush();
+    expect(r).toMatchObject({ ok: true, created: true, woke: true });
+    expect((await h.store.tickets.comments(t.id)).map((c) => c.body)).toEqual(["still saved"]);
+    expect(h.log.of("hub.ticket_wake_failed")).toHaveLength(1);
+  });
 });
