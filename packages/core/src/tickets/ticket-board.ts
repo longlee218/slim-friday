@@ -5,11 +5,8 @@ import type { Author } from "../domain/message";
 import type { Clock } from "../ports/clock";
 import type { Store } from "../ports/store";
 import type { Ticket, TicketComment, TicketPriority, TicketStatus } from "./ticket";
-import { acceptanceRefusal } from "./ticket-acceptance";
 import { assigneeRefusal } from "./ticket-assignee";
 import {
-  BAD_STATUS,
-  BLOCKED_REASON_MAX,
   COMMENT_MAX,
   CONFLICT,
   cleanText,
@@ -18,16 +15,22 @@ import {
   INVALID,
   NOT_FOUND,
   PRIORITIES,
-  REASON_REQUIRED,
-  STATUSES,
   TITLE_MAX,
   type TicketResult,
   type TicketUpdateInput,
 } from "./ticket-board-rules";
 import { createdEvent, ticketChangeEvents } from "./ticket-change-events";
 import { type TicketDetail, TicketReads } from "./ticket-reads";
+import { checkUpdate } from "./ticket-update-checks";
 
 export type { TicketErrorCode, TicketResult } from "./ticket-board-rules";
+
+/** A saved status change: the previous status, who made it and the id of its `status` ticket event. */
+export interface StatusChange {
+  from: TicketStatus;
+  actor: Author;
+  eventId: string;
+}
 
 /** The shared board: the rules for creating, listing, changing and commenting on tickets. */
 export class TicketBoard {
@@ -42,8 +45,8 @@ export class TicketBoard {
       wake: (ticket: Ticket, botId: BotId, actor: Author) => Promise<void>;
       /** Told after every saved create, update and comment; whatever it throws stays here. */
       onChange?: (t: Ticket) => void;
-      /** Told after a saved update that changed the status, with the previous status; errors stay here. */
-      onStatusChange?: (t: Ticket, from: TicketStatus) => Promise<void>;
+      /** Told after a saved update that changed the status (see `StatusChange`); errors stay here. */
+      onStatusChange?: (t: Ticket, change: StatusChange) => Promise<void>;
       /** The configured secret values to hide in ticket text (the app's denied env values). */
       secretValues?: () => string[];
     },
@@ -113,23 +116,11 @@ export class TicketBoard {
   async update(actor: Author, i: TicketUpdateInput): Promise<TicketResult<{ ticket: Ticket }>> {
     const cur = await this.reads.find(i.id);
     if (!cur) return NOT_FOUND;
-    if (i.status !== undefined && !STATUSES.includes(i.status)) return BAD_STATUS;
-    const notAllowed = acceptanceRefusal(cur, actor, i.status);
-    if (notAllowed) return notAllowed;
-    const title =
-      i.title === undefined ? undefined : cleanText(this.deps.secretValues, i.title.trim());
-    if (title !== undefined && (!title || title.length > TITLE_MAX)) return INVALID;
-    if (i.description && i.description.length > DESCRIPTION_MAX) return INVALID;
-    if (i.priority !== undefined && !PRIORITIES.includes(i.priority)) return INVALID;
-    // The ticket's own group decides who may take it, not the acting session's.
-    const refused = await assigneeRefusal(this.deps.store, i.assigneeBotId, cur.groupId);
-    if (refused) return refused;
-    const reason = i.blockedReason?.trim();
-    const blocks = (i.status ?? cur.status) === "blocked";
-    if (reason !== undefined && (!blocks || reason.length > BLOCKED_REASON_MAX)) return INVALID;
-    // A ticket already blocked keeps its reason; moving into blocked needs one.
-    if (blocks && cur.status !== "blocked" && !reason) return REASON_REQUIRED;
+    const checked = await checkUpdate(this.deps.store, this.deps.secretValues, cur, actor, i);
+    if (!checked.ok) return checked;
+    const { title, reason } = checked;
     const now = this.deps.clock.now();
+    let statusEventId: string | undefined;
     const ticket = await this.deps.store.tickets.update(
       cur.id,
       {
@@ -150,14 +141,21 @@ export class TicketBoard {
       {
         ...(i.expectedUpdatedAt !== undefined && { ifUpdatedAt: i.expectedUpdatedAt }),
         // Written in the same transaction, so a conflict leaves no event behind.
-        events: (prev, next) => ticketChangeEvents(prev, next, actor, now),
+        events: (prev, next) => {
+          const events = ticketChangeEvents(prev, next, actor, now);
+          statusEventId = events.find((e) => e.kind === "status")?.id;
+          return events;
+        },
       },
     );
     if (ticket === "conflict") return CONFLICT;
     if (!ticket) return NOT_FOUND;
     this.changed(ticket);
-    if (ticket.status !== cur.status)
-      await this.deps.onStatusChange?.(ticket, cur.status).catch(() => {});
+    // The store writes the events in the update; their status entry keys the follow-up wakes.
+    if (ticket.status !== cur.status && statusEventId)
+      await this.deps
+        .onStatusChange?.(ticket, { from: cur.status, actor, eventId: statusEventId })
+        .catch(() => {});
     const to = i.assigneeBotId;
     const byActor = actor.kind === "bot" && actor.botId === to;
     if (to && to !== cur.assigneeBotId && !byActor && !finished(ticket.status))
