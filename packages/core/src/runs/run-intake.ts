@@ -10,6 +10,7 @@ import { createRun } from "./run-create";
 import { answerByText } from "./run-intake-cards";
 import { intakeReaction } from "./run-intake-reaction";
 import { steerIntoBusyScope } from "./run-intake-steer";
+import { routeToTicket } from "./run-intake-ticket";
 import { ownerRunKey, steeringId, supersede } from "./run-supersede";
 
 /**
@@ -68,7 +69,7 @@ export async function intakeOwnerMessage(
     ...(m.attachments && { attachments: m.attachments }),
   };
   for (const botId of await hubTargets(store, conv, m.text, replyToBot))
-    await intakeForBot(ctx, { botId, conv, messageId: id, typed: m.text, runText, opts });
+    await intakeForBot(ctx, { botId, conv, messageId: id, typed: m.text, runText, hasFiles, opts });
   return id;
 }
 
@@ -84,11 +85,13 @@ interface BotIntake {
   typed: string;
   /** The text a run or steering row carries. */
   runText: string;
+  /** The message carries files. */
+  hasFiles: boolean;
   /** Quote and files a new run carries. */
   opts: WakeOpts;
 }
 
-/** The branches for one bot, in the spec's order: question card, busy run of this conversation, new run. */
+/** The branches for one bot, in the spec's order: question card, ticket, busy run of this conversation, new run. */
 async function intakeForBot(ctx: HubContext, t: BotIntake): Promise<void> {
   const { store } = ctx.deps;
   const bot = await store.bots.get(t.botId);
@@ -104,6 +107,7 @@ async function intakeForBot(ctx: HubContext, t: BotIntake): Promise<void> {
       })
     )
       return;
+    if (await routeToTicket(ctx, t)) return;
     // A parked run (waiting_input) does not hold the scope; runs of another conversation do not take steering.
     const busy = (await store.wakes.activeInScope(scope.key)).filter(
       (w) => w.status !== "waiting_input" && w.conversationId === t.conv.id,
