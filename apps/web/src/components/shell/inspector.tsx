@@ -8,61 +8,33 @@ import {
   SlidersHorizontal,
   UsersRound,
 } from "lucide-react";
+import { useContext } from "react";
 import { orpc } from "../../api/client";
 import { useDirectory } from "../../api/directory";
 import { formatCost } from "../../lib/format";
 import { conversationParts } from "../chat/conversation-parts";
+import { ComputerCard } from "../computer/computer-card";
 import { Avatar } from "../ui/avatar";
 import { Pill } from "../ui/pill";
 import { MemorySection, OpenTicketsSection, ScratchpadSection } from "./bot-inspector-sections";
 import { PairFace } from "./chat-rows";
 import { InspectorSection, Prop, QuickAction } from "./inspector-parts";
 import { useAppNavigate } from "./use-app-navigate";
+import { PanelsContext } from "./use-responsive-panels";
 import { useStopRun } from "./use-stop-run";
 
-/** Bot inspector: hero with Edit and Stop, what it is doing now, memory, settings, open tickets. */
+/**
+ * Bot inspector: hero with Edit and Stop, what it is doing now, its computer, memory, settings,
+ * open tickets. A widened inspector shows the computer alone; the card keeps its slot so the
+ * stream survives the switch.
+ */
 function BotInspector({ bot, status }: { bot: BotDto; status?: BotStatusDto }) {
   const go = useAppNavigate();
   const stop = useStopRun();
+  const stage = useContext(PanelsContext)?.inspectorWide ?? false;
   const working = status?.working ?? false;
-  return (
+  const rest = (
     <>
-      <div className="insp-hero">
-        <Avatar src={bot.avatarUrl} name={bot.name} size={88} working={working} />
-        <h2>{bot.name}</h2>
-        <div className="r">{`${bot.title} · ${bot.model}`}</div>
-        <div className="insp-actions">
-          <QuickAction
-            icon={<SlidersHorizontal strokeWidth={1.75} />}
-            label="Edit"
-            onClick={() => go(`/settings/bot/${bot.id}`)}
-          />
-          <QuickAction
-            icon={<CircleStop strokeWidth={1.75} />}
-            label="Stop"
-            danger
-            disabled={!working}
-            onClick={() => void stop({ botId: bot.id })}
-          />
-        </div>
-      </div>
-      <InspectorSection title="Now" icon={<Activity strokeWidth={1.75} />} tone="blue">
-        {working ? (
-          <div className="task" style={{ padding: "6px 0" }}>
-            <LoaderCircle className="spin" strokeWidth={1.75} />
-            <div className="grow">
-              <div className="t1">{status?.label || "Working"}</div>
-              {status?.tasks.map((t) => (
-                <div key={t.id} className="t2">
-                  {t.description}
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div style={{ color: "var(--label-2)" }}>Idle</div>
-        )}
-      </InspectorSection>
       <MemorySection bot={bot} />
       <InspectorSection title="About" icon={<Info strokeWidth={1.75} />} tone="gray">
         <Prop label="Effort">{bot.effort ?? "Default"}</Prop>
@@ -75,6 +47,52 @@ function BotInspector({ bot, status }: { bot: BotDto; status?: BotStatusDto }) {
       </InspectorSection>
       <OpenTicketsSection botId={bot.id} />
       <ScratchpadSection botId={bot.id} />
+    </>
+  );
+  return (
+    <>
+      {!stage && (
+        <div className="insp-hero">
+          <Avatar src={bot.avatarUrl} name={bot.name} size={88} working={working} />
+          <h2>{bot.name}</h2>
+          <div className="r">{`${bot.title} · ${bot.model}`}</div>
+          <div className="insp-actions">
+            <QuickAction
+              icon={<SlidersHorizontal strokeWidth={1.75} />}
+              label="Edit"
+              onClick={() => go(`/settings/bot/${bot.id}`)}
+            />
+            <QuickAction
+              icon={<CircleStop strokeWidth={1.75} />}
+              label="Stop"
+              danger
+              disabled={!working}
+              onClick={() => void stop({ botId: bot.id })}
+            />
+          </div>
+        </div>
+      )}
+      {!stage && (
+        <InspectorSection title="Now" icon={<Activity strokeWidth={1.75} />} tone="blue">
+          {working ? (
+            <div className="task" style={{ padding: "6px 0" }}>
+              <LoaderCircle className="spin" strokeWidth={1.75} />
+              <div className="grow">
+                <div className="t1">{status?.label || "Working"}</div>
+                {status?.tasks.map((t) => (
+                  <div key={t.id} className="t2">
+                    {t.description}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div style={{ color: "var(--label-2)" }}>Idle</div>
+          )}
+        </InspectorSection>
+      )}
+      {bot.computer && <ComputerCard botId={bot.id} botName={bot.name} />}
+      {!stage && rest}
     </>
   );
 }

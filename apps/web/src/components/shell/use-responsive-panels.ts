@@ -6,12 +6,16 @@ export type ResponsivePanels = Panels & {
   toggle(which: PanelName): void;
   /** Close every panel that was opened by hand over the chat. */
   closeFloating(): void;
+  /** The inspector widened into a stage (the bot's computer). */
+  inspectorWide: boolean;
+  setInspectorWide(wide: boolean): void;
 };
 
 /** Panel state that follows the window width (see `panelsForWidth`). */
 export function useResponsivePanels(): ResponsivePanels {
   const width = useWidth();
   const [state, setState] = useState<Panels>(() => panelsForWidth(width, null));
+  const [inspectorWide, setInspectorWide] = useState(false);
   // A resize recomputes during render so the first paint at the new width is already right.
   let current = state;
   if (state.width !== width) {
@@ -31,7 +35,7 @@ export function useResponsivePanels(): ResponsivePanels {
       })),
     [],
   );
-  return { ...current, toggle, closeFloating };
+  return { ...current, toggle, closeFloating, inspectorWide, setInspectorWide };
 }
 
 /** Provided by `AppShell` so the toolbar and shortcuts drive the same panels. */

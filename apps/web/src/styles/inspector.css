@@ -41,3 +41,30 @@
 .member.linkrow { width: 100%; border: 0; background: none; padding: 6px 6px; margin: 0 -6px; border-radius: 10px; text-align: left; color: inherit; font: inherit; cursor: pointer; }
 .member.linkrow:hover { background: var(--fill); }
 .member.linkrow .grow { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The bot's computer (computer-card.tsx): a live thumbnail in the chat info that widens the inspector into a stage.
+   The screen stays dark in both themes; the chips over it are frosted dark like a video player's. */
+.mac.wide { --insp-w: min(820px, 58vw); }
+.pc-head { display: flex; align-items: center; gap: 9px; margin: -2px -6px 10px 0; }
+.pc-head h3 { flex: 1; min-width: 0; margin: 0; }
+.pc-name { margin-left: 6px; color: var(--label-2); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pc-name::before { content: "· "; }
+.pc-screen { position: relative; aspect-ratio: 16 / 10; border-radius: var(--r-m); overflow: hidden; background: #0c0d11; box-shadow: inset 0 0 0 .5px rgba(255, 255, 255, .08); transition: box-shadow var(--t-mid) var(--ease); }
+.pc-screen.held { box-shadow: 0 0 0 2px var(--tint), 0 6px 20px -8px var(--tint); }
+.pc-screen iframe { position: absolute; top: 0; left: 0; display: block; border: 0; transform-origin: 0 0; background: #0c0d11; }
+.pc-hit { position: absolute; inset: 0; border: 0; padding: 0; background: transparent; cursor: zoom-in; border-radius: inherit; transition: box-shadow var(--t-fast); }
+.pc-hit:hover { box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .22); }
+.pc-hit:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--tint); }
+.pc-empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: rgba(255, 255, 255, .5); font-size: 12.5px; }
+.pc-play { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 15px 0 13px; border: 0; border-radius: 999px; background: rgba(255, 255, 255, .12); color: #fff; font: 600 13px var(--font); backdrop-filter: blur(8px); transition: background var(--t-fast), transform var(--t-fast); }
+.pc-play:hover { background: rgba(255, 255, 255, .2); }
+.pc-play:active { transform: scale(.96); }
+.pc-chip { position: absolute; top: 8px; left: 8px; max-width: calc(100% - 16px); display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px 0 8px; border-radius: 999px; background: rgba(12, 13, 17, .64); backdrop-filter: blur(10px); color: #fff; font: 600 11.5px var(--font); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+.pc-chip i { width: 6px; height: 6px; border-radius: 50%; flex: none; background: rgba(255, 255, 255, .4); }
+.pc-chip.live i { background: var(--green-dot); }
+.pc-chip.bot i { background: #9cb0ff; animation: breathe 1.6s ease-in-out infinite; }
+.pc-chip.you { background: var(--tint-fill); }
+.pc-chip.you i { background: #fff; }
+.pc-foot { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px 12px; margin-top: 12px; }
+.pc-note { flex: 1 1 200px; min-width: 0; color: var(--label-2); font-size: 13px; }
+.pc-actions { display: flex; gap: 8px; }
+@media (prefers-reduced-motion: reduce) { .pc-chip.bot i { animation: none; } }
