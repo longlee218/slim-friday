@@ -12,6 +12,18 @@ import type { Ticket, TicketComment, TicketEvent, TicketStatus } from "../ticket
 import type { CardPort, EffectPort, ScopePort, SteeringPort } from "./run-state-ports";
 import type { ApprovalAnswer } from "./surface";
 
+/** A lease on a computer's input (`input:<computer>`) or on a machine slot (`slot:<botId>`). */
+export interface ComputerHold {
+  key: string;
+  kind: "slot" | "input";
+  computer: string;
+  botId: BotId;
+  holder: string;
+  /** Grows each time the row is taken over, so a stale holder is refused. */
+  fence: number;
+  expiresAt: number;
+}
+
 /** One decision on one tool call, kept for review. */
 export interface AuditEntry {
   at: number;
@@ -303,6 +315,34 @@ export interface Store {
   };
   /** Owner messages sent while a run is busy. */
   steering: SteeringPort;
+  /** Computer input leases and machine slots. */
+  computerHolds: {
+    /**
+     * Take or renew a hold in one write transaction. Undefined when another holder has a live row, or
+     * (slot) when `slotLimit` live slots of other bots exist. An expired row is replaced with `fence + 1`.
+     */
+    acquire(a: {
+      kind: "slot" | "input";
+      computer: string;
+      botId: BotId;
+      holder: string;
+      ttlMs: number;
+      now: number;
+      slotLimit?: number;
+    }): Promise<ComputerHold | undefined>;
+    /** Extend a hold; false when the holder or fence no longer matches. */
+    renew(a: {
+      key: string;
+      holder: string;
+      fence: number;
+      ttlMs: number;
+      now: number;
+    }): Promise<boolean>;
+    /** Delete a hold when holder and fence match; otherwise leave it. */
+    release(a: { key: string; holder: string; fence: number }): Promise<void>;
+    /** Holds not yet expired at `now`. */
+    live(now: number): Promise<ComputerHold[]>;
+  };
   /** Working-memory items per session scope. */
   scratchpad: {
     /** Items of one scope, oldest first. */

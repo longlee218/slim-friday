@@ -500,3 +500,15 @@ export const scheduleRuns = sqliteTable(
     index("schedule_runs_wake_idx").on(t.wakeId),
   ],
 );
+
+/** A lease on a computer's input or on a machine slot; `fence` grows on every takeover. */
+export const computerHolds = sqliteTable("computer_holds", {
+  key: text("key").primaryKey(),
+  /** `slot` or `input`. */
+  kind: text("kind").notNull(),
+  computer: text("computer").notNull(),
+  botId: text("bot_id").notNull(),
+  holder: text("holder").notNull(),
+  fence: integer("fence").notNull(),
+  expiresAt: integer("expires_at").notNull(),
+});
