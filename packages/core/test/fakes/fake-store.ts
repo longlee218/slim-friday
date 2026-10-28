@@ -27,6 +27,7 @@ import type {
   WakeStatus,
 } from "../../src";
 import { fileKindOf } from "../../src";
+import { fakeComputerHolds } from "./fake-computer-holds";
 import { fakeSchedules } from "./fake-schedules";
 
 /** Statuses of a wake not finished yet. */
@@ -541,6 +542,8 @@ export class FakeStore implements Store {
       if (c) c.remindedAt = at;
     },
   };
+  /** Computer input leases and slots. */
+  computerHolds = fakeComputerHolds();
   /** Scratchpad items (a fake id is a counter). */
   padItems: ScratchpadItem[] = [];
   scratchpad = {

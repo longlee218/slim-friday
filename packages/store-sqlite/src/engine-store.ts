@@ -4,6 +4,7 @@ import { openEngineDb } from "./open-engine-db";
 import { attemptRepo } from "./repos/attempt-repo";
 import { auditRepo } from "./repos/audit-repo";
 import { cardRepo } from "./repos/card-repo";
+import { computerHoldRepo } from "./repos/computer-hold-repo";
 import { conversationRepo } from "./repos/conversation-repo";
 import { effectCallRepo } from "./repos/effect-call-repo";
 import { fileRepo } from "./repos/file-repo";
@@ -12,9 +13,9 @@ import { insightRepo } from "./repos/insight-repo";
 import { mcpOAuthRepo } from "./repos/mcp-oauth-repo";
 import { messageRepo } from "./repos/message-repo";
 import { readRepo } from "./repos/read-repo";
-import { scopeRepo } from "./repos/scope-repo";
 import { scheduleRepo } from "./repos/schedule-repo";
 import { scheduleRunRepo } from "./repos/schedule-run-repo";
+import { scopeRepo } from "./repos/scope-repo";
 import { scratchpadRepo } from "./repos/scratchpad-repo";
 import { sessionRepo } from "./repos/session-repo";
 import { spendRepo } from "./repos/spend-repo";
@@ -55,6 +56,7 @@ export function openEngineStore(file: string): EngineStore {
     cards: cardRepo(db),
     effects: effectCallRepo(db),
     scopes: scopeRepo(db),
+    computerHolds: computerHoldRepo(db),
     scratchpad: scratchpadRepo(db),
     schedules: scheduleRepo(db),
     scheduleRuns: scheduleRunRepo(db),
