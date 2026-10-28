@@ -87,7 +87,12 @@ function escapes(rest: string): boolean {
  * Forward `/computer-view/<token>/*` (HTTP and WebSocket) to the Cua viewer on 127.0.0.1 at the token's
  * port. The token alone authorizes it. Nothing here logs a path, query or header (they carry tickets).
  */
-export function createViewProxy(deps: { secret: string; now: () => number }) {
+export function createViewProxy(deps: {
+  secret: string;
+  now: () => number;
+  /** Whether the owner still holds input on `computer`; a control-mode link needs it on every request and upgrade. */
+  controlHeld?: (computer: string) => boolean | Promise<boolean>;
+}) {
   return async (c: Context): Promise<Response> => {
     const parts = split(c);
     // The token is the raw segment: no percent-encoding, so the path slice cannot drift from it.
@@ -96,6 +101,13 @@ export function createViewProxy(deps: { secret: string; now: () => number }) {
         ? openViewToken(deps.secret, parts.segment, deps.now())
         : undefined;
     if (!parts || !claims || claims.iat <= (revokedAt.get(claims.computer) ?? -1)) {
+      return c.json({ code: "FORBIDDEN" }, 403);
+    }
+    if (
+      claims.mode === "control" &&
+      deps.controlHeld &&
+      !(await deps.controlHeld(claims.computer))
+    ) {
       return c.json({ code: "FORBIDDEN" }, 403);
     }
     if (escapes(parts.rest)) return c.json({ code: "BAD_PATH" }, 400);

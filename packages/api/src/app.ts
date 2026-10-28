@@ -13,6 +13,7 @@ import type {
   Store,
   ToolCatalog,
 } from "@friday/core";
+import { controlState } from "@friday/core";
 import type { WebSurface } from "@friday/surface-web";
 import { ORPCError, onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
@@ -138,7 +139,18 @@ export function createApiApp(deps: ApiDeps): Hono {
   if (deps.viewSecret) {
     app.all(
       `${COMPUTER_VIEW_PREFIX}:token/*`,
-      createViewProxy({ secret: deps.viewSecret, now: deps.now }),
+      createViewProxy({
+        secret: deps.viewSecret,
+        now: deps.now,
+        // A control link is only as good as the owner's live hold.
+        controlHeld: async (computer) =>
+          (
+            await controlState(
+              { holds: deps.store.computerHolds, clock: { now: deps.now }, sleep: async () => {} },
+              computer,
+            )
+          ).holder === "owner",
+      }),
     );
   }
   app.use("*", originCheck(webOrigins));
