@@ -65,3 +65,11 @@ export function postBlockedComment(ctx: HubContext, t: Ticket, c: TicketComment)
     return `${name} on ${ticketRef(t.number)} (blocked): ${c.body.slice(0, COMMENT_EXCERPT_MAX)}`;
   });
 }
+
+/** Post that a ticket's blockers all finished and it is ready to start. */
+export function postReadyToStart(ctx: HubContext, t: Ticket, blockers: Ticket[]) {
+  return postToGroup(ctx, t, async () => {
+    const refs = blockers.map((b) => ticketRef(b.number)).join(", ");
+    return `${ticketRef(t.number)} is ready to start (${refs} finished)`;
+  });
+}

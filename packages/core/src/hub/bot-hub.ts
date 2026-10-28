@@ -23,6 +23,7 @@ import { type HubContext, tell } from "./hub-context";
 import { type BotHubDeps, type BotStatus, errText } from "./hub-types";
 import { sweepQuietScopes } from "./idle-close";
 import { queueIntroRun } from "./intro-run";
+import { releaseDependents } from "./ticket-dependents";
 import { followUpStatus } from "./ticket-followups";
 import { postBlockedComment, postBlockedReason, postTicketMilestone } from "./ticket-milestones";
 import { ownerComment } from "./ticket-owner-comment";
@@ -57,7 +58,9 @@ export class BotHub implements BotMessenger {
       wake: (t, botId, actor) => this.wakeForTicket(t, botId, false, actor),
       ...(deps.onTicketChange && { onChange: deps.onTicketChange }),
       onStatusChange: (t, c) =>
-        postTicketMilestone(this.ctx, t, c.from).then(() => followUpStatus(this.ctx, t, c)),
+        postTicketMilestone(this.ctx, t, c.from)
+          .then(() => followUpStatus(this.ctx, t, c))
+          .then(() => releaseDependents(this.ctx, t)),
       onComment: (t, c) => postBlockedComment(this.ctx, t, c),
       onBlockedReason: (t) => postBlockedReason(this.ctx, t),
       ...(deps.secretValues && { secretValues: deps.secretValues }),
@@ -207,13 +210,13 @@ export class BotHub implements BotMessenger {
   }
 
   /** Wake the assignee of a ticket in its own direct conversation; nothing is posted to the channel. */
-  wakeForTicket(
+  async wakeForTicket(
     ticket: Ticket,
     botId: BotId,
     rewake = false,
     actor: Author = { kind: "system" },
   ): Promise<void> {
-    return wakeForTicket(this.ctx, ticket, botId, rewake, actor);
+    await wakeForTicket(this.ctx, ticket, botId, rewake, actor);
   }
 
   /** The owner's comment on a ticket: saved, and it wakes the assignee with the comment text (see `ownerComment`). */

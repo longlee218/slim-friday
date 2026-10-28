@@ -10,7 +10,6 @@ import {
   CONFLICT,
   cleanText,
   DESCRIPTION_MAX,
-  finished,
   INVALID,
   NOT_FOUND,
   PRIORITIES,
@@ -21,6 +20,7 @@ import {
 } from "./ticket-board-rules";
 import { createdEvent, ticketChangeEvents } from "./ticket-change-events";
 import { addTicketComment } from "./ticket-comment";
+import { readyToWork, resolveBlockers } from "./ticket-dependencies";
 import { type TicketDetail, TicketReads } from "./ticket-reads";
 import { checkUpdate } from "./ticket-update-checks";
 
@@ -61,6 +61,8 @@ export class TicketBoard {
       conversationId?: ConversationId;
       /** The group of the creating session; the ticket is then assigned to its members only. */
       groupId?: GroupId;
+      /** Refs or ids of the tickets to wait on; the assignee is woken when they finish. */
+      blockedBy?: string[];
     },
   ): Promise<TicketResult<{ ticket: Ticket }>> {
     const title = cleanText(this.deps.secretValues, i.title.trim());
@@ -70,6 +72,8 @@ export class TicketBoard {
     const assigneeBotId = i.assigneeBotId ?? (actor.kind === "bot" ? actor.botId : undefined);
     const refused = await assigneeRefusal(this.deps.store, assigneeBotId, i.groupId);
     if (refused) return refused;
+    const deps = await resolveBlockers(this.deps.store, undefined, i.blockedBy ?? []);
+    if (!deps.ok) return deps;
     // The created event is written in the same transaction as the ticket.
     const ticket = await this.deps.store.tickets.create(
       {
@@ -80,13 +84,15 @@ export class TicketBoard {
         ...(assigneeBotId && { assigneeBotId }),
         ...(i.conversationId && { conversationId: i.conversationId }),
         ...(i.groupId && { groupId: i.groupId }),
+        ...(deps.ids.length > 0 && { blockedBy: deps.ids }),
         createdBy: actor,
         createdAt: this.deps.clock.now(),
       },
       { events: (t) => [createdEvent(t, actor, t.createdAt)] },
     );
     this.changed(ticket);
-    if (assigneeBotId && !(actor.kind === "bot" && actor.botId === assigneeBotId))
+    const self = actor.kind === "bot" && actor.botId === assigneeBotId;
+    if (assigneeBotId && !self && (await readyToWork(this.deps.store, ticket)))
       await this.deps.wake(ticket, assigneeBotId, actor);
     return { ok: true, ticket };
   }
@@ -115,7 +121,7 @@ export class TicketBoard {
     if (!cur) return NOT_FOUND;
     const checked = await checkUpdate(this.deps.store, this.deps.secretValues, cur, actor, i);
     if (!checked.ok) return checked;
-    const { title, reason } = checked;
+    const { title, reason, blockedBy } = checked;
     const now = this.deps.clock.now();
     let statusEventId: string | undefined;
     const ticket = await this.deps.store.tickets.update(
@@ -131,6 +137,7 @@ export class TicketBoard {
         ...(i.status && { status: i.status }),
         ...(i.assigneeBotId && { assigneeBotId: i.assigneeBotId }),
         ...(reason && { blockedReason: reason }),
+        ...(blockedBy && { blockedBy }),
         // A bot's conversation is the ticket's "last worked" one; the owner's is ignored.
         ...(actor.kind === "bot" && i.conversationId && { conversationId: i.conversationId }),
       },
@@ -162,7 +169,7 @@ export class TicketBoard {
       await this.deps.onBlockedReason?.(ticket).catch(() => {});
     const to = i.assigneeBotId;
     const byActor = actor.kind === "bot" && actor.botId === to;
-    if (to && to !== cur.assigneeBotId && !byActor && !finished(ticket.status))
+    if (to && to !== cur.assigneeBotId && !byActor && (await readyToWork(this.deps.store, ticket)))
       await this.deps.wake(ticket, to, actor);
     return { ok: true, ticket };
   }

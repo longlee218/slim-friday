@@ -44,6 +44,8 @@ export interface TicketUpdateInput {
   /** The `updatedAt` the caller read; another value means the ticket changed since. */
   expectedUpdatedAt?: number;
   conversationId?: ConversationId;
+  /** Refs or ids of the tickets this one waits on; `[]` clears. Only a `todo` ticket starts to wait. */
+  blockedBy?: string[];
 }
 
 /** Every status a caller may set. */
