@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import type { BotId } from "../domain/bot";
 
 /** The note a bot wakes with after the owner gave the computer back. */
@@ -29,7 +28,7 @@ export function computerResume(wake: WakeBot): ComputerResume {
       blocked.delete(computer);
       if (!bots) return;
       // A fresh id per give-back: a counter would restart at 0 after a restart and collide with an old wake.
-      const key = `computer-resume:${computer}:${randomUUID()}`;
+      const key = `computer-resume:${computer}:${globalThis.crypto.randomUUID()}`;
       for (const botId of bots)
         await wake(botId, RESUME_NOTE, `${key}:${botId}`).catch(() => undefined);
     },
