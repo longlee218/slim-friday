@@ -208,3 +208,52 @@ test("openOfGroup lists todo and doing tickets of that group only", async () => 
   const titles = (await s.tickets.openOfGroup("a")).map((t) => t.title);
   expect(titles).toEqual(["a-todo", "a-doing"]);
 });
+
+test("blockedBy round-trips and [] clears it", async () => {
+  const s = openEngineStore(":memory:");
+  const t = await s.tickets.create(input("a", { blockedBy: ["a", "b"] }));
+  expect((await s.tickets.get(t.id))?.blockedBy).toEqual(["a", "b"]);
+  await s.tickets.update(t.id, { blockedBy: [] }, 5);
+  expect((await s.tickets.get(t.id))?.blockedBy).toBeUndefined();
+});
+
+test("addCommentOnce inserts once", async () => {
+  const s = openEngineStore(":memory:");
+  const t = await s.tickets.create(input("a"));
+  const c = {
+    id: "owner-msg:1:scouter",
+    ticketId: t.id,
+    author: { kind: "system" as const },
+    body: "hi",
+    createdAt: 10,
+  };
+  expect((await s.tickets.addCommentOnce(c)).created).toBe(true);
+  const stamp = (await s.tickets.get(t.id))?.updatedAt;
+  const again = await s.tickets.addCommentOnce({ ...c, body: "other" });
+  expect(again.created).toBe(false);
+  expect(again.comment.body).toBe("hi");
+  expect(await s.tickets.comments(t.id)).toHaveLength(1);
+  expect((await s.tickets.get(t.id))?.updatedAt).toBe(stamp as number);
+});
+
+test("activeOfAssignee skips finished and other groups", async () => {
+  const s = openEngineStore(":memory:");
+  const mk = (title: string, status: NewTicket["status"], groupId: string, createdAt: number) =>
+    s.tickets.create(input(title, { status, groupId, assigneeBotId: "b1", createdAt }));
+  await mk("todo", "todo", "g", 1);
+  await mk("review", "review", "g", 2);
+  await mk("done", "done", "g", 3);
+  await mk("other", "todo", "h", 4);
+  const got = await s.tickets.activeOfAssignee("b1", "g");
+  expect(got.map((t) => t.title)).toEqual(["todo", "review"]);
+});
+
+test("blockedByTicket finds dependents", async () => {
+  const s = openEngineStore(":memory:");
+  const a = await s.tickets.create(input("A"));
+  const x = await s.tickets.create(input("X"));
+  const b = await s.tickets.create(input("B", { blockedBy: [a.id], createdAt: 2 }));
+  const c = await s.tickets.create(input("C", { blockedBy: [x.id, a.id], createdAt: 3 }));
+  await s.tickets.create(input("D", { blockedBy: [x.id] }));
+  expect((await s.tickets.blockedByTicket(a.id)).map((t) => t.id)).toEqual([b.id, c.id]);
+});

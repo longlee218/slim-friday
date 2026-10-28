@@ -112,13 +112,27 @@ export interface Store {
     update(
       id: string,
       patch: Partial<
-        Pick<Ticket, "title" | "description" | "status" | "priority" | "assigneeBotId">
+        Pick<
+          Ticket,
+          "title" | "description" | "status" | "priority" | "assigneeBotId" | "blockedBy"
+        >
       > & { conversationId?: ConversationId; blockedReason?: string | null },
       now: number,
       opts?: { ifUpdatedAt?: number; events?: (prev: Ticket, next: Ticket) => TicketEvent[] },
     ): Promise<Ticket | "conflict" | undefined>;
     /** Also moves the ticket's `updatedAt` to `max(updatedAt + 1, createdAt)`. */
     addComment(c: Omit<TicketComment, "id">): Promise<TicketComment>;
+    /**
+     * Insert-or-ignore by `id`. A repeat returns the stored comment with `created: false` and
+     * does not move the ticket's `updatedAt`.
+     */
+    addCommentOnce(
+      c: Omit<TicketComment, "id"> & { id: string },
+    ): Promise<{ comment: TicketComment; created: boolean }>;
+    /** Tickets of `botId` in `groupId` that are not `done` or `closed`, oldest first. */
+    activeOfAssignee(botId: BotId, groupId: GroupId): Promise<Ticket[]>;
+    /** Tickets whose `blockedBy` contains `id`, oldest first. */
+    blockedByTicket(id: string): Promise<Ticket[]>;
     /** Oldest first. */
     comments(ticketId: string): Promise<TicketComment[]>;
     /** Comment count per ticket id; every asked id is present (0 when none). */

@@ -78,3 +78,61 @@ test("fake store: unread, reads never go back, and deleteLegacy", async () => {
   expect((await s.messages.page("bot:a", { limit: 10 })).map((m) => m.id)).toEqual([4, 2, 1]);
   expect(await s.messages.get(3)).toBeUndefined();
 });
+
+const ticketInput = (title: string, over: Record<string, unknown> = {}) => ({
+  title,
+  status: "todo" as const,
+  priority: "normal" as const,
+  createdBy: { kind: "user" as const },
+  createdAt: 1,
+  ...over,
+});
+
+test("fake tickets: blockedBy round-trips and [] clears it", async () => {
+  const s = new FakeStore();
+  const t = await s.tickets.create(ticketInput("a", { blockedBy: ["a", "b"] }));
+  expect((await s.tickets.get(t.id))?.blockedBy).toEqual(["a", "b"]);
+  await s.tickets.update(t.id, { blockedBy: [] }, 5);
+  expect((await s.tickets.get(t.id))?.blockedBy).toBeUndefined();
+});
+
+test("fake tickets: addCommentOnce inserts once", async () => {
+  const s = new FakeStore();
+  const t = await s.tickets.create(ticketInput("a"));
+  const c = {
+    id: "owner-msg:1:scouter",
+    ticketId: t.id,
+    author: { kind: "system" as const },
+    body: "hi",
+    createdAt: 10,
+  };
+  expect((await s.tickets.addCommentOnce(c)).created).toBe(true);
+  const stamp = (await s.tickets.get(t.id))?.updatedAt;
+  const again = await s.tickets.addCommentOnce({ ...c, body: "other" });
+  expect(again.created).toBe(false);
+  expect(again.comment.body).toBe("hi");
+  expect(await s.tickets.comments(t.id)).toHaveLength(1);
+  expect((await s.tickets.get(t.id))?.updatedAt).toBe(stamp as number);
+});
+
+test("fake tickets: activeOfAssignee skips finished and other groups", async () => {
+  const s = new FakeStore();
+  const mk = (title: string, status: string, groupId: string, createdAt: number) =>
+    s.tickets.create(ticketInput(title, { status, groupId, assigneeBotId: "b1", createdAt }));
+  await mk("todo", "todo", "g", 1);
+  await mk("review", "review", "g", 2);
+  await mk("done", "done", "g", 3);
+  await mk("other", "todo", "h", 4);
+  const got = await s.tickets.activeOfAssignee("b1", "g");
+  expect(got.map((t) => t.title)).toEqual(["todo", "review"]);
+});
+
+test("fake tickets: blockedByTicket finds dependents", async () => {
+  const s = new FakeStore();
+  const a = await s.tickets.create(ticketInput("A"));
+  const x = await s.tickets.create(ticketInput("X"));
+  const b = await s.tickets.create(ticketInput("B", { blockedBy: [a.id], createdAt: 2 }));
+  const c = await s.tickets.create(ticketInput("C", { blockedBy: [x.id, a.id], createdAt: 3 }));
+  await s.tickets.create(ticketInput("D", { blockedBy: [x.id] }));
+  expect((await s.tickets.blockedByTicket(a.id)).map((t) => t.id)).toEqual([b.id, c.id]);
+});

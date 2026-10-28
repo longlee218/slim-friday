@@ -34,6 +34,8 @@ export interface Ticket {
   groupId?: GroupId;
   /** Why the ticket is `blocked`; cleared when it leaves `blocked`. */
   blockedReason?: string;
+  /** Ids of tickets that must finish first; absent = none. */
+  blockedBy?: string[];
 }
 
 /** What a history entry of a ticket records. */
