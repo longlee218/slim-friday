@@ -25,6 +25,10 @@ export const TicketDtoSchema = z.object({
   completedAt: z.number().optional(),
   conversationId: z.string().optional(),
   blockedReason: z.string().optional(),
+  /** Refs this ticket waits on (done or not). */
+  blockedBy: z.array(z.string()).optional(),
+  /** Refs of the blockers not yet done or closed. */
+  waitingOn: z.array(z.string()).optional(),
   commentCount: z.number().int().nonnegative(),
 });
 export type TicketDto = z.infer<typeof TicketDtoSchema>;

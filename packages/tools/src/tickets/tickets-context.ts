@@ -1,6 +1,7 @@
 import {
   type BotId,
   type ConversationId,
+  finished,
   type GroupId,
   type Store,
   type Ticket,
@@ -30,14 +31,25 @@ export async function resolveBot(
   return (await ctx.bots.list()).find((b) => b.name.toLowerCase() === wanted)?.id;
 }
 
-/** A ticket as the model reads it: the ref first, no internal fields. */
-export function ticketView(t: Ticket) {
+/** The tickets `t` waits on, in `blockedBy` order; one that no longer exists is skipped. */
+async function blockersOf(ctx: TicketsContext, t: Ticket): Promise<Ticket[]> {
+  const found = await Promise.all((t.blockedBy ?? []).map((id) => ctx.board.get(id)));
+  return found.flatMap((r) => (r.ok ? [r.ticket] : []));
+}
+
+/** A ticket as the model reads it: the ref first, no internal fields; blockers as refs. */
+export async function ticketView(ctx: TicketsContext, t: Ticket) {
+  const blockers = await blockersOf(ctx, t);
   return {
     ref: ticketRef(t.number),
     id: t.id,
     title: t.title,
     ...(t.description !== undefined && { description: t.description }),
     status: t.status,
+    ...(blockers.length > 0 && { blockedBy: blockers.map((b) => ticketRef(b.number)) }),
+    ...(blockers.some((b) => !finished(b.status)) && {
+      waitingOn: blockers.filter((b) => !finished(b.status)).map((b) => ticketRef(b.number)),
+    }),
     ...(t.blockedReason !== undefined && { blockedReason: t.blockedReason }),
     ...(t.conversationId !== undefined && { conversationId: t.conversationId }),
     priority: t.priority,

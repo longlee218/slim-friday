@@ -158,3 +158,24 @@ test("create, update and comment record the working conversation", async () => {
   expect(store.ticketEventList.length).toBeGreaterThan(0);
   for (const e of store.ticketEventList) expect(e.actor).toEqual({ kind: "bot", botId: "writer" });
 });
+
+test("TicketCreate with an unknown blocker refuses first", async () => {
+  const { ctx } = setup();
+  const r = await call(createTicketCreateTool(ctx), { title: "a", blockedBy: ["FRI-9"] });
+  expect(r.isError).toBe(true);
+  expect(textOf(r)).toBe("Unknown ticket FRI-9.");
+});
+
+test("TicketCreate and TicketGet show blockedBy and waitingOn as refs", async () => {
+  const { ctx } = setup();
+  await call(createTicketCreateTool(ctx), { title: "first" });
+  const made = JSON.parse(
+    textOf(await call(createTicketCreateTool(ctx), { title: "second", blockedBy: ["FRI-1"] })),
+  );
+  expect(made).toMatchObject({ blockedBy: ["FRI-1"], waitingOn: ["FRI-1"] });
+  await call(createTicketUpdateTool(ctx), { id: "FRI-1", status: "doing" });
+  await call(createTicketUpdateTool(ctx), { id: "FRI-1", status: "done" });
+  const got = JSON.parse(textOf(await call(createTicketGetTool(ctx), { ref: "FRI-2" })));
+  expect(got.ticket.blockedBy).toEqual(["FRI-1"]);
+  expect(got.ticket.waitingOn).toBeUndefined();
+});

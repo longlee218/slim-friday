@@ -161,3 +161,13 @@ test("comment returns woke and note", async () => {
     note: "No one was woken: the ticket is finished. Reopen it to continue.",
   });
 });
+
+test("the dto maps blockedBy ids to refs and lists the unfinished ones in waitingOn", async () => {
+  const h = setup();
+  const one = await h.client.tickets.create({ title: "one" });
+  const made = await h.hub.tickets.create({ kind: "user" }, { title: "two", blockedBy: [one.ref] });
+  if (!made.ok) throw new Error(made.error);
+  const d = await h.client.tickets.get({ ref: "FRI-2" });
+  expect(d.ticket).toMatchObject({ blockedBy: ["FRI-1"], waitingOn: ["FRI-1"] });
+  expect((await h.client.tickets.get({ ref: "FRI-1" })).ticket.blockedBy).toBeUndefined();
+});

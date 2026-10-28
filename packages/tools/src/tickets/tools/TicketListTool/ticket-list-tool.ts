@@ -31,9 +31,8 @@ export function createTicketListTool(ctx: TicketsContext) {
         ...(cursor && { cursor }),
       });
       if (!r.ok) return textResult(r.error, true);
-      return textResult(
-        JSON.stringify({ tickets: r.tickets.map(ticketView), nextCursor: r.nextCursor }),
-      );
+      const tickets = await Promise.all(r.tickets.map((t) => ticketView(ctx, t)));
+      return textResult(JSON.stringify({ tickets, nextCursor: r.nextCursor }));
     },
   );
 }

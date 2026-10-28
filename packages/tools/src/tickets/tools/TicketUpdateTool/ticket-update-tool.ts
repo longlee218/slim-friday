@@ -15,6 +15,12 @@ const SHAPE = {
   status: z.enum(TICKET_STATUSES).optional(),
   assignee: z.string().optional().describe("A bot id or exact name."),
   blockedReason: z.string().max(500).optional().describe("Required when status is blocked: why."),
+  blockedBy: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "Refs like FRI-3 this ticket waits on; [] clears them; it starts by itself when all are done.",
+    ),
 };
 
 /** `TicketUpdate` for one session: the actor is the session's bot. */
@@ -34,11 +40,14 @@ export function createTicketUpdateTool(ctx: TicketsContext) {
         ...(i.description !== undefined && { description: i.description }),
         ...(i.priority && { priority: i.priority }),
         ...(i.status && { status: i.status }),
+        ...(i.blockedBy && { blockedBy: i.blockedBy }),
         ...(assigneeBotId && { assigneeBotId }),
         ...(i.blockedReason !== undefined && { blockedReason: i.blockedReason }),
         ...(conversationId && { conversationId }),
       },
     );
-    return r.ok ? textResult(JSON.stringify(ticketView(r.ticket))) : textResult(r.error, true);
+    return r.ok
+      ? textResult(JSON.stringify(await ticketView(ctx, r.ticket)))
+      : textResult(r.error, true);
   });
 }

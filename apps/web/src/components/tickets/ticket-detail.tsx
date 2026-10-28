@@ -2,6 +2,7 @@ import type { TicketDto, TicketStatus } from "@friday/contracts";
 import { type ReactNode, useState } from "react";
 import { useDirectory } from "../../api/directory";
 import { formatClock } from "../../lib/format";
+import { TicketLink } from "../markdown/ticket-link";
 import { Avatar } from "../ui/avatar";
 import { Button } from "../ui/button";
 import { PhoneStatusSheet } from "./phone-status-sheet";
@@ -95,6 +96,16 @@ export function TicketDetail({ ticket: t, phone }: { ticket: TicketDto; phone?: 
         <span>Updated</span>
         <span>{formatClock(t.updatedAt, now)}</span>
       </div>
+      {t.waitingOn && t.waitingOn.length > 0 && (
+        <div className="prop">
+          <span>Waiting on</span>
+          <span style={{ display: "inline-flex", gap: 8 }}>
+            {t.waitingOn.map((ref) => (
+              <TicketLink key={ref} ticketRef={ref} />
+            ))}
+          </span>
+        </div>
+      )}
       {t.status === "blocked" && t.blockedReason && (
         <div className="prop">
           <span>Blocked</span>
