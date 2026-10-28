@@ -169,3 +169,65 @@ test("the status query polls every 10 s while the panel is mounted", () => {
   });
   expect(query?.observers[0]?.options.refetchInterval).toBe(10_000);
 });
+
+test("the hold is released when the control link cannot be minted", async () => {
+  mount();
+  await press("View");
+  mocks.view.mockRejectedValueOnce(new Error("no link"));
+  await press("Take control");
+  expect(mocks.giveBack).toHaveBeenCalledWith({ botId: "dev" });
+  expect(mocks.toast.error).toHaveBeenCalledWith("no link");
+  expect(screen.getByRole("button", { name: "Take control" })).toBeTruthy();
+  expect(screen.queryByText("Dev is waiting and resumes when you give back")).toBeNull();
+});
+
+test("Close is disabled while waiting; a take that resolves after the panel is gone is given back", async () => {
+  let release: (v: { expiresAt: number }) => void = () => {};
+  mocks.takeControl.mockReturnValue(new Promise((r) => (release = r)));
+  const { view } = mountWithClient();
+  await press("View");
+  await press("Take control");
+  expect((screen.getByRole("button", { name: "Close" }) as HTMLButtonElement).disabled).toBe(true);
+  view.unmount();
+  mocks.view.mockClear();
+  await act(async () => release({ expiresAt: 9e12 }));
+  expect(mocks.giveBack).toHaveBeenCalledWith({ botId: "dev" });
+  expect(mocks.view).not.toHaveBeenCalled();
+});
+
+test("a refused take returns the button to Take control with a toast", async () => {
+  mocks.takeControl.mockRejectedValue(new Error("Bot is mid-step"));
+  mount();
+  await press("View");
+  await press("Take control");
+  expect(mocks.toast.error).toHaveBeenCalledWith("Bot is mid-step");
+  expect((screen.getByRole("button", { name: "Take control" }) as HTMLButtonElement).disabled).toBe(
+    false,
+  );
+});
+
+test("unmounting while holding control gives it back and closes the view", async () => {
+  const { view } = mountWithClient();
+  await press("View");
+  await press("Take control");
+  view.unmount();
+  expect(mocks.giveBack).toHaveBeenCalledWith({ botId: "dev" });
+  expect(mocks.closeView).toHaveBeenCalledWith({ botId: "dev" });
+});
+
+test("a status error shows an error line instead of loading forever", () => {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  qc.setQueryData(orpc.computer.status.queryKey({ input: { botId: "dev" } }), undefined);
+  const key = orpc.computer.status.queryKey({ input: { botId: "dev" } });
+  void qc
+    .fetchQuery({ queryKey: key, queryFn: () => Promise.reject(new Error("x")) })
+    .catch(() => {});
+  render(
+    <QueryClientProvider client={qc}>
+      <ComputerPanel botId="dev" botName="Dev" />
+    </QueryClientProvider>,
+  );
+  return vi.waitFor(() =>
+    expect(screen.getByText("Could not load the computer state.")).toBeTruthy(),
+  );
+});
