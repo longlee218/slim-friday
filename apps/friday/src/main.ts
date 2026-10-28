@@ -189,6 +189,7 @@ async function runEngine(
       }),
       mcpAuth: mcpAuthAdmin(oauth, engine.mcpOAuth, web.publicApiUrl),
       registrableDomain,
+      tools: app.config.catalog,
       // The same denied env values the engine hides from bot text (read at each call).
       secretValues: () => deniedEnvValues(),
       limits: () => app.config.limits(),

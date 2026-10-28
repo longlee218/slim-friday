@@ -61,11 +61,14 @@ export function ApprovalRulesPanel() {
   const qc = useQueryClient();
   const dir = useDirectory();
   const rules = useQuery(orpc.config.approvalRules.list.queryOptions()).data ?? [];
+  const scopeKeys = useQuery(orpc.config.approvalRules.scopeKeys.queryOptions()).data ?? {};
   const [effect, setEffect] = useState<Effect>("require_approval");
   const [match, setMatch] = useState<Match>("site");
   const [botId, setBotId] = useState("*");
   const [value, setValue] = useState("");
   const [scope, setScope] = useState("");
+  // The scope keys of the tool typed in Value; unset when the catalog has no such tool.
+  const keys = match === "tool" ? scopeKeys[value.trim()] : undefined;
   const refresh = () => qc.invalidateQueries({ queryKey: orpc.config.approvalRules.list.key() });
 
   /** Runs one call; a failure is a toast, a success refreshes the list. */
@@ -212,6 +215,13 @@ export function ApprovalRulesPanel() {
           <Button variant="primary" disabled={!value.trim()} onClick={() => void add()}>
             Add rule
           </Button>
+          {keys && (
+            <div className="t2" style={{ flexBasis: "100%" }}>
+              {keys.length > 0
+                ? `Scope keys: ${keys.join(", ")}. An Always allow rule must name every key (* for any value).`
+                : "This tool has no scope keys: leave Scope empty."}
+            </div>
+          )}
         </div>
       </div>
       <ScheduledRunsNote />

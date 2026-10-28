@@ -67,6 +67,7 @@ export function engineHarness() {
     files,
     purge: () => 0,
     toolWarnings: [],
+    tools: new FakeToolCatalog([]),
     settings,
     mcpAuth: new FakeMcpAuth(),
     now: () => clock.now(),
@@ -101,6 +102,7 @@ export function fakeEngine(): EngineDeps {
     files,
     purge: () => 0,
     toolWarnings: [],
+    tools: deps.tools,
     settings,
     limits: () => ({ maxSpendPerBotPerDayUsd: 10 }),
   };

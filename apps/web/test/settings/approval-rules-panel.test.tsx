@@ -48,6 +48,10 @@ function setup(list: ApprovalRuleDto[]) {
   const qc = seededClient({ bots: [bot("dev", "Dev")] });
   qc.setQueryData(orpc.config.approvalRules.list.queryKey(), list);
   qc.setQueryData(orpc.config.permissions.get.queryKey(), { autoReview: false });
+  qc.setQueryData(orpc.config.approvalRules.scopeKeys.queryKey(), {
+    GitPush: ["workspace", "remote", "branch"],
+    Read: [],
+  });
   render(
     <QueryClientProvider client={qc}>
       <ApprovalRulesPanel />
@@ -112,6 +116,19 @@ test("add sends effect, match, bot and value; a tool rule sends its scope", asyn
       scope: { repo: "friday" },
     }),
   );
+});
+
+test("a tool rule shows the scope keys of the tool typed in Value", async () => {
+  setup([]);
+  await userEvent.selectOptions(screen.getByLabelText("Match"), "tool");
+  await userEvent.type(screen.getByLabelText("Value"), "GitPush");
+  expect(screen.getByText(/Scope keys: workspace, remote, branch/)).toBeTruthy();
+  await userEvent.clear(screen.getByLabelText("Value"));
+  await userEvent.type(screen.getByLabelText("Value"), "Read");
+  expect(screen.getByText(/This tool has no scope keys/)).toBeTruthy();
+  await userEvent.clear(screen.getByLabelText("Value"));
+  await userEvent.type(screen.getByLabelText("Value"), "Unknown");
+  expect(screen.queryByText(/Scope keys:|no scope keys/)).toBeNull();
 });
 
 test("a refused add shows the server's message", async () => {

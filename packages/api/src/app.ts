@@ -11,6 +11,7 @@ import type {
   RegistrableDomain,
   SkillAdmin,
   Store,
+  ToolCatalog,
 } from "@friday/core";
 import type { WebSurface } from "@friday/surface-web";
 import { ORPCError, onError } from "@orpc/server";
@@ -70,6 +71,8 @@ export interface ApiDeps {
   purge: () => number;
   /** Tools the file skills need that are missing at boot (empty when all are installed). */
   toolWarnings: ToolWarningDto[];
+  /** The tool catalog (annotations and scope keys), read at each call so a config reload applies. */
+  tools: ToolCatalog;
   /** Registrable domain of a host (the engine's Public Suffix List); unset: the exact host. Checks site rules. */
   registrableDomain?: RegistrableDomain;
   /** The secret values hidden from bot-written text the API shows (scratchpad items); read at each call. */
@@ -89,6 +92,7 @@ export type EngineDeps = Pick<
   | "mcpAuth"
   | "limits"
   | "registrableDomain"
+  | "tools"
   | "secretValues"
 >;
 

@@ -17,4 +17,6 @@ export const approvalRules = {
   setEffect: base
     .input(z.object({ id: RuleIdSchema, effect: RuleEffectSchema }))
     .output(ApprovalRuleDtoSchema),
+  /** Tool name to its scope keys (`tools.yaml` `scopeKeys`), for every catalog tool; empty when it has none. */
+  scopeKeys: base.output(z.record(z.string(), z.array(z.string()))),
 };
