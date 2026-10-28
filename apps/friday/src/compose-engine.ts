@@ -6,6 +6,7 @@ import { openEngineStore } from "@friday/store-sqlite";
 import { createOwnerQueue, WriteThroughMemory } from "@friday/tools";
 import type { AppDeps } from "./app-deps";
 import { composeStore } from "./compose-store";
+import { createComputers } from "./computer-sessions";
 import { resolveOwnerTimeZone } from "./config/owner-time-zone";
 import { readProcessEnv } from "./config/process-env";
 import { flushConsolidation } from "./flush-consolidation";
@@ -71,6 +72,16 @@ export function composeEngine(deps: EngineDeps, opened: Array<() => unknown>) {
   opened.push(() => mem.memoryIndex.close());
   if (memory instanceof WriteThroughMemory) opened.push(() => memory.stop());
 
+  // The bots' computers of this process: browsers live here, so the run-end release runs where the run ran.
+  const computers = createComputers({
+    settings: config.computer(),
+    env: deps.env ?? {},
+    bots: config.botList,
+    holds: store.computerHolds,
+    clock,
+    log,
+  });
+
   // The runtime is built before the hub; a bot's tool calls it only while it runs, when the hub exists.
   let hub: BotHub | undefined;
   const messenger: BotMessenger = {
@@ -93,6 +104,7 @@ export function composeEngine(deps: EngineDeps, opened: Array<() => unknown>) {
           messages: mem.messages,
           surface,
           insight: engine.insight,
+          computers,
         })
       : deps.runtime;
 
@@ -146,6 +158,8 @@ export function composeEngine(deps: EngineDeps, opened: Array<() => unknown>) {
     scopeBot: scopeBotFor(agentHome, config),
     projectRules: readProjectRules,
     freeMemoryMb: availableMemoryMb,
+    computerRelease: computers.release,
+    computerSlotsText: computers.slotsText,
     log,
     ...deps.hubRuns?.(config),
   });

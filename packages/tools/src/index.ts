@@ -5,6 +5,7 @@ export * from "./admin/memory-admin";
 export * from "./admin/skill-admin";
 export * from "./chat/chat-context";
 export * from "./chat/chat-server";
+export { BrowserSession, type BrowserSessionDeps } from "./computer/browser/browser-session";
 export * from "./computer/computer-context";
 export * from "./computer/computer-server";
 export * from "./computer/tools/BrowserActTool/constants";

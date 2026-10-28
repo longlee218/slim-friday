@@ -20,6 +20,7 @@
       "dependencies": {
         "@axiomhq/js": "2.0.0",
         "@friday/api": "workspace:*",
+        "@friday/computer-cua": "workspace:*",
         "@friday/config": "workspace:*",
         "@friday/core": "workspace:*",
         "@friday/memory-honcho": "workspace:*",

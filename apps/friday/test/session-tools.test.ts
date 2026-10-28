@@ -80,6 +80,19 @@ test("every bot gets the memory server; only a bot that names an effect tool get
   ]);
 });
 
+test("only a bot with a computer gets the computer server", () => {
+  const computers = { server: (s: BotRuntimeSpec) => (s.bot.computer ? ({} as never) : undefined) };
+  const { forSpec } = build({ computers });
+  expect(Object.keys(forSpec(specOf(bot(["Read"]))))).not.toContain("computer");
+  expect(Object.keys(forSpec(specOf({ ...bot(["Read"]), computer: "home" })))).toContain(
+    "computer",
+  );
+  // Without the computers wiring nothing is added.
+  expect(Object.keys(build().forSpec(specOf({ ...bot([]), computer: "home" })))).not.toContain(
+    "computer",
+  );
+});
+
 test("every bot gets the schedules server once the board exists, even with no tools entry", () => {
   const { forSpec } = build({ schedules: () => ({}) as ScheduleBoard });
   expect(Object.keys(forSpec(specOf(bot([]))))).toContain("schedules");
