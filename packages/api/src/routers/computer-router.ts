@@ -109,7 +109,8 @@ export const computerRouter = {
       mode: input.mode,
     });
     // The viewer's own ticket rides in the fragment; the browser keeps it on our origin.
-    const path = `${COMPUTER_VIEW_PREFIX}${token}/${hash}`;
+    // The Cua viewer lives under `viewer/`; its root answers 400, so the link must name it.
+    const path = `${COMPUTER_VIEW_PREFIX}${token}/viewer/${hash}`;
     return { url: `${deps.publicApiUrl?.replace(/\/+$/, "") ?? ""}${path}`, expiresAt: exp };
   }),
   takeControl: authed.computer.takeControl.handler(async ({ input, context, errors }) => {
