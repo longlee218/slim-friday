@@ -92,6 +92,8 @@ export function createViewProxy(deps: {
   now: () => number;
   /** Whether the owner still holds input on `computer`; a control-mode link needs it on every request and upgrade. */
   controlHeld?: (computer: string) => boolean | Promise<boolean>;
+  /** Web origins allowed to frame the viewer; the viewer's own `frame-ancestors 'none'` is replaced by them. */
+  frameAncestors?: string[];
 }) {
   return async (c: Context): Promise<Response> => {
     const parts = split(c);
@@ -141,8 +143,22 @@ export function createViewProxy(deps: {
     if (!upstream) return c.json({ code: "VIEWER_UNREACHABLE" }, 502);
     const out = copyHeaders(upstream.headers, DROP_RES);
     out.set("Cache-Control", "no-store");
+    const csp = out.get("content-security-policy");
+    if (csp && deps.frameAncestors)
+      out.set("content-security-policy", allowFraming(csp, deps.frameAncestors));
     return new Response(upstream.body, { status: upstream.status, headers: out });
   };
+}
+
+/**
+ * The viewer's CSP with its `frame-ancestors` set to `origins`: the web app frames the viewer cross-site, and
+ * the viewer ships `frame-ancestors 'none'`, which the browser refuses inside an iframe.
+ */
+export function allowFraming(csp: string, origins: string[]): string {
+  const ancestors = origins.length > 0 ? origins.join(" ") : "'none'";
+  return /frame-ancestors[^;]*/i.test(csp)
+    ? csp.replace(/frame-ancestors[^;]*/i, `frame-ancestors ${ancestors}`)
+    : `${csp}; frame-ancestors ${ancestors}`;
 }
 
 /** Bun `websocket` handler for `Bun.serve`: relays frames to the viewer and tracks sockets per computer. */
