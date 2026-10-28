@@ -118,6 +118,10 @@ export function createCuaProvider(deps: CuaProviderDeps): ComputerProvider {
       if (!j.NCPU || !j.MemTotal) throw new Error("docker info gave no NCPU or MemTotal");
       return { cpus: j.NCPU, memoryMb: Math.floor(j.MemTotal / 1024 / 1024) };
     },
+    async running(name) {
+      const info = await run(cmd.info(assertComputerName(name)), QUICK_MS);
+      return info.code === 0 && isRunning(info.stdout);
+    },
     async ensure(spec) {
       const name = assertComputerName(spec.name);
       const info = await run(cmd.info(name), QUICK_MS);

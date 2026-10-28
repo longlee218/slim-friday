@@ -1,3 +1,4 @@
+import type { ComputerDesk } from "@friday/api";
 import type { ComputerSettings } from "@friday/config";
 import {
   type Bot,
@@ -60,6 +61,8 @@ export interface Computers {
   release(botId: BotId, wakeId: string): Promise<void>;
   /** The owner gave `computer` back or lost it: wake each bot its tools turned away meanwhile, once. */
   resumeAfterGiveBack(computer: string): Promise<void>;
+  /** What the web API needs: the provider's probe and viewer, the computer spec and the slots. */
+  desk: ComputerDesk;
 }
 
 /** A provider that refuses everything with `why` (no provider could be built); the tools refuse readably. */
@@ -67,6 +70,7 @@ function refusingProvider(why: string): ComputerProvider {
   const no = () => Promise.reject(new Error(why));
   return {
     capacity: no,
+    running: no,
     ensure: no,
     exec: no,
     launch: no,
@@ -161,6 +165,15 @@ export function createComputers(d: ComputersDeps): Computers {
       });
     },
     resumeAfterGiveBack: resume.resumeAfterGiveBack,
+    desk: {
+      provider,
+      spec: (name) => ({
+        name,
+        cpus: d.settings?.cpus ?? DEFAULT_CPUS,
+        memoryMb: d.settings?.memoryMb ?? DEFAULT_MEMORY_MB,
+      }),
+      slots: () => ({ limit: count.slots(), text: count.text() }),
+    },
     async release(botId, wakeId) {
       const key = `slot:${botId}`;
       // `live(0)`: every row not released (expiresAt 0), lapsed TTL included: a lapsed slot still has a browser.

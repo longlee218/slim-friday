@@ -48,6 +48,8 @@ export interface ComputerView {
 export interface ComputerProvider {
   /** The machine's total room for computers. */
   capacity(): Promise<ComputerCapacity>;
+  /** True when the computer exists and runs; never creates or starts it. */
+  running(name: string): Promise<boolean>;
   /** Create the computer if missing and start it; no-op when it already runs. */
   ensure(spec: ComputerSpec): Promise<void>;
   /** Run a command (argv, no shell) inside the computer; rejects after `timeoutMs`. */

@@ -193,6 +193,7 @@ async function runEngine(
       // The same denied env values the engine hides from bot text (read at each call).
       secretValues: () => deniedEnvValues(),
       limits: () => app.config.limits(),
+      computers: app.computers.desk,
     },
   }).catch(async (err) => {
     stopUpkeep();

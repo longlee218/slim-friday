@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import { join } from "node:path";
 import {
   type ApiLog,
@@ -5,6 +6,7 @@ import {
   createOwnerAuth,
   type EngineDeps,
   ensureOwner,
+  viewWebsocket,
 } from "@friday/api";
 import { openAuthDb } from "@friday/store-sqlite";
 import { homePaths } from "./config/home-paths";
@@ -65,6 +67,9 @@ export async function startApiServer(
       ownerEmail: o.ownerEmail,
       log: o.log,
       cdnUrl: o.cdnUrl,
+      publicApiUrl: o.publicApiUrl,
+      // Derived, so the auth secret itself never seals a link.
+      viewSecret: createHmac("sha256", o.authSecret).update("friday-computer-view").digest("hex"),
       now: systemClock.now,
       dbReachable: authDb.ping,
       ...o.engine,
@@ -75,7 +80,9 @@ export async function startApiServer(
         hostname: "127.0.0.1",
         port: o.port,
         idleTimeout: API_IDLE_TIMEOUT_S,
-        fetch: app.fetch,
+        // The server is the view proxy's websocket upgrade handle (`c.env`).
+        fetch: (req, srv) => app.fetch(req, srv),
+        websocket: viewWebsocket,
       });
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);

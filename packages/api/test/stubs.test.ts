@@ -16,6 +16,7 @@ const implemented = [
   "approvals.",
   "questions.",
   "control.",
+  "computer.",
   "events.",
   "tickets.",
   "schedules.",

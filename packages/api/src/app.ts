@@ -20,6 +20,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { type ApiLog, logApiEvent } from "./api-log";
 import type { OwnerAuth } from "./auth/owner-auth";
+import type { ComputerDesk } from "./computer/computer-desk";
 import { COMPUTER_VIEW_PREFIX, createViewProxy } from "./computer/view-proxy";
 import { MCP_OAUTH_CALLBACK_PATH, mcpOAuthCallback } from "./http/mcp-oauth-callback";
 import { originCheck } from "./http/origin-check";
@@ -80,6 +81,10 @@ export interface ApiDeps {
   secretValues?: () => string[];
   /** HMAC secret that seals computer view links; unset: the view proxy is not mounted. */
   viewSecret?: string;
+  /** Public base URL of this API; view links are absolute on it. Unset: the path only. */
+  publicApiUrl?: string;
+  /** The engine's computers (probe, viewer, slots); unset: the computer routes refuse. */
+  computers?: ComputerDesk;
 }
 
 /** The fields the engine adds to `ApiDeps` (plan 2). */
@@ -97,6 +102,7 @@ export type EngineDeps = Pick<
   | "registrableDomain"
   | "tools"
   | "secretValues"
+  | "computers"
 >;
 
 /** Build the HTTP app: log, CORS, Origin check, then health, auth and the owner-only RPC. */

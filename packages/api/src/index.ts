@@ -3,6 +3,7 @@ export { type ApiDeps, createApiApp, type EngineDeps, SSE_KEEPALIVE_MS } from ".
 export { ensureOwner } from "./auth/ensure-owner";
 export { createOwnerAuth, type OwnerAuth, type OwnerAuthOptions } from "./auth/owner-auth";
 export { rpIdFor } from "./auth/rp-id";
+export type { ComputerDesk } from "./computer/computer-desk";
 export { revokeViewTokens, viewWebsocket } from "./computer/view-proxy";
 export {
   openViewToken,

@@ -2,6 +2,7 @@ export * from "./contract";
 export * from "./dto/approval-rules";
 export * from "./dto/cards";
 export * from "./dto/chat";
+export * from "./dto/computer";
 export * from "./dto/config";
 export * from "./dto/memory";
 export * from "./dto/ops";

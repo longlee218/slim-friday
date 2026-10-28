@@ -27,7 +27,7 @@ export class ComputerOwnerControlError extends ComputerBusyError {
 /** What the lease helpers need: the holds store, a clock and an injectable sleep. */
 export interface LeaseDeps {
   holds: Store["computerHolds"];
-  clock: Clock;
+  clock: Pick<Clock, "now">;
   sleep: (ms: number) => Promise<void>;
 }
 

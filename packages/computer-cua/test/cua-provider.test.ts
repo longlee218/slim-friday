@@ -55,6 +55,21 @@ describe("computer names", () => {
   });
 });
 
+describe("running", () => {
+  test("true when info succeeds and it runs; never creates or restarts", async () => {
+    const { provider, calls } = fakes(() => ok(JSON.stringify({ state: "running" })));
+    expect(await provider.running("bot-a")).toBe(true);
+    expect(calls).toEqual([["sandbox", "info", "bot-a"]]);
+  });
+  test("false when stopped or missing", async () => {
+    const stopped = fakes(() => ok(JSON.stringify({ state: "suspended" })));
+    expect(await stopped.provider.running("bot-a")).toBe(false);
+    const missing = fakes(() => fail);
+    expect(await missing.provider.running("bot-a")).toBe(false);
+    expect(missing.calls).toEqual([["sandbox", "info", "bot-a"]]);
+  });
+});
+
 describe("ensure", () => {
   test("creates with --memory 1536MB --cpu 2 when info fails", async () => {
     const { provider, calls } = fakes((a) => (a[1] === "info" ? fail : ok()));
