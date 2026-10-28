@@ -15,19 +15,22 @@ type Mode = "view" | "control";
 /** The owner's window on a bot's computer: status, a live view on demand, and taking control. */
 export function ComputerPanel({ botId, botName }: { botId: string; botName: string }) {
   const phone = useIsPhone();
-  const status = useQuery(
+  const statusQuery = useQuery(
     orpc.computer.status.queryOptions({ input: { botId }, refetchInterval: STATUS_POLL_MS }),
-  ).data;
+  );
+  const status = statusQuery.data;
   const control = useControl(botId);
   const [frame, setFrame] = useState<string | null>(null);
 
-  /** Mints a link and (re)loads the frame with it; nothing streams before the first call. */
+  /** Mints a link and (re)loads the frame with it; nothing streams before the first call. False on failure. */
   const load = useCallback(
-    async (mode: Mode) => {
+    async (mode: Mode): Promise<boolean> => {
       try {
         setFrame((await client.computer.view({ botId, mode })).url);
+        return true;
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Could not open the view");
+        return false;
       }
     },
     [botId],
@@ -41,15 +44,23 @@ export function ComputerPanel({ botId, botName }: { botId: string; botName: stri
   // Leaving the panel releases the hold and revokes the link.
   const open = useRef({ frame, state: control.state });
   open.current = { frame, state: control.state };
-  useEffect(
-    () => () => {
+  const gone = useRef(false);
+  useEffect(() => {
+    gone.current = false; // StrictMode re-runs the effect after its cleanup
+    return () => {
+      gone.current = true;
       if (open.current.state === "held") void client.computer.giveBack({ botId }).catch(() => {});
       if (open.current.frame) void client.computer.closeView({ botId }).catch(() => {});
-    },
-    [botId],
-  );
+    };
+  }, [botId]);
 
-  if (!status) return <div className="r">Loading…</div>;
+  if (!status) {
+    return (
+      <div className="r">
+        {statusQuery.isError ? "Could not load the computer state." : "Loading…"}
+      </div>
+    );
+  }
   if (!status.computer) return <div className="r">This bot has no computer.</div>;
   const controlling = control.state === "held";
   const dot = controlling
@@ -59,7 +70,11 @@ export function ComputerPanel({ botId, botName }: { botId: string; botName: stri
       : "Idle";
 
   const takeControl = async () => {
-    if (await control.take()) await load("control");
+    if (!(await control.take())) return;
+    // The panel closed while the bot finished its step: do not keep a hold nobody sees.
+    if (gone.current) return void client.computer.giveBack({ botId }).catch(() => {});
+    // No control link, no hold: release it so the bot is not left waiting.
+    if (!(await load("control"))) await control.giveBack();
   };
   const giveBack = async () => {
     await control.giveBack();
@@ -86,7 +101,9 @@ export function ComputerPanel({ botId, botName }: { botId: string; botName: stri
           Take control
         </Button>
       )}
-      <Button onClick={close}>Close</Button>
+      <Button disabled={control.state === "waiting"} onClick={close}>
+        Close
+      </Button>
     </div>
   );
 
