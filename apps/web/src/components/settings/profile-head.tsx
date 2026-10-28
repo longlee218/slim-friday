@@ -1,4 +1,4 @@
-import { MessageCircle } from "lucide-react";
+import { MessageCircle, Monitor } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link } from "react-router";
 
@@ -36,6 +36,18 @@ export function ChatAction({ to }: { to: string }) {
         <MessageCircle size={18} strokeWidth={1.75} />
       </span>
       <span className="qa-l">Chat</span>
+    </Link>
+  );
+}
+
+/** Round "Computer" quick action that opens the bot's Computer tab. */
+export function ComputerAction({ to }: { to: string }) {
+  return (
+    <Link className="qa" to={to} aria-label="Open computer">
+      <span className="qa-ico">
+        <Monitor size={18} strokeWidth={1.75} />
+      </span>
+      <span className="qa-l">Computer</span>
     </Link>
   );
 }

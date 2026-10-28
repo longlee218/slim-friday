@@ -28,13 +28,16 @@ export function buildCsp(o: {
   // The CDN is optional: unset or empty means images are not served from one.
   const cdn = o.cdnOrigin ? toOrigin("VITE_CDN_ORIGIN", o.cdnOrigin) : undefined;
   const extra = cdn ? ` ${cdn}` : "";
+  // The Computer viewer is an iframe on the API origin and streams over a WebSocket to it.
+  const apiWs = api.replace(/^http/, "ws");
   return [
     "default-src 'self'",
     // 'wasm-unsafe-eval' is for Shiki's WebAssembly regex engine; scripts stay strict.
     "script-src 'self' 'wasm-unsafe-eval'",
     // 'unsafe-inline' styles are for the <style> elements Mermaid and Sonner inject.
     "style-src 'self' 'unsafe-inline'",
-    `connect-src 'self' ${api} ${r2}${extra}`,
+    `connect-src 'self' ${api} ${apiWs} ${r2}${extra}`,
+    `frame-src 'self' ${api}`,
     `img-src 'self' data: blob: ${r2}${extra}`,
     "worker-src 'self'",
     "manifest-src 'self'",
