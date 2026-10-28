@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { createRouterClient } from "@orpc/server";
 import { fakeRegistrableDomain } from "../../core/test/fakes/fake-registrable-domain";
+import { FakeToolCatalog } from "../../core/test/fakes/fake-tool-catalog";
 import { appRouter } from "../src/index";
 import { engineHarness } from "./helpers/engine-deps";
 
@@ -118,5 +119,21 @@ test("rules routes refuse without a session", async () => {
   ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   await expect(anon.config.approvalRules.remove({ id: "x" })).rejects.toMatchObject({
     code: "UNAUTHORIZED",
+  });
+});
+
+test("scopeKeys lists the scope keys of each catalog tool that has some", async () => {
+  const h = harness();
+  (h.deps as { tools?: unknown }).tools = new FakeToolCatalog([
+    {
+      name: "mcp__effects__GitPush",
+      annotations: {},
+      scopeKeys: ["workspace", "remote", "branch"],
+    },
+    { name: "Read", annotations: { readOnlyHint: true } },
+  ]);
+  expect(await h.client.config.approvalRules.scopeKeys()).toEqual({
+    mcp__effects__GitPush: ["workspace", "remote", "branch"],
+    Read: [],
   });
 });

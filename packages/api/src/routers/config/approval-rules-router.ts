@@ -58,4 +58,7 @@ export const approvalRulesRouter = {
     await store.grants.setEffect(input.id, input.effect);
     return toDto({ ...rule, effect: input.effect });
   }),
+  scopeKeys: authed.config.approvalRules.scopeKeys.handler(async ({ context }) =>
+    Object.fromEntries((await context.deps.tools.list()).map((t) => [t.name, t.scopeKeys ?? []])),
+  ),
 };
