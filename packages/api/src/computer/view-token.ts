@@ -7,6 +7,8 @@ export interface ViewClaims {
   botId: string;
   /** Loopback port of the Cua viewer this link may reach. */
   port: number;
+  /** Minted at, epoch ms; a revoke kills every link with `iat` at or before it. */
+  iat: number;
   /** Expiry, epoch ms. */
   exp: number;
   mode: ViewMode;
@@ -30,6 +32,7 @@ function isClaims(v: unknown): v is ViewClaims {
     Number.isInteger(c.port) &&
     (c.port as number) > 0 &&
     (c.port as number) < 65536 &&
+    typeof c.iat === "number" &&
     typeof c.exp === "number" &&
     (c.mode === "view" || c.mode === "control")
   );

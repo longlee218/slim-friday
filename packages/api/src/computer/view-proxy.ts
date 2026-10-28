@@ -21,25 +21,33 @@ const DROP = new Set([
   "sec-websocket-version",
   "sec-websocket-extensions",
   "sec-websocket-protocol",
+  "referer",
+  "origin",
 ]);
 /** Upstream response headers dropped (the body is re-framed; cookies must not reach the web app). */
-const DROP_RES = new Set([...DROP, "content-encoding", "set-cookie"]);
+const DROP_RES = new Set([...DROP, "content-encoding", "set-cookie", "location"]);
 
-/** A computer's links are dead when their `exp` is at or before this (ms); a later link is not. */
-const revokedUntil = new Map<string, number>();
+/** Longest a link lives; a revoke entry older than this can no longer match any live link. */
+const MAX_LINK_MS = 600_000;
+/** Per computer, when its links were last revoked (ms): a link with `iat` at or before it is dead. */
+const revokedAt = new Map<string, number>();
 const sockets = new Map<string, Set<Bun.ServerWebSocket<RelayData>>>();
 
 interface RelayData {
   computer: string;
   target: string;
   protocols: string[];
+  /** Ms until the link expires; the relay closes then. */
+  ttlMs: number;
+  timer?: ReturnType<typeof setTimeout>;
   upstream?: WebSocket;
   pending: (string | BufferSource)[];
 }
 
 /** Kill every link minted for `computer` up to now (Give back, panel closed) and close its open sockets. */
-export function revokeViewTokens(computer: string, now: number, maxLifetimeMs = 600_000): void {
-  revokedUntil.set(computer, now + maxLifetimeMs);
+export function revokeViewTokens(computer: string, now: number): void {
+  for (const [k, at] of revokedAt) if (now > at + MAX_LINK_MS) revokedAt.delete(k);
+  revokedAt.set(computer, now);
   for (const ws of sockets.get(computer) ?? []) ws.close(1008, "revoked");
   sockets.delete(computer);
 }
@@ -50,41 +58,50 @@ function copyHeaders(from: Headers, drop: Set<string>): Headers {
   return out;
 }
 
-/** The rest of the path after the token, or undefined when it could leave the viewer. */
-function safeRest(c: Context, token: string): string | undefined {
-  const raw = new URL(c.req.url).pathname.slice(`${COMPUTER_VIEW_PREFIX}${token}`.length);
+/** The raw token segment and the rest of the path after it (`""` or a single-slash path). */
+function split(c: Context): { segment: string; rest: string } | undefined {
+  const path = new URL(c.req.url).pathname;
+  if (!path.startsWith(COMPUTER_VIEW_PREFIX)) return undefined;
+  const tail = path.slice(COMPUTER_VIEW_PREFIX.length);
+  const cut = tail.indexOf("/");
+  const segment = cut < 0 ? tail : tail.slice(0, cut);
+  return { segment, rest: cut < 0 ? "" : tail.slice(cut) };
+}
+
+/** True when `rest` could leave the viewer: `..`, backslash, a second leading slash or a scheme. */
+function escapes(rest: string): boolean {
+  if (rest !== "" && (!rest.startsWith("/") || rest.startsWith("//"))) return true;
   let decoded: string;
   try {
-    decoded = decodeURIComponent(raw);
+    decoded = decodeURIComponent(rest);
   } catch {
-    return undefined;
+    return true;
   }
-  // `..` segments, backslashes, a second leading slash, or a scheme in the first segment (absolute URL).
-  const bad =
+  return (
     decoded.split("/").includes("..") ||
     decoded.includes("\\") ||
     decoded.startsWith("//") ||
-    /^\/?[^/?#]*:/.test(decoded);
-  return bad ? undefined : raw || "/";
+    /^\/?[^/?#]*:/.test(decoded)
+  );
 }
 
 /**
  * Forward `/computer-view/<token>/*` (HTTP and WebSocket) to the Cua viewer on 127.0.0.1 at the token's
  * port. The token alone authorizes it. Nothing here logs a path, query or header (they carry tickets).
  */
-export function createViewProxy(deps: {
-  secret: string;
-  now: () => number;
-  revoked: (token: string) => boolean;
-}) {
+export function createViewProxy(deps: { secret: string; now: () => number }) {
   return async (c: Context): Promise<Response> => {
-    const token = c.req.param("token") ?? "";
-    const claims = openViewToken(deps.secret, token, deps.now());
-    if (!claims || deps.revoked(token) || claims.exp <= (revokedUntil.get(claims.computer) ?? 0)) {
+    const parts = split(c);
+    // The token is the raw segment: no percent-encoding, so the path slice cannot drift from it.
+    const claims =
+      parts && !parts.segment.includes("%")
+        ? openViewToken(deps.secret, parts.segment, deps.now())
+        : undefined;
+    if (!parts || !claims || claims.iat <= (revokedAt.get(claims.computer) ?? -1)) {
       return c.json({ code: "FORBIDDEN" }, 403);
     }
-    const rest = safeRest(c, token);
-    if (rest === undefined) return c.json({ code: "BAD_PATH" }, 400);
+    if (escapes(parts.rest)) return c.json({ code: "BAD_PATH" }, 400);
+    const rest = parts.rest || "/";
     const search = new URL(c.req.url).search;
     const headers = copyHeaders(c.req.raw.headers, DROP);
     if (c.req.header("upgrade")?.toLowerCase() === "websocket") {
@@ -96,6 +113,7 @@ export function createViewProxy(deps: {
         computer: claims.computer,
         target: `ws://127.0.0.1:${claims.port}${rest}${search}`,
         protocols,
+        ttlMs: claims.exp - deps.now(),
         pending: [],
       };
       const server = c.env as Bun.Server<RelayData> | undefined;
@@ -137,6 +155,7 @@ export const viewWebsocket: Bun.WebSocketHandler<RelayData> = {
     up.onmessage = (e) => ws.send(e.data as string | ArrayBuffer);
     up.onclose = () => ws.close();
     up.onerror = () => ws.close(1011);
+    ws.data.timer = setTimeout(() => ws.close(1008, "expired"), Math.max(0, ws.data.ttlMs));
   },
   message(ws, msg) {
     const up = ws.data.upstream;
@@ -144,6 +163,7 @@ export const viewWebsocket: Bun.WebSocketHandler<RelayData> = {
     else ws.data.pending.push(msg);
   },
   close(ws) {
+    clearTimeout(ws.data.timer);
     sockets.get(ws.data.computer)?.delete(ws);
     ws.data.upstream?.close();
   },

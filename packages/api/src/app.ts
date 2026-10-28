@@ -132,7 +132,7 @@ export function createApiApp(deps: ApiDeps): Hono {
   if (deps.viewSecret) {
     app.all(
       `${COMPUTER_VIEW_PREFIX}:token/*`,
-      createViewProxy({ secret: deps.viewSecret, now: deps.now, revoked: () => false }),
+      createViewProxy({ secret: deps.viewSecret, now: deps.now }),
     );
   }
   app.use("*", originCheck(webOrigins));
