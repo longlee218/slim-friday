@@ -71,8 +71,18 @@ export async function intakeOwnerMessage(
     ...(quoted && { quote: { author: quoted.author, text: quoted.text } }),
     ...(m.attachments && { attachments: m.attachments }),
   };
-  for (const botId of await hubTargets(store, conv, m.text, replyToBot))
-    await intakeForBot(ctx, { botId, conv, messageId: id, typed: m.text, runText, hasFiles, opts });
+  const { bots, mentioned } = await hubTargets(store, conv, m.text, replyToBot);
+  for (const botId of bots)
+    await intakeForBot(ctx, {
+      botId,
+      conv,
+      messageId: id,
+      typed: m.text,
+      runText,
+      hasFiles,
+      opts,
+      mentioned: mentioned.includes(botId),
+    });
   return id;
 }
 
@@ -92,6 +102,8 @@ interface BotIntake {
   hasFiles: boolean;
   /** Quote and files a new run carries. */
   opts: WakeOpts;
+  /** The message @mentions this bot. */
+  mentioned: boolean;
 }
 
 /** The branches for one bot, in the spec's order: question card, ticket, busy run of this conversation, new run. */
