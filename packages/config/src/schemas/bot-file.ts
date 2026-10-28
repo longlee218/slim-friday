@@ -59,7 +59,7 @@ const botHeader = z
   );
 
 /**
- * Parse `bots/<id>.md`: a YAML header (name, title, description, model, effort, maxEffort, tools, skills, subagents, workspaces, autonomy, avatar)
+ * Parse `bots/<id>.md`: a YAML header (name, title, description, model, effort, maxEffort, tools, skills, subagents, workspaces, autonomy, avatar, computer)
  * and the instructions as the body. Throws a readable error for any problem.
  */
 export function parseBotFile(id: string, text: string): Bot {

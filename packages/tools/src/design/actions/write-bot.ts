@@ -7,6 +7,7 @@ import {
   atomicWrite,
   checkWorkspace,
   existingAvatar,
+  existingComputer,
   existingDescription,
   existingSubagents,
   listSkills,
@@ -88,6 +89,8 @@ export function buildBotFile(
   const subagents = a.subagents ?? existingSubagents(file);
   // Left out, an overwrite keeps the old avatar (an uploaded one is set only from the web app).
   const avatar = a.avatar ?? (a.overwrite ? existingAvatar(file) : undefined);
+  // An overwrite keeps the owner's computer (set in the file by hand; no design or web input carries it).
+  const computer = a.overwrite ? existingComputer(file) : undefined;
   // Left out, an overwrite keeps the old description (a bot may have set its own with UpdateProfile).
   const description =
     a.description?.trim() || (a.overwrite ? existingDescription(file) : undefined);
@@ -104,6 +107,7 @@ export function buildBotFile(
     ...(a.effort && { effort: a.effort }),
     ...(a.maxEffort && { maxEffort: a.maxEffort }),
     ...(avatar && { avatar }),
+    ...(computer && { computer }),
   };
   const text = `---\n${toYaml(header)}---\n${body}\n`;
   try {

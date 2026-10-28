@@ -125,6 +125,17 @@ export function existingAvatar(file: string): string | undefined {
   }
 }
 
+/** `computer` in the front matter of an existing bot file (set by the owner by hand); undefined when absent or unreadable. */
+export function existingComputer(file: string): string | undefined {
+  try {
+    const head = /^---\r?\n([\s\S]*?)\r?\n---/.exec(readFileSync(file, "utf8"))?.[1] ?? "";
+    const parsed = Bun.YAML.parse(head) as { computer?: unknown } | null;
+    return typeof parsed?.computer === "string" ? parsed.computer : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** The `description` an existing bot file has in its header, so an overwrite that leaves it out keeps it. */
 export function existingDescription(file: string): string | undefined {
   try {

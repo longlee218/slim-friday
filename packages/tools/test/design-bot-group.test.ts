@@ -167,6 +167,16 @@ test("overwriting a bot keeps its avatar when none is given", async () => {
   expect(readFileSync(file, "utf8")).toContain(`avatar: ${up}`);
 });
 
+test("overwriting a bot keeps its computer", async () => {
+  const { ctx, configDir } = setup();
+  const file = join(configDir, "bots", "ann.md");
+  writeFileSync(file, "---\nname: Ann\ntitle: t\nmodel: m\ncomputer: home\n---\nOld.\n");
+  expect(
+    (await call(createBotDesignTool(ctx), { ...bot, overwrite: true })).isError,
+  ).toBeUndefined();
+  expect(readFileSync(file, "utf8")).toContain("computer: home");
+});
+
 const helper = { name: "scout", description: "Finds files.", prompt: "Find the files asked for." };
 
 test("write_bot writes given subagents and replaces the old ones; [] removes them", async () => {

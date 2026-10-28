@@ -49,6 +49,12 @@ test("diffBots ignores an avatar-only change", () => {
   expect(diffBots(prev, next)).toEqual([]);
 });
 
+test("diffBots restarts a bot whose computer changed (the model is told about its computer)", () => {
+  const prev = new Map([["a", bot({ id: "a" })]]);
+  const next = new Map([["a", bot({ id: "a", computer: "home" })]]);
+  expect(diffBots(prev, next)).toEqual(["a"]);
+});
+
 test("load serves bots, groups, catalog, settings and limits from the snapshot", async () => {
   const dir = newDir();
   put(dir, "a", botText("A"));

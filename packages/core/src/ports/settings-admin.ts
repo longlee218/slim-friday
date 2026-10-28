@@ -42,9 +42,11 @@ export interface BotInput {
   autonomy?: AutonomyLevel;
 }
 
-/** A bot as listed: its input plus its avatar value and whether it ships with the app. */
+/** A bot as listed: its input plus its avatar value, its computer and whether it ships with the app. */
 export interface BotEntry extends BotInput {
   avatar?: string;
+  /** The computer the owner set in the bot file by hand; read only here. */
+  computer?: string;
   shipped: boolean;
   /** An owner bot that is not reserved: the web app may offer Delete. */
   deletable: boolean;

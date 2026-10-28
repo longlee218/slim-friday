@@ -21,6 +21,7 @@ export function toBotDto(b: BotEntry, avatarUrl?: string): BotDto {
     ...(b.autonomy && { autonomy: b.autonomy }),
     ...(b.avatar && { avatar: b.avatar }),
     ...(avatarUrl && { avatarUrl }),
+    ...(b.computer && { computer: b.computer }),
   };
 }
 

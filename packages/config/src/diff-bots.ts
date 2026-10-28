@@ -12,7 +12,8 @@ function own(bot: Bot): Omit<Bot, "ownerPreface" | "avatar"> {
 
 /**
  * Bots whose sessions must restart after a reload: removed, or present in both with a different value (the owner's
- * SOUL and USER text and the avatar do not count). Added bots are not listed (they have no session yet). Sorted.
+ * SOUL and USER text and the avatar do not count). A `computer` change does count: its session's prompt and tools
+ * name the computer. Added bots are not listed (they have no session yet). Sorted.
  */
 export function diffBots(prev: Map<BotId, Bot>, next: Map<BotId, Bot>): BotId[] {
   const changed: BotId[] = [];
