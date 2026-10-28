@@ -13,6 +13,17 @@ export class ComputerBusyError extends Error {
   }
 }
 
+/** Holder (and bot id) of an input lease the owner took through the web page. */
+export const OWNER_HOLDER = "owner";
+
+/** A bot asked for the input lease while the owner controls the computer; no waiting. */
+export class ComputerOwnerControlError extends ComputerBusyError {
+  constructor(computer: string) {
+    super(`the owner is controlling computer "${computer}"`);
+    this.name = "ComputerOwnerControlError";
+  }
+}
+
 /** What the lease helpers need: the holds store, a clock and an injectable sleep. */
 export interface LeaseDeps {
   holds: Store["computerHolds"];
@@ -51,16 +62,21 @@ export async function withInputLease<T>(
   fn: (check: () => Promise<void>) => Promise<T>,
 ): Promise<T> {
   const ttlMs = a.ttlMs ?? 30_000;
-  const hold = await pollFor(d, a.waitMs ?? 60_000, "input", a.computer, () =>
-    d.holds.acquire({
+  const hold = await pollFor(d, a.waitMs ?? 60_000, "input", a.computer, async () => {
+    const now = d.clock.now();
+    const key = `input:${a.computer}`;
+    if ((await d.holds.live(now)).some((h) => h.key === key && h.holder === OWNER_HOLDER)) {
+      throw new ComputerOwnerControlError(a.computer);
+    }
+    return d.holds.acquire({
       kind: "input",
       computer: a.computer,
       botId: a.botId,
       holder: a.holder,
       ttlMs,
-      now: d.clock.now(),
-    }),
-  );
+      now,
+    });
+  });
   const check = async () => {
     const ok = await d.holds.renew({
       key: hold.key,
