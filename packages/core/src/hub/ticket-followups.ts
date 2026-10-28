@@ -5,6 +5,8 @@ import { type Ticket, ticketRef } from "../tickets/ticket";
 import type { StatusChange } from "../tickets/ticket-board";
 import { type HubContext, tell } from "./hub-context";
 import { errText } from "./hub-types";
+import { releaseDependents } from "./ticket-dependents";
+import { postTicketMilestone } from "./ticket-milestones";
 import { blockedWakeText, isOpenWork, reviewWakeText, sentBackWakeText } from "./ticket-support";
 import { wakeForTicket } from "./ticket-wakes";
 
@@ -15,6 +17,17 @@ const lastComment = async (ctx: HubContext, t: Ticket): Promise<string | undefin
 /** Is `a` the bot `botId`? */
 const isBot = (a: Author, botId: BotId | undefined): boolean =>
   a.kind === "bot" && botId !== undefined && a.botId === botId;
+
+/** Everything after a saved status change, in order: the group milestone, the follow-ups, the release. */
+export async function afterTicketStatus(
+  ctx: HubContext,
+  t: Ticket,
+  c: StatusChange,
+): Promise<void> {
+  await postTicketMilestone(ctx, t, c.from);
+  await followUpStatus(ctx, t, c);
+  await releaseDependents(ctx, t);
+}
 
 /**
  * After a saved status change, close the loop between a ticket's creator and its assignee:

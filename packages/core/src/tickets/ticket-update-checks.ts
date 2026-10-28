@@ -49,7 +49,7 @@ export async function checkUpdate(
   // A started ticket cannot be put back to waiting; finished blockers are only a record.
   if (
     deps &&
-    cur.status !== "todo" &&
+    (i.status ?? cur.status) !== "todo" &&
     (await waitingOn(store, { ...cur, blockedBy: deps.ids })).length
   )
     return STARTED_CANNOT_WAIT;
