@@ -1,5 +1,8 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
+/** Longest a view link may live (ms). The minter must enforce `exp - iat <= MAX_LINK_MS`; revoke entries are pruned after it. */
+export const MAX_LINK_MS = 600_000;
+
 export type ViewMode = "view" | "control";
 
 export interface ViewClaims {

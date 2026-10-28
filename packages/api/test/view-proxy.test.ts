@@ -11,7 +11,8 @@ const NOW = 1000;
 const viewer = Bun.serve({
   hostname: "127.0.0.1",
   port: 0,
-  fetch(req, server) {
+  async fetch(req, server) {
+    if (req.method === "POST") await req.text();
     const url = new URL(req.url);
     if (url.pathname.endsWith("/media")) {
       const ok = server.upgrade(req, { headers: { "sec-websocket-protocol": "rcdp.v2" } });
@@ -192,4 +193,31 @@ test("a token minted before a revoke is refused, one minted after is not", async
   const after = sealViewToken(SECRET, claims({ computer: "c-iat", iat: NOW + 1 }));
   expect((await fetch(url(before))).status).toBe(403);
   expect((await fetch(url(after))).status).toBe(200);
+});
+
+test("revoke at NOW: a short-lived link minted after is accepted, one minted at or before is not", async () => {
+  revokeViewTokens("c-short", NOW);
+  // exp is well inside NOW + MAX_LINK_MS: a revoke-by-exp heuristic would wrongly refuse it.
+  const after = sealViewToken(
+    SECRET,
+    claims({ computer: "c-short", iat: NOW + 1, exp: NOW + 5_000 }),
+  );
+  const at = sealViewToken(SECRET, claims({ computer: "c-short", iat: NOW, exp: NOW + 5_000 }));
+  const early = sealViewToken(
+    SECRET,
+    claims({ computer: "c-short", iat: NOW - 10, exp: NOW + 5_000 }),
+  );
+  expect((await fetch(url(after))).status).toBe(200);
+  expect((await fetch(url(at))).status).toBe(403);
+  expect((await fetch(url(early))).status).toBe(403);
+});
+
+test("a percent-encoded token char with an unencoded dot-dot is refused", async () => {
+  const token = sealViewToken(SECRET, claims());
+  const enc = `%${token.charCodeAt(0).toString(16)}${token.slice(1)}`;
+  const base = `http://127.0.0.1:${front.port}/computer-view`;
+  for (const u of [`${base}/${enc}/../x`, `${base}/${enc}/a/../../x`, `${base}/${token}%2F../x`]) {
+    const res = await fetch(u);
+    expect(res.status).toBeGreaterThanOrEqual(400);
+  }
 });

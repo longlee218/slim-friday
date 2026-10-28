@@ -1,5 +1,5 @@
 import type { Context } from "hono";
-import { openViewToken } from "./view-token";
+import { MAX_LINK_MS, openViewToken } from "./view-token";
 
 export const COMPUTER_VIEW_PREFIX = "/computer-view/";
 
@@ -27,8 +27,6 @@ const DROP = new Set([
 /** Upstream response headers dropped (the body is re-framed; cookies must not reach the web app). */
 const DROP_RES = new Set([...DROP, "content-encoding", "set-cookie", "location"]);
 
-/** Longest a link lives; a revoke entry older than this can no longer match any live link. */
-const MAX_LINK_MS = 600_000;
 /** Per computer, when its links were last revoked (ms): a link with `iat` at or before it is dead. */
 const revokedAt = new Map<string, number>();
 const sockets = new Map<string, Set<Bun.ServerWebSocket<RelayData>>>();
