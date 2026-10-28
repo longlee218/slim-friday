@@ -17,7 +17,12 @@ const viewer = Bun.serve({
       const ok = server.upgrade(req, { headers: { "sec-websocket-protocol": "rcdp.v2" } });
       return ok ? undefined : new Response("no", { status: 400 });
     }
+    if (url.pathname === "/redir")
+      return new Response(null, { status: 302, headers: { location: "http://evil.example/" } });
     return Response.json({
+      method: req.method,
+      referer: req.headers.get("referer"),
+      origin: req.headers.get("origin"),
       path: url.pathname,
       search: url.search,
       cookie: req.headers.get("cookie"),
@@ -35,10 +40,7 @@ app.use(
   "*",
   requestLog({ info: rec, warn: rec, error: rec }, () => NOW),
 );
-app.all(
-  "/computer-view/:token/*",
-  createViewProxy({ secret: SECRET, now: () => NOW, revoked: (t) => t === "bad" }),
-);
+app.all("/computer-view/:token/*", createViewProxy({ secret: SECRET, now: () => NOW }));
 const front = Bun.serve({
   hostname: "127.0.0.1",
   port: 0,
@@ -54,6 +56,7 @@ const claims = (o: Partial<ViewClaims> = {}): ViewClaims => ({
   computer: "c1",
   botId: "b1",
   port: viewer.port as number,
+  iat: NOW - 1,
   exp: NOW + 600_000,
   mode: "view",
   ...o,
@@ -64,11 +67,20 @@ const url = (token: string, rest = "viewer.js?ticket=T1") =>
 test("forwards GET with query and viewer headers, strips Cookie and Authorization", async () => {
   const token = sealViewToken(SECRET, claims());
   const res = await fetch(url(token), {
-    headers: { cookie: "a=b", authorization: "Bearer x", "x-cua-env-authorization": "tk" },
+    headers: {
+      cookie: "a=b",
+      authorization: "Bearer x",
+      referer: "https://web.example/p",
+      origin: "https://web.example",
+      "x-cua-env-authorization": "tk",
+    },
   });
   expect(res.status).toBe(200);
   expect(res.headers.get("cache-control")).toBe("no-store");
   expect(await res.json()).toEqual({
+    method: "GET",
+    referer: null,
+    origin: null,
     path: "/viewer.js",
     search: "?ticket=T1",
     cookie: null,
@@ -81,7 +93,6 @@ test("refuses bad, expired and revoked tokens", async () => {
   expect((await fetch(url("garbage"))).status).toBe(403);
   const old = sealViewToken(SECRET, claims({ exp: NOW }));
   expect((await fetch(url(old))).status).toBe(403);
-  expect((await fetch(url("bad"))).status).toBe(403);
 });
 
 test("refuses dot-dot and absolute-URL paths", async () => {
@@ -116,7 +127,10 @@ test("relays a websocket with its subprotocol; revoke closes it and later tokens
   revokeViewTokens("c-ws", NOW);
   await closed;
   expect((await fetch(url(token))).status).toBe(403);
-  const later = sealViewToken(SECRET, claims({ computer: "c-ws", exp: NOW + 700_000 }));
+  const later = sealViewToken(
+    SECRET,
+    claims({ computer: "c-ws", iat: NOW + 1, exp: NOW + 700_000 }),
+  );
   expect((await fetch(url(later))).status).toBe(200);
 });
 
@@ -129,4 +143,53 @@ test("no log line carries a ticket or the token", async () => {
   expect(text).not.toContain("SECRET-TICKET");
   expect(text).not.toContain(token);
   expect(text).not.toContain("garbage");
+});
+
+test("a percent-encoded token segment is refused", async () => {
+  const token = sealViewToken(SECRET, claims());
+  const hex = token.charCodeAt(0).toString(16);
+  expect((await fetch(url(`%${hex}${token.slice(1)}`))).status).toBe(403);
+});
+
+test("an unencoded dot-dot never reaches the viewer", async () => {
+  const token = sealViewToken(SECRET, claims());
+  const res = await fetch(url(token, "a/../../b"));
+  expect(res.status).toBeGreaterThanOrEqual(400);
+});
+
+test("a rest that does not start with a single slash is refused", async () => {
+  const token = sealViewToken(SECRET, claims());
+  const res = await fetch(`http://127.0.0.1:${front.port}/computer-view/${token}x/y`);
+  expect(res.status).toBe(403);
+});
+
+test("an open websocket closes with 1008 when the token expires", async () => {
+  const token = sealViewToken(SECRET, claims({ computer: "c-exp", exp: NOW + 300 }));
+  const ws = new WebSocket(url(token, "media?ticket=T3").replace("http", "ws"), "rcdp.v2");
+  const code = await new Promise<number>((r) => {
+    ws.onclose = (e) => r(e.code);
+  });
+  expect(code).toBe(1008);
+});
+
+// Ruling M1: view-only is enforced by Cua's own --view-only ticket (the viewer needs POST for connect-rpc).
+test("a view-mode token still forwards a POST", async () => {
+  const token = sealViewToken(SECRET, claims({ mode: "view" }));
+  const res = await fetch(url(token, "cua.env.v1.Svc/Call"), { method: "POST", body: "{}" });
+  expect(((await res.json()) as { method: string }).method).toBe("POST");
+});
+
+test("an upstream redirect location is not passed on", async () => {
+  const token = sealViewToken(SECRET, claims());
+  const res = await fetch(url(token, "redir"), { redirect: "manual" });
+  expect(res.status).toBe(302);
+  expect(res.headers.get("location")).toBeNull();
+});
+
+test("a token minted before a revoke is refused, one minted after is not", async () => {
+  revokeViewTokens("c-iat", NOW);
+  const before = sealViewToken(SECRET, claims({ computer: "c-iat", iat: NOW }));
+  const after = sealViewToken(SECRET, claims({ computer: "c-iat", iat: NOW + 1 }));
+  expect((await fetch(url(before))).status).toBe(403);
+  expect((await fetch(url(after))).status).toBe(200);
 });
