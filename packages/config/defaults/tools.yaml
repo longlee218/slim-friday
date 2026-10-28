@@ -77,3 +77,10 @@ tools:
   # Writes the owner's config (bots, skills, MCP servers that run code): asked at every level, never "Always allow".
   # scopeKeys put the risky fields on the approval card, in this order (the card is cut at a fixed length).
   - { name: mcp__design__BotDesign, annotations: { destructiveHint: true, idempotentHint: false, openWorldHint: true }, scopeKeys: [action, id, overwrite, autonomy, effort, maxEffort, server, tools, workspaces, skills, source, name, members, subagents, lesson] }
+  # The bot's own computer (a container it drives): allowed without a card, the sandbox is the machine itself.
+  - { name: mcp__computer__ComputerScreenshot, annotations: { readOnlyHint: true }, inComputer: true }
+  - { name: mcp__computer__ComputerAct, annotations: { openWorldHint: true }, inComputer: true }
+  - { name: mcp__computer__ComputerShell, annotations: { openWorldHint: true }, inComputer: true }
+  - { name: mcp__computer__BrowserNavigate, annotations: { openWorldHint: true }, inComputer: true }
+  - { name: mcp__computer__BrowserSnapshot, annotations: { readOnlyHint: true }, inComputer: true }
+  - { name: mcp__computer__BrowserAct, annotations: { openWorldHint: true }, inComputer: true }

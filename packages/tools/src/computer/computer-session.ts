@@ -1,0 +1,91 @@
+import {
+  acquireSlot,
+  ComputerBusyError,
+  type ComputerHold,
+  releaseSlot,
+  renewSlot,
+  withInputLease,
+} from "@friday/core";
+import type { textResult } from "../tool-result";
+import { textResult as makeText } from "../tool-result";
+import type { ComputerContext } from "./computer-context";
+
+/** Most steps or actions one act call runs. */
+export const MAX_BATCH = 20;
+
+/** Refusal text when the slot expired between two tool calls. */
+const SLOT_LOST = "computer slot was lost; the bot must call the tool again to re-acquire";
+
+/** What a tool handler returns: a text result or one with an image block. */
+export type ToolResult = ReturnType<typeof textResult> | { content: unknown[]; isError?: true };
+
+/** Per-session state of the computer tools: the slot hold lives here, in a closure of `computerServer`. */
+export interface ComputerSession {
+  ctx: ComputerContext;
+  /** Ensure the slot and the machine, then run `fn`; any failure becomes an error result. */
+  run(fn: () => Promise<ToolResult>): Promise<ToolResult>;
+  /** Same as `run`, inside the exclusive input lease; `check` renews it and throws when it was lost. */
+  runLeased(fn: (check: () => Promise<void>) => Promise<ToolResult>): Promise<ToolResult>;
+  /** PNG of the previous screenshot in this session. */
+  lastPng: Uint8Array | undefined;
+}
+
+/** Build the session state for one `computer` server. */
+export function createComputerSession(ctx: ComputerContext): ComputerSession {
+  const deps = { holds: ctx.holds, clock: ctx.clock, sleep: ctx.sleep };
+  let hold: ComputerHold | undefined;
+
+  /** First call: take a slot and start the machine and browser. Later calls: renew the slot. */
+  const ensureSession = async (): Promise<void> => {
+    if (hold) {
+      if (await renewSlot(deps, hold)) return;
+      hold = undefined;
+      throw new ComputerBusyError(SLOT_LOST);
+    }
+    const taken = await acquireSlot(deps, {
+      computer: ctx.computer.name,
+      botId: ctx.botId,
+      holder: ctx.holder,
+      slotLimit: ctx.slotLimit(),
+      slotsText: ctx.slotsText(),
+    });
+    try {
+      await ctx.provider.ensure(ctx.computer);
+      await ctx.browser.ensure();
+    } catch (err) {
+      await releaseSlot(deps, taken).catch(() => undefined);
+      throw err;
+    }
+    hold = taken;
+  };
+
+  const run = async (fn: () => Promise<ToolResult>): Promise<ToolResult> => {
+    try {
+      await ensureSession();
+      return await fn();
+    } catch (err) {
+      return makeText(err instanceof Error ? err.message : String(err), true);
+    }
+  };
+
+  return {
+    ctx,
+    lastPng: undefined,
+    run,
+    runLeased: (fn) =>
+      run(() =>
+        withInputLease(
+          deps,
+          { computer: ctx.computer.name, botId: ctx.botId, holder: ctx.holder },
+          fn,
+        ),
+      ),
+  };
+}
+
+/** A readable refusal when a batch is empty or longer than `MAX_BATCH`; undefined when it fits. */
+export function batchError(what: string, n: number): string | undefined {
+  return n >= 1 && n <= MAX_BATCH
+    ? undefined
+    : `${what} must hold 1 to ${MAX_BATCH} entries; got ${n}.`;
+}
