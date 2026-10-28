@@ -173,3 +173,33 @@ test("slot timeout names the slot wait", async () => {
   }).catch((e) => e);
   expect(err.message).toBe('computer "home" is busy (slot); waited 1 s');
 });
+
+/** Deps whose holds release always fails. */
+function failingRelease() {
+  const { d } = setup();
+  const release = async () => {
+    throw new Error("store closed");
+  };
+  return { ...d, holds: { ...d.holds, release } };
+}
+
+test("a failing release does not mask the action error", async () => {
+  await expect(
+    withInputLease(
+      failingRelease(),
+      { computer: "home", botId: bot("a"), holder: "run-a" },
+      async () => {
+        throw new Error("boom");
+      },
+    ),
+  ).rejects.toThrow("boom");
+});
+
+test("a failing release does not replace the action result", async () => {
+  const r = await withInputLease(
+    failingRelease(),
+    { computer: "home", botId: bot("a"), holder: "run-a" },
+    async () => 42,
+  );
+  expect(r).toBe(42);
+});

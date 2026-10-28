@@ -74,7 +74,11 @@ export async function withInputLease<T>(
   try {
     return await fn(check);
   } finally {
-    await d.holds.release({ key: hold.key, holder: hold.holder, fence: hold.fence });
+    try {
+      await d.holds.release({ key: hold.key, holder: hold.holder, fence: hold.fence });
+    } catch {
+      // The TTL frees the lease anyway; a release error must not replace fn's result or error.
+    }
   }
 }
 
