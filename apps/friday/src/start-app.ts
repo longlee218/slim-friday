@@ -150,6 +150,8 @@ async function composeApp(deps: AppDeps, opened: Array<() => unknown>) {
     store,
     /** The worker pool; unset in in-process mode. */
     workers,
+    /** The computers of this process, for the web API. */
+    computers: parts.computers,
     /** Settles when the first consolidation, prune and message catch-up are done (tests wait on it). */
     memoryReady: daily.ready,
     /** Stop watching and sweeping, stop every session, close the dbs (open cards are the caller's to cancel). */

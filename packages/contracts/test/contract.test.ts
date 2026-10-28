@@ -8,6 +8,11 @@ const ALL = [
   "chat.files",
   "chat.send",
   "chat.uploadCreate",
+  "computer.giveBack",
+  "computer.renewControl",
+  "computer.status",
+  "computer.takeControl",
+  "computer.view",
   "config.approvalRules.add",
   "config.approvalRules.list",
   "config.approvalRules.remove",
@@ -93,7 +98,7 @@ const inputOf = (path: string) => procAt(path)["~orpc"].inputSchema;
 const uuid = "123e4567-e89b-42d3-a456-426614174000";
 
 test("the contract has exactly the shared-contract procedures", () => {
-  expect(ALL).toHaveLength(76);
+  expect(ALL).toHaveLength(81);
   expect(listProcedurePaths(contract)).toEqual(ALL);
 });
 

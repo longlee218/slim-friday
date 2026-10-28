@@ -1,6 +1,7 @@
 import { approvalRules } from "./approval-rules";
 import { approvals, questions } from "./cards";
 import { chat } from "./chat";
+import { computer } from "./computer";
 import { avatars, bots, groups } from "./config-bots";
 import { mcp, owner, skills } from "./config-skills";
 import { control } from "./control";
@@ -19,6 +20,7 @@ export const contract = {
   approvals,
   questions,
   control,
+  computer,
   tickets,
   schedules,
   ops,

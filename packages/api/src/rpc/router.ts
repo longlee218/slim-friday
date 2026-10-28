@@ -1,5 +1,6 @@
 import { approvalsRouter, questionsRouter } from "../routers/cards-router";
 import { chatRouter } from "../routers/chat-router";
+import { computerRouter } from "../routers/computer-router";
 import { approvalRulesRouter } from "../routers/config/approval-rules-router";
 import { avatarsRouter } from "../routers/config/avatars-router";
 import { botsRouter } from "../routers/config/bots-router";
@@ -43,6 +44,7 @@ export const appRouter = authed.router({
   approvals: approvalsRouter,
   questions: questionsRouter,
   control: controlRouter,
+  computer: computerRouter,
   events: eventsRouter,
   memory: memoryRouter,
   tickets: ticketsRouter,
