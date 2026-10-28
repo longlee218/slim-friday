@@ -29,7 +29,7 @@ export function fakeComputerHolds(): Store["computerHolds"] {
     },
     renew: async (a) => {
       const r = rows.get(a.key);
-      if (!r || r.holder !== a.holder || r.fence !== a.fence) return false;
+      if (!r || r.holder !== a.holder || r.fence !== a.fence || r.expiresAt === 0) return false;
       r.expiresAt = a.now + a.ttlMs;
       return true;
     },

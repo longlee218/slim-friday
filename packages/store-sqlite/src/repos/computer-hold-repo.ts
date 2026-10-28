@@ -56,6 +56,8 @@ export function computerHoldRepo(db: BunSQLiteDatabase): Store["computerHolds"] 
               eq(computerHolds.key, a.key),
               eq(computerHolds.holder, a.holder),
               eq(computerHolds.fence, a.fence),
+              // expiresAt 0 marks a release; only a lapsed TTL stays renewable.
+              gt(computerHolds.expiresAt, 0),
             ),
           )
           .returning({ key: computerHolds.key })
