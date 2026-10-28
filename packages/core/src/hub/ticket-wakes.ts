@@ -4,7 +4,7 @@ import { createRun } from "../runs/run-create";
 import type { RunExec } from "../runs/run-exec";
 import { type Ticket, ticketRef } from "../tickets/ticket";
 import { type HubContext, tell } from "./hub-context";
-import { errText } from "./hub-types";
+import { errText, type WakeOutcome } from "./hub-types";
 import { blockIfOrphan } from "./ticket-orphans";
 import { AUTO_BLOCK_COMMENT, isOpenWork, ticketRewakeText, ticketWakeText } from "./ticket-support";
 
@@ -14,7 +14,10 @@ export interface TicketWakeOpts {
   dedupeKey?: string;
 }
 
-/** Queue a run for the assignee of a ticket in its own direct conversation; nothing is posted to the channel. */
+/**
+ * Queue a run for the assignee of a ticket in its own direct conversation; nothing is posted to the
+ * channel. Resolves with the run's outcome, or undefined when no run was queued (or it failed).
+ */
 export async function wakeForTicket(
   ctx: HubContext,
   ticket: Ticket,
@@ -22,7 +25,7 @@ export async function wakeForTicket(
   rewake = false,
   actor: Author = { kind: "system" },
   opts: TicketWakeOpts = {},
-): Promise<void> {
+): Promise<WakeOutcome | undefined> {
   if (ticket.status === "done" || ticket.status === "closed") return;
   // The assignee left the group (or the group is gone): block the ticket, queue nothing.
   try {
@@ -49,11 +52,11 @@ export async function wakeForTicket(
       ...(rewake && { rewake: true }),
     });
     await ctx.wakeLog.dropped(row.id);
-    return;
+    return undefined;
   }
   // The ticket is saved already: a wake that cannot be stored must not fail the tool that saved it.
   try {
-    await createRun(ctx, {
+    return await createRun(ctx, {
       botId,
       conversationId: conv.id,
       sender: actor,
@@ -78,7 +81,10 @@ export async function checkUnfinished(ctx: HubContext, e: RunExec): Promise<void
     const { store } = ctx.deps;
     const t = await store.tickets.get(cur.id);
     if (!t || t.assigneeBotId !== e.bot.id || !isOpenWork(t)) return;
-    if (!cur.rewake) return await wakeForTicket(ctx, t, e.bot.id, true);
+    if (!cur.rewake) {
+      await wakeForTicket(ctx, t, e.bot.id, true);
+      return;
+    }
     // Through the board: it records a status change by the system and keeps the reason on the ticket.
     const blocked = await ctx.tickets.update(
       { kind: "system" },
