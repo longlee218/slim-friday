@@ -39,6 +39,12 @@ export async function checkUpdate(
   // The ticket's own group decides who may take it, not the acting session's.
   const refused = await assigneeRefusal(store, i.assigneeBotId, cur.groupId);
   if (refused) return refused;
+  // Reopening a ticket keeps its assignee, who must still be allowed to take it: an orphan is re-assigned.
+  const reopens = i.status === "todo" || i.status === "doing" || i.status === "review";
+  if (reopens && i.assigneeBotId === undefined) {
+    const stale = await assigneeRefusal(store, cur.assigneeBotId, cur.groupId);
+    if (stale) return { ...stale, error: `${stale.error}: re-assign it` };
+  }
   const reason = i.blockedReason?.trim();
   const blocks = (i.status ?? cur.status) === "blocked";
   if (reason !== undefined && (!blocks || reason.length > BLOCKED_REASON_MAX)) return INVALID;

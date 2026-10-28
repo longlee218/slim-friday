@@ -119,4 +119,28 @@ describe("blockOrphanTickets", () => {
     });
     expect(hinted).toBe(1);
   });
+
+  test("the creator cannot reopen an orphan without re-assigning it", async () => {
+    const h = makeHub();
+    const writer = { kind: "bot", botId: "writer" } as const;
+    const c = await h.hub.tickets.create(writer, {
+      title: "Edit",
+      assigneeBotId: "editor",
+      groupId: "g",
+    });
+    if (!c.ok) throw new Error(c.error);
+    await flush();
+    leave(h, "editor");
+    await blockOrphanTickets(ctxOf(h), ["g"]);
+    const id = c.ticket.id;
+    for (const status of ["todo", "doing", "review"] as const)
+      expect(await h.hub.tickets.update(writer, { id, status })).toMatchObject({
+        ok: false,
+        code: "not_member",
+      });
+    expect((await h.store.tickets.get(id))?.status).toBe("blocked");
+    const r = await h.hub.tickets.update(writer, { id, status: "todo", assigneeBotId: "writer" });
+    expect(r).toMatchObject({ ok: true });
+    expect((await h.store.tickets.get(id))?.status).toBe("todo");
+  });
 });
