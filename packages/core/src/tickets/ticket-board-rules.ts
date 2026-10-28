@@ -1,5 +1,6 @@
 import type { BotId } from "../domain/bot";
 import type { ConversationId } from "../domain/conversation";
+import type { Author } from "../domain/message";
 import { redactSecrets, secretsFrom } from "../safety/redact-secrets";
 import {
   TICKET_PRIORITIES,
@@ -21,6 +22,14 @@ export type TicketErrorCode =
 export type TicketResult<T> =
   | ({ ok: true } & T)
   | { ok: false; code: TicketErrorCode; error: string };
+
+/** A saved status change: previous status, who made it, its `status` event id, and if the assignee changed too. */
+export interface StatusChange {
+  from: TicketStatus;
+  actor: Author;
+  eventId: string;
+  assigneeChanged: boolean;
+}
 
 /** What a caller may change on a ticket. */
 export interface TicketUpdateInput {
