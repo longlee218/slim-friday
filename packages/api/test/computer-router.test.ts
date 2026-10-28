@@ -73,6 +73,7 @@ test("view returns a sealed path, never the loopback address; the base is prefix
   const v = await h.client.computer.view({ botId: "a", mode: "view" });
   expect(v.url).not.toContain("127.0.0.1");
   expect(v.url.startsWith("/computer-view/")).toBe(true);
+  expect(v.url).toContain("/viewer/");
   expect(h.calls.view[0]?.viewOnly).toBe(true);
   const token = v.url.split("/")[2] as string;
   const claims = openViewToken(SECRET, token, h.deps.now());
