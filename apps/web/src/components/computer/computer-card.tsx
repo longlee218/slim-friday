@@ -1,4 +1,4 @@
-import { ExternalLink, Maximize2, Minimize2, Monitor, Play } from "lucide-react";
+import { CircleAlert, ExternalLink, Maximize2, Minimize2, Monitor, Play } from "lucide-react";
 import { useEffect, useState } from "react";
 import { usePanels } from "../shell/use-responsive-panels";
 import { Button, IconButton } from "../ui/button";
@@ -29,7 +29,7 @@ export function ComputerCard({ botId, botName }: { botId: string; botName: strin
   const panels = usePanels();
   const { setInspectorWide } = panels;
   const wide = panels.inspectorWide;
-  const v = useComputerView(botId);
+  const v = useComputerView(botId, { inlineErrors: true });
   const [screen, setScreen] = useState<HTMLDivElement | null>(null);
   const width = useWidthOf(screen);
 
@@ -44,7 +44,7 @@ export function ComputerCard({ botId, botName }: { botId: string; botName: strin
     return () => window.removeEventListener("keydown", onKey);
   }, [wide, setInspectorWide]);
 
-  const { status, control, controlling, frame } = v;
+  const { status, statusQuery, control, controlling, frame, error } = v;
   const waiting = control.state === "waiting";
   const running = status?.running ?? false;
   const botBusy = status?.control.holder === "bot";
@@ -120,12 +120,24 @@ export function ComputerCard({ botId, botName }: { botId: string; botName: strin
               style={iframeStyle}
             />
             {!wide && (
-              <button type="button" className="pc-hit" aria-label="Expand" onClick={expand} />
+              <button type="button" className="pc-open" onClick={expand}>
+                <span>
+                  <Maximize2 size={14} strokeWidth={1.9} aria-hidden />
+                  Open
+                </span>
+              </button>
             )}
           </>
         ) : (
           <div className="pc-empty">
-            {!status ? null : !running ? (
+            {statusQuery.isError ? (
+              <ScreenError
+                message="Could not reach the engine to read this computer."
+                onRetry={() => void statusQuery.refetch()}
+              />
+            ) : error ? (
+              <ScreenError message={error} onRetry={() => void v.watch()} />
+            ) : !status ? null : !running ? (
               <>
                 <Monitor size={22} strokeWidth={1.5} />
                 <span>Computer is off</span>
@@ -147,13 +159,15 @@ export function ComputerCard({ botId, botName }: { botId: string; botName: strin
       {wide && (
         <footer className="pc-foot">
           <div className="pc-note">
-            {waiting
-              ? `Waiting for ${botName} to finish its step…`
-              : control.state === "lost"
-                ? "Control lost: the connection dropped."
-                : controlling
-                  ? `${botName} pauses and resumes when you give back.`
-                  : status?.slots.text}
+            {error
+              ? error
+              : waiting
+                ? `Waiting for ${botName} to finish its step…`
+                : control.state === "lost"
+                  ? "Control lost: the connection dropped."
+                  : controlling
+                    ? `${botName} pauses and resumes when you give back.`
+                    : status?.slots.text}
           </div>
           {frame && (
             <div className="pc-actions">
@@ -174,5 +188,18 @@ export function ComputerCard({ botId, botName }: { botId: string; botName: strin
         </footer>
       )}
     </section>
+  );
+}
+
+/** A failure shown in place of the screen: what went wrong, and a way to try again. */
+function ScreenError({ message, onRetry }: { message: string; onRetry(): void }) {
+  return (
+    <div className="pc-error" role="alert">
+      <CircleAlert size={20} strokeWidth={1.75} aria-hidden />
+      <p>{message}</p>
+      <button type="button" className="pc-play" onClick={onRetry}>
+        Retry
+      </button>
+    </div>
   );
 }
