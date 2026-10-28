@@ -74,6 +74,7 @@ function refusingProvider(why: string): ComputerProvider {
     act: no,
     accessibilityTree: no,
     forwardPort: no,
+    view: no,
     stop: no,
   };
 }

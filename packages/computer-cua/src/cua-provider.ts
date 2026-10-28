@@ -5,11 +5,12 @@ import type {
   ComputerCapacity,
   ComputerProvider,
   ComputerSpec,
+  ComputerView,
   DesktopAction,
   ExecResult,
   Screenshot,
 } from "@friday/core";
-import { int, isRunning, must, pngSize } from "./cua-parse";
+import { int, isRunning, must, parseView, pngSize, viewFlags } from "./cua-parse";
 import type { PortForwards } from "./cua-port-forward";
 import type { CuaRun } from "./cua-run";
 import { assertComputerName, ENV_NAME, shellLine, shellQuote } from "./cua-safe";
@@ -57,6 +58,8 @@ const cmd = {
   key: (k: string) => ["do", k.includes("+") ? "hotkey" : "key", "--", k], // UNVERIFIED: confirm with the live check.
   scroll: (dir: string, amount: number) => ["do", "scroll", dir, String(amount)], // UNVERIFIED: unit of AMOUNT.
   drag: (a: number, b: number, c: number, d: number) => ["do", "drag", ...[a, b, c, d].map(String)], // UNVERIFIED
+  // Verified against Cua 0.9.0 in the spike (`--json` is the runner prefix); other flags UNVERIFIED.
+  view: (n: string, only: boolean) => ["sandbox", "view", n, ...viewFlags(only)],
   tree: () => ["do", "a11y", "tree"], // UNVERIFIED: confirm with the live check (stdout is returned as is).
 };
 
@@ -182,6 +185,10 @@ export function createCuaProvider(deps: CuaProviderDeps): ComputerProvider {
     },
     async forwardPort(name, guestPort) {
       return forwards.forward(assertComputerName(name), guestPort);
+    },
+    async view(spec, opts): Promise<ComputerView> {
+      const argv = cmd.view(assertComputerName(spec.name), opts.viewOnly);
+      return parseView(must(argv, await run(argv, QUICK_MS)).stdout);
     },
     async stop(name) {
       assertComputerName(name);

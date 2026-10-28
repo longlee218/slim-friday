@@ -36,6 +36,14 @@ export interface Screenshot {
   height: number;
 }
 
+/** A live viewer of a computer's desktop: a loopback URL (ticket in the fragment) that expires. */
+export interface ComputerView {
+  url: string;
+  port: number;
+  /** Epoch ms. */
+  expiresAt: number;
+}
+
 /** A computer the bot drives (a Linux desktop in a container or VM). One instance serves every computer by name. */
 export interface ComputerProvider {
   /** The machine's total room for computers. */
@@ -54,6 +62,8 @@ export interface ComputerProvider {
   accessibilityTree(name: string): Promise<string>;
   /** Reach a guest port from the host: returns `http://127.0.0.1:<port>`; idempotent per name and port. */
   forwardPort(name: string, guestPort: number): Promise<string>;
+  /** Open a viewer of the desktop; `viewOnly` withholds input. */
+  view(spec: ComputerSpec, opts: { viewOnly: boolean }): Promise<ComputerView>;
   /** Stop the computer; its disk stays. */
   stop(name: string): Promise<void>;
 }

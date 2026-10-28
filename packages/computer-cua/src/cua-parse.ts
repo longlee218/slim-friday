@@ -1,4 +1,4 @@
-import type { ExecResult } from "@friday/core";
+import type { ComputerView, ExecResult } from "@friday/core";
 
 /** Small checks and parsers for what `cua` and the host return. */
 
@@ -33,4 +33,32 @@ export function pngSize(png: Uint8Array): { width: number; height: number } {
 export function int(n: number, what: string): number {
   if (!Number.isFinite(n)) throw new Error(`${what} must be a finite number`);
   return Math.round(n);
+}
+
+/** Flags after the name of `cua sandbox view`: viewer opened by the caller, ticket valid 10 minutes. */
+export function viewFlags(viewOnly: boolean): string[] {
+  return [...(viewOnly ? ["--view-only"] : []), "--no-open", "--ttl", "10m"];
+}
+
+/** Parse `cua sandbox view --json` stdout; only a loopback http viewer URL is accepted. */
+export function parseView(stdout: string): ComputerView {
+  let j: { url?: unknown; expires_at_unix?: unknown };
+  try {
+    j = JSON.parse(stdout);
+  } catch {
+    throw new Error("cua sandbox view gave no JSON");
+  }
+  let u: URL;
+  try {
+    u = new URL(String(j.url));
+  } catch {
+    throw new Error("cua sandbox view gave no viewer url");
+  }
+  if (u.protocol !== "http:" || (u.hostname !== "127.0.0.1" && u.hostname !== "localhost"))
+    throw new Error("viewer url is not a loopback http url; refusing it");
+  const port = Number(u.port);
+  if (!Number.isInteger(port) || port < 1) throw new Error("viewer url has no port");
+  const secs = Number(j.expires_at_unix);
+  if (!Number.isFinite(secs) || secs <= 0) throw new Error("viewer reply has no expiry");
+  return { url: u.href, port, expiresAt: secs * 1000 };
 }
