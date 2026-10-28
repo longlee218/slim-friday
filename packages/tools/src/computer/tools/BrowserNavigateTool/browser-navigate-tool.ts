@@ -12,7 +12,7 @@ export function createBrowserNavigateTool(s: ComputerSession) {
     BROWSER_NAVIGATE_DESCRIPTION,
     { url: z.string().min(1).describe("Absolute URL.") },
     (({ url }: { url: string }) =>
-      s.run(async () => textResult(await s.ctx.browser.navigate(url)))) as never,
+      s.runLeased(async () => textResult(await s.ctx.browser.navigate(url)))) as never,
     { annotations: { openWorldHint: true } },
   );
 }

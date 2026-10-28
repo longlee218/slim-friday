@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { join } from "node:path";
 import { parseToolsFile } from "@friday/config";
+import { takeControl } from "@friday/core";
 import { FakeClock } from "../../../core/test/fakes/fake-clock";
 import { fakeComputerHolds } from "../../../core/test/fakes/fake-computer-holds";
 import type { BrowserSession } from "../../src/computer/browser/browser-session";
@@ -8,6 +9,7 @@ import type { ComputerContext } from "../../src/computer/computer-context";
 import { createComputerSession } from "../../src/computer/computer-session";
 import { createBrowserActTool } from "../../src/computer/tools/BrowserActTool/browser-act-tool";
 import { BROWSER_ACT_TOOL } from "../../src/computer/tools/BrowserActTool/constants";
+import { createBrowserNavigateTool } from "../../src/computer/tools/BrowserNavigateTool/browser-navigate-tool";
 import { BROWSER_NAVIGATE_TOOL } from "../../src/computer/tools/BrowserNavigateTool/constants";
 import { BROWSER_SNAPSHOT_TOOL } from "../../src/computer/tools/BrowserSnapshotTool/constants";
 import { createComputerActTool } from "../../src/computer/tools/ComputerActTool/computer-act-tool";
@@ -256,4 +258,12 @@ test("every tool name is a constant listed in tools.yaml with inComputer, and no
   for (const n of names) expect(specs.find((s) => s.name === n)?.inComputer).toBe(true);
   const flagged = specs.filter((s) => s.inComputer).map((s) => s.name);
   expect(flagged.sort()).toEqual([...names].sort());
+});
+
+test("BrowserNavigate is refused while the owner controls the computer", async () => {
+  const w = world();
+  await takeControl({ holds: w.holds, clock: w.clock, sleep: async () => {} }, "box");
+  const r = await call(createBrowserNavigateTool(w.make("ann")), { url: "https://example.com" });
+  expect(r.isError).toBe(true);
+  expect(textOf(r)).toContain("the owner is controlling");
 });
