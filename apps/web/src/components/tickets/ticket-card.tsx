@@ -57,6 +57,7 @@ export function TicketCard({ ticket: t, dir, selected, fresh, onSelect, onOpen }
             <span>Unassigned</span>
           </>
         )}
+        {t.waitingOn && t.waitingOn.length > 0 && <span className="pill gray">waiting</span>}
         <span className="grow" />
         {t.commentCount > 0 && (
           <>

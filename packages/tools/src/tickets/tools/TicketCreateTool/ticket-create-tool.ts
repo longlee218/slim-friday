@@ -12,6 +12,10 @@ const SHAPE = {
   description: z.string().optional().describe("What is needed and how to know it is done."),
   priority: z.enum(TICKET_PRIORITIES).optional().describe("Default normal."),
   assignee: z.string().optional().describe("A bot id or exact name; default you."),
+  blockedBy: z
+    .array(z.string())
+    .optional()
+    .describe("Refs like FRI-3 this ticket waits on; it starts by itself when all are done."),
 };
 
 /** `TicketCreate` for one session: the actor is the session's bot. */
@@ -29,11 +33,14 @@ export function createTicketCreateTool(ctx: TicketsContext) {
         title: i.title,
         ...(i.description && { description: i.description }),
         ...(i.priority && { priority: i.priority }),
+        ...(i.blockedBy && { blockedBy: i.blockedBy }),
         ...(assigneeBotId && { assigneeBotId }),
         ...(conversationId && { conversationId }),
         ...(ctx.groupId && { groupId: ctx.groupId }),
       },
     );
-    return r.ok ? textResult(JSON.stringify(ticketView(r.ticket))) : textResult(r.error, true);
+    return r.ok
+      ? textResult(JSON.stringify(await ticketView(ctx, r.ticket)))
+      : textResult(r.error, true);
   });
 }

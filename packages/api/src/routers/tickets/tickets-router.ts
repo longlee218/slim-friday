@@ -1,6 +1,12 @@
 import type { TicketResult } from "@friday/core";
 import { authed } from "../../rpc/implementer";
-import { ticketDtoFor, ticketDtosFor, toTicketDto, toTimelineDto } from "./ticket-dto";
+import {
+  loadBlockers,
+  ticketDtoFor,
+  ticketDtosFor,
+  toTicketDto,
+  toTimelineDto,
+} from "./ticket-dto";
 
 /** Every handler here acts as the owner. */
 const OWNER = { kind: "user" } as const;
@@ -41,7 +47,7 @@ export const ticketsRouter = {
     const { hub, store } = context.deps;
     const d = unwrap(await hub.tickets.detail(input.ref), errors);
     return {
-      ticket: toTicketDto(d.ticket, d.commentCount),
+      ticket: toTicketDto(d.ticket, d.commentCount, await loadBlockers(store, [d.ticket])),
       timeline: toTimelineDto(d.timeline),
       related: await ticketDtosFor(store, d.related),
     };

@@ -66,6 +66,7 @@ export * from "./schedules/schedule-rules";
 export * from "./schedules/schedule-turn";
 export * from "./tickets/ticket";
 export * from "./tickets/ticket-board";
+export { finished } from "./tickets/ticket-board-rules";
 export * from "./tickets/ticket-context";
 export * from "./tickets/ticket-reads";
 export * from "./tickets/ticket-timeline";

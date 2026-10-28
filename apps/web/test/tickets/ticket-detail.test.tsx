@@ -1,6 +1,7 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router";
 import { expect, test, vi } from "vitest";
 import { TicketDetail } from "../../src/components/tickets/ticket-detail";
 import { ticketListOptions } from "../../src/components/tickets/use-tickets";
@@ -40,4 +41,22 @@ test("choosing Blocked asks why, then saves status and reason together", async (
       expectedUpdatedAt: 10,
     }),
   );
+});
+
+test("a waiting ticket lists what it waits on", () => {
+  vi.stubGlobal("matchMedia", () => ({
+    matches: false,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+  const t = ticket(2, { waitingOn: ["FRI-1"] });
+  render(
+    <QueryClientProvider client={seededClient({})}>
+      <MemoryRouter>
+        <TicketDetail ticket={t} />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  expect(screen.getByText("Waiting on")).toBeTruthy();
+  expect(screen.getByText("FRI-1")).toBeTruthy();
 });

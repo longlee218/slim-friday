@@ -17,7 +17,7 @@ export function createTicketGetTool(ctx: TicketsContext) {
     if (!r.ok) return textResult(r.error, true);
     return textResult(
       JSON.stringify({
-        ticket: ticketView(r.ticket),
+        ticket: await ticketView(ctx, r.ticket),
         comments: r.comments.map((c) => ({
           author: c.author.kind === "bot" ? c.author.botId : c.author.kind,
           body: c.body,
