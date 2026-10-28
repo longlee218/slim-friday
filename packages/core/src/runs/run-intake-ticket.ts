@@ -81,7 +81,9 @@ export async function routeToTicket(ctx: HubContext, t: TicketIntake): Promise<b
       {
         conversationId: t.conv.id,
         author: { kind: "system" },
-        text: `Added to ${ref} as a comment; ${name} continues it in its ticket work.`,
+        text: r.woke
+          ? `Added to ${ref} as a comment; ${name} continues it in its ticket work.`
+          : `Added to ${ref} as a comment; ${name} was not woken (the wake could not be queued).`,
         at: ctx.deps.clock.now(),
       },
       `owner-ticket-line:${t.messageId}:${t.botId}`,

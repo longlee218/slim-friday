@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { flush, makeHub } from "./bot-hub-harness";
 
+const NOT_QUEUED = "No one was woken: the wake could not be queued.";
+
 /** A ticket the writer made for the editor, with its first wake settled. */
 async function assigned(h: ReturnType<typeof makeHub>) {
   const r = await h.hub.tickets.create(
@@ -74,8 +76,50 @@ describe("owner ticket comments", () => {
     };
     const r = await h.hub.ownerComment(`FRI-${t.number}`, "still saved");
     await flush();
-    expect(r).toMatchObject({ ok: true, created: true, woke: true });
+    expect(r).toMatchObject({ ok: true, created: true, woke: false, note: NOT_QUEUED });
     expect((await h.store.tickets.comments(t.id)).map((c) => c.body)).toEqual(["still saved"]);
     expect(h.log.of("hub.ticket_wake_failed")).toHaveLength(1);
+  });
+
+  test("a throwing conversation lookup is logged and the comment still succeeds", async () => {
+    const h = makeHub();
+    const t = await assigned(h);
+    h.store.conversations.direct = async () => {
+      throw new Error("db down");
+    };
+    const r = await h.hub.ownerComment(`FRI-${t.number}`, "still saved");
+    expect(r).toMatchObject({ ok: true, created: true, woke: false, note: NOT_QUEUED });
+    expect((await h.store.tickets.comments(t.id)).map((c) => c.body)).toEqual(["still saved"]);
+    expect(h.log.of("hub.ticket_wake_failed")).toHaveLength(1);
+  });
+
+  test("an assignee with no direct conversation is not woken", async () => {
+    const h = makeHub();
+    const t = await assigned(h);
+    h.store.convMap.delete("dc");
+    const r = await h.hub.ownerComment(`FRI-${t.number}`, "anyone?");
+    expect(r).toMatchObject({ ok: true, woke: false, note: NOT_QUEUED });
+  });
+
+  test("the group line says the bot was not woken when the wake fails", async () => {
+    const h = makeHub();
+    const c = await h.hub.tickets.create(
+      { kind: "user" },
+      { title: "Edit", assigneeBotId: "editor", groupId: "g" },
+    );
+    if (!c.ok) throw new Error(c.error);
+    await flush();
+    const t = c.ticket;
+    h.store.wakes.insertDeduped = async () => {
+      throw new Error("db down");
+    };
+    await h.hub.handle({ conversationId: "gc", text: `@Editor FRI-${t.number} hi` });
+    await flush();
+    const lines = h.surface.posts
+      .filter((p) => p.conversationId === "gc" && p.message.author.kind === "system")
+      .map((p) => p.message.text);
+    expect(lines).toEqual([
+      `Added to FRI-${t.number} as a comment; Editor was not woken (the wake could not be queued).`,
+    ]);
   });
 });
