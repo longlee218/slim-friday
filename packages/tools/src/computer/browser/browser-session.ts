@@ -75,7 +75,9 @@ export class BrowserSession {
         await this.sleep(ATTACH_WAIT_MS);
       }
     }
-    throw new Error(`browser did not start in the computer (${last}); try again`);
+    throw new Error(
+      `browser did not start in the computer (${last}); a leftover Chromium may hold the profile lock (restart the computer if this repeats); try again`,
+    );
   }
 
   /** Open an http(s) or about:blank page and return its snapshot; any other scheme is refused before CDP. */

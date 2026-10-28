@@ -149,6 +149,7 @@ describe("ensure", () => {
       sleep: async () => {},
     });
     await expect(s.ensure()).rejects.toThrow("browser did not start");
+    await expect(s.ensure()).rejects.toThrow("a leftover Chromium may hold the profile lock");
   });
 });
 

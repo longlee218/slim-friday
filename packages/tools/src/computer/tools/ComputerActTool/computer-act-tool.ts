@@ -2,11 +2,15 @@ import { tool } from "@anthropic-ai/claude-agent-sdk";
 import type { DesktopAction } from "@friday/core";
 import { z } from "zod";
 import { textResult } from "../../../tool-result";
+import { MAX_WAIT_MS } from "../../browser/page-act";
 import { batchError, type ComputerSession } from "../../computer-session";
 import { COMPUTER_ACT_TOOL } from "./constants";
 import { COMPUTER_ACT_DESCRIPTION } from "./prompt";
 
 const num = z.number().finite();
+
+/** A wait longer than this could outlast the input lease mid-batch. */
+const WAIT_TOO_LONG = `wait ms must be at most ${MAX_WAIT_MS}.`;
 
 /** One desktop input; matches `DesktopAction` of core. */
 const ACTION = z.discriminatedUnion("kind", [
@@ -27,7 +31,10 @@ const ACTION = z.discriminatedUnion("kind", [
     toX: num,
     toY: num,
   }),
-  z.object({ kind: z.literal("wait"), ms: num.nonnegative() }),
+  z.object({
+    kind: z.literal("wait"),
+    ms: num.nonnegative().max(MAX_WAIT_MS, WAIT_TOO_LONG),
+  }),
 ]);
 
 /** `ComputerAct` for one session. */
@@ -37,7 +44,9 @@ export function createComputerActTool(s: ComputerSession) {
     COMPUTER_ACT_DESCRIPTION,
     { actions: z.array(ACTION).describe("1 to 20 actions, run in order.") },
     (({ actions }: { actions: DesktopAction[] }) => {
-      const bad = batchError("actions", actions.length);
+      const bad =
+        batchError("actions", actions.length) ??
+        (actions.some((a) => a.kind === "wait" && a.ms > MAX_WAIT_MS) ? WAIT_TOO_LONG : undefined);
       if (bad) return Promise.resolve(textResult(bad, true));
       return s.runLeased(async (check) => {
         let done = 0;
