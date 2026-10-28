@@ -20,6 +20,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { type ApiLog, logApiEvent } from "./api-log";
 import type { OwnerAuth } from "./auth/owner-auth";
+import { COMPUTER_VIEW_PREFIX, createViewProxy } from "./computer/view-proxy";
 import { MCP_OAUTH_CALLBACK_PATH, mcpOAuthCallback } from "./http/mcp-oauth-callback";
 import { originCheck } from "./http/origin-check";
 import { requestLog } from "./http/request-log";
@@ -77,6 +78,8 @@ export interface ApiDeps {
   registrableDomain?: RegistrableDomain;
   /** The secret values hidden from bot-written text the API shows (scratchpad items); read at each call. */
   secretValues?: () => string[];
+  /** HMAC secret that seals computer view links; unset: the view proxy is not mounted. */
+  viewSecret?: string;
 }
 
 /** The fields the engine adds to `ApiDeps` (plan 2). */
@@ -124,6 +127,14 @@ export function createApiApp(deps: ApiDeps): Hono {
       maxAge: 600,
     }),
   );
+  // The sealed token in the path is the only credential (the viewer iframe is cross-site, so no session
+  // cookie and no Origin check); mounted before `originCheck` for that reason. Off without a secret.
+  if (deps.viewSecret) {
+    app.all(
+      `${COMPUTER_VIEW_PREFIX}:token/*`,
+      createViewProxy({ secret: deps.viewSecret, now: deps.now, revoked: () => false }),
+    );
+  }
   app.use("*", originCheck(webOrigins));
 
   app.get("/health", (c) => {
