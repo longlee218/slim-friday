@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { OWNER_HOLDER } from "@friday/core";
 import { Hono } from "hono";
-import { createViewProxy, viewWebsocket } from "../src/computer/view-proxy";
+import { createViewProxy, revokeControlLinks, viewWebsocket } from "../src/computer/view-proxy";
 import { sealViewToken, type ViewClaims } from "../src/computer/view-token";
 import { createApiApp } from "../src/index";
 import { fakeEngine } from "./helpers/engine-deps";
@@ -73,6 +73,36 @@ test("a control link works while the hold lasts and is refused (HTTP and WS) aft
   held = false;
   expect((await fetch(url(token))).status).toBe(403);
   expect(await opens(token)).toBe(false);
+});
+
+test("revokeControlLinks closes open control sockets and keeps view sockets streaming", async () => {
+  held = true;
+  const open = async (mode: "view" | "control") => {
+    const ws = new WebSocket(
+      url(sealViewToken(SECRET, claims({ computer: "cc3", mode })), "media").replace("http", "ws"),
+    );
+    await new Promise((r) => {
+      ws.onopen = r;
+    });
+    return ws;
+  };
+  const control = await open("control");
+  const view = await open("view");
+  const closed = new Promise<number>((r) => {
+    control.onclose = (e) => r(e.code);
+  });
+  revokeControlLinks("cc3", NOW);
+  expect(await closed).toBe(1008);
+  const echoed = new Promise<string>((r) => {
+    view.onmessage = (e) => r(String(e.data));
+  });
+  view.send("still here");
+  expect(await echoed).toBe("still here");
+  view.close();
+  // A control link minted before the revoke is dead even while a hold exists again.
+  expect(await fetch(url(sealViewToken(SECRET, claims({ computer: "cc3" }))))).toMatchObject({
+    status: 403,
+  });
 });
 
 test("a view link keeps working after the hold lapses", async () => {

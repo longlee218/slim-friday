@@ -1,5 +1,5 @@
 import type { Context } from "hono";
-import { MAX_LINK_MS, openViewToken } from "./view-token";
+import { MAX_LINK_MS, openViewToken, type ViewMode } from "./view-token";
 
 export const COMPUTER_VIEW_PREFIX = "/computer-view/";
 
@@ -35,10 +35,13 @@ export const VIEW_KEEPALIVE_MS = 30_000;
 
 /** Per computer, when its links were last revoked (ms): a link with `iat` at or before it is dead. */
 const revokedAt = new Map<string, number>();
+/** Per computer, when its control links were last revoked (the owner's hold ended); view links live on. */
+const controlRevokedAt = new Map<string, number>();
 const sockets = new Map<string, Set<Bun.ServerWebSocket<RelayData>>>();
 
 interface RelayData {
   computer: string;
+  mode: ViewMode;
   target: string;
   protocols: string[];
   /** Ms until the link expires; the relay closes then. */
@@ -55,6 +58,18 @@ export function revokeViewTokens(computer: string, now: number): void {
   revokedAt.set(computer, now);
   for (const ws of sockets.get(computer) ?? []) ws.close(1008, "revoked");
   sockets.delete(computer);
+}
+
+/**
+ * The owner's hold on `computer` ended (given back or lapsed): kill its control links minted up to now and close
+ * their open sockets, so input stops at once instead of at the link's expiry. View-only links keep streaming.
+ */
+export function revokeControlLinks(computer: string, now: number): void {
+  for (const [k, at] of controlRevokedAt) if (now > at + MAX_LINK_MS) controlRevokedAt.delete(k);
+  controlRevokedAt.set(computer, now);
+  for (const ws of sockets.get(computer) ?? []) {
+    if (ws.data.mode === "control") ws.close(1008, "control ended");
+  }
 }
 
 function copyHeaders(from: Headers, drop: Set<string>): Headers {
@@ -109,7 +124,11 @@ export function createViewProxy(deps: {
       parts && !parts.segment.includes("%")
         ? openViewToken(deps.secret, parts.segment, deps.now())
         : undefined;
-    if (!parts || !claims || claims.iat <= (revokedAt.get(claims.computer) ?? -1)) {
+    const dead =
+      !claims ||
+      claims.iat <= (revokedAt.get(claims.computer) ?? -1) ||
+      (claims.mode === "control" && claims.iat <= (controlRevokedAt.get(claims.computer) ?? -1));
+    if (!parts || !claims || dead) {
       return c.json({ code: "FORBIDDEN" }, 403);
     }
     // Fails closed: a control link without a hold check (or with no owner hold) is refused.
@@ -127,6 +146,7 @@ export function createViewProxy(deps: {
         .filter(Boolean);
       const data: RelayData = {
         computer: claims.computer,
+        mode: claims.mode,
         target: `ws://127.0.0.1:${claims.port}${rest}${search}`,
         protocols,
         ttlMs: claims.exp - deps.now(),
