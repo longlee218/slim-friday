@@ -22,8 +22,8 @@ export interface TicketIntake {
 }
 
 /**
- * The bot's ticket in the group a message is about: the first named ref among its open, non-waiting
- * tickets there; else its only such ticket; else none.
+ * The bot's ticket in the group a message is about, among its open, non-waiting tickets there: the
+ * first of them the message names; with no ref named, its only such ticket; else none.
  */
 async function pickTicket(
   store: Pick<Store, "tickets">,
@@ -34,10 +34,9 @@ async function pickTicket(
   const open: Ticket[] = [];
   for (const t of await store.tickets.activeOfAssignee(botId, groupId))
     if (!(await isWaiting(store, t))) open.push(t);
-  for (const ref of extractTicketRefs(text)) {
-    const hit = open.find((t) => ticketRef(t.number) === ref);
-    if (hit) return hit;
-  }
+  const refs = extractTicketRefs(text);
+  // A message that names tickets is about those: none of them open here means no target.
+  if (refs.length > 0) return open.find((t) => refs.includes(ticketRef(t.number)));
   return open.length === 1 ? open[0] : undefined;
 }
 
@@ -54,7 +53,8 @@ async function commentSaved(ctx: HubContext, ticketId: string, commentId: string
  * An owner group message about a ticket of the addressed bot becomes an owner comment on it, which wakes
  * the bot in its ticket work, and the group gets one system line. True when handled: the chat session
  * then does not run. A message with files, a reply-quote or attachments, or with no single target
- * ticket, is not handled. Idempotent per message and bot: a replay saves, posts and wakes nothing new.
+ * ticket, is not handled. Idempotent per message and bot (comment id, wake key, line nonce): a replay
+ * adds only what a crash left undone.
  */
 export async function routeToTicket(ctx: HubContext, t: TicketIntake): Promise<boolean> {
   if (t.conv.kind !== "group" || t.hasFiles || t.opts.quote || t.opts.attachments) return false;
@@ -70,16 +70,18 @@ export async function routeToTicket(ctx: HubContext, t: TicketIntake): Promise<b
       dedupeKey: `owner-ticket:${t.messageId}:${t.botId}`,
     });
     if (!r.ok) return false;
-    // A replay posts nothing: the line went out with the first save.
-    if (r.created) {
-      const name = (await store.bots.get(t.botId))?.name ?? t.botId;
-      await postStored(ctx.deps, {
+    // Stored once per message and bot: a replay after a crash adds a missing line, never a second one.
+    const name = (await store.bots.get(t.botId))?.name ?? t.botId;
+    await postStored(
+      ctx.deps,
+      {
         conversationId: t.conv.id,
         author: { kind: "system" },
         text: `Added to ${ref} as a comment; ${name} continues it in its ticket work.`,
         at: ctx.deps.clock.now(),
-      });
-    }
+      },
+      `owner-ticket-line:${t.messageId}:${t.botId}`,
+    );
     return true;
   } catch (err) {
     ctx.deps.log?.error(

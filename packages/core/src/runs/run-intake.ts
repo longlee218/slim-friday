@@ -15,17 +15,20 @@ import { ownerRunKey, steeringId, supersede } from "./run-supersede";
 
 /**
  * An owner message: store it (once per client nonce), then for every bot it addresses answer an open
- * question, steer a busy run of this conversation, or queue a new run. Resolves with the stored id
- * (undefined: unknown conversation).
+ * question, comment on its ticket, steer a busy run of this conversation, or queue a new run.
+ * Resolves with the stored id (undefined: unknown conversation).
  *
  * The store has no transaction across repos, so every routing write is idempotent per message and bot, and a
  * resend with the same nonce (`appendOnce` replayed) routes again to finish what a crash left undone:
  * 1. `appendOnce` by nonce;
  * 2. per bot, a card answered by this message (`answeredMessageId`) only has its run requeued again;
  *    an open question is answered once with the message id, then its parked run is requeued;
- * 3. a steering row with the id `steer:<messageId>:<botId>` (a stored id is not added twice), or a run via
+ * 3. in a group, a message about a ticket of the bot (see `routeToTicket`) becomes a comment with the id
+ *    `owner-msg:<messageId>:<botId>`, a ticket wake with the key `owner-ticket:<messageId>:<botId>` and a
+ *    system line with the nonce `owner-ticket-line:<messageId>:<botId>`; nothing below runs then;
+ * 4. a steering row with the id `steer:<messageId>:<botId>` (a stored id is not added twice), or a run via
  *    `insertDeduped` with the key `owner:<messageId>:<botId>` (a busy run with that key means: routed already);
- * 4. supersede (see `supersede`), then hints.
+ * 5. supersede (see `supersede`), then hints.
  */
 export async function intakeOwnerMessage(
   ctx: HubContext,
