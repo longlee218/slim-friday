@@ -103,6 +103,16 @@ test("group blocks come after memory and before the scratchpad; a group session 
   expect(p).not.toContain("## Teammates");
 });
 
+test("the computer facts sit after the memory and before the group context", () => {
+  const p = systemPromptOf(
+    spec({ memory: "M", computerContext: "<computer>\nC\n</computer>", groupContext: "GC" }),
+    "/s",
+  );
+  expect(p.indexOf("## Your memory")).toBeLessThan(p.indexOf("<computer>"));
+  expect(p.indexOf("</computer>")).toBeLessThan(p.indexOf("## Group context"));
+  expect(systemPromptOf(spec(), "/s")).not.toContain("<computer>");
+});
+
 test("a bot with no skills, subagents or MCP servers gets no notes block", () => {
   const p = systemPromptOf(spec({ bot: { ...bot, skills: [], subagents: [], tools: [] } }), "/s");
   expect(p).not.toContain("## Skills, subagents and MCP servers");

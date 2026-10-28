@@ -142,6 +142,8 @@ export interface BotRuntimeSpec {
   groupRules?: string;
   /** A group session's group memory, read at open; added to the system prompt. */
   groupMemory?: string;
+  /** The `<computer>` facts of a bot with its own computer, made at open; added to the system prompt. */
+  computerContext?: string;
   /**
    * Asks the owner the questions of one bot call (one card each, shown together): every answer when they came
    * while the session was open, a refusal with the reason the bot reads (between runs, a card already open, a

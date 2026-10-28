@@ -1,4 +1,5 @@
 import type { CoreLimits } from "../config-defaults";
+import { computerContextBlock } from "../hub/computer-context-block";
 import { groupContextFor } from "../hub/group-context";
 import { groupMemoryFor, promptMemory } from "../hub/group-memory";
 import { errText } from "../hub/hub-types";
@@ -22,6 +23,8 @@ export interface RunSessionDeps {
   log?: Log;
   /** Reads a group's project rules for its group context. */
   projectRules?: ProjectRulesReader;
+  /** The machine's computer slot line, for the `<computer>` facts of a bot with a computer. */
+  computerSlotsText?: () => string;
 }
 
 /** An open session and the memory its system prompt got (bot and group memory; "" when none). */
@@ -73,6 +76,7 @@ export async function openRunSession(
   const scratchpad = scratchpadBlock(
     (await store.scratchpad.list(scope.key)).filter((i) => i.status !== "done"),
   );
+  const computerContext = computerContextBlock(scope.bot, d.computerSlotsText?.() ?? "unknown");
   const state = await store.scopes.get(scope.key);
   const fresh =
     state?.resetPending === true &&
@@ -89,6 +93,7 @@ export async function openRunSession(
     ...(groupMemory && { groupMemory }),
     ...(teammates && { teammates }),
     ...(scratchpad && { scratchpad }),
+    ...(computerContext && { computerContext }),
   };
   const stored = fresh ? undefined : await store.sessions.get(scope.key);
   let session: BotSession | undefined;

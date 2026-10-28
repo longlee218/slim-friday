@@ -1,5 +1,7 @@
+import type { BotId } from "../domain/bot";
 import type { WakeRow } from "../domain/wake";
 import type { HubContext } from "../hub/hub-context";
+import { errText } from "../hub/hub-types";
 import { returnOutcomeSafe } from "./outcome-outbox";
 import { settleSteering } from "./run-continuation";
 
@@ -38,6 +40,7 @@ export async function finishRun(
     ...(r.error !== undefined && { error: r.error }),
   };
   if (!(await store.wakes.transition(row.id, fence, ["running"], patch))) return false;
+  await releaseComputer(ctx, row.targetBot);
   await store.attempts.finish(`${row.id}:${fence}`, r.status, endedAt, r.error);
   await store.scopes.finished(row.scopeKey, endedAt, Math.max(0, row.createdAt - 1));
   await settleSteering(ctx, row, r.status);
@@ -46,4 +49,18 @@ export async function finishRun(
   if (r.status === "done") ctx.wakeLog.logDone(ended, endedAt);
   else log?.warn({ event: "wake.failed", wakeId: row.id, botId: row.targetBot }, "wake.failed");
   return true;
+}
+
+/** Free the bot's computer after its run ended; a failure is logged (the slot's TTL frees it anyway). */
+async function releaseComputer(ctx: HubContext, botId: BotId): Promise<void> {
+  const release = ctx.deps.computerRelease;
+  if (!release) return;
+  try {
+    await release(botId);
+  } catch (err) {
+    ctx.deps.log?.warn(
+      { event: "computer.release_failed", botId, err: errText(err) },
+      "computer.release_failed",
+    );
+  }
 }
