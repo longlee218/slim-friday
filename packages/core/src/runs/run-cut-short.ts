@@ -1,6 +1,7 @@
 import type { WakeRow } from "../domain/wake";
 import type { HubContext } from "../hub/hub-context";
 import { returnOutcomeSafe } from "./outcome-outbox";
+import { releaseComputer } from "./run-computer-release";
 import type { RunExec } from "./run-exec";
 import { releaseHeld } from "./run-output";
 
@@ -22,10 +23,17 @@ export async function cutShort(ctx: HubContext, exec: RunExec): Promise<void> {
   if (exec.stop?.kind === "stopped") {
     const patch = { status: "cancelled" as const, endedAt: now };
     if (!(await store.wakes.transition(row.id, row.leaseFence, ["running"], patch))) return;
+    await releaseComputer(ctx, row.targetBot, row.id);
     await store.scopes.finished(row.scopeKey, now, Math.max(0, row.createdAt - 1));
     await returnOutcomeSafe(ctx, { ...row, ...patch });
   }
+  // Cancelled from another process: the row already ended there; the computer is held here.
+  if (exec.stop?.kind === "lease" && exec.stop.why === "cancelled")
+    await releaseComputer(ctx, row.targetBot, row.id);
+  // A plain lost lease releases nothing: another worker runs this wake now, with the same holder.
   if (exec.stop?.kind === "shutdown") {
+    // Before the requeue: once queued, another worker may claim the wake and take the slot under the same holder.
+    await releaseComputer(ctx, row.targetBot, row.id);
     const patch = { status: "queued" as const, wakeAt: now };
     if (await store.wakes.transition(row.id, row.leaseFence, ["running"], patch))
       ctx.deps.log?.info({ wakeId: row.id }, "run.requeued_on_shutdown");

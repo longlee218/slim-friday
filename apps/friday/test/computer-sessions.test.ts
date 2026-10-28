@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, spyOn, test } from "bun:test";
 import type {
   Bot,
   BotRuntimeSpec,
@@ -7,6 +7,7 @@ import type {
   ComputerProviderPlugin,
   Store,
 } from "@friday/core";
+import { BrowserSession } from "@friday/tools";
 import { cdpPortOf, createComputers, PROFILE_ROOT } from "../src/computer-sessions";
 
 const bot = (id: string, computer?: string): Bot => ({
@@ -37,12 +38,16 @@ function memLog() {
   return { lines, info: at("info"), warn: at("warn"), error: at("error") };
 }
 
-/** Holds with fixed live rows; releases are recorded. */
-function fakeHolds(rows: ComputerHold[]) {
+/** Holds with live rows; a release that matches key, holder and fence removes the row and is recorded. */
+function fakeHolds(start: ComputerHold[]) {
+  let rows = [...start];
   const released: { key: string; holder: string; fence: number }[] = [];
   const holds = {
     live: async () => rows,
-    release: async (a: { key: string; holder: string; fence: number }) => void released.push(a),
+    release: async (a: { key: string; holder: string; fence: number }) => {
+      released.push(a);
+      rows = rows.filter((r) => !(r.key === a.key && r.holder === a.holder && r.fence === a.fence));
+    },
   } as unknown as Store["computerHolds"];
   return { holds, released };
 }
@@ -128,11 +133,12 @@ test("slots are computed once at start and logged with their text", async () => 
   expect(logged[0]?.o).toMatchObject({ slots: 2, text: c.slotsText() });
 });
 
-test("release frees only the bot's own slot row, with that row's holder and fence", async () => {
+test("release is per run: only the wake that holds the slot frees it and closes the browser", async () => {
+  const close = spyOn(BrowserSession.prototype, "close");
   const { holds, released } = fakeHolds([
-    hold("slot:ann", "ann", 3),
+    { ...hold("slot:ann", "ann", 3), holder: "wB" },
     hold("slot:bob", "bob", 1),
-    hold("input:home", "ann", 7),
+    { ...hold("input:home", "ann", 7), holder: "wB" },
   ]);
   const c = createComputers({
     settings: undefined,
@@ -142,10 +148,18 @@ test("release frees only the bot's own slot row, with that row's holder and fenc
     clock,
     log: memLog(),
   });
-  // A session was built, so a browser exists (never attached: closing it is a no-op).
-  c.server(specOf(bot("ann", "home"), "w1"));
-  await c.release("ann");
-  expect(released).toEqual([{ key: "slot:ann", holder: "w-ann", fence: 3 }]);
-  await c.release("dan");
+  // Run B built the session (a browser exists); run A of the same bot never used the computer.
+  c.server(specOf(bot("ann", "home"), "wB"));
+  await c.release("ann", "wA");
+  expect(released).toEqual([]);
+  expect(close).not.toHaveBeenCalled();
+  await c.release("ann", "wB");
+  expect(released).toEqual([{ key: "slot:ann", holder: "wB", fence: 3 }]);
+  expect(close).toHaveBeenCalledTimes(1);
+  // Twice is harmless; a bot that never used its computer is a no-op.
+  await c.release("ann", "wB");
+  await c.release("dan", "wX");
   expect(released).toHaveLength(1);
+  expect(close).toHaveBeenCalledTimes(1);
+  close.mockRestore();
 });
