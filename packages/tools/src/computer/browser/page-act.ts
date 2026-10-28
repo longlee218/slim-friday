@@ -7,6 +7,12 @@ export interface EvalResult<V = unknown> {
 /** True when the page threw; callers must treat that as a failure, never as success. */
 export const thrown = (r: EvalResult): boolean => r.exceptionDetails !== undefined;
 
+/**
+ * A step refused before any input reached the page (ref gone, element would not take focus): the page is as the
+ * done steps left it, so the bot can fix the step without re-checking the page.
+ */
+export class SettledStepError extends Error {}
+
 /** One action on the page; refs come from the latest snapshot. */
 export type PageStep =
   | { kind: "click"; ref: string }
@@ -67,7 +73,8 @@ export function validateSteps(steps: PageStep[], gen: number): void {
 }
 
 /**
- * Run steps in order; stops at the first failure and marks it `uncertain` (page state is then unknown).
+ * Run steps in order; stops at the first failure. A `SettledStepError` reports `uncertain: false` (the step did not
+ * run); any other failure is `uncertain: true` (an input may have reached the page, its state is unknown).
  * `beforeStep` runs before each step (after the whole batch is validated); if it throws, the error names the steps done.
  */
 export async function runSteps(
@@ -91,7 +98,9 @@ export async function runSteps(
       const why = err instanceof Error ? err.message : String(err);
       lines.push(`failed ${n + 1}. ${describe(step)}: ${why}`);
       lines.push(
-        `done ${n} of ${steps.length}; uncertain: true (page state unknown, call BrowserSnapshot again)`,
+        err instanceof SettledStepError
+          ? `done ${n} of ${steps.length}; uncertain: false (step ${n + 1} did not run; the page is as the done steps left it)`
+          : `done ${n} of ${steps.length}; uncertain: true (page state unknown, call BrowserSnapshot again)`,
       );
       return lines.join("\n");
     }
@@ -135,7 +144,7 @@ async function runStep(page: PageHandle, step: PageStep): Promise<void> {
         returnByValue: true,
       });
       if (thrown(focus) || focus.result?.value !== true)
-        throw new Error(`${step.ref} could not take focus; nothing was typed`);
+        throw new SettledStepError(`${step.ref} could not take focus; nothing was typed`);
       // UNVERIFIED: confirm with the live check (Input.insertText into the focused element).
       await page.send("Input.insertText", { text: step.text });
       if (step.submit) await pressKeys(page, "Enter");
@@ -147,14 +156,14 @@ async function runStep(page: PageHandle, step: PageStep): Promise<void> {
 async function resolve(page: PageHandle, ref: string): Promise<string> {
   const [, g, i] = REF.exec(ref) ?? [];
   if (page.contextId === undefined)
-    throw new Error("no snapshot taken; call BrowserSnapshot first");
+    throw new SettledStepError("no snapshot taken; call BrowserSnapshot first");
   // UNVERIFIED: confirm with the live check (isolated-world lookup by contextId, objectId reuse).
   const r = await page.send<EvalResult>("Runtime.evaluate", {
     expression: `(globalThis.__fridayRefs?.get(${Number(g)}) ?? [])[${Number(i)}]`,
     contextId: page.contextId,
   });
   if (thrown(r) || !r.result?.objectId)
-    throw new Error(`ref ${ref} is gone from the page; call BrowserSnapshot again`);
+    throw new SettledStepError(`ref ${ref} is gone from the page; call BrowserSnapshot again`);
   return r.result.objectId;
 }
 

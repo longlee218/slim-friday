@@ -208,7 +208,7 @@ describe("act", () => {
     await expect(r.session.act(many)).rejects.toThrow("20");
   });
 
-  test("stops at the first failing step and reports uncertain", async () => {
+  test("a ref gone from the page stops the batch as settled: the step did not run", async () => {
     const r = rig({ handler: browser({ missing: true }) });
     await r.session.snapshot();
     const out = await r.session.act([
@@ -218,7 +218,8 @@ describe("act", () => {
     ]);
     expect(out).toContain("done 1");
     expect(out).toContain("failed 2");
-    expect(out).toContain("uncertain: true");
+    expect(out).toContain("uncertain: false");
+    expect(out).toContain("step 2 did not run");
     expect(out).not.toContain("3.");
   });
 
@@ -244,7 +245,7 @@ describe("type safety", () => {
     await r.session.snapshot();
     const out = await r.session.act(typeStep);
     expect(out).toContain("failed 1");
-    expect(out).toContain("uncertain: true");
+    expect(out).toContain("uncertain: false");
     expect(methods(r)).not.toContain("Input.insertText");
     expect(methods(r)).not.toContain("Input.dispatchKeyEvent");
   });
