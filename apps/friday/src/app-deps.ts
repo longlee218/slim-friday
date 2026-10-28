@@ -22,6 +22,7 @@ import type {
 } from "@friday/core";
 import type { EngineStore } from "@friday/store-sqlite";
 import type { FileMemory, MemoryRecall, MessageSearchDeps } from "@friday/tools";
+import type { Computers } from "./computer-sessions";
 import type { WorkerLauncher } from "./workers/main-workers";
 
 /** What a runtime factory gets: the parts the runtime's tools need. */
@@ -47,6 +48,8 @@ export interface RuntimeParts {
   messages: MessageSearchDeps;
   /** Where messages and files are posted (`PostFile`). */
   surface: Surface;
+  /** The bots' computers in this process (the `computer` server of a bot with one). */
+  computers: Computers;
 }
 
 /** What the app is built from. */

@@ -55,6 +55,7 @@ export function claudeRuntimeFactory(config: AgentConfig, agentHome: string, log
         projectsDir: parts.config.projectsDir,
         isSensitive: isSensitivePath,
         env,
+        computers: parts.computers,
         postFile: (conversationId, botId, file, caption) =>
           parts.surface.postFile(
             conversationId,

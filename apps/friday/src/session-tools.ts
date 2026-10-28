@@ -12,6 +12,7 @@ import { scratchName } from "@friday/runtime-claude";
 import {
   CHAT_MCP_SERVER,
   type ChatContext,
+  COMPUTER_MCP_SERVER,
   chatServer,
   DESIGN_MCP_SERVER,
   type DesignContext,
@@ -32,6 +33,7 @@ import {
   type ToolSessionContext,
   ticketsServer,
 } from "@friday/tools";
+import type { Computers } from "./computer-sessions";
 import { FRIDAY_BOT_ID } from "./friday-bot";
 
 /** Empty review views, for a build without the engine db (tests, tools-only runs). */
@@ -137,6 +139,8 @@ export interface SessionToolsDeps {
   ) => Omit<DesignContext, "memory" | "insight" | "messages">;
   /** Review views over the engine's own log, for `BotInsight`; without it the views are empty. */
   insight?: InsightStore;
+  /** The `computer` server of a bot with a computer (see `computer-sessions.ts`); without it none is added. */
+  computers?: Pick<Computers, "server">;
 }
 
 /** Run argv in `cwd` with only `env` and a timeout; stdout and stderr are returned together. */
@@ -325,6 +329,9 @@ export function sessionTools(deps: SessionToolsDeps) {
         insight: deps.insight ?? NO_INSIGHT,
         messages: deps.store.messages,
       });
+    // The computer tools: only for a bot whose file names a computer (no `tools` entry needed).
+    const computer = deps.computers?.server(spec);
+    if (computer) servers[COMPUTER_MCP_SERVER] = computer;
     return servers;
   };
 }

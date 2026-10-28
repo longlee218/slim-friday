@@ -11,6 +11,7 @@ import type {
 import { buildSettings, type MemoryProviderEntry } from "./build-settings";
 import { type ConfigProblem, readLayer, readOwnerText } from "./read-layer";
 import type { McpServerSpec } from "./schemas/mcp-file";
+import type { ComputerSettings } from "./schemas/settings-file";
 
 export type { ConfigProblem } from "./read-layer";
 
@@ -43,6 +44,8 @@ export interface ConfigSnapshot {
   projectsDir: string;
   /** Memory provider entries of settings.yaml (plugin id + options), none by default. */
   memoryProviders: MemoryProviderEntry[];
+  /** The `computer` block of settings.yaml (last file that names it); unset = no computers. */
+  computer?: ComputerSettings;
   /** The owner's IANA time zone from settings.yaml; unset = the machine's zone (resolved by the app). */
   ownerTimeZone?: string;
   tools: ToolSpec[];
@@ -123,7 +126,7 @@ export function loadConfig(
     for (const id of Object.keys(value.autonomy?.bots ?? {}))
       if (!bots.has(id))
         problems.push({ file, message: `autonomy.bots names "${id}", which is not a loaded bot` });
-  const { settings, limits, projectsDir, memoryProviders, ownerTimeZone } = buildSettings(
+  const { settings, limits, projectsDir, memoryProviders, computer, ownerTimeZone } = buildSettings(
     settingsFiles.map((f) => f.value),
     bots.values(),
   );
@@ -135,6 +138,7 @@ export function loadConfig(
       limits,
       projectsDir,
       memoryProviders,
+      ...(computer && { computer }),
       ...(ownerTimeZone && { ownerTimeZone }),
       tools: [...tools.values()],
       mcp: new Map(layers.flatMap((l) => [...l.mcp])),

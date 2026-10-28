@@ -1,5 +1,5 @@
 import { mkdirSync, watch } from "node:fs";
-import type { CoreLimits, Group, PermissionSettings, Store, ToolCatalog } from "@friday/core";
+import type { Bot, CoreLimits, Group, PermissionSettings, Store, ToolCatalog } from "@friday/core";
 import { diffBots } from "./diff-bots";
 import { diffGroups } from "./diff-groups";
 import { type ConfigProblem, type ConfigSnapshot, loadConfig } from "./load-config";
@@ -100,6 +100,12 @@ export class FileConfig {
 
   /** Memory provider entries of settings.yaml (read at start; a change needs a restart). */
   memoryProviders = () => this.snapshot.memoryProviders;
+
+  /** The `computer` block of settings.yaml (read at start; a change needs a restart); undefined = no computers. */
+  computer = () => this.snapshot.computer;
+
+  /** Every bot of the current snapshot, read synchronously (the computer wiring places browsers by it). */
+  botList = (): Bot[] => [...this.snapshot.bots.values()];
 
   /**
    * External MCP servers with `${NAME}` values filled from `env`. A server with a missing value is left out and
