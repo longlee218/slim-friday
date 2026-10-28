@@ -143,15 +143,21 @@ test("list filters by assignee", async () => {
   expect(r.items.map((i) => i.title)).toEqual(["y"]);
 });
 
-test("a failing wake after an owner comment is logged and the comment still succeeds", async () => {
+test("comment returns woke and note", async () => {
   const h = setup();
   const t = await h.client.tickets.create({ title: "t", assignee: "a" });
-  const logged: object[] = [];
-  h.deps.log.error = (o) => void logged.push(o);
-  h.hub.wakeForTicket = async () => {
-    throw new Error("boom");
-  };
-  const c = await h.client.tickets.comment({ ref: t.ref, text: "hello" });
-  expect(c.body).toBe("hello");
-  expect(logged).toContainEqual(expect.objectContaining({ event: "ticket.wake_failed" }));
+  const open = await h.client.tickets.comment({ ref: t.ref, text: "go" });
+  expect(open).toMatchObject({ woke: true });
+  expect(open.note).toBeUndefined();
+  const cur = await h.client.tickets.get({ ref: t.ref });
+  await h.client.tickets.update({
+    ref: t.ref,
+    status: "done",
+    expectedUpdatedAt: cur.ticket.updatedAt,
+  });
+  const late = await h.client.tickets.comment({ ref: t.ref, text: "late" });
+  expect(late).toMatchObject({
+    woke: false,
+    note: "No one was woken: the ticket is finished. Reopen it to continue.",
+  });
 });

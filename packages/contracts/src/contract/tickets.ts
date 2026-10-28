@@ -53,5 +53,5 @@ export const tickets = {
     .output(TicketDtoSchema),
   comment: base
     .input(z.object({ ref: TicketRefSchema, text: z.string().min(1) }))
-    .output(TicketCommentDtoSchema),
+    .output(TicketCommentDtoSchema.extend({ woke: z.boolean(), note: z.string().optional() })),
 };

@@ -169,15 +169,15 @@ export class TicketBoard {
 
   async comment(
     actor: Author,
-    i: { id: string; body: string; conversationId?: ConversationId },
-  ): Promise<TicketResult<{ comment: TicketComment }>> {
+    i: { id: string; body: string; conversationId?: ConversationId; commentId?: string },
+  ): Promise<TicketResult<{ comment: TicketComment; created: boolean }>> {
     const r = await addTicketComment(this.deps, this.reads, actor, i);
     if (!r.ok) return r;
     if (r.saved) {
       this.changed(r.saved);
       await this.deps.onComment?.(r.saved, r.comment).catch(() => {});
     }
-    return { ok: true, comment: r.comment };
+    return { ok: true, comment: r.comment, created: r.created };
   }
 
   /** Tell `onChange`; a failing listener must never fail the change that was already saved. */

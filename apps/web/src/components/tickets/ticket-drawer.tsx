@@ -27,13 +27,19 @@ function Latest({ ticket, onClose }: { ticket: TicketDto; onClose: () => void })
   const comment = useCommentTicket(ticket.ref);
   const update = useUpdateTicket(ticket.ref);
   const [text, setText] = useState("");
+  const [note, setNote] = useState<string>();
   const comments = (get.data?.timeline ?? []).flatMap((i) =>
     i.type === "comment" ? [i.comment] : [],
   );
   const send = () => {
     const body = text.trim();
     if (!body) return;
-    comment.mutate(body, { onSuccess: () => setText("") });
+    comment.mutate(body, {
+      onSuccess: (r) => {
+        setText("");
+        setNote(r.woke ? undefined : r.note);
+      },
+    });
   };
   return (
     <InspectorSection title="Latest">
@@ -47,8 +53,12 @@ function Latest({ ticket, onClose }: { ticket: TicketDto; onClose: () => void })
         placeholder="Comment"
         aria-label="Comment"
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onChange={(e) => {
+          setText(e.target.value);
+          setNote(undefined);
+        }}
       />
+      {note && <div className="t2">{note}</div>}
       <div className="td-acts">
         <Button
           variant="danger"
