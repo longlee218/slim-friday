@@ -1,6 +1,11 @@
 import { afterAll, expect, test } from "bun:test";
 import { Hono } from "hono";
-import { createViewProxy, revokeViewTokens, viewWebsocket } from "../src/computer/view-proxy";
+import {
+  allowFraming,
+  createViewProxy,
+  revokeViewTokens,
+  viewWebsocket,
+} from "../src/computer/view-proxy";
 import { sealViewToken, type ViewClaims } from "../src/computer/view-token";
 import { requestLog } from "../src/http/request-log";
 
@@ -18,6 +23,10 @@ const viewer = Bun.serve({
       const ok = server.upgrade(req, { headers: { "sec-websocket-protocol": "rcdp.v2" } });
       return ok ? undefined : new Response("no", { status: 400 });
     }
+    if (url.pathname === "/csp")
+      return new Response("ok", {
+        headers: { "content-security-policy": "default-src 'self'; frame-ancestors 'none'" },
+      });
     if (url.pathname === "/redir")
       return new Response(null, { status: 302, headers: { location: "http://evil.example/" } });
     return Response.json({
@@ -41,7 +50,10 @@ app.use(
   "*",
   requestLog({ info: rec, warn: rec, error: rec }, () => NOW),
 );
-app.all("/computer-view/:token/*", createViewProxy({ secret: SECRET, now: () => NOW }));
+app.all(
+  "/computer-view/:token/*",
+  createViewProxy({ secret: SECRET, now: () => NOW, frameAncestors: ["https://web.example"] }),
+);
 const front = Bun.serve({
   hostname: "127.0.0.1",
   port: 0,
@@ -220,4 +232,19 @@ test("a percent-encoded token char with an unencoded dot-dot is refused", async 
     const res = await fetch(u);
     expect(res.status).toBeGreaterThanOrEqual(400);
   }
+});
+
+test("the viewer's frame-ancestors 'none' is replaced by the web origin so the iframe may load", async () => {
+  const token = sealViewToken(SECRET, claims());
+  const res = await fetch(url(token, "csp"));
+  const csp = res.headers.get("content-security-policy") ?? "";
+  expect(csp).toContain("frame-ancestors https://web.example");
+  expect(csp).not.toContain("'none'");
+  expect(csp).toContain("default-src 'self'");
+});
+
+test("allowFraming adds frame-ancestors when the viewer sends none", () => {
+  expect(allowFraming("default-src 'self'", ["https://web.example"])).toBe(
+    "default-src 'self'; frame-ancestors https://web.example",
+  );
 });
