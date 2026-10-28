@@ -1,6 +1,7 @@
 import type { ConversationDto, MessageDto, MessageReaction } from "@friday/contracts";
 import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { ArrowDown } from "lucide-react";
 import { type DragEvent, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { orpc } from "../../api/client";
@@ -13,6 +14,7 @@ import { type BarState, barItemAt, DISMISS_TRAVEL_PX, MORE, ReactionBar } from "
 import { useSwipeToReply } from "./swipe-to-reply";
 import { buildTranscriptItems } from "./transcript-items";
 import { TranscriptRow } from "./transcript-row";
+import { sendingKey } from "./transcript-scroll";
 import { useConversationMessages } from "./use-conversation-messages";
 import { useLocal } from "./use-local-cache";
 import { useMarkRead } from "./use-mark-read";
@@ -101,6 +103,7 @@ export function Transcript({ conversation, phone, onReply, onDropFiles }: Transc
     scroller,
     itemCount: items.length,
     lastKey: items.at(-1)?.key,
+    sentKey: sendingKey(items),
     totalSize: virtualizer.getTotalSize(),
     pageCount: pages?.length ?? 0,
     hasOlder: q.hasNextPage,
@@ -221,6 +224,13 @@ export function Transcript({ conversation, phone, onReply, onDropFiles }: Transc
           })}
         </div>
       </div>
+      {!scroll.atBottom && (
+        <div className="to-latest">
+          <button type="button" aria-label="Jump to the latest message" onClick={scroll.toLatest}>
+            <ArrowDown size={18} strokeWidth={2} aria-hidden />
+          </button>
+        </div>
+      )}
       {phone && bar && (
         <ReactionBar
           state={bar}

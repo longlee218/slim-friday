@@ -9,6 +9,8 @@ export interface TranscriptScrollInput {
   itemCount: number;
   /** Key of the newest row; a change means something was added at the end. */
   lastKey: string | undefined;
+  /** Key of the newest message the owner is sending (`sendingKey`); a new one pins wherever the view was. */
+  sentKey: string | undefined;
   /** Height of the whole list (`virtualizer.getTotalSize()`); it grows with a live run or a measured row. */
   totalSize: number;
   /** Loaded pages; a change means an older page arrived. */
@@ -20,8 +22,9 @@ export interface TranscriptScrollInput {
 
 /**
  * Scroll behaviour of the transcript: open on the newest row (and again after 450 ms unless
- * the owner scrolled), follow new rows only within 80 px of the bottom, and when an older
- * page loads (within 400 px of the top) keep the message being read in place.
+ * the owner scrolled), follow new rows only within 80 px of the bottom, jump to the bottom when the
+ * owner sends, and when an older page loads (within 400 px of the top) keep the message being read
+ * in place.
  */
 export function useTranscriptScroll(i: TranscriptScrollInput) {
   const { scroller, itemCount, lastKey, totalSize, pageCount } = i;
@@ -61,6 +64,15 @@ export function useTranscriptScroll(i: TranscriptScrollInput) {
     }
   }, [scroller, lastKey, totalSize]);
 
+  // The owner sent (or replied from far up): show their message and follow the answer.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs when a new send appears
+  useLayoutEffect(() => {
+    if (!i.sentKey || !started.current) return;
+    following.current = true;
+    setAtBottom(true);
+    pin();
+  }, [scroller, i.sentKey]);
+
   // Older page arrived: move by the height that was added above.
   // biome-ignore lint/correctness/useExhaustiveDependencies: runs when a page is added
   useLayoutEffect(() => {
@@ -77,6 +89,12 @@ export function useTranscriptScroll(i: TranscriptScrollInput) {
 
   return {
     atBottom,
+    /** Glide to the newest row and follow again. */
+    toLatest() {
+      if (!scroller) return;
+      following.current = true;
+      scroller.scrollTo({ top: scroller.scrollHeight, behavior: "smooth" });
+    },
     /** The owner scrolled by hand: the 450 ms re-pin must not fight them. */
     markTouched() {
       touched.current = true;
