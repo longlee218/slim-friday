@@ -27,6 +27,12 @@ const DROP = new Set([
 /** Upstream response headers dropped (the body is re-framed; cookies must not reach the web app). */
 const DROP_RES = new Set([...DROP, "content-encoding", "set-cookie", "location"]);
 
+/**
+ * Ping both legs this often. A still screen sends nothing, and the Cloudflare tunnel in front of the API drops a
+ * websocket idle for about 100 s; Bun's own pings only start near its 120 s idle timeout, too late.
+ */
+export const VIEW_KEEPALIVE_MS = 30_000;
+
 /** Per computer, when its links were last revoked (ms): a link with `iat` at or before it is dead. */
 const revokedAt = new Map<string, number>();
 const sockets = new Map<string, Set<Bun.ServerWebSocket<RelayData>>>();
@@ -38,6 +44,7 @@ interface RelayData {
   /** Ms until the link expires; the relay closes then. */
   ttlMs: number;
   timer?: ReturnType<typeof setTimeout>;
+  keepalive?: ReturnType<typeof setInterval>;
   upstream?: WebSocket;
   pending: (string | BufferSource)[];
 }
@@ -162,32 +169,42 @@ export function allowFraming(csp: string, origins: string[]): string {
 }
 
 /** Bun `websocket` handler for `Bun.serve`: relays frames to the viewer and tracks sockets per computer. */
-export const viewWebsocket: Bun.WebSocketHandler<RelayData> = {
-  open(ws) {
-    const { computer, target, protocols } = ws.data;
-    const set = sockets.get(computer) ?? new Set();
-    set.add(ws);
-    sockets.set(computer, set);
-    const up = new WebSocket(target, protocols);
-    up.binaryType = "arraybuffer";
-    ws.data.upstream = up;
-    up.onopen = () => {
-      for (const m of ws.data.pending) up.send(m);
-      ws.data.pending = [];
-    };
-    up.onmessage = (e) => ws.send(e.data as string | ArrayBuffer);
-    up.onclose = () => ws.close();
-    up.onerror = () => ws.close(1011);
-    ws.data.timer = setTimeout(() => ws.close(1008, "expired"), Math.max(0, ws.data.ttlMs));
-  },
-  message(ws, msg) {
-    const up = ws.data.upstream;
-    if (up?.readyState === WebSocket.OPEN) up.send(msg);
-    else ws.data.pending.push(msg);
-  },
-  close(ws) {
-    clearTimeout(ws.data.timer);
-    sockets.get(ws.data.computer)?.delete(ws);
-    ws.data.upstream?.close();
-  },
-};
+export function createViewWebsocket(keepaliveMs: number): Bun.WebSocketHandler<RelayData> {
+  return {
+    open(ws) {
+      const { computer, target, protocols } = ws.data;
+      const set = sockets.get(computer) ?? new Set();
+      set.add(ws);
+      sockets.set(computer, set);
+      const up = new WebSocket(target, protocols);
+      up.binaryType = "arraybuffer";
+      ws.data.upstream = up;
+      up.onopen = () => {
+        for (const m of ws.data.pending) up.send(m);
+        ws.data.pending = [];
+      };
+      up.onmessage = (e) => ws.send(e.data as string | ArrayBuffer);
+      up.onclose = () => ws.close();
+      up.onerror = () => ws.close(1011);
+      ws.data.timer = setTimeout(() => ws.close(1008, "expired"), Math.max(0, ws.data.ttlMs));
+      ws.data.keepalive = setInterval(() => {
+        ws.ping();
+        // Bun's client WebSocket has `ping()`; the DOM type does not declare it.
+        if (up.readyState === WebSocket.OPEN) (up as WebSocket & { ping(): void }).ping();
+      }, keepaliveMs);
+    },
+    message(ws, msg) {
+      const up = ws.data.upstream;
+      if (up?.readyState === WebSocket.OPEN) up.send(msg);
+      else ws.data.pending.push(msg);
+    },
+    close(ws) {
+      clearTimeout(ws.data.timer);
+      clearInterval(ws.data.keepalive);
+      sockets.get(ws.data.computer)?.delete(ws);
+      ws.data.upstream?.close();
+    },
+  };
+}
+
+export const viewWebsocket = createViewWebsocket(VIEW_KEEPALIVE_MS);
