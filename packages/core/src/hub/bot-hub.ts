@@ -22,7 +22,7 @@ import { sendFromSession } from "./bot-messaging";
 import { type HubContext, tell } from "./hub-context";
 import { type BotHubDeps, type BotStatus, errText } from "./hub-types";
 import { sweepQuietScopes } from "./idle-close";
-import { queueIntroRun } from "./intro-run";
+import { queueIntroRun, queueSystemRun } from "./intro-run";
 import { releaseDependent } from "./ticket-dependents";
 import { afterTicketStatus } from "./ticket-followups";
 import { postBlockedComment, postBlockedReason } from "./ticket-milestones";
@@ -229,6 +229,11 @@ export class BotHub implements BotMessenger {
   /** Queue the intro run of a new bot (one per bot; see `queueIntroRun`). */
   queueIntroRun(botId: BotId): Promise<void> {
     return queueIntroRun(this.ctx, botId);
+  }
+
+  /** Queue a system run with `text` for a bot (one per `dedupeKey`), e.g. to resume it after the owner used its computer. */
+  queueSystemRun(botId: BotId, text: string, dedupeKey: string): Promise<void> {
+    return queueSystemRun(this.ctx, botId, text, dedupeKey);
   }
 
   /** A bot's `SendToBot` / `HandOff` from session `sessionKey`: deliver a message to a member of its group. */

@@ -14,6 +14,7 @@ export function computerContextBlock(bot: Bot, slotsText: string): string | unde
     "Desktop tools (ComputerScreenshot, ComputerAct) act by screen coordinates; ComputerShell runs commands inside the computer.",
     "Keep notes on how to use a site in ~/notes/<site>.md inside the computer and read them before working on that site.",
     "Ask the owner only for what only the owner has: passwords, 2FA codes, CAPTCHAs, decisions.",
+    "The owner can take control of your computer at any time: then computer tools refuse at once. End your turn, say you will continue when they give it back, and you are woken after.",
     `Slots on this machine: ${slotsText}.`,
     "</computer>",
   ].join("\n");

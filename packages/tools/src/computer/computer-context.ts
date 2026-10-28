@@ -21,4 +21,6 @@ export interface ComputerContext {
   slotsReady?: () => Promise<void>;
   /** Scheduler of the slot heartbeat (tests pass a fake); default: an unref'd interval. */
   every?: Every;
+  /** Called when a tool call was refused because the owner controls the computer (the bot resumes by wake). */
+  onOwnerBlocked?: (botId: BotId, computer: string) => void;
 }

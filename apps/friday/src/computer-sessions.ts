@@ -6,9 +6,11 @@ import {
   type Clock,
   type ComputerProvider,
   type ComputerProviderPlugin,
+  computerResume,
   type Log,
   releaseSlot,
   type Store,
+  type WakeBot,
 } from "@friday/core";
 import { BrowserSession, computerServer } from "@friday/tools";
 import { computerProvider } from "./computer-plugins";
@@ -33,6 +35,8 @@ export interface ComputersDeps {
   log: Pick<Log, "warn" | "info">;
   sleep?: (ms: number) => Promise<void>;
   plugins?: ComputerProviderPlugin[];
+  /** Queue a system run for a bot (the hub's `queueSystemRun`, bound late: the hub is built after the computers). */
+  wake?: WakeBot;
 }
 
 /** The computers of one process: the provider, the slots, a browser per bot and the run-end release. */
@@ -54,6 +58,8 @@ export interface Computers {
    * back; otherwise do nothing (another run of the bot may be driving the computer).
    */
   release(botId: BotId, wakeId: string): Promise<void>;
+  /** The owner gave `computer` back or lost it: wake each bot its tools turned away meanwhile, once. */
+  resumeAfterGiveBack(computer: string): Promise<void>;
 }
 
 /** A provider that refuses everything with `why` (no provider could be built); the tools refuse readably. */
@@ -94,6 +100,7 @@ export function createComputers(d: ComputersDeps): Computers {
   const shifted = new Set<string>();
   const browsers = new Map<BotId, { key: string; browser: BrowserSession }>();
   const sleep = d.sleep ?? ((ms: number) => Bun.sleep(ms));
+  const resume = computerResume(async (botId, text, key) => d.wake?.(botId, text, key));
 
   const placement = (bot: Bot) => ({
     cdpPort: cdpPortOf(bot.id, bot.computer ?? "", d.bots(), (moved, holder) => {
@@ -149,8 +156,10 @@ export function createComputers(d: ComputersDeps): Computers {
         slotsText: count.text,
         slotsReady: count.refresh,
         browser: browserOf(spec.bot, computer),
+        onOwnerBlocked: resume.noteBlockedByOwner,
       });
     },
+    resumeAfterGiveBack: resume.resumeAfterGiveBack,
     async release(botId, wakeId) {
       const key = `slot:${botId}`;
       // `live(0)`: every row not released (expiresAt 0), lapsed TTL included: a lapsed slot still has a browser.

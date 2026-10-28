@@ -8,6 +8,7 @@ export * from "./chat/chat-server";
 export { BrowserSession, type BrowserSessionDeps } from "./computer/browser/browser-session";
 export * from "./computer/computer-context";
 export * from "./computer/computer-server";
+export { type Every, realEvery } from "./computer/slot-heartbeat";
 export * from "./computer/tools/BrowserActTool/constants";
 export * from "./computer/tools/BrowserNavigateTool/constants";
 export * from "./computer/tools/BrowserSnapshotTool/constants";
