@@ -13,6 +13,7 @@ export const OWN_SERVERS = [
   "tickets",
   "scratchpad",
   "schedules",
+  "computer",
 ];
 
 /**

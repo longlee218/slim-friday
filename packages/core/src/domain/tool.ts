@@ -19,6 +19,11 @@ export interface ToolSpec {
   annotations?: ToolAnnotations;
   /** The tool runs inside the OS sandbox, so its blast radius is bounded by the bot's workspaces. */
   sandboxed?: boolean;
+  /**
+   * The tool acts only inside the bot's own computer (the `computer` MCP server), so the permission decision
+   * allows it without asking; the floor and a per-tool `deny` still win.
+   */
+  inComputer?: boolean;
   /** Input keys that define the scope of a call (for example a repository or an account). */
   scopeKeys?: string[];
 }

@@ -99,6 +99,15 @@ test("a settings file parses; bad limits and outcomes are refused", () => {
   expect(() => parseSettingsFile("autonomy:\n  tools: {Bash: maybe}\n")).toThrow();
 });
 
+test("a tool annotation accepts inComputer as a boolean only", () => {
+  expect(parseToolsFile("tools:\n  - name: C\n    inComputer: true\n")).toEqual([
+    { name: "C", inComputer: true },
+  ]);
+  expect(() => parseToolsFile('tools:\n  - name: C\n    inComputer: "yes"\n')).toThrow(
+    /inComputer/,
+  );
+});
+
 test("a tools file parses; duplicate names are refused", () => {
   const ok = parseToolsFile(
     "tools:\n  - name: Read\n    annotations: {readOnlyHint: true}\n  - name: Bash\n    sandboxed: true\n    scopeKeys: [cwd]\n",
