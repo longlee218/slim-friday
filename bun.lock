@@ -104,6 +104,13 @@
         "@friday/store-sqlite": "workspace:*",
       },
     },
+    "packages/computer-cua": {
+      "name": "@friday/computer-cua",
+      "version": "0.1.0",
+      "dependencies": {
+        "@friday/core": "workspace:*",
+      },
+    },
     "packages/config": {
       "name": "@friday/config",
       "version": "0.1.0",
@@ -540,6 +547,8 @@
     "@friday/api": ["@friday/api@workspace:packages/api"],
 
     "@friday/app": ["@friday/app@workspace:apps/friday"],
+
+    "@friday/computer-cua": ["@friday/computer-cua@workspace:packages/computer-cua"],
 
     "@friday/config": ["@friday/config@workspace:packages/config"],
 
