@@ -11,7 +11,9 @@ const RAW = {
 };
 
 /** A browser that answers every call the session makes; `missing` makes element lookups fail. */
-function browser(opts: { missing?: boolean } = {}): CdpHandler {
+function browser(
+  opts: { missing?: boolean; focus?: boolean | "throw"; snapshotThrows?: boolean } = {},
+): CdpHandler {
   return (method, params) => {
     switch (method) {
       case "Target.getTargets":
@@ -27,8 +29,13 @@ function browser(opts: { missing?: boolean } = {}): CdpHandler {
         if (expr.startsWith("(globalThis.__fridayRefs"))
           return opts.missing ? { result: { type: "undefined" } } : { result: { objectId: "o1" } };
         if (expr.includes("readyState")) return { result: { value: "complete" } };
+        if (opts.snapshotThrows) return { result: {}, exceptionDetails: { text: "boom" } };
         return { result: { value: RAW } };
       }
+      case "Runtime.callFunctionOn":
+        return opts.focus === "throw"
+          ? { result: {}, exceptionDetails: { text: "TypeError" } }
+          : { result: { value: opts.focus ?? true } };
       case "DOM.getBoxModel":
         return { model: { content: [10, 10, 30, 10, 30, 30, 10, 30] } };
       case "Page.navigate":
@@ -52,7 +59,7 @@ afterEach(() => {
 });
 
 /** Session over a fake provider; `down` = the endpoint only answers after `launch`. */
-function rig(opts: { down?: boolean; handler?: CdpHandler } = {}): Rig {
+function rig(opts: { down?: boolean; handler?: CdpHandler; now?: number } = {}): Rig {
   const fake = startFakeCdp(opts.handler ?? browser());
   fakes.push(fake);
   const launched: Rig["launched"] = [];
@@ -72,6 +79,7 @@ function rig(opts: { down?: boolean; handler?: CdpHandler } = {}): Rig {
     cdpPort: 9222,
     profileRoot: "/home/user/profiles",
     sleep: async () => {},
+    now: () => opts.now ?? 0,
   });
   return { fake, launched, session };
 }
@@ -224,6 +232,55 @@ describe("act", () => {
         (m) => m.method === "Input.dispatchKeyEvent" && m.params.key === "Enter",
       ),
     ).toBe(true);
+  });
+});
+
+describe("type safety", () => {
+  const typeStep = [{ kind: "type" as const, ref: "p1:0", text: "secret text", submit: true }];
+
+  test("does not insert text when the element cannot take focus", async () => {
+    const r = rig({ handler: browser({ focus: false }) });
+    await r.session.snapshot();
+    const out = await r.session.act(typeStep);
+    expect(out).toContain("failed 1");
+    expect(out).toContain("uncertain: true");
+    expect(methods(r)).not.toContain("Input.insertText");
+    expect(methods(r)).not.toContain("Input.dispatchKeyEvent");
+  });
+
+  test("a page-side throw during focus is a failure", async () => {
+    const r = rig({ handler: browser({ focus: "throw" }) });
+    await r.session.snapshot();
+    const out = await r.session.act(typeStep);
+    expect(out).toContain("failed 1");
+    expect(methods(r)).not.toContain("Input.insertText");
+  });
+
+  test("a page-side throw while snapshotting is a failure", async () => {
+    const r = rig({ handler: browser({ snapshotThrows: true }) });
+    await expect(r.session.snapshot()).rejects.toThrow("snapshot failed");
+  });
+});
+
+describe("generation", () => {
+  const gen = (s: string) => Number(/\[p(\d+):/.exec(s)?.[1]);
+
+  test("stays monotonic after a dropped socket and the old ref is refused", async () => {
+    const r = rig({ now: 5000 });
+    const first = gen(await r.session.snapshot());
+    r.fake.dropConnections();
+    await Bun.sleep(50);
+    const second = gen(await r.session.snapshot());
+    expect(second).toBeGreaterThan(first);
+    await expect(r.session.act([{ kind: "click", ref: `p${first}:0` }])).rejects.toThrow(
+      `ref p${first}:0 is from an older snapshot; call BrowserSnapshot again`,
+    );
+  });
+
+  test("sessions created at different instants start at different generations", async () => {
+    const a = gen(await rig({ now: 5_000 }).session.snapshot());
+    const b = gen(await rig({ now: 9_000 }).session.snapshot());
+    expect(a).not.toBe(b);
   });
 });
 

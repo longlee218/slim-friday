@@ -1,3 +1,12 @@
+/** Shape of a `Runtime.evaluate` / `callFunctionOn` reply; a page-side throw is `exceptionDetails`, not a CDP error. */
+export interface EvalResult<V = unknown> {
+  result?: { objectId?: string; value?: V };
+  exceptionDetails?: unknown;
+}
+
+/** True when the page threw; callers must treat that as a failure, never as success. */
+export const thrown = (r: EvalResult): boolean => r.exceptionDetails !== undefined;
+
 /** One action on the page; refs come from the latest snapshot. */
 export type PageStep =
   | { kind: "click"; ref: string }
@@ -106,10 +115,15 @@ async function runStep(page: PageHandle, step: PageStep): Promise<void> {
     }
     case "type": {
       const objectId = await resolve(page, step.ref);
-      await page.send("Runtime.callFunctionOn", {
+      const focus = await page.send<EvalResult<boolean>>("Runtime.callFunctionOn", {
         objectId,
-        functionDeclaration: "function(){this.focus()}",
+        functionDeclaration:
+          "function(){this.focus();return document.activeElement===this||this.contains(document.activeElement)}",
+        returnByValue: true,
       });
+      if (thrown(focus) || focus.result?.value !== true)
+        throw new Error(`${step.ref} could not take focus; nothing was typed`);
+      // UNVERIFIED: confirm with the live check (Input.insertText into the focused element).
       await page.send("Input.insertText", { text: step.text });
       if (step.submit) await pressKeys(page, "Enter");
     }
@@ -121,11 +135,12 @@ async function resolve(page: PageHandle, ref: string): Promise<string> {
   const [, g, i] = REF.exec(ref) ?? [];
   if (page.contextId === undefined)
     throw new Error("no snapshot taken; call BrowserSnapshot first");
-  const r = await page.send<{ result: { objectId?: string } }>("Runtime.evaluate", {
+  // UNVERIFIED: confirm with the live check (isolated-world lookup by contextId, objectId reuse).
+  const r = await page.send<EvalResult>("Runtime.evaluate", {
     expression: `(globalThis.__fridayRefs?.get(${Number(g)}) ?? [])[${Number(i)}]`,
     contextId: page.contextId,
   });
-  if (!r.result.objectId)
+  if (thrown(r) || !r.result?.objectId)
     throw new Error(`ref ${ref} is gone from the page; call BrowserSnapshot again`);
   return r.result.objectId;
 }
@@ -133,6 +148,7 @@ async function resolve(page: PageHandle, ref: string): Promise<string> {
 /** Scroll the element into view and return the centre of its box. */
 async function centreOf(page: PageHandle, ref: string): Promise<[number, number]> {
   const objectId = await resolve(page, ref);
+  // UNVERIFIED: confirm with the live check (DOM.scrollIntoViewIfNeeded / DOM.getBoxModel without DOM.enable).
   await page.send("DOM.scrollIntoViewIfNeeded", { objectId });
   const { model } = await page.send<{ model: { content: number[] } }>("DOM.getBoxModel", {
     objectId,

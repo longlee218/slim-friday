@@ -44,7 +44,9 @@ export const PAGE_SNAPSHOT_SCRIPT = `(gen) => {
   const elements = found.map((el, i) => {
     const role = roleOf(el);
     const item = { i, role, name: nameOf(el) };
-    if (role !== 'password' && 'value' in el && el.value !== '' && !['checkbox', 'radio', 'button'].includes(role)) {
+    if (el.type === 'password') {
+      item.secret = true;
+    } else if ('value' in el && el.value !== '' && !['checkbox', 'radio', 'button'].includes(role)) {
       item.value = String(el.value).slice(0, 200);
     }
     return item;

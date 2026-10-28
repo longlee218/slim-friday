@@ -4,6 +4,8 @@ export interface RawElement {
   role: string;
   name: string;
   value?: string;
+  /** True for a password field (decided from its real type, not its role); its value is never read. */
+  secret?: boolean;
 }
 
 /** What `PAGE_SNAPSHOT_SCRIPT` returns. */
@@ -28,7 +30,7 @@ export function formatSnapshot(raw: RawSnapshot, gen: number): string {
   const shown = raw.elements.slice(0, MAX_ELEMENTS);
   const lines = shown.map((e) => {
     const value =
-      e.role === "password"
+      e.secret || e.role === "password"
         ? ` value=${PASSWORD_MASK}`
         : e.value
           ? ` value=${JSON.stringify(e.value.slice(0, MAX_VALUE_CHARS))}`
