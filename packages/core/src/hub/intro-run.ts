@@ -1,6 +1,6 @@
 import type { BotId } from "../domain/bot";
 import { createRun } from "../runs/run-create";
-import { type HubContext } from "./hub-context";
+import type { HubContext } from "./hub-context";
 import { errText } from "./hub-types";
 
 /**
@@ -14,6 +14,28 @@ export const INTRO_TEXT = [
   "Once you know what you are for, use UpdateProfile to set your title to a short role and your description to one line. Leave them unset if the answer is too vague, and keep your name and look.",
   "Then get started, asking one follow-up only if you cannot start without it.",
 ].join("\n");
+
+/**
+ * Queue one system run for a bot in its direct conversation; `dedupeKey` makes a repeat return the first run.
+ * A bot without a direct chat gets none.
+ */
+export async function queueSystemRun(
+  ctx: HubContext,
+  botId: BotId,
+  text: string,
+  dedupeKey: string,
+): Promise<void> {
+  const conv = await ctx.deps.store.conversations.direct(botId);
+  if (!conv) return;
+  await createRun(ctx, {
+    botId,
+    conversationId: conv.id,
+    sender: { kind: "system" },
+    text,
+    hop: 0,
+    dedupeKey,
+  });
+}
 
 /**
  * Queue the intro run of a new bot in its direct conversation: sender system, one per bot (a second call returns

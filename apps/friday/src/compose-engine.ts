@@ -80,6 +80,7 @@ export function composeEngine(deps: EngineDeps, opened: Array<() => unknown>) {
     holds: store.computerHolds,
     clock,
     log,
+    wake: async (botId, text, key) => hub?.queueSystemRun(botId, text, key),
   });
 
   // The runtime is built before the hub; a bot's tool calls it only while it runs, when the hub exists.
@@ -164,7 +165,19 @@ export function composeEngine(deps: EngineDeps, opened: Array<() => unknown>) {
     ...deps.hubRuns?.(config),
   });
   hub = botHub;
-  return { config, engine, store, mem, memory, clock, hub: botHub, queue, known, postFlush };
+  return {
+    config,
+    engine,
+    store,
+    mem,
+    memory,
+    clock,
+    hub: botHub,
+    queue,
+    known,
+    postFlush,
+    computers,
+  };
 }
 
 /** The parts `composeEngine` built. */

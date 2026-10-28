@@ -2,6 +2,7 @@ import {
   acquireSlot,
   ComputerBusyError,
   type ComputerHold,
+  ComputerOwnerControlError,
   releaseSlot,
   renewSlot,
   withInputLease,
@@ -16,6 +17,10 @@ export const MAX_BATCH = 20;
 
 /** Refusal text when the slot expired between two tool calls. */
 const SLOT_LOST = "computer slot was lost; the bot must call the tool again to re-acquire";
+
+/** Refusal text while the owner holds the input lease. */
+const OWNER_CONTROL =
+  "the owner is controlling this computer; end this turn and say you will continue when they give it back";
 
 /** What a tool handler returns: a text result or one with an image block. */
 export type ToolResult = ReturnType<typeof textResult> | { content: unknown[]; isError?: true };
@@ -98,6 +103,10 @@ export function createComputerSession(ctx: ComputerContext): ComputerSession {
       await ensureSession();
       return await fn();
     } catch (err) {
+      if (err instanceof ComputerOwnerControlError) {
+        ctx.onOwnerBlocked?.(ctx.botId, ctx.computer.name);
+        return makeText(OWNER_CONTROL, true);
+      }
       return makeText(err instanceof Error ? err.message : String(err), true);
     }
   };

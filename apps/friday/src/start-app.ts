@@ -1,6 +1,7 @@
 import { WriteThroughMemory } from "@friday/tools";
 import type { AppDeps } from "./app-deps";
 import { composeEngine } from "./compose-engine";
+import { watchOwnerControl } from "./computer-owner-watch";
 import { watchConfigReload } from "./config-reload";
 import { startDailyMaintenance } from "./daily-maintenance";
 import { startIdleSweep } from "./idle-sweep";
@@ -73,6 +74,14 @@ async function composeApp(deps: AppDeps, opened: Array<() => unknown>) {
   const { config, engine, store, mem, memory, clock, hub: botHub, queue, known, postFlush } = parts;
   botHub.start();
   opened.push(() => botHub.stopAll());
+  // An owner hold that ended (given back, or lapsed with the owner gone) resumes the bots it turned away.
+  opened.push(
+    watchOwnerControl({
+      holds: store.computerHolds,
+      clock,
+      onEnded: parts.computers.resumeAfterGiveBack,
+    }),
+  );
 
   const { run, sync } = conversationSync({
     engine,
