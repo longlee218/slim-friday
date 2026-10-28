@@ -1,3 +1,5 @@
+import type { TranscriptItem } from "./transcript-items";
+
 /** Distance (px) from the top at which the next older page is requested. */
 export const LOAD_OLDER_PX = 400;
 /** Distance (px) from the bottom within which new items keep the view following. */
@@ -27,4 +29,13 @@ export function pinAction(s: { started: boolean; hasRows: boolean; following: bo
   if (!s.hasRows) return "stay";
   if (!s.started) return "open";
   return s.following ? "follow" : "stay";
+}
+
+/** Key of the newest message still being sent by the owner; a new one means the owner just sent (or replied). */
+export function sendingKey(items: TranscriptItem[]): string | undefined {
+  for (let i = items.length - 1; i >= 0; i--) {
+    const it = items[i];
+    if (it?.kind === "message" && it.pending === "sending") return it.key;
+  }
+  return undefined;
 }

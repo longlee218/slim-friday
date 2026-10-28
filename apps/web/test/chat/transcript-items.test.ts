@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { buildTranscriptItems } from "../../src/components/chat/transcript-items";
-import { anchoredScrollTop } from "../../src/components/chat/transcript-scroll";
+import { anchoredScrollTop, sendingKey } from "../../src/components/chat/transcript-scroll";
 import type { Receipt } from "../../src/events/client-keys";
 import { apprCard, askCard } from "./cards-fixtures";
 import { msg, NOW } from "./fixtures";
@@ -105,6 +105,18 @@ test("pin decisions: open once, follow only at the bottom, stay with no rows", a
   expect(pinAction({ started: true, hasRows: true, following: true })).toBe("follow");
   expect(pinAction({ started: true, hasRows: true, following: false })).toBe("stay");
   expect(pinAction({ started: false, hasRows: false, following: true })).toBe("stay");
+});
+
+test("sendingKey names the newest message the owner is still sending", () => {
+  const items = buildTranscriptItems({
+    ...base,
+    pages: [[msg({ id: 2, author: { kind: "user" }, text: "b" }), msg({ id: 1, text: "a" })]],
+    pending: { 2: "sending" },
+  });
+  expect(sendingKey(items)).toBe("m:2");
+  expect(sendingKey(buildTranscriptItems({ ...base, pages: [[msg({ id: 1, text: "a" })]] }))).toBe(
+    undefined,
+  );
 });
 
 test("a reaction folds under its target and is no row of its own", () => {

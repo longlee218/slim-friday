@@ -81,3 +81,11 @@
 .ios-composer .box { flex: 1; display: flex; align-items: flex-end; border-radius: 20px; background: var(--fill); padding: 3px 3px 3px 14px; }
 .ios-composer textarea { flex: 1; border: 0; outline: 0; resize: none; background: transparent; font-size: 17px; line-height: 1.35; padding: 5px 0; max-height: 120px; height: 32px; }
 .ios-composer .send { width: 32px; height: 32px; }
+/* Jump to the latest message: shown once the owner scrolls up; sticks above the floating composer, centred. */
+.to-latest { position: sticky; z-index: 3; bottom: calc(var(--composer-h, 64px) + 14px); height: 0; display: flex; justify-content: center; pointer-events: none; }
+.to-latest button { position: absolute; bottom: 0; width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: 50%; pointer-events: auto; background: var(--glass-strong); color: var(--label); box-shadow: var(--glass-edge), 0 4px 14px rgba(20, 22, 50, .16); backdrop-filter: blur(16px) saturate(1.6); animation: toLatestIn var(--t-mid) var(--ease); transition: transform var(--t-fast), background var(--t-fast); }
+.to-latest button:hover { background: var(--raised); }
+.to-latest button:active { transform: scale(.92); }
+.to-latest button:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; }
+@keyframes toLatestIn { from { opacity: 0; transform: translateY(6px) scale(.9); } }
+@media (prefers-reduced-motion: reduce) { .to-latest button { animation: none; } }
