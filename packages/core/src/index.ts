@@ -1,4 +1,5 @@
 /** Public surface of the core package: domain types, ports, and the use cases built on them. */
+export * from "./computer/computer-lease";
 export * from "./computer/computer-slots";
 export * from "./config-defaults";
 export * from "./domain/autonomy";
