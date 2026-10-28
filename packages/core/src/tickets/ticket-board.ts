@@ -5,6 +5,7 @@ import type { Author } from "../domain/message";
 import type { Clock } from "../ports/clock";
 import type { Store } from "../ports/store";
 import type { Ticket, TicketComment, TicketPriority, TicketStatus } from "./ticket";
+import { acceptanceRefusal } from "./ticket-acceptance";
 import { assigneeRefusal } from "./ticket-assignee";
 import {
   BAD_STATUS,
@@ -113,6 +114,8 @@ export class TicketBoard {
     const cur = await this.reads.find(i.id);
     if (!cur) return NOT_FOUND;
     if (i.status !== undefined && !STATUSES.includes(i.status)) return BAD_STATUS;
+    const notAllowed = acceptanceRefusal(cur, actor, i.status);
+    if (notAllowed) return notAllowed;
     const title =
       i.title === undefined ? undefined : cleanText(this.deps.secretValues, i.title.trim());
     if (title !== undefined && (!title || title.length > TITLE_MAX)) return INVALID;
