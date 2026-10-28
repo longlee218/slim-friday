@@ -127,7 +127,7 @@ test("the idle close of a ticket scope names the bot and its DM, not the group",
   const seen: IdleClose[] = [];
   const h = scoped({ onIdleClose: (e) => void seen.push(e) });
   const t = await assigned(h);
-  await h.hub.tickets.update({ kind: "bot", botId: "editor" }, { id: t.id, status: "done" });
+  await h.hub.tickets.update({ kind: "user" }, { id: t.id, status: "done" });
   h.clock.advance(10);
   h.runtime.nth(0).emit({ type: "turn_end", costUsd: 0 });
   await flush();

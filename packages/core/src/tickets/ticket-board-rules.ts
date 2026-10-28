@@ -9,7 +9,13 @@ import {
 } from "./ticket";
 
 /** Why a request was refused. */
-export type TicketErrorCode = "invalid" | "not_found" | "unknown_bot" | "not_member" | "conflict";
+export type TicketErrorCode =
+  | "invalid"
+  | "not_found"
+  | "unknown_bot"
+  | "not_member"
+  | "conflict"
+  | "not_allowed";
 
 /** Success with a payload, or a short reason a bot can read. */
 export type TicketResult<T> =
@@ -65,6 +71,12 @@ export const REASON_REQUIRED = {
   ok: false,
   code: "invalid",
   error: "blockedReason is required when status is blocked.",
+} as const;
+/** Refusal: only the ticket's creator or the owner sets done or closed. */
+export const NOT_ALLOWED = {
+  ok: false,
+  code: "not_allowed",
+  error: "Only the ticket's creator or the owner sets done or closed.",
 } as const;
 /** Refusal: the status is not one of the known ones. */
 export const BAD_STATUS = {
