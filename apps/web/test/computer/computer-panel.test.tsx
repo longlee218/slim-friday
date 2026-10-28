@@ -35,17 +35,19 @@ const status = (over: Partial<ComputerStatusDto> = {}): ComputerStatusDto => ({
   ...over,
 });
 
-function mount(s: ComputerStatusDto = status()) {
+function mountWithClient(s: ComputerStatusDto = status()) {
   const qc = new QueryClient({
     defaultOptions: { queries: { staleTime: Infinity, retry: false } },
   });
   qc.setQueryData(orpc.computer.status.queryKey({ input: { botId: "dev" } }), s);
-  return render(
+  const view = render(
     <QueryClientProvider client={qc}>
       <ComputerPanel botId="dev" botName="Dev" />
     </QueryClientProvider>,
   );
+  return { qc, view };
 }
+const mount = (s?: ComputerStatusDto) => mountWithClient(s).view;
 
 const frame = () => document.querySelector("iframe");
 const press = async (name: string) => {
@@ -146,20 +148,24 @@ test("Close gives back first when holding control, then closes the view", async 
   expect(frame()).toBeNull();
 });
 
-test("without a frame for 10 s the stream is declared unplayable; a frame message clears the timer", async () => {
+test("after 10 s without a signal an honest new-tab link appears and the iframe stays", async () => {
   mount();
   await press("View");
   await act(() => vi.advanceTimersByTimeAsync(9_000));
-  expect(screen.queryByText("This device cannot play the stream.")).toBeNull();
+  expect(screen.queryByText("Not showing?", { exact: false })).toBeNull();
   await act(() => vi.advanceTimersByTimeAsync(1_000));
-  expect(screen.getByText("This device cannot play the stream.")).toBeTruthy();
-  await press("Close");
-  await press("View");
-  act(() => {
-    window.dispatchEvent(
-      new MessageEvent("message", { data: { type: "computer-frame" }, origin: location.origin }),
-    );
-  });
-  await act(() => vi.advanceTimersByTimeAsync(20_000));
+  const link = screen.getByRole("link", { name: "Open the viewer in a new tab" });
+  expect(link.getAttribute("href")).toBe("/computer-view/view-tok/");
+  expect(link.getAttribute("target")).toBe("_blank");
+  expect(link.getAttribute("rel")).toBe("noopener");
+  expect(frame()).not.toBeNull();
   expect(screen.queryByText("This device cannot play the stream.")).toBeNull();
+});
+
+test("the status query polls every 10 s while the panel is mounted", () => {
+  const { qc } = mountWithClient();
+  const query = qc.getQueryCache().find({
+    queryKey: orpc.computer.status.queryKey({ input: { botId: "dev" } }),
+  });
+  expect(query?.observers[0]?.options.refetchInterval).toBe(10_000);
 });

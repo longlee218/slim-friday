@@ -24,8 +24,8 @@ const TABS = [
   ["tools", "Tools & skills"],
   ["memory", "Memory"],
   ["rules", "Rules"],
-  ["computer", "Computer"],
 ] as const;
+const COMPUTER_TAB = ["computer", "Computer"] as const;
 
 /** `/settings/bot/new`: the Profile form of a bot that does not exist yet. */
 export function BotNewPage() {
@@ -77,9 +77,11 @@ export function BotPage() {
   const q = useQuery(orpc.config.bots.get.queryOptions({ input: { id } }));
   const bot = q.data;
   const tabBox = useRef<HTMLDivElement>(null);
-  const tabAt = TABS.findIndex(([t]) => t === tab);
+  // The Computer tab exists only for a bot that has a computer.
+  const tabs = bot?.computer ? [...TABS, COMPUTER_TAB] : TABS;
+  const tabAt = tabs.findIndex(([t]) => t === tab);
   // The tab bar mounts once the bot loads: that is when it can be measured.
-  const tabThumb = useSegThumb(tabBox, tabAt, TABS.length, bot ? "loaded" : "");
+  const tabThumb = useSegThumb(tabBox, tabAt, tabs.length, bot ? "loaded" : "");
   if (!bot) {
     return (
       <SettingsPage title="Bot">
@@ -125,7 +127,7 @@ export function BotPage() {
       <div className="tabs">
         <div ref={tabBox} className="seg" role="tablist">
           {tabAt >= 0 && <span className="thumb" style={tabThumb} />}
-          {TABS.map(([t, label]) => (
+          {tabs.map(([t, label]) => (
             <button
               key={t}
               type="button"
@@ -152,7 +154,7 @@ export function BotPage() {
       ) : // Memory and rules are the owner's files, so a shipped bot's stay editable.
       tab === "rules" ? (
         <RuleList owner={`bot:${bot.id}`} />
-      ) : tab === "computer" ? (
+      ) : tab === "computer" && bot.computer ? (
         <ComputerPanel botId={bot.id} botName={bot.name} />
       ) : (
         <MemoryPanel owner={`bot:${bot.id}`} />

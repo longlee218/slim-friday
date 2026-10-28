@@ -7,12 +7,17 @@ import { Button } from "../ui/button";
 import { ComputerFrame } from "./computer-frame";
 import { useControl } from "./use-control";
 
+/** The status refreshes while the panel is open so the holder stays current. */
+const STATUS_POLL_MS = 10_000;
+
 type Mode = "view" | "control";
 
 /** The owner's window on a bot's computer: status, a live view on demand, and taking control. */
 export function ComputerPanel({ botId, botName }: { botId: string; botName: string }) {
   const phone = useIsPhone();
-  const status = useQuery(orpc.computer.status.queryOptions({ input: { botId } })).data;
+  const status = useQuery(
+    orpc.computer.status.queryOptions({ input: { botId }, refetchInterval: STATUS_POLL_MS }),
+  ).data;
   const control = useControl(botId);
   const [frame, setFrame] = useState<string | null>(null);
 
