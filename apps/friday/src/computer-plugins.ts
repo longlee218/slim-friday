@@ -43,12 +43,12 @@ export function computerProvider(
 
 /**
  * The machine's computer slots: the provider's capacity sized by the settings (`slots` may only lower the number).
- * A capacity failure (Docker not running) is 0 slots whose text says why.
+ * A capacity failure (Docker not running) is 0 slots whose text says why, marked `failed` (it may be counted again).
  */
 export async function computerSlots(
   provider: ComputerProvider,
   settings: ComputerSettings,
-): Promise<SlotResult> {
+): Promise<SlotResult & { failed?: true }> {
   try {
     return computeSlots(await provider.capacity(), {
       ...(settings.slots !== undefined && { override: settings.slots }),
@@ -60,6 +60,7 @@ export async function computerSlots(
       slots: 0,
       limitedBy: "setting",
       text: `0 slots, the computer capacity is unknown: ${errText(err)}`,
+      failed: true,
     };
   }
 }
