@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { BotId } from "../domain/bot";
 
 /** The note a bot wakes with after the owner gave the computer back. */
@@ -17,7 +18,6 @@ export interface ComputerResume {
 /** The blocked-bot set lives in memory: a restart forgets it, and the bot asks again on its next turn. */
 export function computerResume(wake: WakeBot): ComputerResume {
   const blocked = new Map<string, Set<BotId>>();
-  let round = 0;
   return {
     noteBlockedByOwner(botId, computer) {
       const set = blocked.get(computer) ?? new Set<BotId>();
@@ -28,7 +28,8 @@ export function computerResume(wake: WakeBot): ComputerResume {
       const bots = blocked.get(computer);
       blocked.delete(computer);
       if (!bots) return;
-      const key = `computer-resume:${computer}:${++round}`;
+      // A fresh id per give-back: a counter would restart at 0 after a restart and collide with an old wake.
+      const key = `computer-resume:${computer}:${randomUUID()}`;
       for (const botId of bots)
         await wake(botId, RESUME_NOTE, `${key}:${botId}`).catch(() => undefined);
     },
