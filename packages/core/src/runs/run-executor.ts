@@ -5,6 +5,7 @@ import { runScope } from "../hub/ticket-scope";
 import { checkUnfinished } from "../hub/ticket-wakes";
 import { returnOutcomeSafe } from "./outcome-outbox";
 import { cardResume, parkAtClaim, parkRun, resumeCardId } from "./run-cards";
+import { releaseComputer } from "./run-computer-release";
 import { settleCutSteering } from "./run-continuation";
 import { cutShort, requeuedByShutdown } from "./run-cut-short";
 import { abortRun, newRunExec, type RunExec, untilStop } from "./run-exec";
@@ -190,6 +191,7 @@ async function dropRun(ctx: HubContext, row: WakeRow, fence: number): Promise<vo
   const now = clock.now();
   const patch = { status: "dropped" as const, endedAt: now };
   if (!(await store.wakes.transition(row.id, fence, ["running"], patch))) return;
+  await releaseComputer(ctx, row.targetBot, row.id);
   await store.attempts.finish(`${row.id}:${fence}`, "failed", now, "bot or conversation gone");
   await returnOutcomeSafe(ctx, { ...row, ...patch });
   log?.warn({ event: "wake.dropped", wakeId: row.id, botId: row.targetBot }, "wake.dropped");

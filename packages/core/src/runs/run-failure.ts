@@ -3,6 +3,7 @@ import type { WakeRow } from "../domain/wake";
 import { type HubContext, tell } from "../hub/hub-context";
 import { errText } from "../hub/hub-types";
 import { returnOutcomeSafe } from "./outcome-outbox";
+import { releaseComputer } from "./run-computer-release";
 import { settleSteering } from "./run-continuation";
 import { finishRun } from "./run-finish";
 import { announceNotice } from "./run-notice-finished";
@@ -101,6 +102,7 @@ export async function countCut(
   }
   const patch = { status: "interrupted" as const, cuts, endedAt: now };
   if (!(await store.wakes.transition(row.id, fence, ["running"], patch))) return undefined;
+  await releaseComputer(ctx, row.targetBot, row.id);
   await store.attempts.finish(`${row.id}:${fence}`, "interrupted", now);
   await store.scopes.finished(row.scopeKey, now, Math.max(0, row.createdAt - 1));
   await settleSteering(ctx, row, "interrupted");

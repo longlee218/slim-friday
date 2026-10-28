@@ -109,8 +109,11 @@ export interface BotHubDeps {
   nextRunAt?: NextRunAt;
   /** Told after a schedule create, update, remove, fire and each settled history row (never awaited, never throws out). */
   onScheduleChange?: (scheduleId: string) => void;
-  /** Frees the bot's computer (browser and slot) when one of its runs ends; errors are logged, never thrown. */
-  computerRelease?: (botId: BotId) => Promise<void>;
+  /**
+   * Frees the computer one run held (its slot and the bot's browser) when that run ends; acts only when `wakeId`
+   * holds the bot's slot. Errors are logged, never thrown.
+   */
+  computerRelease?: (botId: BotId, wakeId: string) => Promise<void>;
   /** The machine's computer slot line for the `<computer>` facts; unset: "unknown". */
   computerSlotsText?: () => string;
 }

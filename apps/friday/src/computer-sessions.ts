@@ -59,8 +59,11 @@ export interface Computers {
   placement(bot: Bot): { cdpPort: number; profileDir: string };
   /** The `computer` server of a session; undefined for a bot without a computer. */
   server(spec: BotRuntimeSpec): ReturnType<typeof computerServer> | undefined;
-  /** Close the bot's browser (gracefully) and give its slot back; for the end of each of its runs. */
-  release(botId: BotId): Promise<void>;
+  /**
+   * At the end of a run: when `wakeId` holds the bot's slot, close the bot's browser (gracefully) and give the slot
+   * back; otherwise do nothing (another run of the bot may be driving the computer).
+   */
+  release(botId: BotId, wakeId: string): Promise<void>;
 }
 
 /** A provider that refuses everything with `why` (no provider could be built); the tools refuse readably. */
@@ -133,10 +136,12 @@ export function createComputers(d: ComputersDeps): Computers {
     placement,
     server(spec) {
       const computer = spec.bot.computer;
-      if (!computer) return undefined;
+      // The holder is the run's wake id (`runSpec` sets it for every stored run), so the run-end release finds it.
+      const holder = spec.wakeId ?? spec.sessionKey;
+      if (!computer || !holder) return undefined;
       return computerServer({
         botId: spec.bot.id,
-        holder: spec.wakeId ?? spec.sessionKey ?? spec.bot.id,
+        holder,
         computer: {
           name: computer,
           cpus: d.settings?.cpus ?? DEFAULT_CPUS,
@@ -151,14 +156,18 @@ export function createComputers(d: ComputersDeps): Computers {
         browser: browserOf(spec.bot, computer),
       });
     },
-    async release(botId) {
+    async release(botId, wakeId) {
+      const key = `slot:${botId}`;
+      const held = (await d.holds.live(d.clock.now())).filter(
+        (r) => r.key === key && r.holder === wakeId,
+      );
+      // This run never held the computer (or already gave it back): another run of the bot keeps both.
+      if (held.length === 0) return;
+      const lease = { holds: d.holds, clock: d.clock, sleep };
       try {
         await browsers.get(botId)?.browser.close();
       } finally {
-        const key = `slot:${botId}`;
-        const lease = { holds: d.holds, clock: d.clock, sleep };
-        for (const row of await d.holds.live(d.clock.now()))
-          if (row.key === key) await releaseSlot(lease, row);
+        for (const row of held) await releaseSlot(lease, row);
       }
     },
   };
