@@ -40,12 +40,19 @@ export interface ComputerSession {
 export function createComputerSession(ctx: ComputerContext): ComputerSession {
   const deps = { holds: ctx.holds, clock: ctx.clock, sleep: ctx.sleep };
   let hold: ComputerHold | undefined;
+  /** The idle stop in flight; a call in that window waits for it, or the release would free the slot it takes. */
+  let stopping: Promise<void> | undefined;
   const beat = slotHeartbeat(deps, ctx.every, async () => {
     // Idle: close Chromium (the profile keeps logins) and free the slot; the next call re-acquires via `start`.
     const idle = hold;
     hold = undefined;
-    await ctx.browser.close().catch(() => undefined);
-    if (idle) await releaseSlot(deps, idle).catch(() => undefined);
+    stopping = (async () => {
+      await ctx.browser.close().catch(() => undefined);
+      if (idle) await releaseSlot(deps, idle).catch(() => undefined);
+    })().finally(() => {
+      stopping = undefined;
+    });
+    await stopping;
   });
 
   /** The first start in flight; parallel first callers share it, so the machine and browser start once. */
@@ -80,6 +87,7 @@ export function createComputerSession(ctx: ComputerContext): ComputerSession {
       beat.stop();
       throw new ComputerBusyError(SLOT_LOST);
     }
+    if (stopping) await stopping;
     if (!starting) {
       const p = start();
       starting = p;

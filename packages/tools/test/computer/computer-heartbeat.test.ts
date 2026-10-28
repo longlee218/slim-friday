@@ -143,6 +143,29 @@ test("an idle stop closes the browser and releases the slot; the next call re-ac
   expect(await w.holds.live(w.clock.now())).toHaveLength(1);
 });
 
+test("a call that lands while the idle stop is closing the browser keeps the slot it then takes", async () => {
+  let finishClose = () => {};
+  const w = world({
+    browser: {
+      ensure: async () => {},
+      close: () =>
+        new Promise<void>((r) => {
+          finishClose = r;
+        }),
+    } as never,
+  });
+  const tool = createComputerShellTool(w.session);
+  await call(tool, { command: ["ls"] });
+  await pass(w.clock, 640_000);
+  // The idle stop is now waiting on browser.close(); a new call arrives in that window.
+  const late = call(tool, { command: ["ls"] });
+  await flush();
+  finishClose();
+  expect((await late).isError).toBeUndefined();
+  await flush();
+  expect(await w.holds.live(w.clock.now())).toHaveLength(1);
+});
+
 test("the first call waits for the slot count instead of being refused", async () => {
   let limit = 0;
   let done: () => void = () => {};
