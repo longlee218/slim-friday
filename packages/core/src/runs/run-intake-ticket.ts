@@ -19,17 +19,21 @@ export interface TicketIntake {
   typed: string;
   hasFiles: boolean;
   opts: WakeOpts;
+  /** The message @mentions the bot: only then may it reach the bot's only open ticket without a ref. */
+  mentioned: boolean;
 }
 
 /**
  * The bot's ticket in the group a message is about, among its open, non-waiting tickets there: the
- * first of them the message names; with no ref named, its only such ticket; else none.
+ * first of them the message names; with no ref named, its only such ticket when the message @mentions
+ * the bot; else none (an unaddressed message stays chat).
  */
 async function pickTicket(
   store: Pick<Store, "tickets">,
   botId: BotId,
   groupId: GroupId,
   text: string,
+  mentioned: boolean,
 ): Promise<Ticket | undefined> {
   const open: Ticket[] = [];
   for (const t of await store.tickets.activeOfAssignee(botId, groupId))
@@ -37,7 +41,7 @@ async function pickTicket(
   const refs = extractTicketRefs(text);
   // A message that names tickets is about those: none of them open here means no target.
   if (refs.length > 0) return open.find((t) => refs.includes(ticketRef(t.number)));
-  return open.length === 1 ? open[0] : undefined;
+  return mentioned && open.length === 1 ? open[0] : undefined;
 }
 
 /** Was the comment `commentId` saved on ticket `ticketId`? Unknown (the check fails) counts as no. */
@@ -62,7 +66,7 @@ export async function routeToTicket(ctx: HubContext, t: TicketIntake): Promise<b
   const commentId = `owner-msg:${t.messageId}:${t.botId}`;
   let target: Ticket | undefined;
   try {
-    target = await pickTicket(store, t.botId, t.conv.groupId, t.typed);
+    target = await pickTicket(store, t.botId, t.conv.groupId, t.typed, t.mentioned);
     if (!target) return false;
     const ref = ticketRef(target.number);
     const r = await ownerComment(ctx, ref, t.typed, {
