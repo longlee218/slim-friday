@@ -142,6 +142,8 @@ export function createApiApp(deps: ApiDeps): Hono {
       createViewProxy({
         secret: deps.viewSecret,
         now: deps.now,
+        // The web app frames the viewer cross-site: its origins may frame it, nobody else.
+        frameAncestors: webOrigins,
         // A control link is only as good as the owner's live hold.
         controlHeld: async (computer) =>
           (
