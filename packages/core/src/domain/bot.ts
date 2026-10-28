@@ -42,4 +42,6 @@ export interface Bot {
   autonomy?: AutonomyLevel;
   /** Name of the bot's avatar image (the app finds the file); none = the default avatar. */
   avatar?: string;
+  /** Name of the computer this bot drives (`[a-z0-9-]`); none = the bot has no computer. */
+  computer?: string;
 }

@@ -176,3 +176,19 @@ test("a bot title loads up to 200 chars (old owner files keep loading); longer i
   expect(parseBotFile("ann", text("x".repeat(200))).title).toHaveLength(200);
   expect(() => parseBotFile("ann", text("x".repeat(201)))).toThrow();
 });
+
+test("a bot file keeps `computer` and refuses a name outside [a-z0-9-]", () => {
+  const bot = (computer: string) =>
+    `---\nname: Ann\ntitle: Dev\nmodel: m\ncomputer: ${computer}\n---\nBe brief.\n`;
+  expect(parseBotFile("ann", bot("home")).computer).toBe("home");
+  expect(() => parseBotFile("ann", bot('"../x"'))).toThrow("computer");
+});
+
+test("settings `computer` takes a provider and slots; negative slots are refused", () => {
+  const f = parseSettingsFile(
+    "computer:\n  provider: { id: cua, binary: /x/cua }\n  slots: 2\n  cpus: 2\n  memoryMb: 1536\n",
+  );
+  expect(f.computer?.provider).toEqual({ id: "cua", binary: "/x/cua" });
+  expect(f.computer?.slots).toBe(2);
+  expect(() => parseSettingsFile("computer:\n  provider: { id: cua }\n  slots: -1\n")).toThrow();
+});
