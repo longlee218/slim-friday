@@ -217,4 +217,73 @@ describe("owner group chat about a ticket", () => {
     expect(newRuns(h, before).some((w) => w.conversationId === "gc")).toBe(false);
     expect(h.log.of("hub.ticket_route_failed")).toHaveLength(1);
   });
+
+  test("a ref that is not a target -> chat session, even with one other open ticket", async () => {
+    const h = makeHub();
+    const done = await groupTicket(h, "Old work");
+    await h.store.tickets.update(done.id, { status: "done" }, 5);
+    const open = await groupTicket(h);
+    const before = ids(h);
+    await h.hub.handle({ conversationId: "gc", text: `@Editor FRI-${done.number} again?` });
+    await flush();
+    expect(await h.store.tickets.comments(open.id)).toEqual([]);
+    expect(newRuns(h, before).map((w) => [w.conversationId, w.ticketId])).toEqual([
+      ["gc", undefined],
+    ]);
+    // No ref at all: the only open ticket gets it.
+    await h.hub.handle({ conversationId: "gc", text: "@Editor and this" });
+    await flush();
+    expect((await h.store.tickets.comments(open.id)).map((c) => c.body)).toEqual([
+      "@Editor and this",
+    ]);
+  });
+
+  test("a wake lost after the comment is saved is finished by the replay", async () => {
+    const h = makeHub();
+    const t = await groupTicket(h);
+    const insert = h.store.wakes.insertDeduped.bind(h.store.wakes);
+    let fail = true;
+    h.store.wakes.insertDeduped = async (w) => {
+      if (fail) {
+        fail = false;
+        throw new Error("crash");
+      }
+      return insert(w);
+    };
+    const before = ids(h);
+    const m = { conversationId: "gc", text: `@Editor FRI-${t.number} once`, clientNonce: "n1" };
+    await h.hub.handle(m);
+    await flush();
+    expect(newRuns(h, before)).toHaveLength(0);
+    await h.hub.handle(m);
+    await flush();
+    await h.hub.handle(m);
+    await flush();
+    expect(await h.store.tickets.comments(t.id)).toHaveLength(1);
+    expect(newRuns(h, before).map((w) => [w.conversationId, w.ticketId])).toEqual([["dc", t.id]]);
+    expect(systemLines(h)).toHaveLength(1);
+  });
+
+  test("a group line lost after the comment is saved is not posted twice by the replay", async () => {
+    const h = makeHub();
+    const t = await groupTicket(h);
+    const post = h.surface.post.bind(h.surface);
+    h.surface.post = async (c, msg) => {
+      if (msg.author.kind === "system") throw new Error("surface down");
+      return post(c, msg);
+    };
+    const before = ids(h);
+    const m = { conversationId: "gc", text: `@Editor FRI-${t.number} once`, clientNonce: "n1" };
+    await h.hub.handle(m);
+    await flush();
+    h.surface.post = post;
+    await h.hub.handle(m);
+    await flush();
+    const stored = (await h.store.messages.recent("gc", 50)).filter(
+      (x) => x.author.kind === "system",
+    );
+    expect(stored).toHaveLength(1);
+    expect(newRuns(h, before)).toHaveLength(1);
+    expect(await h.store.tickets.comments(t.id)).toHaveLength(1);
+  });
 });

@@ -21,7 +21,8 @@ async function noWakeReason(ctx: HubContext, t: Ticket): Promise<string | undefi
 /**
  * The owner comments on a ticket. A new comment wakes the assignee with the comment text, unless
  * the ticket is finished, waits on others or has no assignee: then `woke` is false and `note` says why.
- * A repeated `commentId` saves and wakes nothing.
+ * A repeated `commentId` saves nothing and wakes nobody, unless `dedupeKey` is set: then the wake is asked
+ * again and the key keeps it to one run.
  */
 export async function ownerComment(
   ctx: HubContext,
@@ -42,8 +43,9 @@ export async function ownerComment(
   if (!t) return { ok: true, comment, created, woke: false };
   const why = await noWakeReason(ctx, t);
   if (why) return { ok: true, comment, created, woke: false, note: `No one was woken: ${why}` };
-  // A repeated comment was woken the first time.
-  if (created && t.assigneeBotId)
+  // A repeated comment was woken the first time; with a dedupe key the wake is asked again, so a replay
+  // after a crash finishes a lost wake (the key makes it one run).
+  if ((created || opts.dedupeKey) && t.assigneeBotId)
     await wakeForTicket(ctx, t, t.assigneeBotId, false, OWNER, {
       text: ownerCommentWakeText(t, comment.body),
       ...(opts.dedupeKey && { dedupeKey: opts.dedupeKey }),
