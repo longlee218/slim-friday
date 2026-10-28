@@ -51,10 +51,9 @@ describe("ticket milestones", () => {
     expect(groupPosts(h)).toHaveLength(1);
   });
 
-  test("review and todo post nothing", async () => {
+  test("todo posts nothing", async () => {
     const h = makeHub();
     const t = await groupTicket(h, "g");
-    await h.hub.tickets.update(OWNER, { id: t.id, status: "review" });
     await h.hub.tickets.update(OWNER, { id: t.id, status: "todo" });
     expect(groupPosts(h)).toEqual([]);
   });
@@ -87,6 +86,67 @@ describe("ticket milestones", () => {
     await h.hub.tickets.update(OWNER, { id: t.id, status: "doing", assigneeBotId: "writer" });
     expect(groupPosts(h).map((m) => m.text)).toEqual([
       `Writer started FRI-${t.number}: Edit the post`,
+    ]);
+  });
+});
+
+describe("ticket review and blocked progress", () => {
+  const EDITOR = { kind: "bot", botId: "editor" } as const;
+
+  test("review posts a waiting-for-review line naming the creator", async () => {
+    const h = makeHub();
+    const r = await h.hub.tickets.create(
+      { kind: "bot", botId: "writer" },
+      { title: "Edit the post", assigneeBotId: "editor", groupId: "g" },
+    );
+    if (!r.ok) throw new Error(r.error);
+    await flush();
+    await h.hub.tickets.update(EDITOR, { id: r.ticket.id, status: "review" });
+    expect(groupPosts(h).map((m) => m.text)).toEqual([
+      `Editor finished FRI-${r.ticket.number}, waiting for review by Writer: Edit the post`,
+    ]);
+  });
+
+  test("owner ticket review names the owner", async () => {
+    const h = makeHub();
+    const t = await groupTicket(h, "g");
+    await h.hub.tickets.update(EDITOR, { id: t.id, status: "review" });
+    expect(groupPosts(h).map((m) => m.text)).toEqual([
+      `Editor finished FRI-${t.number}, waiting for review by the owner: Edit the post`,
+    ]);
+  });
+
+  test("assignee comment on a blocked ticket is posted", async () => {
+    const h = makeHub();
+    const t = await groupTicket(h, "g");
+    await h.hub.tickets.update(OWNER, { id: t.id, status: "blocked", blockedReason: "need key" });
+    await h.hub.tickets.comment(EDITOR, { id: t.id, body: "MCP has no such tool" });
+    expect(groupPosts(h).map((m) => m.text)).toEqual([
+      `FRI-${t.number} is blocked: need key`,
+      `Editor on FRI-${t.number} (blocked): MCP has no such tool`,
+    ]);
+  });
+
+  test("comment on a doing ticket posts nothing", async () => {
+    const h = makeHub();
+    const t = await groupTicket(h, "g");
+    await h.hub.tickets.update(OWNER, { id: t.id, status: "doing" });
+    await h.hub.tickets.comment(EDITOR, { id: t.id, body: "working on it" });
+    expect(groupPosts(h)).toHaveLength(1);
+  });
+
+  test("new reason on an already blocked ticket posts the blocked line again", async () => {
+    const h = makeHub();
+    const t = await groupTicket(h, "g");
+    await h.hub.tickets.update(OWNER, { id: t.id, status: "blocked", blockedReason: "need key" });
+    await h.hub.tickets.update(OWNER, {
+      id: t.id,
+      status: "blocked",
+      blockedReason: "key expired",
+    });
+    expect(groupPosts(h).map((m) => m.text)).toEqual([
+      `FRI-${t.number} is blocked: need key`,
+      `FRI-${t.number} is blocked: key expired`,
     ]);
   });
 });

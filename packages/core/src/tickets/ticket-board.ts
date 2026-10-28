@@ -7,7 +7,6 @@ import type { Store } from "../ports/store";
 import type { Ticket, TicketComment, TicketPriority, TicketStatus } from "./ticket";
 import { assigneeRefusal } from "./ticket-assignee";
 import {
-  COMMENT_MAX,
   CONFLICT,
   cleanText,
   DESCRIPTION_MAX,
@@ -21,6 +20,7 @@ import {
   type TicketUpdateInput,
 } from "./ticket-board-rules";
 import { createdEvent, ticketChangeEvents } from "./ticket-change-events";
+import { addTicketComment } from "./ticket-comment";
 import { type TicketDetail, TicketReads } from "./ticket-reads";
 import { checkUpdate } from "./ticket-update-checks";
 
@@ -41,6 +41,9 @@ export class TicketBoard {
       onChange?: (t: Ticket) => void;
       /** Told after a saved update that changed the status (see `StatusChange`); errors stay here. */
       onStatusChange?: (t: Ticket, change: StatusChange) => Promise<void>;
+      /** Told after a saved comment, and after a blocked ticket got a new reason; errors stay here. */
+      onComment?: (t: Ticket, c: TicketComment) => Promise<void>;
+      onBlockedReason?: (t: Ticket) => Promise<void>;
       /** The configured secret values to hide in ticket text (the app's denied env values). */
       secretValues?: () => string[];
     },
@@ -155,6 +158,8 @@ export class TicketBoard {
           assigneeChanged: ticket.assigneeBotId !== cur.assigneeBotId,
         })
         .catch(() => {});
+    else if (reason && ticket.status === "blocked" && reason !== cur.blockedReason)
+      await this.deps.onBlockedReason?.(ticket).catch(() => {});
     const to = i.assigneeBotId;
     const byActor = actor.kind === "bot" && actor.botId === to;
     if (to && to !== cur.assigneeBotId && !byActor && !finished(ticket.status))
@@ -166,23 +171,13 @@ export class TicketBoard {
     actor: Author,
     i: { id: string; body: string; conversationId?: ConversationId },
   ): Promise<TicketResult<{ comment: TicketComment }>> {
-    const body = cleanText(this.deps.secretValues, i.body.trim());
-    if (!body || body.length > COMMENT_MAX) return INVALID;
-    const ticket = await this.reads.find(i.id);
-    if (!ticket) return NOT_FOUND;
-    const { store, clock } = this.deps;
-    const comment = await store.tickets.addComment({
-      ticketId: ticket.id,
-      author: actor,
-      body,
-      createdAt: clock.now(),
-    });
-    // A bot commenting from another conversation becomes the ticket's "last worked" one.
-    if (actor.kind === "bot" && i.conversationId && i.conversationId !== ticket.conversationId)
-      await store.tickets.update(ticket.id, { conversationId: i.conversationId }, clock.now());
-    const saved = await store.tickets.get(ticket.id);
-    if (saved) this.changed(saved);
-    return { ok: true, comment };
+    const r = await addTicketComment(this.deps, this.reads, actor, i);
+    if (!r.ok) return r;
+    if (r.saved) {
+      this.changed(r.saved);
+      await this.deps.onComment?.(r.saved, r.comment).catch(() => {});
+    }
+    return { ok: true, comment: r.comment };
   }
 
   /** Tell `onChange`; a failing listener must never fail the change that was already saved. */

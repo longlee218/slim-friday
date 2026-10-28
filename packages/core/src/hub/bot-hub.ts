@@ -24,7 +24,7 @@ import { type BotHubDeps, type BotStatus, errText } from "./hub-types";
 import { sweepQuietScopes } from "./idle-close";
 import { queueIntroRun } from "./intro-run";
 import { followUpStatus } from "./ticket-followups";
-import { postTicketMilestone } from "./ticket-milestones";
+import { postBlockedComment, postBlockedReason, postTicketMilestone } from "./ticket-milestones";
 import { wakeForTicket } from "./ticket-wakes";
 import { admit, wake } from "./wake-admission";
 import { WakeLog } from "./wake-log";
@@ -57,6 +57,8 @@ export class BotHub implements BotMessenger {
       ...(deps.onTicketChange && { onChange: deps.onTicketChange }),
       onStatusChange: (t, c) =>
         postTicketMilestone(this.ctx, t, c.from).then(() => followUpStatus(this.ctx, t, c)),
+      onComment: (t, c) => postBlockedComment(this.ctx, t, c),
+      onBlockedReason: (t) => postBlockedReason(this.ctx, t),
       ...(deps.secretValues && { secretValues: deps.secretValues }),
     });
     const limits = deps.limits ?? CORE_DEFAULTS;
