@@ -43,3 +43,20 @@ test("a failed wake does not stop the others", async () => {
   await resume.resumeAfterGiveBack("home");
   expect(woken).toEqual(["b"]);
 });
+
+test("the wake key is unique across engine restarts: a new instance never reuses an old give-back's key", async () => {
+  const keysOf = async () => {
+    const seen: string[] = [];
+    const r = computerResume(async (_bot, _text, key) => {
+      seen.push(key);
+    });
+    r.noteBlockedByOwner("ann", "box");
+    await r.resumeAfterGiveBack("box");
+    return seen;
+  };
+  const first = await keysOf();
+  const second = await keysOf();
+  expect(first).toHaveLength(1);
+  expect(second).toHaveLength(1);
+  expect(first[0]).not.toBe(second[0]);
+});
