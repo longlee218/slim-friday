@@ -35,27 +35,27 @@ export async function wakeForTicket(
     ctx.deps.log?.error({ error: errText(err), ticketId: ticket.id }, "hub.ticket_wake_failed");
     return;
   }
-  const conv = await ctx.deps.store.conversations.direct(botId);
-  const text = opts.text ?? (rewake ? ticketRewakeText(ticket) : ticketWakeText(ticket));
-  // A bot that assigns the ticket is the sender, so the rate and repeat caps apply to it.
-  const hop = actor.kind === "bot" ? 1 : 0;
-  if (!conv) {
-    // Kept on record: the wake could not go anywhere.
-    const row = await ctx.wakeLog.create({
-      conversationId: "none",
-      targetBot: botId,
-      sender: actor,
-      intent: "request",
-      hop,
-      text,
-      ticketId: ticket.id,
-      ...(rewake && { rewake: true }),
-    });
-    await ctx.wakeLog.dropped(row.id);
-    return undefined;
-  }
   // The ticket is saved already: a wake that cannot be stored must not fail the tool that saved it.
   try {
+    const conv = await ctx.deps.store.conversations.direct(botId);
+    const text = opts.text ?? (rewake ? ticketRewakeText(ticket) : ticketWakeText(ticket));
+    // A bot that assigns the ticket is the sender, so the rate and repeat caps apply to it.
+    const hop = actor.kind === "bot" ? 1 : 0;
+    if (!conv) {
+      // Kept on record: the wake could not go anywhere.
+      const row = await ctx.wakeLog.create({
+        conversationId: "none",
+        targetBot: botId,
+        sender: actor,
+        intent: "request",
+        hop,
+        text,
+        ticketId: ticket.id,
+        ...(rewake && { rewake: true }),
+      });
+      await ctx.wakeLog.dropped(row.id);
+      return undefined;
+    }
     return await createRun(ctx, {
       botId,
       conversationId: conv.id,
