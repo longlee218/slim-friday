@@ -15,5 +15,6 @@ export const computer = {
   renewControl: base
     .input(BotInput)
     .output(z.object({ ok: z.boolean(), expiresAt: z.number().optional() })),
+  closeView: base.input(BotInput).output(z.object({ ok: z.literal(true) })),
   giveBack: base.input(BotInput).output(z.object({ ok: z.literal(true) })),
 };

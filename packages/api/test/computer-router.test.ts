@@ -110,6 +110,7 @@ test("control mode needs the owner's hold", async () => {
   const v = await h.client.computer.view({ botId: "a", mode: "control" });
   const claims = openViewToken(SECRET, v.url.split("/")[2] as string, h.deps.now());
   expect(claims?.mode).toBe("control");
+  expect((claims?.exp ?? 0) - (claims?.iat ?? 0)).toBe(60_000);
   expect(h.calls.view[0]?.viewOnly).toBe(false);
 });
 
@@ -152,4 +153,37 @@ test("giveBack is idempotent and revokes the computer's view tokens", async () =
   );
   const res = await proxy.request(link.url);
   expect(res.status).toBe(403);
+  // A link minted after the revoke (a later millisecond) is not refused.
+  const now = h.deps.now;
+  h.deps.now = () => now() + 1;
+  await h.client.computer.takeControl({ botId: "a" });
+  const fresh = await h.client.computer.view({ botId: "a", mode: "view" });
+  expect((await proxy.request(fresh.url)).status).not.toBe(403);
+});
+
+test("closeView revokes earlier links, keeps the hold, and later links work", async () => {
+  const h = setup();
+  await h.client.computer.takeControl({ botId: "a" });
+  const link = await h.client.computer.view({ botId: "a", mode: "view" });
+  const proxy = new Hono().all(
+    "/computer-view/:token/*",
+    createViewProxy({ secret: SECRET, now: h.deps.now }),
+  );
+  expect(await h.client.computer.closeView({ botId: "a" })).toEqual({ ok: true });
+  expect((await proxy.request(link.url)).status).toBe(403);
+  expect((await h.client.computer.status({ botId: "a" })).control.holder).toBe("owner");
+  const now = h.deps.now;
+  h.deps.now = () => now() + 1;
+  const later = await h.client.computer.view({ botId: "a", mode: "view" });
+  expect((await proxy.request(later.url)).status).not.toBe(403);
+});
+
+test("a viewer url that does not parse is a readable CONFLICT", async () => {
+  const h = setup();
+  const provider = h.deps.computers?.provider;
+  if (provider)
+    provider.view = async () => ({ url: "not a url", port: 41000, expiresAt: 99_999_999 });
+  await expect(h.client.computer.view({ botId: "a", mode: "view" })).rejects.toMatchObject({
+    code: "CONFLICT",
+  });
 });
