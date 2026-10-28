@@ -42,12 +42,13 @@ export function viewFlags(viewOnly: boolean): string[] {
 
 /** Parse `cua sandbox view --json` stdout; only a loopback http viewer URL is accepted. */
 export function parseView(stdout: string): ComputerView {
-  let j: { url?: unknown; expires_at_unix?: unknown };
+  let j: { url?: unknown; expires_at_unix?: unknown } | null;
   try {
     j = JSON.parse(stdout);
   } catch {
     throw new Error("cua sandbox view gave no JSON");
   }
+  if (typeof j !== "object" || j === null) throw new Error("cua sandbox view gave no JSON");
   let u: URL;
   try {
     u = new URL(String(j.url));

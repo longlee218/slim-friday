@@ -58,7 +58,7 @@ const cmd = {
   key: (k: string) => ["do", k.includes("+") ? "hotkey" : "key", "--", k], // UNVERIFIED: confirm with the live check.
   scroll: (dir: string, amount: number) => ["do", "scroll", dir, String(amount)], // UNVERIFIED: unit of AMOUNT.
   drag: (a: number, b: number, c: number, d: number) => ["do", "drag", ...[a, b, c, d].map(String)], // UNVERIFIED
-  // Verified against Cua 0.9.0 in the spike (`--json` is the runner prefix); other flags UNVERIFIED.
+  // Verified against Cua 0.9.0 in the spike: `sandbox view NAME [--view-only] --no-open --ttl 10m --json`.
   view: (n: string, only: boolean) => ["sandbox", "view", n, ...viewFlags(only)],
   tree: () => ["do", "a11y", "tree"], // UNVERIFIED: confirm with the live check (stdout is returned as is).
 };
