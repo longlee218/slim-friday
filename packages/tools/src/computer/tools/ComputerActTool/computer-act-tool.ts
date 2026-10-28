@@ -41,10 +41,15 @@ export function createComputerActTool(s: ComputerSession) {
       if (bad) return Promise.resolve(textResult(bad, true));
       return s.runLeased(async (check) => {
         let done = 0;
-        for (const action of actions) {
-          await check();
-          await s.ctx.provider.act(s.ctx.computer.name, action);
-          done++;
+        try {
+          for (const action of actions) {
+            await check();
+            await s.ctx.provider.act(s.ctx.computer.name, action);
+            done++;
+          }
+        } catch (err) {
+          const why = err instanceof Error ? err.message : String(err);
+          return textResult(`${why} after ${done} of ${actions.length} actions`, true);
         }
         return textResult(`Ran ${done} action(s).`);
       });

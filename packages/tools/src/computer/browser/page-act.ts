@@ -66,11 +66,24 @@ export function validateSteps(steps: PageStep[], gen: number): void {
   }
 }
 
-/** Run steps in order; stops at the first failure and marks it `uncertain` (page state is then unknown). */
-export async function runSteps(page: PageHandle, steps: PageStep[]): Promise<string> {
+/**
+ * Run steps in order; stops at the first failure and marks it `uncertain` (page state is then unknown).
+ * `beforeStep` runs before each step (after the whole batch is validated); if it throws, the error names the steps done.
+ */
+export async function runSteps(
+  page: PageHandle,
+  steps: PageStep[],
+  beforeStep?: () => Promise<void>,
+): Promise<string> {
   validateSteps(steps, page.gen);
   const lines: string[] = [];
   for (const [n, step] of steps.entries()) {
+    try {
+      await beforeStep?.();
+    } catch (err) {
+      const why = err instanceof Error ? err.message : String(err);
+      throw new Error(`${why} after ${n} of ${steps.length} steps`);
+    }
     try {
       await runStep(page, step);
       lines.push(`ok ${n + 1}. ${describe(step)}`);

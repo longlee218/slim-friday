@@ -35,13 +35,11 @@ export function createComputerSession(ctx: ComputerContext): ComputerSession {
   const deps = { holds: ctx.holds, clock: ctx.clock, sleep: ctx.sleep };
   let hold: ComputerHold | undefined;
 
-  /** First call: take a slot and start the machine and browser. Later calls: renew the slot. */
-  const ensureSession = async (): Promise<void> => {
-    if (hold) {
-      if (await renewSlot(deps, hold)) return;
-      hold = undefined;
-      throw new ComputerBusyError(SLOT_LOST);
-    }
+  /** The first start in flight; parallel first callers share it, so the machine and browser start once. */
+  let starting: Promise<ComputerHold> | undefined;
+
+  /** Take a slot and start the machine and browser; releases the slot again when the start fails. */
+  const start = async (): Promise<ComputerHold> => {
     const taken = await acquireSlot(deps, {
       computer: ctx.computer.name,
       botId: ctx.botId,
@@ -56,7 +54,30 @@ export function createComputerSession(ctx: ComputerContext): ComputerSession {
       await releaseSlot(deps, taken).catch(() => undefined);
       throw err;
     }
-    hold = taken;
+    return taken;
+  };
+
+  /** First call: start (shared by parallel callers). Later calls: renew the slot. */
+  const ensureSession = async (): Promise<void> => {
+    if (hold) {
+      if (await renewSlot(deps, hold)) return;
+      hold = undefined;
+      throw new ComputerBusyError(SLOT_LOST);
+    }
+    if (!starting) {
+      const p = start();
+      starting = p;
+      p.then(
+        (h) => {
+          hold = h;
+          starting = undefined;
+        },
+        () => {
+          starting = undefined;
+        },
+      );
+    }
+    await starting;
   };
 
   const run = async (fn: () => Promise<ToolResult>): Promise<ToolResult> => {

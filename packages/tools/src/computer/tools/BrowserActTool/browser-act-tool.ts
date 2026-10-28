@@ -34,12 +34,8 @@ export function createBrowserActTool(s: ComputerSession) {
       const bad = batchError("steps", steps.length);
       if (bad) return Promise.resolve(textResult(bad, true));
       return s.runLeased(async (check) => {
-        const out: string[] = [];
-        for (const step of steps) {
-          await check();
-          out.push(await s.ctx.browser.act([step]));
-        }
-        return textResult(out.join("\n"));
+        const report = await s.ctx.browser.act(steps, check);
+        return textResult(report, report.includes("uncertain: true"));
       });
     }) as never,
     { annotations: { openWorldHint: true } },
