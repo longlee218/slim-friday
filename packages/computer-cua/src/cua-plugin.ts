@@ -9,7 +9,7 @@ import { makeRunner, type RunEnv } from "./cua-run";
 export interface CuaOptions {
   /** Absolute path of the `cua` binary. */
   binary: string;
-  /** Sandbox image (default `ghcr.io/trycua/linux:24.04-slim`); the CLI picks it with `--tier slim`. */
+  /** Sandbox image: only the default `ghcr.io/trycua/linux:24.04-slim` is supported (`--tier slim`). */
   image: string;
   /** The `cua` version this adapter was checked against. */
   version: string;
@@ -54,6 +54,13 @@ const str = (v: unknown, what: string, dflt: string): string => {
   return x;
 };
 
+/** The only image the CLI can create (`--tier slim`); any other value is refused, not ignored. */
+function supportedImage(v: unknown): string {
+  if (v !== undefined && v !== DEFAULTS.image)
+    throw new Error(`cua: image only supports ${DEFAULTS.image} (through --tier slim)`);
+  return DEFAULTS.image;
+}
+
 /** Build the plugin; `probes` default to the real host. */
 export function makeCuaPlugin(probes: CuaProbes = realProbes): ComputerProviderPlugin<CuaOptions> {
   return {
@@ -68,7 +75,7 @@ export function makeCuaPlugin(probes: CuaProbes = realProbes): ComputerProviderP
         throw new Error("cua: env needs PATH and HOME strings");
       return {
         binary: raw.binary,
-        image: str(raw.image, "image", DEFAULTS.image),
+        image: supportedImage(raw.image),
         version: str(raw.version, "version", DEFAULTS.version),
         env: { PATH: e.PATH, HOME: e.HOME },
         dockerBinary: str(raw.dockerBinary, "dockerBinary", DEFAULTS.dockerBinary),

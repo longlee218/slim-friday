@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { ExecResult } from "@friday/core";
 import { makePortForwards } from "../src/cua-port-forward";
 import { createCuaProvider } from "../src/cua-provider";
-import { type CuaRun, makeRunner } from "../src/cua-run";
+import { type CuaRun, makeRunner, OUTPUT_CAP } from "../src/cua-run";
 import { assertComputerName, shellLine, shellQuote } from "../src/cua-safe";
 
 const ok = (stdout = ""): ExecResult => ({ code: 0, stdout, stderr: "" });
@@ -24,7 +24,7 @@ function fakes(answer: (argv: string[]) => ExecResult = () => ok()) {
     "/opt/cua/bin/cua",
     { PATH: "/bin", HOME: "/h" },
     {
-      spawn: () => ({ kill() {} }),
+      spawn: () => ({ kill() {}, exited: new Promise(() => {}) }),
       freePort: async () => 40001,
       waitReady: async () => {},
     },
@@ -221,5 +221,62 @@ describe("runner", () => {
     const res = await run(["5"], 150);
     expect(res.code).toBe(124);
     expect(Date.now() - t0).toBeLessThan(3000);
+  });
+  test("output over the cap is cut, flagged and the child killed", async () => {
+    const run = makeRunner("/bin/sh", [], { PATH: "/usr/bin:/bin", HOME: "/h" });
+    const res = await run(["-c", "head -c 9000000 /dev/zero | tr '\\0' a"], 20_000);
+    expect(res.stdout).toContain("[output truncated]");
+    expect(res.stdout.length).toBeLessThan(OUTPUT_CAP + 100);
+  });
+  test("timeout returns promptly while a grandchild holds the pipe", async () => {
+    const run = makeRunner("/bin/sh", [], { PATH: "/usr/bin:/bin", HOME: "/h" });
+    const t0 = Date.now();
+    const res = await run(["-c", "sleep 10 & sleep 10"], 300);
+    expect(res.code).toBe(124);
+    expect(Date.now() - t0).toBeLessThan(3000);
+  });
+});
+
+describe("port forward lifecycle", () => {
+  function setup() {
+    const kids: { killed: boolean; end: () => void }[] = [];
+    const fw = makePortForwards(
+      "/opt/cua/bin/cua",
+      { PATH: "/bin", HOME: "/h" },
+      {
+        spawn: () => {
+          let end = () => {};
+          const exited = new Promise<void>((r) => (end = r));
+          const kid = {
+            killed: false,
+            end,
+            kill() {
+              kid.killed = true;
+            },
+            exited,
+          };
+          kids.push(kid);
+          return kid;
+        },
+        freePort: async () => 40000 + kids.length,
+        waitReady: async () => {},
+      },
+    );
+    return { fw, kids };
+  }
+  test("twice while alive starts one child", async () => {
+    const { fw, kids } = setup();
+    const a = await fw.forward("bot-a", 9333);
+    expect(await fw.forward("bot-a", 9333)).toBe(a);
+    expect(kids).toHaveLength(1);
+  });
+  test("after the child exits the next call starts a new forward", async () => {
+    const { fw, kids } = setup();
+    const a = await fw.forward("bot-a", 9333);
+    kids[0]?.end();
+    await Bun.sleep(5);
+    const b = await fw.forward("bot-a", 9333);
+    expect(kids).toHaveLength(2);
+    expect(b).not.toBe(a);
   });
 });

@@ -5,6 +5,8 @@ import { assertComputerName } from "./cua-safe";
 /** A long-lived child process. */
 export interface Child {
   kill(): void;
+  /** Settles when the process has ended (for any reason). */
+  exited: Promise<unknown>;
 }
 
 /** Seams of the forwarder (real ones below; tests fake them). */
@@ -93,6 +95,10 @@ export function makePortForwards(
         }
         const url = `http://127.0.0.1:${local}`;
         live.set(key, { child, url });
+        // A forward that died is dropped, so the next call starts a fresh one.
+        void child.exited.then(() => {
+          if (live.get(key)?.child === child) live.delete(key);
+        });
         return url;
       })().finally(() => pending.delete(key));
       pending.set(key, p);
