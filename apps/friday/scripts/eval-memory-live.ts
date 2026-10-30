@@ -32,6 +32,7 @@ const USAGE = "Usage: bun run eval:memory --live [--cap-usd 0.5]  (spends real m
 const QUESTION = "Reply with the codeword only.";
 const TURN_TIMEOUT_MS = 120_000;
 const out = (s: string) => process.stdout.write(`${s}\n`);
+const err = (s: string) => process.stderr.write(`${s}\n`);
 
 const args = process.argv.slice(2);
 if (!args.includes("--live")) {
@@ -41,12 +42,12 @@ if (!args.includes("--live")) {
 const capIdx = args.indexOf("--cap-usd");
 const capUsd = capIdx >= 0 ? Number(args[capIdx + 1]) : 0.5;
 if (!(capUsd > 0)) {
-  out(`--cap-usd must be a positive number. ${USAGE}`);
+  err(`--cap-usd must be a positive number. ${USAGE}`);
   process.exit(1);
 }
 const logHome = process.env.AGENT_HOME;
 if (!logHome) {
-  out("AGENT_HOME is not set: the result file goes to <AGENT_HOME>/logs.");
+  err("AGENT_HOME is not set: the result file goes to <AGENT_HOME>/logs.");
   process.exit(1);
 }
 
@@ -135,29 +136,31 @@ const openWith = (runtime: AgentRuntime, store: Store, codeword: string) =>
     },
   );
 
-/** First session says AMBER, the resumed one must say COBALT. */
 async function memoryAfterResume(
   runtime: AgentRuntime,
   spent: { usd: number },
 ): Promise<CaseResult> {
   const store = fakeStore();
-  const first = await ask((await openWith(runtime, store, "AMBER")).session, spent);
-  if (spent.usd > capUsd)
-    return {
-      case: "memory-after-resume",
-      passed: false,
-      costUsd: spent.usd,
-      detail: `cap ${capUsd} USD passed`,
-    };
-  const resumed = await openWith(runtime, store, "COBALT");
-  const second = await ask(resumed.session, spent);
-  const passed = second.includes("COBALT");
-  return {
+  const fail = (detail: string): CaseResult => ({
     case: "memory-after-resume",
-    passed,
+    passed: false,
     costUsd: spent.usd,
-    detail: `first reply: ${first.trim()} | resumed reply: ${second.trim()}`,
-  };
+    detail,
+  });
+  const firstOpen = await openWith(runtime, store, "AMBER");
+  const first = await ask(firstOpen.session, spent);
+  if (spent.usd > capUsd) return fail(`cap ${capUsd} USD passed`);
+  const resumed = await openWith(runtime, store, "COBALT");
+  // openRunSession falls back to a fresh session when resume throws; that would pass without testing resume.
+  if (resumed.session.id !== firstOpen.session.id) {
+    await resumed.session.stop();
+    return fail("resume did not happen");
+  }
+  const second = await ask(resumed.session, spent);
+  const detail = `first reply: ${first.trim()} | resumed reply: ${second.trim()}`;
+  if (spent.usd > capUsd) return fail(`cap ${capUsd} USD passed after the second turn | ${detail}`);
+  const passed = second.includes("COBALT") && !second.includes("AMBER");
+  return { case: "memory-after-resume", passed, costUsd: spent.usd, detail };
 }
 
 const tmp = mkdtempSync(join(tmpdir(), "friday-eval-memory-"));
@@ -171,12 +174,12 @@ const spent = { usd: 0 };
 const results: CaseResult[] = [];
 try {
   results.push(await memoryAfterResume(runtime, spent));
-} catch (err) {
+} catch (e) {
   results.push({
     case: "memory-after-resume",
     passed: false,
     costUsd: spent.usd,
-    detail: err instanceof Error ? err.message : String(err),
+    detail: e instanceof Error ? e.message : String(e),
   });
 } finally {
   rmSync(tmp, { recursive: true, force: true });
