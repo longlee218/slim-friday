@@ -35,6 +35,8 @@ export interface InboundTurn {
   guidance?: string;
   /** The text comes from Friday, not from the sender (continuation, card resume, nudge): labelled as automated. */
   automated?: boolean;
+  /** `<state_changed>` block: state parts that changed since this resumed session started; shown before the message. */
+  stateChanged?: string;
   /** When the turn was built (epoch ms): the turn ends with the current time in `timeZone`. */
   now: number;
   /** The owner's IANA time zone (`settings.yaml` `owner.timeZone`, default the machine's zone). */

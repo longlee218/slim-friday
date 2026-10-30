@@ -21,6 +21,8 @@ export interface RunTurnOpts {
   resume?: string;
   /** Memory already in the session's system prompt (bot and group memory); recall skips notes it holds. */
   shown?: string;
+  /** `<state_changed>` block of a resumed session (`OpenedRunSession.stateChanged`), passed into the turn. */
+  stateChanged?: string;
 }
 
 /** The name of a bot sender (its id when the bot is gone); other senders are named by kind. */
@@ -33,7 +35,7 @@ async function senderName(ctx: HubContext, row: WakeRow): Promise<string> {
  * The turn one run pushes into its session: the message, recent group messages, ticket blocks and recalled
  * notes, then the reply guidance of the run's trigger and the current time in the owner's zone (both in the turn,
  * so the cached system prompt stays the same). A continuation or card resume is marked automated. Bot memory, group memory and group context are in the system prompt (read at every open), so they
- * never pile up in a resumed transcript. A group or ticket session recalls only the group's notes; recent
+ * never pile up in a resumed transcript; a resumed session gets the parts that changed as `opts.stateChanged`. A group or ticket session recalls only the group's notes; recent
  * messages come only from a group conversation (a ticket run answers in the DM, with no group chat).
  */
 export async function buildRunTurn(
@@ -73,6 +75,7 @@ export async function buildRunTurn(
     ...(recalled && { recalled }),
     ...(guidance && { guidance }),
     ...(automated && { automated: true }),
+    ...(opts.stateChanged && { stateChanged: opts.stateChanged }),
     now: ctx.deps.clock.now(),
     timeZone: ctx.deps.timeZone?.() ?? "UTC",
   };

@@ -21,11 +21,11 @@ function fakeRules() {
   return { memory, rules, fail };
 }
 
-test("readRulesText: no memory, no readRules or a failed read give an empty text", async () => {
+test("readRulesText: no memory or no readRules give an empty text; a failed read gives undefined", async () => {
   const { memory, fail } = fakeRules();
   fail.add("bot:editor");
   const log = new FakeLog();
-  expect(await readRulesText(memory, { kind: "bot", botId: "editor" }, log)).toBe("");
+  expect(await readRulesText(memory, { kind: "bot", botId: "editor" }, log)).toBeUndefined();
   expect(await readRulesText(undefined, { kind: "bot", botId: "editor" })).toBe("");
   const bare: Memory = { read: async () => "", save: async () => {}, edit: async () => {} };
   expect(await readRulesText(bare, { kind: "bot", botId: "editor" })).toBe("");

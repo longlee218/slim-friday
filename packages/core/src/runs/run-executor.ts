@@ -128,6 +128,7 @@ async function runSession(
       buildRunTurn(ctx, exec.row, {
         cut: exec.cutBefore,
         shown: opened.memory,
+        ...(opened.stateChanged && { stateChanged: opened.stateChanged }),
         ...(resume && { resume: resume.text }),
       }),
     );
