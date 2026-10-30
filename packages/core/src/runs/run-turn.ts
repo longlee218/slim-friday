@@ -60,6 +60,10 @@ export async function buildRunTurn(
   const guidance = replyGuidance(row, runKindOf(row), await senderName(ctx, row));
   // Friday wrote an automated turn's text (continuation, card resume), so its header names the system, never the owner.
   const automated = isAutomatedTurn(row, !first);
+  const bot = await store.bots.get(row.targetBot);
+  const computerSlots = bot?.computer
+    ? `Computer slots on this machine: ${ctx.deps.computerSlotsText?.() ?? "unknown"}`
+    : undefined;
   return {
     conversationId: row.conversationId,
     from: automated ? { kind: "system" } : row.sender,
@@ -75,6 +79,7 @@ export async function buildRunTurn(
     ...(recalled && { recalled }),
     ...(guidance && { guidance }),
     ...(automated && { automated: true }),
+    ...(computerSlots && { computerSlots }),
     ...(opts.stateChanged && { stateChanged: opts.stateChanged }),
     now: ctx.deps.clock.now(),
     timeZone: ctx.deps.timeZone?.() ?? "UTC",

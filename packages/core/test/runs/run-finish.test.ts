@@ -129,7 +129,21 @@ test("the computer facts reach the spec of a bot with a computer", async () => {
   h.surface.deliver({ conversationId: "dc", text: "hi" });
   await flush();
   expect(h.runtime.last().spec.computerContext).toContain('named "home"');
-  expect(h.runtime.last().spec.computerContext).toContain("1 slot, limited by memory");
+  expect(h.runtime.last().spec.computerContext).not.toContain("slot");
+  expect(h.runtime.turns()[0]?.computerSlots).toBe(
+    "Computer slots on this machine: 1 slot, limited by memory",
+  );
+});
+
+test("the system prompt facts are the same whatever the slot text is", async () => {
+  const facts = async (slots: string) => {
+    const h = makeHub(undefined, { computerSlotsText: () => slots });
+    h.store.botMap.set("editor", { ...h.editor, computer: "home" });
+    h.surface.deliver({ conversationId: "dc", text: "hi" });
+    await flush();
+    return h.runtime.last().spec.computerContext;
+  };
+  expect(await facts("1 slot")).toBe(await facts("3 slots, limited by cpu"));
 });
 
 test("a bot without a computer gets no computer facts", async () => {
@@ -137,4 +151,5 @@ test("a bot without a computer gets no computer facts", async () => {
   h.surface.deliver({ conversationId: "dc", text: "hi" });
   await flush();
   expect(h.runtime.last().spec.computerContext).toBeUndefined();
+  expect(h.runtime.turns()[0]?.computerSlots).toBeUndefined();
 });

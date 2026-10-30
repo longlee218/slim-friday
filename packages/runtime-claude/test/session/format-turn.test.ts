@@ -25,3 +25,23 @@ test("formatTurn puts the state block before the message", () => {
   expect(at(block)).toBeGreaterThan(0);
   expect(at(block)).toBeLessThan(at("[conversation c1]"));
 });
+
+test("formatTurn prints the computer slot line just before the time", () => {
+  const text = formatTurn(
+    {
+      conversationId: "c1",
+      from: { kind: "user" },
+      text: "hi",
+      hop: 0,
+      context: [],
+      computerSlots: "Computer slots on this machine: 2 slots",
+      now: 0,
+      timeZone: "UTC",
+    },
+    {},
+  );
+  const slots = text.indexOf("Computer slots on this machine: 2 slots");
+  expect(slots).toBeGreaterThan(text.indexOf("[conversation c1]"));
+  expect(text.slice(slots)).toMatch(/^Computer slots on this machine: 2 slots\n\n\S/);
+  expect(text.split("\n\n").at(-2)).toBe("Computer slots on this machine: 2 slots");
+});

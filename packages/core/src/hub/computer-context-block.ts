@@ -1,10 +1,9 @@
 import type { Bot } from "../domain/bot";
 
 /**
- * The `<computer>` facts of a bot that drives its own computer (bot field `computer`), with the machine's slot
- * line; undefined for a bot without one. Facts only: how the computer and its tools work.
+ * The `<computer>` facts of a bot that drives its own computer (bot field `computer`); undefined for a bot without one. Facts only: how the computer and its tools work.
  */
-export function computerContextBlock(bot: Bot, slotsText: string): string | undefined {
+export function computerContextBlock(bot: Bot): string | undefined {
   if (!bot.computer) return undefined;
   return [
     "<computer>",
@@ -15,7 +14,6 @@ export function computerContextBlock(bot: Bot, slotsText: string): string | unde
     "Keep notes on how to use a site in ~/notes/<site>.md inside the computer and read them before working on that site.",
     "Ask the owner only for what only the owner has: passwords, 2FA codes, CAPTCHAs, decisions.",
     "The owner can take control of your computer at any time: then computer tools refuse at once. End your turn, say you will continue when they give it back, and you are woken after.",
-    `Slots on this machine: ${slotsText}.`,
     "</computer>",
   ].join("\n");
 }

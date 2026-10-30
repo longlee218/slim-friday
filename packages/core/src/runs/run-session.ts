@@ -30,8 +30,6 @@ export interface RunSessionDeps {
   log?: Log;
   /** Reads a group's project rules for its group context. */
   projectRules?: ProjectRulesReader;
-  /** The machine's computer slot line, for the `<computer>` facts of a bot with a computer. */
-  computerSlotsText?: () => string;
 }
 
 /** An open session and the memory its system prompt got (bot and group memory; "" when none). */
@@ -105,7 +103,7 @@ export async function openRunSession(
   const scratchpad = scratchpadBlock(
     (await store.scratchpad.list(scope.key)).filter((i) => i.status !== "done"),
   );
-  const computerContext = computerContextBlock(scope.bot, d.computerSlotsText?.() ?? "unknown");
+  const computerContext = computerContextBlock(scope.bot);
   const state = await store.scopes.get(scope.key);
   const fresh =
     state?.resetPending === true &&

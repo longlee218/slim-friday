@@ -45,7 +45,7 @@ export const AUTOMATED_LABEL = "[Automated message from Friday, not from the own
  * The text a bot reads for one inbound turn (spec §6.4): the automated label when Friday wrote it, the interrupted
  * note, the `<state_changed>` block of a resumed session, a header naming the conversation, the sender and the hop, the quote line and the message (a bot's message
  * wrapped as untrusted peer content); then the recent group messages (the last one left out when it is the
- * triggering message itself), ticket blocks and recalled notes; then the reply guidance and the current time in
+ * triggering message itself), ticket blocks and recalled notes; then the reply guidance, the computer slot line and the current time in
  * the owner's zone. Group context and memory are in the system prompt.
  */
 export function formatTurn(turn: InboundTurn, names: Record<string, string>): string {
@@ -73,6 +73,7 @@ export function formatTurn(turn: InboundTurn, names: Record<string, string>): st
     turn.tickets,
     turn.recalled,
     turn.guidance,
+    turn.computerSlots,
     currentTimeText(turn.now, turn.timeZone),
   ];
   return blocks.filter(Boolean).join("\n\n");
