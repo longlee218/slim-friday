@@ -87,6 +87,8 @@ async function promptVsTranscript(runtime: AgentRuntime): Promise<CaseResult> {
   const info = { case: "prompt-vs-transcript", passed: true, informational: true };
   const r = await resumeAndAsk(runtime, spent, "Reply with OK", false);
   if ("failed" in r) return { ...info, costUsd: spent.usd, detail: `not measured: ${r.failed}` };
+  if (spent.usd > capUsd)
+    return { ...info, costUsd: spent.usd, detail: `cap ${capUsd} USD passed` };
   const said = saidOf(r.second);
   const meaning = {
     COBALT: "the prompt is rebuilt at resume: transcript anchoring was the cause",

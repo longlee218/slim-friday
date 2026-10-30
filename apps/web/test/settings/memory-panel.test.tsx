@@ -162,3 +162,37 @@ test("a blur while the save is in flight keeps the draft when the save fails", a
   await waitFor(() => expect(toast.error).toHaveBeenCalledWith("nope"));
   expect(screen.getByDisplayValue("Kept text")).toBeTruthy();
 });
+
+/** An edit that conflicts and whose row is gone after the reload: the banner holds the owner's text. */
+async function loseNoteRow() {
+  m.edit.mockRejectedValueOnce(Object.assign(new Error("changed"), { code: "CONFLICT" }));
+  setup();
+  vi.spyOn(QueryClient.prototype, "invalidateQueries").mockImplementation(async () => {
+    qcRef.setQueryData(orpc.memory.list.queryKey({ input: { owner: "bot:dev" } }), {
+      notes: notes.slice(1),
+      promptChars: 1,
+      capChars: 12000,
+    });
+  });
+  await userEvent.click(screen.getAllByRole("button", { name: "Edit note" })[0] as HTMLElement);
+  const input = screen.getByDisplayValue("Repo uses Bun.");
+  await userEvent.clear(input);
+  await userEvent.type(input, "Held text{Enter}");
+  await screen.findByText("Held text");
+}
+
+test("a double click on Add as new note saves the held text once", async () => {
+  await loseNoteRow();
+  const add = screen.getByRole("button", { name: "Add as new note" });
+  await userEvent.dblClick(add);
+  await waitFor(() => expect(screen.queryByText("Held text")).toBeNull());
+  expect(m.save).toHaveBeenCalledTimes(1);
+});
+
+test("a failed add keeps the held text so the owner can retry", async () => {
+  await loseNoteRow();
+  m.save.mockRejectedValueOnce(new Error("no space"));
+  await userEvent.click(screen.getByRole("button", { name: "Add as new note" }));
+  await waitFor(() => expect(toast.error).toHaveBeenCalledWith("no space"));
+  expect(screen.getByText("Held text")).toBeTruthy();
+});

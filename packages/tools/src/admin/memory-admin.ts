@@ -12,7 +12,10 @@ export interface MemoryAdminDeps {
 }
 
 /** Run a memory write and turn a `MemoryError` into the admin error the API returns; others are rethrown. */
-async function mapped(write: () => Promise<void>): Promise<void> {
+async function mapped(
+  write: () => Promise<void>,
+  gone = "This note changed since the list loaded. The list was reloaded; edit it again.",
+): Promise<void> {
   try {
     await write();
   } catch (err) {
@@ -21,10 +24,7 @@ async function mapped(write: () => Promise<void>): Promise<void> {
       throw new AdminError("BAD_REQUEST", memoryErrorText(err), "text");
     if (err.code === "not_found")
       // Ids are content hashes, so a missing id means the note changed or went since the list loaded.
-      throw new AdminError(
-        "CONFLICT",
-        "This note changed since the list loaded. The list was reloaded; edit it again.",
-      );
+      throw new AdminError("CONFLICT", gone);
     throw new AdminError("CONFLICT", memoryErrorText(err));
   }
 }
@@ -42,7 +42,11 @@ export function createMemoryAdmin({ memory, root, capChars }: MemoryAdminDeps): 
     },
     save: (o, kind, text) => mapped(() => memory.save(o, text, kind)),
     edit: (o, id, text) => mapped(() => memory.edit(o, id, text)),
-    delete: (o, id) => mapped(() => memory.edit(o, id, null)),
+    delete: (o, id) =>
+      mapped(
+        () => memory.edit(o, id, null),
+        "This note is already gone or changed. The list was reloaded.",
+      ),
     journal: (o, day) => readJournal(root, o, day),
     rules: (o) => readRules(root, o),
     saveRules: (o, rules) => writeRules(root, o, rules),
