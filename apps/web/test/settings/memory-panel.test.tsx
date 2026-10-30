@@ -116,7 +116,7 @@ test("a failed edit keeps the draft and reloads the list on a conflict", async (
   expect(screen.getByDisplayValue("My long text")).toBeTruthy();
 });
 
-test("a conflict whose row is gone after the reload still shows the owner's text, and it can be added", async () => {
+test("a conflict whose row is gone after the reload still shows the owner's text, and it can be added in its kind", async () => {
   m.edit.mockRejectedValueOnce(Object.assign(new Error("changed"), { code: "CONFLICT" }));
   setup();
   vi.spyOn(QueryClient.prototype, "invalidateQueries").mockImplementation(async () => {
@@ -132,18 +132,20 @@ test("a conflict whose row is gone after the reload still shows the owner's text
   await userEvent.clear(input);
   await userEvent.type(input, "<b>My long text</b>{Enter}");
   expect(await screen.findByText("<b>My long text</b>")).toBeTruthy();
-  expect(screen.getByText("This note changed. Your text:")).toBeTruthy();
+  // The edited note was a fact: the banner names it, and re-adding keeps it a fact (never a preference,
+  // which group sessions see).
+  expect(screen.getByText("This fact note changed. Your text:")).toBeTruthy();
   expect(screen.queryByText("Repo uses Bun.")).toBeNull();
   expect(toast.error).toHaveBeenCalledWith("changed");
   await userEvent.click(screen.getByRole("button", { name: "Add as new note" }));
   await waitFor(() =>
     expect(m.save).toHaveBeenCalledWith({
       owner: "bot:dev",
-      kind: "preference",
+      kind: "fact",
       text: "<b>My long text</b>",
     }),
   );
-  await waitFor(() => expect(screen.queryByText("This note changed. Your text:")).toBeNull());
+  await waitFor(() => expect(screen.queryByText("This fact note changed. Your text:")).toBeNull());
 });
 
 test("a blur while the save is in flight keeps the draft when the save fails", async () => {
