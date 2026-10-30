@@ -36,6 +36,7 @@ export async function pumpRun(
       if (exec.stop) break;
       dog.arm();
       exec.timing?.mark("firstEventMs");
+      await commitOnModelEvent(exec, e);
       const end = await onEvent(ctx, exec, e);
       if (end) return end;
     }
@@ -44,6 +45,18 @@ export async function pumpRun(
   } catch (err) {
     return exec.stop ? { kind: "stopped" } : { kind: "error", err };
   }
+}
+
+/**
+ * Store the session's state hashes once, at the first event that proves the CLI took the turn: model output or a
+ * turn end. An `error` (the CLI may have failed before it recorded the turn) or a `compacted` marker does not count;
+ * a run that ends before such an event keeps the old hashes, so the next open sends the block again (harmless).
+ */
+async function commitOnModelEvent(exec: RunExec, e: RuntimeEvent): Promise<void> {
+  if (!exec.commitState || e.type === "error" || e.type === "compacted") return;
+  const commit = exec.commitState;
+  delete exec.commitState;
+  await commit();
 }
 
 /** Handle one event; returns how the run ended when this event ends it. */

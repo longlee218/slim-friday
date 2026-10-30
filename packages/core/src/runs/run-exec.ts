@@ -48,6 +48,8 @@ export interface RunExec {
   bot: Bot;
   /** The session of this run, once it is open. */
   session?: BotSession;
+  /** Stores the session's state hashes; the pump calls it once, at the first model event (`run-pump.ts`). */
+  commitState?: () => Promise<void>;
   /** Epoch ms the run was claimed. */
   openedAt: number;
   /** The conversation (and chain depth) the bot answers now; a finished task's follow-up speaks where it began. */

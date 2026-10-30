@@ -42,8 +42,9 @@ export interface OpenedRunSession {
    */
   stateChanged?: string;
   /**
-   * Store the state hashes this session now has (and log `session.state_changed`). Call it only once the turn
-   * (with `stateChanged`) reached the session: a run cut before that resumes later and gets the block again.
+   * Store the state hashes this session now has (and log `session.state_changed`); later calls do nothing. Call
+   * it only once the session took the turn (with `stateChanged`), i.e. at its first model event: a run cut before
+   * that resumes later and gets the block again.
    */
   commitState: () => Promise<void>;
 }
@@ -55,7 +56,7 @@ export interface OpenedRunSession {
  * not resume is cleared. A scope marked `resetPending` gets a fresh session, unless it has an open card or the run resumes a card's answer (a parked
  * approval keeps its own session until it is resolved and resumed); the mark and the stored effort are cleared then. A session that will not open
  * (workspace, MCP server, runtime start) throws `SetupError`, so the run is retried as a setup failure.
- * The hashes of the state parts are stored per session (by `commitState`, once the turn is delivered): a resumed
+ * The hashes of the state parts are stored per session (by `commitState`, once the turn was taken): a resumed
  * session gets the changed parts as a `<state_changed>` block; a part whose read failed is neither reported nor
  * re-hashed.
  */
@@ -150,7 +151,10 @@ export async function openRunSession(
   const block = seen && stateChangedBlock(parts, seen, skip);
   const hashes = seen ? nextStateHashes(parts, seen, skip) : stateHashes(parts);
   // A failed save only sends the same block again at the next open; it never fails the delivered turn.
+  let committed = false;
   const commitState = async () => {
+    if (committed) return;
+    committed = true;
     try {
       await store.sessions.stateSet(scope.key, hashes);
     } catch (err) {
