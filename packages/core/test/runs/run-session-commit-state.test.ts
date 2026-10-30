@@ -30,7 +30,7 @@ function harness() {
         decide: async () => ({ behavior: "deny", reason: "test" }),
       },
     );
-  return { log, open, setText: (t: string) => (text = t), saves: () => saves };
+  return { log, store, open, setText: (t: string) => (text = t), saves: () => saves };
 }
 
 test("commitState saves the hashes once, however often it is called", async () => {
@@ -67,4 +67,16 @@ test("session.state_changed logs the block's size, never its text", async () => 
       msg: "session.state_changed",
     },
   ]);
+});
+
+test("a failed save with a throwing logger never makes commitState throw", async () => {
+  const h = harness();
+  const o = await h.open();
+  h.store.sessions.stateSet = async () => {
+    throw new Error("disk full");
+  };
+  h.log.warn = () => {
+    throw new Error("log down");
+  };
+  await o.commitState();
 });

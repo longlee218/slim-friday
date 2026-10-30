@@ -163,7 +163,11 @@ export async function openRunSession(
         d.log?.info(fields, "session.state_changed");
       }
     } catch (err) {
-      d.log?.warn({ scope: scope.key, err: errText(err) }, "session.state_save_failed");
+      try {
+        d.log?.warn({ scope: scope.key, err: errText(err) }, "session.state_save_failed");
+      } catch {
+        // a throwing logger must not fail the delivered turn
+      }
     }
   };
   return {

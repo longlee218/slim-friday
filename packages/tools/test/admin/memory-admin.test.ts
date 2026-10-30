@@ -61,7 +61,9 @@ test("editing a note that changed meanwhile is a conflict", async () => {
   expect(err.message).toBe(
     "This note changed since the list loaded. The list was reloaded; edit it again.",
   );
-  expect(await code(admin.delete(dev, old))).toBe("CONFLICT");
+  const gone = await admin.delete(dev, old).catch((e) => e);
+  expect(gone.code).toBe("CONFLICT");
+  expect(gone.message).toBe("This note is already gone or changed. The list was reloaded.");
 });
 
 test("rules and journal through the admin", async () => {

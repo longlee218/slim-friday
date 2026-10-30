@@ -1,6 +1,6 @@
 import type { MemoryKind, MemoryOwner } from "@friday/contracts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { client, orpc } from "../../api/client";
 import { formatAge } from "../../lib/format";
@@ -69,10 +69,16 @@ export function MemoryPanel({ owner }: { owner: MemoryOwner }) {
   // The owner's edit that hit a CONFLICT, held here because the note's row may be gone after the reload.
   // It keeps the edited note's kind: a fact must not come back as a preference (group sessions see those).
   const [lost, setLost] = useState<{ text: string; kind: MemoryKind } | null>(null);
+  const adding = useRef(false); // a double click must not save the text twice
   const addLost = async () => {
-    if (!lost) return;
+    if (!lost || adding.current) return;
+    adding.current = true;
     const note = { owner, kind: lost.kind, text: lost.text };
-    if (await write(() => client.memory.save(note))) setLost(null);
+    try {
+      if (await write(() => client.memory.save(note))) setLost(null);
+    } finally {
+      adding.current = false;
+    }
   };
   const [bucket, id] = owner.split(":");
   return (

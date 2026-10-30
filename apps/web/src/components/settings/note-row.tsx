@@ -21,7 +21,7 @@ export interface NoteRowProps {
   /** After the buttons (the rule's switch). */
   trail?: ReactNode;
   /** Resolve `false` to say the save failed: the row then stays in edit mode with the draft. */
-  onEdit(text: string): void | Promise<boolean>;
+  onEdit(text: string): unknown; // a Promise<false> keeps the draft open
   onDelete(): void;
 }
 

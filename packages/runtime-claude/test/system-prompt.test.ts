@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import type { Bot, BotRuntimeSpec } from "@friday/core";
-import { computerContextBlock } from "@friday/core/src/hub/computer-context-block";
+import { computerContextBlock } from "@friday/core";
 import {
   PROGRESS_RULE,
   SAFETY_RULES,

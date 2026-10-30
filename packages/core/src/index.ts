@@ -21,6 +21,7 @@ export * from "./domain/steering";
 export * from "./domain/tool";
 export * from "./domain/wake";
 export * from "./hub/bot-hub";
+export { computerContextBlock } from "./hub/computer-context-block";
 export * from "./hub/idle-close";
 export * from "./hub/memory-label";
 export * from "./hub/post-stored";
