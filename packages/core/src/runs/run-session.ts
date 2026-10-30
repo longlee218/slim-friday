@@ -13,6 +13,13 @@ import { GROUP_SESSION_KINDS, type Memory } from "../ports/memory";
 import type { Store } from "../ports/store";
 import type { ProjectRulesReader } from "../routing/group-context";
 import { SetupError } from "./run-rules";
+import {
+  nextStateHashes,
+  type StatePart,
+  stateChangedBlock,
+  stateHashes,
+  stateParts,
+} from "./session-state";
 
 /** What opening a run's session needs. */
 export interface RunSessionDeps {
@@ -31,6 +38,11 @@ export interface RunSessionDeps {
 export interface OpenedRunSession {
   session: BotSession;
   memory: string;
+  /**
+   * The `<state_changed>` block for a resumed session whose memory, rules, group context, teammates or scratchpad
+   * changed since it last saw them (its system prompt is the one it started with); unset when nothing changed.
+   */
+  stateChanged?: string;
 }
 
 /**
@@ -40,6 +52,8 @@ export interface OpenedRunSession {
  * not resume is cleared. A scope marked `resetPending` gets a fresh session, unless it has an open card or the run resumes a card's answer (a parked
  * approval keeps its own session until it is resolved and resumed); the mark and the stored effort are cleared then. A session that will not open
  * (workspace, MCP server, runtime start) throws `SetupError`, so the run is retried as a setup failure.
+ * The hashes of the state parts are stored per session: a resumed session gets the changed parts as a
+ * `<state_changed>` block; a part whose read failed is neither reported nor re-hashed.
  */
 export async function openRunSession(
   d: RunSessionDeps,
@@ -50,7 +64,7 @@ export async function openRunSession(
 ): Promise<OpenedRunSession> {
   const { store } = d;
   // A memory that cannot be read must not keep the bot from answering.
-  const memory = await promptMemory(
+  const botMemory = await promptMemory(
     d.memory,
     { kind: "bot", botId: scope.bot.id },
     d.limits.memoryPromptChars,
@@ -58,6 +72,7 @@ export async function openRunSession(
     // A group session gets only the bot's rules and lessons: its facts may come from the owner's direct chat.
     scope.groupId ? GROUP_SESSION_KINDS : undefined,
   );
+  const memory = botMemory ?? "";
   // The owner's rules are whole (never cut by the memory cap) and read at every open, so an edit reaches the next run.
   const rules = await readRulesText(d.memory, { kind: "bot", botId: scope.bot.id }, d.log);
   const groupRules = scope.groupId
@@ -65,9 +80,17 @@ export async function openRunSession(
     : "";
   const group = scope.groupId ? await store.groups.get(scope.groupId) : undefined;
   const groupContext = group ? await groupContextFor(group, d.projectRules) : undefined;
-  const groupMemory = scope.groupId
+  const groupRead = scope.groupId
     ? await groupMemoryFor(scope.groupId, d.memory, d.limits.groupMemoryPromptChars, d.log)
     : undefined;
+  const groupMemory = groupRead?.text;
+  // A part whose read failed is not "now empty": it is left out of the block and keeps its stored hash.
+  const skip: StatePart[] = [
+    ...(botMemory === undefined ? (["memory"] as const) : []),
+    ...(rules === undefined ? (["rules"] as const) : []),
+    ...(groupRules === undefined ? (["groupRules"] as const) : []),
+    ...(groupRead?.failed ? (["groupMemory"] as const) : []),
+  ];
   // A direct session gets the teammate directory; a group session's roster is in its group context.
   const teammates = scope.groupId
     ? undefined
@@ -97,10 +120,12 @@ export async function openRunSession(
   };
   const stored = fresh ? undefined : await store.sessions.get(scope.key);
   let session: BotSession | undefined;
+  let resumed = false;
   try {
     if (stored) {
       try {
         session = await d.runtime.resume(stored, full);
+        resumed = true;
       } catch {
         // The stored session is gone or unreadable: forget it and start a fresh one.
         await store.sessions.clear(scope.key);
@@ -115,5 +140,18 @@ export async function openRunSession(
     await store.scopes.clearReset(scope.key);
     await store.scopes.clearEffort(scope.key);
   }
-  return { session, memory: `${memory}\n${groupMemory ?? ""}` };
+  const parts = stateParts(full);
+  // A new session has every part in its system prompt; a resumed one has the prompt it started with.
+  const seen = resumed ? ((await store.sessions.stateGet(scope.key)) ?? {}) : undefined;
+  const block = seen && stateChangedBlock(parts, seen, skip);
+  await store.sessions.stateSet(
+    scope.key,
+    seen ? nextStateHashes(parts, seen, skip) : stateHashes(parts),
+  );
+  if (block) d.log?.info({ scope: scope.key, parts: block.changed }, "session.state_changed");
+  return {
+    session,
+    memory: `${memory}\n${groupMemory ?? ""}`,
+    ...(block && { stateChanged: block.text }),
+  };
 }

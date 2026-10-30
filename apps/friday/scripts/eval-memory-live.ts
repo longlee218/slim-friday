@@ -16,6 +16,7 @@ import {
   type InboundTurn,
   type Memory,
   openRunSession,
+  type SessionStateHashes,
   type Store,
 } from "@friday/core";
 import { ClaudeRuntime } from "@friday/runtime-claude";
@@ -58,14 +59,25 @@ const memoryWith = (codeword: string): Memory => ({
   edit: async () => {},
 });
 
-/** The few store parts `openRunSession` reads, held in memory (one stored session id). */
+/** The few store parts `openRunSession` reads, held in memory (one stored session id and its state hashes). */
 function fakeStore(): Store {
   const sessions = new Map<string, string>();
+  const hashes = new Map<string, SessionStateHashes>();
   return {
     sessions: {
       get: async (k: string) => sessions.get(k),
-      set: async (k: string, id: string) => void sessions.set(k, id),
-      clear: async (k: string) => void sessions.delete(k),
+      set: async (k: string, id: string) => {
+        if (sessions.get(k) !== id) hashes.delete(k);
+        sessions.set(k, id);
+      },
+      stateGet: async (k: string) => hashes.get(k),
+      stateSet: async (k: string, h: SessionStateHashes) => {
+        if (sessions.has(k)) hashes.set(k, h);
+      },
+      clear: async (k: string) => {
+        sessions.delete(k);
+        hashes.delete(k);
+      },
     },
     scopes: { get: async () => undefined },
     cards: { openForScope: async () => [] },
@@ -87,14 +99,22 @@ const bot: Bot = {
   workspaces: [],
 };
 
-/** Send the question, read the reply until the turn ends; the cost of the turn is added to `spent`. */
-async function ask(session: BotSession, spent: { usd: number }): Promise<string> {
+/**
+ * Send the question (with the session's `<state_changed>` block, as a run's turn carries it), read the reply until
+ * the turn ends; the cost of the turn is added to `spent`.
+ */
+async function ask(
+  session: BotSession,
+  spent: { usd: number },
+  stateChanged?: string,
+): Promise<string> {
   const turn: InboundTurn = {
     conversationId: "eval-conversation",
     from: { kind: "user" },
     text: QUESTION,
     hop: 0,
     context: [],
+    ...(stateChanged && { stateChanged }),
     now: Date.now(),
     timeZone: "UTC",
   };
@@ -156,7 +176,7 @@ async function memoryAfterResume(
     await resumed.session.stop();
     return fail("resume did not happen");
   }
-  const second = await ask(resumed.session, spent);
+  const second = await ask(resumed.session, spent, resumed.stateChanged);
   const detail = `first reply: ${first.trim()} | resumed reply: ${second.trim()}`;
   if (spent.usd > capUsd) return fail(`cap ${capUsd} USD passed after the second turn | ${detail}`);
   const passed = second.includes("COBALT") && !second.includes("AMBER");
