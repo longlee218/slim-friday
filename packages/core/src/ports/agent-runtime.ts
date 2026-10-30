@@ -35,6 +35,8 @@ export interface InboundTurn {
   guidance?: string;
   /** The text comes from Friday, not from the sender (continuation, card resume, nudge): labelled as automated. */
   automated?: boolean;
+  /** The machine's live computer slot line (a bot with a computer only); shown just before the time. */
+  computerSlots?: string;
   /** `<state_changed>` block: state parts that changed since this resumed session started; shown before the message. */
   stateChanged?: string;
   /** When the turn was built (epoch ms): the turn ends with the current time in `timeZone`. */
