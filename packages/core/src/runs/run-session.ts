@@ -150,17 +150,21 @@ export async function openRunSession(
   const seen = resumed ? ((await store.sessions.stateGet(scope.key)) ?? {}) : undefined;
   const block = seen && stateChangedBlock(parts, seen, skip);
   const hashes = seen ? nextStateHashes(parts, seen, skip) : stateHashes(parts);
-  // A failed save only sends the same block again at the next open; it never fails the delivered turn.
+  // A failed save only sends the same block again at the next open, a failed log line is only lost: neither
+  // fails the delivered turn. The log has the block's size (to measure prompt growth), never its text.
   let committed = false;
   const commitState = async () => {
     if (committed) return;
     committed = true;
     try {
       await store.sessions.stateSet(scope.key, hashes);
+      if (block) {
+        const fields = { scope: scope.key, parts: block.changed, chars: block.text.length };
+        d.log?.info(fields, "session.state_changed");
+      }
     } catch (err) {
       d.log?.warn({ scope: scope.key, err: errText(err) }, "session.state_save_failed");
     }
-    if (block) d.log?.info({ scope: scope.key, parts: block.changed }, "session.state_changed");
   };
   return {
     session,

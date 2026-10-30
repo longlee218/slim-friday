@@ -40,3 +40,31 @@ test("commitState saves the hashes once, however often it is called", async () =
   await o.commitState();
   expect(h.saves()).toBe(1);
 });
+
+test("a throwing logger never makes commitState throw", async () => {
+  const h = harness();
+  await (await h.open()).commitState();
+  h.setText("- codeword COBALT");
+  const o = await h.open();
+  expect(o.stateChanged).toContain("COBALT");
+  h.log.info = () => {
+    throw new Error("log down");
+  };
+  await o.commitState();
+  expect(h.saves()).toBe(2);
+});
+
+test("session.state_changed logs the block's size, never its text", async () => {
+  const h = harness();
+  await (await h.open()).commitState();
+  h.setText("- codeword COBALT");
+  const o = await h.open();
+  await o.commitState();
+  expect(h.log.of("session.state_changed")).toEqual([
+    {
+      level: "info",
+      fields: { scope: "ann", parts: ["memory"], chars: o.stateChanged?.length },
+      msg: "session.state_changed",
+    },
+  ]);
+});
