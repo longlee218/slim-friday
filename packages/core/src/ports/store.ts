@@ -7,6 +7,7 @@ import type { Group, GroupId } from "../domain/group";
 import type { IndexedMessage, StoredMessage } from "../domain/message";
 import type { ScratchpadItem } from "../domain/scratchpad";
 import type { WakeRow, WakeStatus } from "../domain/wake";
+import type { SessionStateHashes } from "../runs/session-state";
 import type { DisabledReason, Schedule, ScheduleRun } from "../schedules/schedule";
 import type { Ticket, TicketComment, TicketEvent, TicketStatus } from "../tickets/ticket";
 import type { CardPort, EffectPort, ScopePort, SteeringPort } from "./run-state-ports";
@@ -229,7 +230,13 @@ export interface Store {
    */
   sessions: {
     get(key: string): Promise<string | undefined>;
+    /** Stores the id; a different id than stored drops the state hashes, the same id keeps them. */
     set(key: string, sessionId: string): Promise<void>;
+    /** The state hashes this session was last shown; undefined when none were recorded. */
+    stateGet(key: string): Promise<SessionStateHashes | undefined>;
+    /** Records the hashes shown to the session; no-op when the key has no row. */
+    stateSet(key: string, hashes: SessionStateHashes): Promise<void>;
+    /** Removes the key and its state hashes. */
     clear(key: string): Promise<void>;
     /** Removes the key `botId` and every `botId@*` and `botId#*`. */
     clearBot(botId: BotId): Promise<void>;

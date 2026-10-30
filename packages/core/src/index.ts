@@ -65,6 +65,7 @@ export * from "./runs/run-hints";
 export { type RunKind, runKindOf, silenceAllowed, talksToOwner } from "./runs/run-kind";
 export * from "./runs/run-rules";
 export { type OpenedRunSession, openRunSession, type RunSessionDeps } from "./runs/run-session";
+export type { SessionStateHashes, StatePart } from "./runs/session-state";
 export * from "./safety/redact-secrets";
 export * from "./schedules/schedule";
 export * from "./schedules/schedule-board";

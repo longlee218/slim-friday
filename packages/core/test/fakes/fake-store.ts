@@ -27,6 +27,7 @@ import type {
   WakeStatus,
 } from "../../src";
 import { fileKindOf } from "../../src";
+import type { SessionStateHashes } from "../../src/runs/session-state";
 import { fakeComputerHolds } from "./fake-computer-holds";
 import { fakeSchedules } from "./fake-schedules";
 
@@ -41,6 +42,7 @@ export class FakeStore implements Store {
   msgs: StoredMessage[] = [];
   grantList: Grant[] = [];
   sessionMap = new Map<string, string>();
+  stateHashMap = new Map<string, SessionStateHashes>();
   spendMap = new Map<string, number>();
   auditLog: AuditEntry[] = [];
 
@@ -184,18 +186,30 @@ export class FakeStore implements Store {
   sessions = {
     get: async (key: string) => this.sessionMap.get(key),
     set: async (key: string, id: string) => {
+      if (this.sessionMap.get(key) !== id) this.stateHashMap.delete(key);
       this.sessionMap.set(key, id);
+    },
+    stateGet: async (key: string) => this.stateHashMap.get(key),
+    stateSet: async (key: string, hashes: SessionStateHashes) => {
+      if (this.sessionMap.has(key)) this.stateHashMap.set(key, hashes);
     },
     clear: async (key: string) => {
       this.sessionMap.delete(key);
+      this.stateHashMap.delete(key);
     },
     clearBot: async (botId: BotId) => {
       for (const k of [...this.sessionMap.keys()])
-        if (k === botId || k.startsWith(`${botId}@`)) this.sessionMap.delete(k);
+        if (k === botId || k.startsWith(`${botId}@`) || k.startsWith(`${botId}#`)) {
+          this.sessionMap.delete(k);
+          this.stateHashMap.delete(k);
+        }
     },
     clearGroup: async (groupId: GroupId) => {
       for (const k of [...this.sessionMap.keys()])
-        if (k.endsWith(`@${groupId}`)) this.sessionMap.delete(k);
+        if (k.endsWith(`@${groupId}`)) {
+          this.sessionMap.delete(k);
+          this.stateHashMap.delete(k);
+        }
     },
   };
   spend = {

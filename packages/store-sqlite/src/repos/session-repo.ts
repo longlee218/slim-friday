@@ -1,4 +1,4 @@
-import type { Store } from "@friday/core";
+import type { SessionStateHashes, Store } from "@friday/core";
 import { eq, like, or } from "drizzle-orm";
 import type { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import { sessions } from "../schema/engine-tables";
@@ -12,10 +12,23 @@ export function sessionRepo(db: BunSQLiteDatabase): Store["sessions"] {
     async get(key) {
       return db.select().from(sessions).where(eq(sessions.botId, key)).get()?.sessionId;
     },
+    // A different session id resets the hashes (the new session has been shown nothing).
     async set(key, sessionId) {
+      const prev = db.select().from(sessions).where(eq(sessions.botId, key)).get()?.sessionId;
+      const set = prev === sessionId ? { sessionId } : { sessionId, stateHashes: null };
       db.insert(sessions)
         .values({ botId: key, sessionId })
-        .onConflictDoUpdate({ target: sessions.botId, set: { sessionId } })
+        .onConflictDoUpdate({ target: sessions.botId, set })
+        .run();
+    },
+    async stateGet(key) {
+      const raw = db.select().from(sessions).where(eq(sessions.botId, key)).get()?.stateHashes;
+      return raw ? (JSON.parse(raw) as SessionStateHashes) : undefined;
+    },
+    async stateSet(key, hashes) {
+      db.update(sessions)
+        .set({ stateHashes: JSON.stringify(hashes) })
+        .where(eq(sessions.botId, key))
         .run();
     },
     async clear(key) {
