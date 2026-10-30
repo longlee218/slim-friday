@@ -7,6 +7,7 @@ import type { SessionScope } from "../hub/session-scope";
 import type { BotSession } from "../ports/agent-runtime";
 import type { LeaseLoss } from "./run-lease";
 import { newRunTaint, type RunTaint } from "./run-taint";
+import type { RunTiming } from "./run-timing";
 
 /** A background task a bot started, remembered with the conversation that started it. */
 export interface TaskInfo {
@@ -57,6 +58,8 @@ export interface RunExec {
   openTools: Set<string>;
   /** Run steps (thinking, tools, subagents) since the bot's last text. */
   steps: RunTracker;
+  /** Run timing marks, written once when the run finishes. */
+  timing?: RunTiming;
   /** The last bot text, held until the next event says if it was narration or an answer (`run-output.ts`). */
   heldText?: string;
   /**
@@ -128,7 +131,10 @@ export function newRunExec(row: WakeRow, scope: SessionScope, now: number, taint
   });
   const exec: RunExec = {
     ended,
-    markEnded,
+    markEnded: () => {
+      exec.timing?.finish();
+      markEnded();
+    },
     stopped,
     markStopped,
     row,

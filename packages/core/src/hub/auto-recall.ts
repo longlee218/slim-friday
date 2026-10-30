@@ -1,3 +1,4 @@
+import type { Log } from "../ports/log";
 import type { MemoryOwner } from "../ports/memory";
 import type { MemorySearcher } from "../ports/memory-recall";
 import { MEMORY_LABEL } from "./memory-label";
@@ -16,7 +17,8 @@ const escapeLine = (s: string): string =>
  * The `<recalled_memory>` block for a turn: hits for `text` from each owner (bot first, then group) whose text is not
  * already in `shown` (the memory the bot was given, so a capped MEMORY.md still recalls its hidden notes); the same
  * text once; at most `recallNotes` whole lines within `recallChars`. Undefined when the text is short, there is no
- * searcher, nothing is left, or the search fails (a recall must never block a turn).
+ * searcher, nothing is left, or the search fails (a recall must never block a turn). With `log`, one
+ * `memory.recall` line of counts (never text) per call that searched.
  */
 export async function recalledBlock(
   recall: MemorySearcher | undefined,
@@ -24,6 +26,7 @@ export async function recalledBlock(
   text: string,
   shown: string,
   limits: { recallNotes: number; recallChars: number },
+  log?: Log,
 ): Promise<string | undefined> {
   if (!recall || text.trim().length < MIN_TEXT) return undefined;
   let found: Awaited<ReturnType<MemorySearcher["search"]>>[];
@@ -36,7 +39,8 @@ export async function recalledBlock(
   const used = new Set<string>();
   const lines: string[] = [];
   let chars = 0;
-  for (const h of found.flat()) {
+  const hits = found.flat();
+  for (const h of hits) {
     const key = plain(h.text);
     if (!key || used.has(key) || seen.includes(key)) continue;
     used.add(key);
@@ -45,6 +49,9 @@ export async function recalledBlock(
     lines.push(line);
     chars += line.length + 1;
   }
+  const fresh = new Set(hits.map((h) => plain(h.text)).filter((k) => k && !seen.includes(k)));
+  const counts = { owners: owners.length, asked: limits.recallNotes, hits: hits.length };
+  log?.info({ event: "memory.recall", ...counts, fresh: fresh.size }, "memory.recall");
   if (!lines.length) return undefined;
   return `<recalled_memory>\n${MEMORY_LABEL}\n${lines.join("\n")}\n</recalled_memory>`;
 }

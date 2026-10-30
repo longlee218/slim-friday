@@ -56,7 +56,14 @@ export async function buildRunTurn(
   const groupId = groupOfScopeKey(row.scopeKey);
   const owners: MemoryOwner[] =
     groupId === undefined ? [{ kind: "bot", botId: row.targetBot }] : [{ kind: "group", groupId }];
-  const recalled = await recalledBlock(recall, owners, text, opts.shown ?? "", ctx.limits);
+  const recalled = await recalledBlock(
+    recall,
+    owners,
+    text,
+    opts.shown ?? "",
+    ctx.limits,
+    ctx.deps.log,
+  );
   const guidance = replyGuidance(row, runKindOf(row), await senderName(ctx, row));
   // Friday wrote an automated turn's text (continuation, card resume), so its header names the system, never the owner.
   const automated = isAutomatedTurn(row, !first);

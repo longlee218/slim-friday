@@ -21,7 +21,12 @@ test("a user message creates a wake that is running while the turn lasts and don
   runtime.nth(0).emit({ type: "turn_end", costUsd: 0 });
   await flush();
   expect([...store.wakeMap.values()][0]?.status).toBe("done");
-  expect(log.lines.map((l) => l.msg)).toEqual(["wake.queued", "wake.started", "wake.done"]);
+  expect(log.lines.map((l) => l.msg)).toEqual([
+    "wake.queued",
+    "wake.started",
+    "wake.done",
+    "run.timing",
+  ]);
 });
 
 test("wake.done carries queue_wait_ms, first_response_ms and total_ms from the clock", async () => {

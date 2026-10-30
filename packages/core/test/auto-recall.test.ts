@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import type { MemoryOwner, MemorySearcher, RecallHit } from "../src";
 import { MEMORY_LABEL } from "../src";
 import { recalledBlock } from "../src/hub/auto-recall";
+import { FakeLog } from "./fakes/fake-log";
 
 const bot: MemoryOwner = { kind: "bot", botId: "ann" };
 const group: MemoryOwner = { kind: "group", groupId: "g" };
@@ -75,4 +76,29 @@ test("undefined for short text, no recall, or a throwing recall", async () => {
   expect(
     await recalledBlock(searcher({}).recall, [bot], "how do we deploy", "", limits),
   ).toBeUndefined();
+});
+
+test("recall logs asked, hits and fresh counts and no text", async () => {
+  const { recall } = searcher({
+    bot: [hit("deploy uses docker secretnote", "memory"), hit("build was red on friday")],
+    group: [hit("team uses bun")],
+  });
+  const log = new FakeLog();
+  await recalledBlock(
+    recall,
+    [bot, group],
+    "how do we deploy",
+    "- deploy uses docker secretnote",
+    limits,
+    log,
+  );
+  expect(log.of("memory.recall")).toHaveLength(1);
+  const f = log.of("memory.recall")[0]?.fields;
+  expect(f).toEqual({ event: "memory.recall", owners: 2, asked: 5, hits: 3, fresh: 2 });
+  for (const v of Object.values(f ?? {})) {
+    if (typeof v === "string") expect(v.length).toBeLessThanOrEqual("memory.recall".length);
+  }
+  const short = new FakeLog();
+  await recalledBlock(recall, [bot], "hi", "", limits, short);
+  expect(short.lines).toEqual([]);
 });
