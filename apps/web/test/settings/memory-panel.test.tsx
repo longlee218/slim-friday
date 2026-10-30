@@ -1,5 +1,5 @@
 import type { MemoryNoteDto } from "@friday/contracts";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -99,4 +99,16 @@ test("in a kind's tab the add row has no kind picker and saves that kind", async
       text: "Ship on Friday.",
     }),
   );
+});
+
+test("a failed edit keeps the draft and reloads the list on a conflict", async () => {
+  m.edit.mockRejectedValueOnce(Object.assign(new Error("changed"), { code: "CONFLICT" }));
+  setup();
+  const spy = vi.spyOn(QueryClient.prototype, "invalidateQueries");
+  await userEvent.click(screen.getAllByRole("button", { name: "Edit note" })[0] as HTMLElement);
+  const input = screen.getByDisplayValue("Repo uses Bun.");
+  await userEvent.clear(input);
+  await userEvent.type(input, "My long text{Enter}");
+  await waitFor(() => expect(spy).toHaveBeenCalled());
+  expect(screen.getByDisplayValue("My long text")).toBeTruthy();
 });

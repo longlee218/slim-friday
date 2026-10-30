@@ -40,14 +40,21 @@ export function MemoryPanel({ owner }: { owner: MemoryOwner }) {
   const notes = (list.data?.notes ?? []).filter(
     (n) => (filter === "all" || n.kind === filter) && n.text.toLowerCase().includes(q),
   );
-  /** Runs a write, then reloads the notes (and the meter); a refusal shows as a toast. */
-  const write = async (fn: () => Promise<unknown>) => {
+  /**
+   * Runs a write, then reloads the notes (and the meter); a refusal shows as a toast and returns
+   * false. A CONFLICT (the note changed since the list loaded) also reloads the list.
+   */
+  const write = async (fn: () => Promise<unknown>): Promise<boolean> => {
     try {
       await fn();
       await qc.invalidateQueries({ queryKey: orpc.memory.list.key() });
       toast.success("Memory saved.");
+      return true;
     } catch (e) {
+      if ((e as { code?: string } | null)?.code === "CONFLICT")
+        await qc.invalidateQueries({ queryKey: orpc.memory.list.key() });
       toast.error(e instanceof Error ? e.message : "Could not save the memory.");
+      return false;
     }
   };
   // A note added in a kind's tab takes that kind; only All asks for one.
@@ -89,7 +96,7 @@ export function MemoryPanel({ owner }: { owner: MemoryOwner }) {
                 {n.day && ` ${age(n.day)}`}
               </div>
             }
-            onEdit={(t) => void write(() => client.memory.edit({ owner, id: n.id, text: t }))}
+            onEdit={(t) => write(() => client.memory.edit({ owner, id: n.id, text: t }))}
             onDelete={() => void write(() => client.memory.delete({ owner, id: n.id }))}
           />
         ))}

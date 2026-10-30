@@ -20,7 +20,8 @@ export interface NoteRowProps {
   meta?: ReactNode;
   /** After the buttons (the rule's switch). */
   trail?: ReactNode;
-  onEdit(text: string): void;
+  /** Resolve `false` to say the save failed: the row then stays in edit mode with the draft. */
+  onEdit(text: string): void | Promise<boolean>;
   onDelete(): void;
 }
 
@@ -30,10 +31,12 @@ export interface NoteRowProps {
  */
 export function NoteRow(p: NoteRowProps) {
   const [draft, setDraft] = useState<string | null>(null);
-  const commit = () => {
+  const commit = async () => {
     const text = (draft ?? "").trim();
-    setDraft(null);
-    if (text && text !== p.text) p.onEdit(text);
+    if (!text || text === p.text) return setDraft(null);
+    setDraft(text);
+    // A failed save (`false`) keeps the owner's text in the field; anything else closes it.
+    if ((await p.onEdit(text)) !== false) setDraft(null);
   };
   return (
     <div
@@ -58,7 +61,7 @@ export function NoteRow(p: NoteRowProps) {
             onChange={(e) => setDraft(e.target.value)}
             onBlur={() => setDraft(null)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") commit();
+              if (e.key === "Enter") void commit();
               if (e.key === "Escape") setDraft(null);
             }}
           />
