@@ -1,4 +1,7 @@
 import { expect, test } from "bun:test";
+import type { WakeRow } from "../../src";
+import type { SessionScope } from "../../src/hub/session-scope";
+import { newRunExec } from "../../src/runs/run-exec";
 import { startTiming } from "../../src/runs/run-timing";
 import { FakeLog } from "../fakes/fake-log";
 
@@ -51,4 +54,28 @@ test("a run that never reaches text omits the missing values", () => {
     scope: "ann",
     openMs: 3,
   });
+});
+
+test("markEnded settles `ended` before the timing line is logged, and a throwing log never escapes", async () => {
+  const exec = newRunExec(
+    { id: "w3" } as WakeRow,
+    { key: "ann" } as unknown as SessionScope,
+    0,
+    false,
+  );
+  let endedWhenInfoRan: string | undefined;
+  const log = new FakeLog();
+  log.info = () => {
+    // Bun.peek reads the promise state synchronously: `ended` must already be settled here.
+    endedWhenInfoRan = Bun.peek.status(exec.ended);
+    throw new Error("log down");
+  };
+  exec.timing = startTiming(stepClock(), log, "w3", "ann");
+  expect(() => exec.markEnded()).not.toThrow();
+  expect(endedWhenInfoRan).toBe("fulfilled");
+  const settled = await Promise.race([
+    exec.ended.then(() => true),
+    new Promise<boolean>((r) => setTimeout(() => r(false), 50)),
+  ]);
+  expect(settled).toBe(true);
 });
