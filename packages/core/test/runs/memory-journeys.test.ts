@@ -92,7 +92,7 @@ function journey() {
     await o.commitState();
     const spec = (o.session as FakeSession).spec;
     const promptOf = [spec.rules, spec.memory, spec.groupRules, spec.groupMemory].join("\n");
-    // A resumed session keeps the prompt it started with: the prompt a turn can rely on is the first open's.
+    // A resumed session may answer from its earlier state: the prompt a turn can rely on is the first open's.
     if (!started.has(scope.key)) started.set(scope.key, promptOf);
     return { turn, prompt: started.get(scope.key) as string };
   };

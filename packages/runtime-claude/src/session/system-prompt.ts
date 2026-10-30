@@ -7,7 +7,9 @@ import { capabilityNotes, howFridayWorks, PROGRESS_RULE, SAFETY_RULES } from "./
  * then what the session read at open: the owner's rules for the bot (before the memory, never cut by the memory
  * cap), the bot's memory, the bot's computer facts, for a group session the group context, rules and memory, for a direct session the
  * teammate directory, and last the open scratchpad items. No trigger guidance and no time: those are in the turn,
- * so every run kind gets the same prompt. Re-read at every open, so a resumed transcript never piles up copies.
+ * so every run kind gets the same prompt. Built at every open and resume, but a resumed session may keep answering
+ * from its earlier state (cause not proven: see Session state in docs/system-architecture.md), so core sends
+ * the changed parts in the turn as `<state_changed>`.
  */
 export function systemPromptOf(spec: BotRuntimeSpec, scratchDir: string): string {
   const { bot } = spec;
