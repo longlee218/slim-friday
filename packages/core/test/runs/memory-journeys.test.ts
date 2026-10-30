@@ -41,7 +41,7 @@ function journeyMemory() {
   return { memory, notes, rules };
 }
 
-/** Real `openRunSession` + `buildRunTurn` over fakes; `run` opens a session, sends the turn and commits state like the run executor. */
+/** Real `openRunSession` + `buildRunTurn` over fakes; `run` opens a session, sends the turn and commits state (the executor's pump does it at the first model event). */
 function journey() {
   const store = new FakeStore();
   store.groupMap.set("g", {

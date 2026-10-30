@@ -24,8 +24,8 @@ import { StreamWatchdog } from "./run-watchdog";
 
 /**
  * Execute one claimed run (already `running`, lease held): count a cut, set the taint flag, show "typing", open
- * (resume) the session, push the turn (then store its state hashes), pump events until the turn and every background
- * task ended, close the session, then finish or apply the failure rules. A lost lease aborts the session, no finish.
+ * (resume) the session, push the turn, pump events (the first stores the state hashes) until the turn and every
+ * background task ended, close the session, then finish or apply the failure rules. A lost lease aborts the session, no finish.
  */
 export async function executeRun(ctx: HubContext, row: WakeRow, lease: RunLease): Promise<void> {
   const { store, clock, surface } = ctx.deps;
@@ -143,7 +143,7 @@ async function runSession(
       rows.map((r) => r.text),
     );
     exec.session.send(withSteering(turn, rows));
-    await opened.commitState();
+    exec.commitState = opened.commitState; // `send` only queues the turn: the pump saves at the first event
     return await pumpRun(ctx, exec, dog);
   } catch (err) {
     return exec.stop ? { kind: "stopped" } : { kind: "error", err };
