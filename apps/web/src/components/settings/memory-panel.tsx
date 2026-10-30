@@ -7,6 +7,7 @@ import { formatAge } from "../../lib/format";
 import { Button } from "../ui/button";
 import { Pill } from "../ui/pill";
 import { Segmented } from "./form-parts";
+import { LostNoteBanner } from "./lost-note-banner";
 import { NoteRow } from "./note-row";
 import { PromptMeter, useOwnerName } from "./prompt-meter";
 
@@ -44,15 +45,17 @@ export function MemoryPanel({ owner }: { owner: MemoryOwner }) {
    * Runs a write, then reloads the notes (and the meter); a refusal shows as a toast and returns
    * false. A CONFLICT (the note changed since the list loaded) also reloads the list.
    */
-  const write = async (fn: () => Promise<unknown>): Promise<boolean> => {
+  const write = async (fn: () => Promise<unknown>, onConflict?: () => void): Promise<boolean> => {
     try {
       await fn();
       await qc.invalidateQueries({ queryKey: orpc.memory.list.key() });
       toast.success("Memory saved.");
       return true;
     } catch (e) {
-      if ((e as { code?: string } | null)?.code === "CONFLICT")
+      if ((e as { code?: string } | null)?.code === "CONFLICT") {
+        onConflict?.();
         await qc.invalidateQueries({ queryKey: orpc.memory.list.key() });
+      }
       toast.error(e instanceof Error ? e.message : "Could not save the memory.");
       return false;
     }
@@ -62,6 +65,12 @@ export function MemoryPanel({ owner }: { owner: MemoryOwner }) {
   const add = async () => {
     await write(() => client.memory.save({ owner, kind: addKind, text: text.trim() }));
     setText("");
+  };
+  // The owner's edit that hit a CONFLICT, held here because the note's row may be gone after the reload.
+  const [lost, setLost] = useState<{ text: string } | null>(null);
+  const addLost = async () => {
+    if (lost && (await write(() => client.memory.save({ owner, kind: addKind, text: lost.text }))))
+      setLost(null);
   };
   const [bucket, id] = owner.split(":");
   return (
@@ -84,6 +93,15 @@ export function MemoryPanel({ owner }: { owner: MemoryOwner }) {
           onChange={(e) => setQuery(e.target.value)}
         />
       </div>
+      {lost && (
+        <div className="list-panel">
+          <LostNoteBanner
+            text={lost.text}
+            onAdd={() => void addLost()}
+            onDismiss={() => setLost(null)}
+          />
+        </div>
+      )}
       <div className="list-panel">
         {notes.map((n) => (
           <NoteRow
@@ -96,7 +114,12 @@ export function MemoryPanel({ owner }: { owner: MemoryOwner }) {
                 {n.day && ` ${age(n.day)}`}
               </div>
             }
-            onEdit={(t) => write(() => client.memory.edit({ owner, id: n.id, text: t }))}
+            onEdit={(t) =>
+              write(
+                () => client.memory.edit({ owner, id: n.id, text: t }),
+                () => setLost({ text: t }),
+              )
+            }
             onDelete={() => void write(() => client.memory.delete({ owner, id: n.id }))}
           />
         ))}
