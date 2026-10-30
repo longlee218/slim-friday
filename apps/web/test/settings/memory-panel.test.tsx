@@ -2,6 +2,7 @@ import type { MemoryNoteDto } from "@friday/contracts";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { toast } from "sonner";
 import { beforeEach, expect, test, vi } from "vitest";
 import { orpc } from "../../src/api/client";
 import { MemoryPanel } from "../../src/components/settings/memory-panel";
@@ -12,7 +13,7 @@ const m = vi.hoisted(() => ({
   edit: vi.fn().mockResolvedValue({ ok: true }),
   delete: vi.fn().mockResolvedValue({ ok: true }),
 }));
-vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));
+vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn() }) }));
 vi.mock("../../src/api/client", async (orig) => ({
   ...(await orig<typeof import("../../src/api/client")>()),
   client: { memory: m },
@@ -24,8 +25,10 @@ const notes: MemoryNoteDto[] = [
   { id: "n3", kind: "lesson", text: "Run lint first." },
 ];
 
+let qcRef: QueryClient;
 function setup() {
   const qc = seededClient({ bots: [bot("dev", "Dev")] });
+  qcRef = qc;
   const owner = "bot:dev";
   qc.setQueryData(orpc.memory.list.queryKey({ input: { owner } }), {
     notes,
@@ -111,4 +114,49 @@ test("a failed edit keeps the draft and reloads the list on a conflict", async (
   await userEvent.type(input, "My long text{Enter}");
   await waitFor(() => expect(spy).toHaveBeenCalled());
   expect(screen.getByDisplayValue("My long text")).toBeTruthy();
+});
+
+test("a conflict whose row is gone after the reload still shows the owner's text, and it can be added", async () => {
+  m.edit.mockRejectedValueOnce(Object.assign(new Error("changed"), { code: "CONFLICT" }));
+  setup();
+  vi.spyOn(QueryClient.prototype, "invalidateQueries").mockImplementation(async () => {
+    // The refetched list no longer has n1.
+    qcRef.setQueryData(orpc.memory.list.queryKey({ input: { owner: "bot:dev" } }), {
+      notes: notes.slice(1),
+      promptChars: 1,
+      capChars: 12000,
+    });
+  });
+  await userEvent.click(screen.getAllByRole("button", { name: "Edit note" })[0] as HTMLElement);
+  const input = screen.getByDisplayValue("Repo uses Bun.");
+  await userEvent.clear(input);
+  await userEvent.type(input, "<b>My long text</b>{Enter}");
+  expect(await screen.findByText("<b>My long text</b>")).toBeTruthy();
+  expect(screen.getByText("This note changed. Your text:")).toBeTruthy();
+  expect(screen.queryByText("Repo uses Bun.")).toBeNull();
+  expect(toast.error).toHaveBeenCalledWith("changed");
+  await userEvent.click(screen.getByRole("button", { name: "Add as new note" }));
+  await waitFor(() =>
+    expect(m.save).toHaveBeenCalledWith({
+      owner: "bot:dev",
+      kind: "preference",
+      text: "<b>My long text</b>",
+    }),
+  );
+  await waitFor(() => expect(screen.queryByText("This note changed. Your text:")).toBeNull());
+});
+
+test("a blur while the save is in flight keeps the draft when the save fails", async () => {
+  let fail: (e: unknown) => void = () => {};
+  m.edit.mockReturnValueOnce(new Promise((_, rej) => (fail = rej)));
+  setup();
+  await userEvent.click(screen.getAllByRole("button", { name: "Edit note" })[0] as HTMLElement);
+  const input = screen.getByDisplayValue("Repo uses Bun.");
+  await userEvent.clear(input);
+  await userEvent.type(input, "Kept text{Enter}");
+  await userEvent.click(document.body); // blur while pending
+  expect(screen.getByDisplayValue("Kept text")).toBeTruthy();
+  fail(Object.assign(new Error("nope"), { code: "BAD_REQUEST" }));
+  await waitFor(() => expect(toast.error).toHaveBeenCalledWith("nope"));
+  expect(screen.getByDisplayValue("Kept text")).toBeTruthy();
 });

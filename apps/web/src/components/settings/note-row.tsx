@@ -1,5 +1,5 @@
 import { Pencil, Trash2 } from "lucide-react";
-import { type CSSProperties, type ReactNode, type Ref, useState } from "react";
+import { type CSSProperties, type ReactNode, type Ref, useRef, useState } from "react";
 import { IconButton } from "../ui/button";
 
 export interface NoteRowProps {
@@ -31,12 +31,17 @@ export interface NoteRowProps {
  */
 export function NoteRow(p: NoteRowProps) {
   const [draft, setDraft] = useState<string | null>(null);
+  // True while a save is in flight: a blur then must not drop the draft a failed save would keep.
+  const saving = useRef(false);
   const commit = async () => {
     const text = (draft ?? "").trim();
     if (!text || text === p.text) return setDraft(null);
     setDraft(text);
+    saving.current = true;
+    const ok = (await p.onEdit(text)) !== false;
+    saving.current = false;
     // A failed save (`false`) keeps the owner's text in the field; anything else closes it.
-    if ((await p.onEdit(text)) !== false) setDraft(null);
+    if (ok) setDraft(null);
   };
   return (
     <div
@@ -59,7 +64,7 @@ export function NoteRow(p: NoteRowProps) {
             autoFocus
             aria-label={`Edit ${p.noun}`}
             onChange={(e) => setDraft(e.target.value)}
-            onBlur={() => setDraft(null)}
+            onBlur={() => !saving.current && setDraft(null)}
             onKeyDown={(e) => {
               if (e.key === "Enter") void commit();
               if (e.key === "Escape") setDraft(null);
