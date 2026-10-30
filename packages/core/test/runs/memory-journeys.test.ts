@@ -61,6 +61,7 @@ function journey() {
   } as unknown as HubContext;
   const direct: SessionScope = { key: "ann", bot };
   const group: SessionScope = { key: "ann@g", groupId: "g", bot };
+  const started = new Map<string, string>();
   const run = async (scope: SessionScope) => {
     const o = await openRunSession(
       { runtime, store, memory: mem.memory, limits: CORE_DEFAULTS },
@@ -90,8 +91,10 @@ function journey() {
     (o.session as FakeSession).send(turn);
     await o.commitState();
     const spec = (o.session as FakeSession).spec;
-    const prompt = [spec.rules, spec.memory, spec.groupRules, spec.groupMemory].join("\n");
-    return { turn, prompt };
+    const promptOf = [spec.rules, spec.memory, spec.groupRules, spec.groupMemory].join("\n");
+    // A resumed session keeps the prompt it started with: the prompt a turn can rely on is the first open's.
+    if (!started.has(scope.key)) started.set(scope.key, promptOf);
+    return { turn, prompt: started.get(scope.key) as string };
   };
   return { runtime, ...mem, direct, group, run };
 }
@@ -102,8 +105,10 @@ test("remember then resume: the new note reaches the next turn", async () => {
   j.notes.set("bot:ann", [{ kind: "fact", text: "codeword COBALT" }]);
   const { turn, prompt } = await j.run(j.direct);
   expect(j.runtime.resumed).toHaveLength(1);
+  expect(prompt).not.toContain("COBALT");
+  expect(turn.stateChanged).toContain("codeword COBALT");
   expectTurnShows(turn, prompt, "codeword COBALT");
-  // Once delivered, the next resume does not repeat it.
+  // Once delivered, the next resume sends no block at all.
   expect((await j.run(j.direct)).turn.stateChanged).toBeUndefined();
 });
 
@@ -113,8 +118,11 @@ test("supersede: an edited preference shows only the new text", async () => {
   await j.run(j.direct);
   j.notes.set("bot:ann", [{ kind: "preference", text: "answer in German" }]);
   const { turn, prompt } = await j.run(j.direct);
-  expectTurnShows(turn, prompt, "answer in German");
+  expect(prompt).toContain("answer in French");
+  expect(prompt).not.toContain("German");
+  expect(turn.stateChanged).toContain("answer in German");
   expect(turn.stateChanged).not.toContain("French");
+  expectTurnShows(turn, prompt, "answer in German");
 });
 
 test("isolation: a group session never shows the bot's facts", async () => {
@@ -129,6 +137,8 @@ test("isolation: a group session never shows the bot's facts", async () => {
   expect(GROUP_SESSION_KINDS).toEqual(["preference", "lesson"]);
   const { turn, prompt } = await j.run(j.group);
   expect(j.runtime.resumed).toHaveLength(1);
+  expect(turn.stateChanged).toContain("be brief");
+  expect(turn.stateChanged).toContain("check twice");
   expectTurnShows(turn, prompt, "be brief");
   expectTurnShows(turn, prompt, "check twice");
   const seen = `${prompt}\n${turn.stateChanged ?? ""}`;
@@ -143,14 +153,21 @@ test("rules edit reaches a resumed session", async () => {
   j.rules.set("bot:ann", "- Always cite sources.");
   const { turn, prompt } = await j.run(j.direct);
   expect(j.runtime.resumed).toHaveLength(1);
-  expectTurnShows(turn, prompt, "Always cite sources.");
+  expect(prompt).not.toContain("Always cite sources.");
+  expect(turn.stateChanged).toContain("Always cite sources.");
   expect(turn.stateChanged).not.toContain("Be brief.");
+  expectTurnShows(turn, prompt, "Always cite sources.");
 });
 
 test("the grader fails when the note is missing", async () => {
   const j = journey();
   await j.run(j.direct);
-  const { turn, prompt } = await j.run(j.direct);
-  expect(turn.stateChanged).toBeUndefined();
-  expect(() => expectTurnShows(turn, prompt, "codeword COBALT")).toThrow();
+  const quiet = await j.run(j.direct);
+  expect(quiet.turn.stateChanged).toBeUndefined();
+  expect(() => expectTurnShows(quiet.turn, quiet.prompt, "codeword COBALT")).toThrow();
+  // A block exists (rules changed) but lacks the note: still a failure.
+  j.rules.set("bot:ann", "- Be brief.");
+  const other = await j.run(j.direct);
+  expect(other.turn.stateChanged).toContain("Be brief.");
+  expect(() => expectTurnShows(other.turn, other.prompt, "codeword COBALT")).toThrow();
 });

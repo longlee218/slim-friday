@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import type { Bot, BotRuntimeSpec } from "@friday/core";
+import { computerContextBlock } from "@friday/core/src/hub/computer-context-block";
 import {
   PROGRESS_RULE,
   SAFETY_RULES,
@@ -118,15 +119,21 @@ test("a bot with no skills, subagents or MCP servers gets no notes block", () =>
   expect(p).not.toContain("## Skills, subagents and MCP servers");
 });
 
-test("the prompt holds no volatile computer slot text: specs that differ only in a slot or status field give the same bytes", () => {
-  const computerContext = "<computer>\nC\n</computer>";
-  const base = spec({ memory: "M", computerContext });
-  // The live slot line is in the turn (`InboundTurn.computerSlots`), so a slot field smuggled onto the spec must not reach the prompt.
-  const busy = { ...base, computerSlots: "Computer slots on this machine: 0 of 2 free" };
-  const idle = { ...base, computerSlots: "Computer slots on this machine: 2 of 2 free" };
-  const a = systemPromptOf(busy as BotRuntimeSpec, "/s");
-  expect(systemPromptOf(idle as BotRuntimeSpec, "/s")).toBe(a);
-  expect(a).toBe(systemPromptOf(base, "/s"));
-  expect(a).toContain(computerContext);
-  expect(a).not.toMatch(/slots? on this machine/i);
+test("the computer block is slot-free and the prompt carrying it is byte-stable", () => {
+  // The live slot line lives in the turn (`InboundTurn.computerSlots`); the block is built from the bot alone.
+  expect(computerContextBlock.length).toBe(1);
+  const block = computerContextBlock({ ...bot, computer: "home" }) as string;
+  expect(block).not.toMatch(/slots/i);
+  const make = () => systemPromptOf(spec({ memory: "M", computerContext: block }), "/s");
+  const first = make();
+  // Time passes between two opens; nothing in the prompt may depend on it.
+  const realNow = Date.now;
+  Date.now = () => realNow() + 3_600_000;
+  try {
+    expect(make()).toBe(first);
+  } finally {
+    Date.now = realNow;
+  }
+  expect(first).toContain(block);
+  expect(first).not.toMatch(/slots on this machine/i);
 });
