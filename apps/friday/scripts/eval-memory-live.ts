@@ -2,36 +2,21 @@
  * Owner-run live check (spends real model calls; never part of `bun test`):
  *   bun run eval:memory --live [--cap-usd 0.5]
  * Case `memory-after-resume`: a session opened with memory "codeword AMBER" is resumed with memory "codeword COBALT"
- * through `openRunSession`; the bot must answer COBALT (the fresh memory), not AMBER (the first system prompt).
- * Writes `<AGENT_HOME>/logs/eval-memory-<stamp>.json` and prints one line per case. Without `--live` it only prints usage.
+ * through `openRunSession`; the bot must answer COBALT (the fresh memory), not AMBER (the old state).
+ * Case `prompt-vs-transcript` (information only, never fails the run): the first turn never names the codeword, the
+ * resume drops the `<state_changed>` block; COBALT means the system prompt is rebuilt at resume (so transcript
+ * anchoring was the pre-fix cause), AMBER confirms the SDK keeps the first prompt (a snapshot).
+ * Both cases share the cost cap. Writes `<AGENT_HOME>/logs/eval-memory-<stamp>.json` and prints one line per case.
+ * Without `--live` it only prints usage.
  */
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  type AgentRuntime,
-  type Bot,
-  type BotSession,
-  CORE_DEFAULTS,
-  type InboundTurn,
-  type Memory,
-  openRunSession,
-  type SessionStateHashes,
-  type Store,
-} from "@friday/core";
+import type { AgentRuntime } from "@friday/core";
 import { ClaudeRuntime } from "@friday/runtime-claude";
-import { HAIKU_MODEL } from "../src/config/model-ids";
-
-interface CaseResult {
-  case: string;
-  passed: boolean;
-  costUsd: number;
-  detail: string;
-}
+import { ask, type CaseResult, fakeStore, openWith, QUESTION } from "./eval-memory-live-harness";
 
 const USAGE = "Usage: bun run eval:memory --live [--cap-usd 0.5]  (spends real model calls)";
-const QUESTION = "Reply with the codeword only.";
-const TURN_TIMEOUT_MS = 120_000;
 const out = (s: string) => process.stdout.write(`${s}\n`);
 const err = (s: string) => process.stderr.write(`${s}\n`);
 
@@ -52,137 +37,74 @@ if (!logHome) {
   process.exit(1);
 }
 
-/** The memory dependency: a fixed text for the bot. */
-const memoryWith = (codeword: string): Memory => ({
-  read: async () => `- (fact) The test codeword is ${codeword}.`,
-  save: async () => {},
-  edit: async () => {},
-});
-
-/** The few store parts `openRunSession` reads, held in memory (one stored session id and its state hashes). */
-function fakeStore(): Store {
-  const sessions = new Map<string, string>();
-  const hashes = new Map<string, SessionStateHashes>();
-  return {
-    sessions: {
-      get: async (k: string) => sessions.get(k),
-      set: async (k: string, id: string) => {
-        if (sessions.get(k) !== id) hashes.delete(k);
-        sessions.set(k, id);
-      },
-      stateGet: async (k: string) => hashes.get(k),
-      stateSet: async (k: string, h: SessionStateHashes) => {
-        if (sessions.has(k)) hashes.set(k, h);
-      },
-      clear: async (k: string) => {
-        sessions.delete(k);
-        hashes.delete(k);
-      },
-    },
-    scopes: { get: async () => undefined },
-    cards: { openForScope: async () => [] },
-    groups: { get: async () => undefined },
-    bots: { list: async () => [] },
-    scratchpad: { list: async () => [] },
-  } as unknown as Store;
-}
-
-const bot: Bot = {
-  id: "eval-memory",
-  name: "Eval",
-  title: "Memory check",
-  instructions: "You answer in as few words as possible.",
-  model: HAIKU_MODEL,
-  tools: [],
-  skills: [],
-  subagents: [],
-  workspaces: [],
+/** Which codeword a reply names (only one of them, else "neither"). */
+const saidOf = (reply: string) => {
+  const cobalt = reply.includes("COBALT");
+  const amber = reply.includes("AMBER");
+  return cobalt && !amber ? "COBALT" : amber && !cobalt ? "AMBER" : "neither";
 };
 
 /**
- * Send the question (with the session's `<state_changed>` block, as a run's turn carries it), read the reply until
- * the turn ends; the cost of the turn is added to `spent`.
+ * Open with AMBER, send `firstText`, then resume with COBALT and ask for the codeword (with the state block only
+ * when `sendBlock`). Returns both replies, or why the resume could not be tested.
  */
-async function ask(
-  session: BotSession,
-  spent: { usd: number },
-  stateChanged?: string,
-): Promise<string> {
-  const turn: InboundTurn = {
-    conversationId: "eval-conversation",
-    from: { kind: "user" },
-    text: QUESTION,
-    hop: 0,
-    context: [],
-    ...(stateChanged && { stateChanged }),
-    now: Date.now(),
-    timeZone: "UTC",
-  };
-  session.send(turn);
-  let reply = "";
-  const read = (async () => {
-    for await (const ev of session.events) {
-      if (ev.type === "text") reply += ev.text;
-      else if (ev.type === "error") throw new Error(ev.message);
-      else if (ev.type === "turn_end") {
-        spent.usd += ev.costUsd;
-        return;
-      }
-    }
-  })();
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_, rej) => {
-    timer = setTimeout(() => rej(new Error("turn timed out")), TURN_TIMEOUT_MS);
-  });
-  try {
-    await Promise.race([read, timeout]);
-  } finally {
-    clearTimeout(timer);
-    await session.stop();
-  }
-  return reply;
-}
-
-/** Open (or resume, when the store holds an id) the scope's session with `codeword` in memory. */
-const openWith = (runtime: AgentRuntime, store: Store, codeword: string) =>
-  openRunSession(
-    { runtime, store, memory: memoryWith(codeword), limits: CORE_DEFAULTS },
-    { key: bot.id, bot },
-    {
-      bot,
-      runKind: "owner",
-      sessionKey: bot.id,
-      decide: async () => ({ behavior: "deny", reason: "eval" }),
-    },
-  );
-
-async function memoryAfterResume(
+async function resumeAndAsk(
   runtime: AgentRuntime,
   spent: { usd: number },
-): Promise<CaseResult> {
+  firstText: string,
+  sendBlock: boolean,
+): Promise<{ first: string; second: string } | { failed: string }> {
   const store = fakeStore();
-  const fail = (detail: string): CaseResult => ({
-    case: "memory-after-resume",
-    passed: false,
-    costUsd: spent.usd,
-    detail,
-  });
   const firstOpen = await openWith(runtime, store, "AMBER");
-  const first = await ask(firstOpen.session, spent);
+  const first = await ask(firstOpen.session, spent, firstText);
   // As a run's pump does at its first model event (the turn has ended here).
   await firstOpen.commitState();
-  if (spent.usd > capUsd) return fail(`cap ${capUsd} USD passed`);
+  if (spent.usd > capUsd) return { failed: `cap ${capUsd} USD passed` };
   const resumed = await openWith(runtime, store, "COBALT");
   // openRunSession falls back to a fresh session when resume throws; that would pass without testing resume.
   if (resumed.session.id !== firstOpen.session.id) {
     await resumed.session.stop();
-    return fail("resume did not happen");
+    return { failed: "resume did not happen" };
   }
-  const second = await ask(resumed.session, spent, resumed.stateChanged);
-  const detail = `first reply: ${first.trim()} | resumed reply: ${second.trim()}`;
-  if (spent.usd > capUsd) return fail(`cap ${capUsd} USD passed after the second turn | ${detail}`);
-  const passed = second.includes("COBALT") && !second.includes("AMBER");
-  return { case: "memory-after-resume", passed, costUsd: spent.usd, detail };
+  const block = sendBlock ? resumed.stateChanged : undefined;
+  const second = await ask(resumed.session, spent, QUESTION, block);
+  return { first: first.trim(), second: second.trim() };
+}
+
+/** Pass/fail: the resumed session, sent the state block, answers with the fresh memory. */
+async function memoryAfterResume(runtime: AgentRuntime): Promise<CaseResult> {
+  const name = "memory-after-resume";
+  const r = await resumeAndAsk(runtime, spent, QUESTION, true);
+  if ("failed" in r) return { case: name, passed: false, costUsd: spent.usd, detail: r.failed };
+  const detail = `first reply: ${r.first} | resumed reply: ${r.second}`;
+  if (spent.usd > capUsd)
+    return { case: name, passed: false, costUsd: spent.usd, detail: `cap passed | ${detail}` };
+  return { case: name, passed: saidOf(r.second) === "COBALT", costUsd: spent.usd, detail };
+}
+
+/** Information only: which cause the pre-fix AMBER/AMBER had. It never fails the run. */
+async function promptVsTranscript(runtime: AgentRuntime): Promise<CaseResult> {
+  const info = { case: "prompt-vs-transcript", passed: true, informational: true };
+  const r = await resumeAndAsk(runtime, spent, "Reply with OK", false);
+  if ("failed" in r) return { ...info, costUsd: spent.usd, detail: `not measured: ${r.failed}` };
+  const said = saidOf(r.second);
+  const meaning = {
+    COBALT: "the prompt is rebuilt at resume: transcript anchoring was the cause",
+    AMBER: "the prompt snapshot is confirmed",
+    neither: "unclear",
+  }[said];
+  const detail = `first reply: ${r.first} | resumed reply (no block): ${r.second} | said ${said}: ${meaning}`;
+  return { ...info, costUsd: spent.usd, detail, said };
+}
+
+/** Run one case; a throw becomes its result (an informational case still never fails the run). */
+async function runCase(name: string, informational: boolean, run: () => Promise<CaseResult>) {
+  try {
+    return await run();
+  } catch (e) {
+    const detail = e instanceof Error ? e.message : String(e);
+    return { case: name, passed: informational, informational, costUsd: spent.usd, detail };
+  }
 }
 
 const tmp = mkdtempSync(join(tmpdir(), "friday-eval-memory-"));
@@ -195,14 +117,10 @@ const runtime = new ClaudeRuntime({
 const spent = { usd: 0 };
 const results: CaseResult[] = [];
 try {
-  results.push(await memoryAfterResume(runtime, spent));
-} catch (e) {
-  results.push({
-    case: "memory-after-resume",
-    passed: false,
-    costUsd: spent.usd,
-    detail: e instanceof Error ? e.message : String(e),
-  });
+  results.push(await runCase("memory-after-resume", false, () => memoryAfterResume(runtime)));
+  // The information case runs only while the shared cap has room.
+  if (spent.usd <= capUsd)
+    results.push(await runCase("prompt-vs-transcript", true, () => promptVsTranscript(runtime)));
 } finally {
   rmSync(tmp, { recursive: true, force: true });
 }
@@ -210,7 +128,9 @@ const logs = join(logHome, "logs");
 mkdirSync(logs, { recursive: true });
 const file = join(logs, `eval-memory-${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
 writeFileSync(file, `${JSON.stringify(results, null, 2)}\n`);
-for (const r of results)
-  out(`${r.passed ? "PASS" : "FAIL"} ${r.case} ($${r.costUsd.toFixed(4)}) ${r.detail}`);
+for (const r of results) {
+  const tag = r.informational ? "INFO" : r.passed ? "PASS" : "FAIL";
+  out(`${tag} ${r.case} ($${r.costUsd.toFixed(4)}) ${r.detail}`);
+}
 out(`Result: ${file}`);
-process.exit(results.every((r) => r.passed) ? 0 : 1);
+process.exit(results.every((r) => r.informational || r.passed) ? 0 : 1);
