@@ -18,27 +18,27 @@ import { openRunSession } from "./run-session";
 import { persistEffort, runSpec } from "./run-spec";
 import { claimSteering, withSteering } from "./run-steering";
 import { addOwnerTexts, seedTaint, taintedAtClaim } from "./run-taint";
+import { startTiming } from "./run-timing";
 import { buildRunTurn } from "./run-turn";
 import { StreamWatchdog } from "./run-watchdog";
 
 /**
  * Execute one claimed run (already `running`, lease held): count a cut, set the taint flag, show "typing", open
- * (resume) the scope's session, push the turn (then store its state hashes), pump events until the turn and every
- * background task with its follow-up turn ended, close the session, then finish or apply the failure rules. A lost
- * lease aborts the session and writes no finish (the fence would refuse it anyway).
+ * (resume) the session, push the turn (then store its state hashes), pump events until the turn and every background
+ * task ended, close the session, then finish or apply the failure rules. A lost lease aborts the session, no finish.
  */
 export async function executeRun(ctx: HubContext, row: WakeRow, lease: RunLease): Promise<void> {
   const { store, clock, surface } = ctx.deps;
   const fence = lease.fence;
   const scope = await scopeOf(ctx, row);
   if (!scope) return dropRun(ctx, row, fence);
-  // An open card of its own (a crash before the park was stored): park again, no session, no cut.
+  // An open card of its own (crash before the park was stored): park again, no session, no cut.
   if (await parkAtClaim(ctx, row, fence)) return;
   const cardId = await resumeCardId(ctx, row);
   const counted = await countCut(ctx, row, fence, scope.bot);
   if (!counted) return;
   const claimed = cardId ? { ...counted, cardId } : counted;
-  // Requeued by a graceful shutdown: the turn gets the cut note, but no cut was counted.
+  // Requeued by a graceful shutdown: the turn gets the cut note, no cut counted.
   const requeued = await requeuedByShutdown(ctx, claimed);
   // A run reclaimed after a cut: rows its earlier attempt answered go, the others are offered again.
   if (claimed.claimedFrom === "running" || requeued) await settleCutSteering(ctx, claimed);
@@ -51,14 +51,14 @@ export async function executeRun(ctx: HubContext, row: WakeRow, lease: RunLease)
   if (!(await store.wakes.transition(row.id, fence, ["running"], patch))) return;
   const now = clock.now();
   ctx.wakeLog.logStarted(claimed, now);
-  // The working sign does not wait for the session to start.
-  surface.showActivity(row.conversationId, { kind: "typing", botId: scope.bot.id });
+  surface.showActivity(row.conversationId, { kind: "typing", botId: scope.bot.id }); // before the session opens
   const exec = newRunExec({ ...claimed, ...patch }, scope, now, tainted);
   exec.cutBefore = claimed.cuts > 0 || requeued;
+  exec.timing = startTiming(clock, ctx.deps.log, row.id, exec.key);
   ctx.runs.set(exec.key, exec);
   lease.listen((why) => abortRun(exec, { kind: "lease", why }));
   if (ctx.closing) abortRun(exec, { kind: "shutdown" });
-  // The watchdog runs from the claim: a session open or turn build that hangs is cut like a silent stream.
+  // The watchdog runs from the claim: a hung open or turn build is cut like a silent stream.
   const dog = new StreamWatchdog(
     clock,
     ctx.limits.streamIdleMs,
@@ -118,8 +118,8 @@ async function runSession(
       },
     );
     if (!opened) return { kind: "stopped" };
-    // Registered before the stop check: a stop that landed while the session opened closes it with the run.
-    exec.session = opened.session;
+    exec.timing?.mark("openMs");
+    exec.session = opened.session; // before the stop check: a stop during the open closes it
     if (exec.stop) return { kind: "stopped" };
     persistEffort(ctx, exec.key, spec);
     const turn = await untilStop(
@@ -131,9 +131,9 @@ async function runSession(
         ...(resume && { resume: resume.text }),
       }),
     );
+    exec.timing?.mark("turnBuildMs");
     if (turn === undefined || exec.stop) return { kind: "stopped" };
-    // Steering rows bound since the claim travel with the first turn (a conversational run only); rows that
-    // come later are pushed into the open turn (`deliverSteering`).
+    // Steering rows bound since the claim travel with the first turn; later rows are pushed (`deliverSteering`).
     const rows = await untilStop(exec, claimSteering(ctx, exec.row, ctx.deps.clock.now()));
     if (rows === undefined || exec.stop) return { kind: "stopped" };
     exec.firstRows = rows.map((r) => r.id);

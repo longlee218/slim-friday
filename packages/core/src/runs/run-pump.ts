@@ -35,6 +35,7 @@ export async function pumpRun(
     for await (const e of session.events) {
       if (exec.stop) break;
       dog.arm();
+      exec.timing?.mark("firstEventMs");
       const end = await onEvent(ctx, exec, e);
       if (end) return end;
     }
@@ -80,6 +81,7 @@ async function onEvent(
     await answerPushed(ctx, exec);
     await deliverSteering(ctx, exec, false);
   } else if (e.type === "text") {
+    exec.timing?.mark("firstTextMs");
     exec.turnOpen = true;
     exec.lastWasToolResult = false;
     show(exec.steps.closeThinking(now));
