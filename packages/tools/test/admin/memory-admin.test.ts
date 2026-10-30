@@ -49,8 +49,19 @@ test("refusals map to admin codes", async () => {
   expect(await code(admin.save(dev, "fact", "Same."))).toBe("CONFLICT");
   expect(await code(admin.save(dev, "fact", "  "))).toBe("BAD_REQUEST");
   expect(await code(admin.save(dev, "fact", "a".repeat(201)))).toBe("BAD_REQUEST");
-  expect(await code(admin.edit(dev, "nope", "x"))).toBe("NOT_FOUND");
-  expect(await code(admin.delete(dev, "nope"))).toBe("NOT_FOUND");
+});
+
+test("editing a note that changed meanwhile is a conflict", async () => {
+  const { admin } = setup();
+  await admin.save(dev, "fact", "Uses Bun.");
+  const old = (await admin.list(dev)).notes[0].id;
+  await admin.edit(dev, old, "Uses Bun 1.3.");
+  const err = await admin.edit(dev, old, "Stale text.").catch((e) => e);
+  expect(err.code).toBe("CONFLICT");
+  expect(err.message).toBe(
+    "This note changed since the list loaded. The list was reloaded; edit it again.",
+  );
+  expect(await code(admin.delete(dev, old))).toBe("CONFLICT");
 });
 
 test("rules and journal through the admin", async () => {

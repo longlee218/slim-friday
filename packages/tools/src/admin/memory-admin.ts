@@ -19,7 +19,12 @@ async function mapped(write: () => Promise<void>): Promise<void> {
     if (!(err instanceof MemoryError)) throw err;
     if (err.code === "empty" || err.code === "too_long")
       throw new AdminError("BAD_REQUEST", memoryErrorText(err), "text");
-    if (err.code === "not_found") throw new AdminError("NOT_FOUND", "note not found");
+    if (err.code === "not_found")
+      // Ids are content hashes, so a missing id means the note changed or went since the list loaded.
+      throw new AdminError(
+        "CONFLICT",
+        "This note changed since the list loaded. The list was reloaded; edit it again.",
+      );
     throw new AdminError("CONFLICT", memoryErrorText(err));
   }
 }
