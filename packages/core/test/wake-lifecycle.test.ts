@@ -140,4 +140,7 @@ test("a log that throws on run.timing does not stop the run from settling", asyn
   runtime.nth(0).emit({ type: "turn_end", costUsd: 0 });
   await flush();
   expect([...store.wakeMap.values()][0]?.status).toBe("done");
+  surface.deliver({ conversationId: "dc", text: "again" });
+  await flush();
+  expect(runtime.created).toHaveLength(2);
 });
