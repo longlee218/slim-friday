@@ -132,8 +132,8 @@ export function newRunExec(row: WakeRow, scope: SessionScope, now: number, taint
   const exec: RunExec = {
     ended,
     markEnded: () => {
-      exec.timing?.finish();
       markEnded();
+      exec.timing?.finish();
     },
     stopped,
     markStopped,

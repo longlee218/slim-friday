@@ -8,7 +8,7 @@ export type TimingMark = "openMs" | "turnBuildMs" | "firstEventMs" | "firstTextM
 export interface RunTiming {
   /** Records `name` as the time since the claim; only its first call counts. */
   mark(name: TimingMark): void;
-  /** Writes the single `run.timing` line (ids and ms only); later calls do nothing. */
+  /** Writes the single `run.timing` line (ids and ms only); later calls do nothing; a failing log is ignored. */
   finish(): void;
 }
 
@@ -29,7 +29,11 @@ export function startTiming(
     finish() {
       if (done) return;
       done = true;
-      log?.info({ event: "run.timing", wakeId, scope, ...marks }, "run.timing");
+      try {
+        log?.info({ event: "run.timing", wakeId, scope, ...marks }, "run.timing");
+      } catch {
+        // A measurement must never change how a run ends.
+      }
     },
   };
 }
