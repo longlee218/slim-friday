@@ -21,9 +21,18 @@ export function sessionRepo(db: BunSQLiteDatabase): Store["sessions"] {
         .onConflictDoUpdate({ target: sessions.botId, set })
         .run();
     },
+    // A stored value that is not a JSON object reads as no hashes (the session then gets every part once).
     async stateGet(key) {
       const raw = db.select().from(sessions).where(eq(sessions.botId, key)).get()?.stateHashes;
-      return raw ? (JSON.parse(raw) as SessionStateHashes) : undefined;
+      if (!raw) return undefined;
+      try {
+        const v: unknown = JSON.parse(raw);
+        return v && typeof v === "object" && !Array.isArray(v)
+          ? (v as SessionStateHashes)
+          : undefined;
+      } catch {
+        return undefined;
+      }
     },
     async stateSet(key, hashes) {
       db.update(sessions)

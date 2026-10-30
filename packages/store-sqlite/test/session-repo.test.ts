@@ -1,5 +1,8 @@
 import { expect, test } from "bun:test";
+import { drizzle } from "drizzle-orm/bun-sqlite";
 import { openEngineStore } from "../src/engine-store";
+import { openEngineDb } from "../src/open-engine-db";
+import { sessionRepo } from "../src/repos/session-repo";
 
 test("stateSet then stateGet returns the hashes", async () => {
   const s = openEngineStore(":memory:");
@@ -58,4 +61,14 @@ test("stateSet without a row does nothing", async () => {
   expect(await s.sessions.stateGet("ghost")).toBeUndefined();
   await s.sessions.set("ghost", "s1");
   expect(await s.sessions.stateGet("ghost")).toBeUndefined();
+});
+
+test("stateGet is undefined for a stored value that is not a JSON object", async () => {
+  const db = openEngineDb(":memory:");
+  const sessions = sessionRepo(drizzle({ client: db }));
+  await sessions.set("ann", "s1");
+  for (const bad of ["{not json", "[1,2]", "null", '"text"', "7"]) {
+    db.run("UPDATE sessions SET state_hashes = ? WHERE bot_id = 'ann'", [bad]);
+    expect(await sessions.stateGet("ann")).toBeUndefined();
+  }
 });
