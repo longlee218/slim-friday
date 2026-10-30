@@ -108,3 +108,36 @@ test("a failed delivery notice is logged instead of swallowed", async () => {
   await flush();
   expect(log.of("hub.notice_failed")[0]).toMatchObject({ level: "error" });
 });
+
+test("run.timing is logged once for a failed run", async () => {
+  const { runtime, surface, log } = makeHub();
+  surface.deliver({ conversationId: "dc", text: "hello" });
+  await flush();
+  runtime.nth(0).emit({ type: "error", message: "boom", retryable: false });
+  await flush();
+  expect(log.of("run.timing")).toHaveLength(1);
+});
+
+test("run.timing is logged once for a stopped run", async () => {
+  const { runtime, surface, log, hub } = makeHub();
+  surface.deliver({ conversationId: "dc", text: "hello" });
+  await flush();
+  expect(runtime.nth(0).stopped).toBe(false);
+  await hub.stop("editor");
+  await flush();
+  expect(log.of("run.timing")).toHaveLength(1);
+});
+
+test("a log that throws on run.timing does not stop the run from settling", async () => {
+  const { runtime, surface, store, log } = makeHub();
+  const info = log.info;
+  log.info = (o: object, msg: string) => {
+    if (msg === "run.timing") throw new Error("log down");
+    info(o, msg);
+  };
+  surface.deliver({ conversationId: "dc", text: "hello" });
+  await flush();
+  runtime.nth(0).emit({ type: "turn_end", costUsd: 0 });
+  await flush();
+  expect([...store.wakeMap.values()][0]?.status).toBe("done");
+});
