@@ -1,5 +1,6 @@
 import { MEMORY_LABEL } from "../hub/memory-label";
 import { RULES_LABEL } from "../hub/rules-label";
+import { EMPTY_SCRATCHPAD_BLOCK } from "../hub/scratchpad-block";
 import type { BotRuntimeSpec } from "../ports/agent-runtime";
 
 /** A part of the session state a bot is shown (and can go stale in a resumed session). */
@@ -86,7 +87,7 @@ export function stateHashes(parts: StateTexts): SessionStateHashes {
 
 /** One part's section of the block, headed and labelled as in the system prompt. */
 function sectionOf(part: StatePart, text: string): string {
-  if (part === "scratchpad") return text || `<scratchpad_open>\n${EMPTY}\n</scratchpad_open>`;
+  if (part === "scratchpad") return text || EMPTY_SCRATCHPAD_BLOCK;
   const { heading, label } = SECTIONS[part];
   return `## ${heading}\n${label ? `${label}\n\n` : ""}${text || EMPTY}`;
 }

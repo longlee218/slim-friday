@@ -32,6 +32,7 @@ test("an emptied part is reported as now empty", () => {
   expect(block?.changed).toEqual(["rules", "scratchpad"]);
   expect(block?.text).toContain(`## Your rules\n${RULES_LABEL}\n\n(now empty)`);
   expect(block?.text).toContain("<scratchpad_open>\n(now empty)\n</scratchpad_open>");
+  expect(block?.text).toContain("Open scratchpad items for this bot follow.");
 });
 
 test("a skipped part is never reported", () => {

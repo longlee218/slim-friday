@@ -169,6 +169,8 @@ async function memoryAfterResume(
   });
   const firstOpen = await openWith(runtime, store, "AMBER");
   const first = await ask(firstOpen.session, spent);
+  // As a run does once its turn reached the session.
+  await firstOpen.commitState();
   if (spent.usd > capUsd) return fail(`cap ${capUsd} USD passed`);
   const resumed = await openWith(runtime, store, "COBALT");
   // openRunSession falls back to a fresh session when resume throws; that would pass without testing resume.

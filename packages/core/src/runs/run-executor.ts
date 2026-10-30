@@ -22,11 +22,10 @@ import { buildRunTurn } from "./run-turn";
 import { StreamWatchdog } from "./run-watchdog";
 
 /**
- * Execute one claimed run (already `running`, lease held): one agent session turn. Count a cut when the row
- * was reclaimed from `running`, set the taint flag, show "typing" before the session opens, open (resume) the
- * scope's session, push the turn, pump its events until the turn and every background task with its follow-up
- * turn ended, close the session, then finish or apply the failure rules. A lost lease aborts the session and
- * writes no finish (the fence would refuse it anyway).
+ * Execute one claimed run (already `running`, lease held): count a cut, set the taint flag, show "typing", open
+ * (resume) the scope's session, push the turn (then store its state hashes), pump events until the turn and every
+ * background task with its follow-up turn ended, close the session, then finish or apply the failure rules. A lost
+ * lease aborts the session and writes no finish (the fence would refuse it anyway).
  */
 export async function executeRun(ctx: HubContext, row: WakeRow, lease: RunLease): Promise<void> {
   const { store, clock, surface } = ctx.deps;
@@ -144,6 +143,7 @@ async function runSession(
       rows.map((r) => r.text),
     );
     exec.session.send(withSteering(turn, rows));
+    await opened.commitState();
     return await pumpRun(ctx, exec, dog);
   } catch (err) {
     return exec.stop ? { kind: "stopped" } : { kind: "error", err };
