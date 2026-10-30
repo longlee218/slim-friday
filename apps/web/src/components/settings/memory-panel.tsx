@@ -67,10 +67,12 @@ export function MemoryPanel({ owner }: { owner: MemoryOwner }) {
     setText("");
   };
   // The owner's edit that hit a CONFLICT, held here because the note's row may be gone after the reload.
-  const [lost, setLost] = useState<{ text: string } | null>(null);
+  // It keeps the edited note's kind: a fact must not come back as a preference (group sessions see those).
+  const [lost, setLost] = useState<{ text: string; kind: MemoryKind } | null>(null);
   const addLost = async () => {
-    if (lost && (await write(() => client.memory.save({ owner, kind: addKind, text: lost.text }))))
-      setLost(null);
+    if (!lost) return;
+    const note = { owner, kind: lost.kind, text: lost.text };
+    if (await write(() => client.memory.save(note))) setLost(null);
   };
   const [bucket, id] = owner.split(":");
   return (
@@ -97,6 +99,7 @@ export function MemoryPanel({ owner }: { owner: MemoryOwner }) {
         <div className="list-panel">
           <LostNoteBanner
             text={lost.text}
+            kind={lost.kind}
             onAdd={() => void addLost()}
             onDismiss={() => setLost(null)}
           />
@@ -117,7 +120,7 @@ export function MemoryPanel({ owner }: { owner: MemoryOwner }) {
             onEdit={(t) =>
               write(
                 () => client.memory.edit({ owner, id: n.id, text: t }),
-                () => setLost({ text: t }),
+                () => setLost({ text: t, kind: n.kind }),
               )
             }
             onDelete={() => void write(() => client.memory.delete({ owner, id: n.id }))}
