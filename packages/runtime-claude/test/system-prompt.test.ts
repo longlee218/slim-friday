@@ -117,3 +117,16 @@ test("a bot with no skills, subagents or MCP servers gets no notes block", () =>
   const p = systemPromptOf(spec({ bot: { ...bot, skills: [], subagents: [], tools: [] } }), "/s");
   expect(p).not.toContain("## Skills, subagents and MCP servers");
 });
+
+test("the prompt holds no volatile computer slot text: specs that differ only in a slot or status field give the same bytes", () => {
+  const computerContext = "<computer>\nC\n</computer>";
+  const base = spec({ memory: "M", computerContext });
+  // The live slot line is in the turn (`InboundTurn.computerSlots`), so a slot field smuggled onto the spec must not reach the prompt.
+  const busy = { ...base, computerSlots: "Computer slots on this machine: 0 of 2 free" };
+  const idle = { ...base, computerSlots: "Computer slots on this machine: 2 of 2 free" };
+  const a = systemPromptOf(busy as BotRuntimeSpec, "/s");
+  expect(systemPromptOf(idle as BotRuntimeSpec, "/s")).toBe(a);
+  expect(a).toBe(systemPromptOf(base, "/s"));
+  expect(a).toContain(computerContext);
+  expect(a).not.toMatch(/slots? on this machine/i);
+});

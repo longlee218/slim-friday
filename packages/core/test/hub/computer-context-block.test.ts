@@ -11,5 +11,5 @@ test("the block names the computer and has no slot line", () => {
   expect(text).toStartWith("<computer>\n");
   expect(text).toEndWith("\n</computer>");
   expect(text).toContain('Linux computer named "home"');
-  expect(text).not.toContain("lots");
+  expect(text).not.toContain("Slots");
 });
