@@ -83,6 +83,8 @@ export const grants = sqliteTable(
 export const sessions = sqliteTable("sessions", {
   botId: text("bot_id").primaryKey(),
   sessionId: text("session_id").notNull(),
+  /** JSON `SessionStateHashes` shown to this session; null until recorded, reset with a new session id. */
+  stateHashes: text("state_hashes"),
 });
 
 /** Money spent per bot per day. */
