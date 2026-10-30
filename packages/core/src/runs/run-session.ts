@@ -43,6 +43,11 @@ export interface OpenedRunSession {
    * changed since it last saw them (its system prompt is the one it started with); unset when nothing changed.
    */
   stateChanged?: string;
+  /**
+   * Store the state hashes this session now has (and log `session.state_changed`). Call it only once the turn
+   * (with `stateChanged`) reached the session: a run cut before that resumes later and gets the block again.
+   */
+  commitState: () => Promise<void>;
 }
 
 /**
@@ -52,8 +57,9 @@ export interface OpenedRunSession {
  * not resume is cleared. A scope marked `resetPending` gets a fresh session, unless it has an open card or the run resumes a card's answer (a parked
  * approval keeps its own session until it is resolved and resumed); the mark and the stored effort are cleared then. A session that will not open
  * (workspace, MCP server, runtime start) throws `SetupError`, so the run is retried as a setup failure.
- * The hashes of the state parts are stored per session: a resumed session gets the changed parts as a
- * `<state_changed>` block; a part whose read failed is neither reported nor re-hashed.
+ * The hashes of the state parts are stored per session (by `commitState`, once the turn is delivered): a resumed
+ * session gets the changed parts as a `<state_changed>` block; a part whose read failed is neither reported nor
+ * re-hashed.
  */
 export async function openRunSession(
   d: RunSessionDeps,
@@ -144,14 +150,20 @@ export async function openRunSession(
   // A new session has every part in its system prompt; a resumed one has the prompt it started with.
   const seen = resumed ? ((await store.sessions.stateGet(scope.key)) ?? {}) : undefined;
   const block = seen && stateChangedBlock(parts, seen, skip);
-  await store.sessions.stateSet(
-    scope.key,
-    seen ? nextStateHashes(parts, seen, skip) : stateHashes(parts),
-  );
-  if (block) d.log?.info({ scope: scope.key, parts: block.changed }, "session.state_changed");
+  const hashes = seen ? nextStateHashes(parts, seen, skip) : stateHashes(parts);
+  // A failed save only sends the same block again at the next open; it never fails the delivered turn.
+  const commitState = async () => {
+    try {
+      await store.sessions.stateSet(scope.key, hashes);
+    } catch (err) {
+      d.log?.warn({ scope: scope.key, err: errText(err) }, "session.state_save_failed");
+    }
+    if (block) d.log?.info({ scope: scope.key, parts: block.changed }, "session.state_changed");
+  };
   return {
     session,
     memory: `${memory}\n${groupMemory ?? ""}`,
     ...(block && { stateChanged: block.text }),
+    commitState,
   };
 }
