@@ -38,7 +38,7 @@ export interface OpenedRunSession {
   memory: string;
   /**
    * The `<state_changed>` block for a resumed session whose memory, rules, group context, teammates or scratchpad
-   * changed since it last saw them (its system prompt is the one it started with); unset when nothing changed.
+   * changed since it last saw them (it may keep answering from its earlier state); unset when nothing changed.
    */
   stateChanged?: string;
   /**
@@ -146,7 +146,7 @@ export async function openRunSession(
     await store.scopes.clearEffort(scope.key);
   }
   const parts = stateParts(full);
-  // A new session has every part in its system prompt; a resumed one has the prompt it started with.
+  // A new session has every part in its system prompt; a resumed one may still answer from what it saw before.
   const seen = resumed ? ((await store.sessions.stateGet(scope.key)) ?? {}) : undefined;
   const block = seen && stateChangedBlock(parts, seen, skip);
   const hashes = seen ? nextStateHashes(parts, seen, skip) : stateHashes(parts);
