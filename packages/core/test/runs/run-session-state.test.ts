@@ -104,7 +104,11 @@ test("a resumed session with edited memory gets the new note in stateChanged", a
   expect(o.stateChanged).toContain("- codeword COBALT");
   expect(o.stateChanged).not.toContain("AMBER");
   expect(h.log.of("session.state_changed")).toEqual([
-    { level: "info", fields: { scope: "ann", parts: ["memory"] }, msg: "session.state_changed" },
+    {
+      level: "info",
+      fields: { scope: "ann", parts: ["memory"], chars: o.stateChanged?.length },
+      msg: "session.state_changed",
+    },
   ]);
   // The new hash is stored: the next open with the same memory sends nothing.
   expect((await h.run(h.direct)).stateChanged).toBeUndefined();
